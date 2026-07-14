@@ -1,0 +1,247 @@
+:root {
+  --paper: #faf8f3;
+  --ink: #1c2422;
+  --ink-soft: #47524e;
+  --ink-faint: #5d6a66;
+  --line: #d9d2c3;
+  --seal: #0b5d54;
+  --seal-deep: #084a43;
+  --seal-tint: #e3efe9;
+  --crit: #a4243b;
+  --crit-tint: #f8e8e8;
+  --mark: #f5d76e;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #14201d;
+    --ink: #eef0ea;
+    --ink-soft: #b9c4bd;
+    --ink-faint: #9dada5;
+    --line: #33443f;
+    --seal: #58c0ae;
+    --seal-deep: #7ad4c4;
+    --seal-tint: #1b332e;
+    --crit: #f0899b;
+    --crit-tint: #3a2027;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+body {
+  width: 380px;
+  max-height: 580px;
+  overflow-y: auto;
+  margin: 0;
+  font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.55;
+}
+:focus-visible {
+  outline: 3px solid var(--seal);
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+.hd {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1.5px solid var(--ink);
+}
+.hd h1 {
+  font-size: 16px;
+  font-weight: 800;
+  margin: 0;
+  flex: 1;
+}
+.logo {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  outline: 3px solid var(--seal);
+  outline-offset: 2px;
+}
+.conn {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1.5px solid var(--line);
+  color: var(--ink-faint);
+}
+.conn.on {
+  border-color: var(--seal);
+  color: var(--seal);
+}
+#main {
+  padding: 14px;
+}
+.target {
+  font-size: 12px;
+  color: var(--ink-faint);
+  word-break: break-all;
+  margin: 0 0 10px;
+}
+.btn {
+  display: block;
+  width: 100%;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1.5px solid var(--ink);
+  background: var(--paper);
+  color: var(--ink);
+}
+.btn-primary {
+  background: var(--seal);
+  border-color: var(--seal);
+  color: var(--paper);
+}
+.btn-primary:hover {
+  background: var(--seal-deep);
+}
+.btn[disabled] {
+  opacity: 0.6;
+  cursor: default;
+}
+.btn-save {
+  margin-top: 12px;
+  border-color: var(--seal);
+  color: var(--seal);
+  background: var(--seal-tint);
+}
+.save-msg {
+  font-size: 12px;
+  font-weight: 600;
+  margin: 6px 0 0;
+}
+.score-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 16px;
+  padding: 12px;
+  border: 1.5px solid var(--ink);
+  border-radius: 6px;
+}
+.score {
+  text-align: center;
+  min-width: 96px;
+}
+.rate {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--seal);
+}
+.pct {
+  font-size: 16px;
+  color: var(--seal);
+}
+.score-label {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.impact {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  flex: 1;
+  font-size: 12px;
+}
+.impact li {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed var(--line);
+  padding: 2px 0;
+}
+.impact b {
+  font-variant-numeric: tabular-nums;
+}
+h2 {
+  font-size: 14px;
+  font-weight: 800;
+  margin: 18px 0 8px;
+}
+.violations {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.violations li {
+  border-left: 3px solid var(--crit);
+  padding: 6px 0 6px 10px;
+  margin-bottom: 8px;
+}
+.violations .vt {
+  font-weight: 700;
+}
+.violations .vmeta {
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 800;
+  padding: 1px 6px;
+  border-radius: 3px;
+  margin-right: 4px;
+  border: 1.5px solid var(--crit);
+  color: var(--crit);
+  background: var(--crit-tint);
+}
+.hint {
+  font-size: 11px;
+  color: var(--ink-faint);
+  margin: 0 0 8px;
+}
+.manual-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.manual-list li {
+  border-bottom: 1px solid var(--line);
+  padding: 6px 0;
+}
+.manual-list label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  cursor: pointer;
+}
+.manual-list .mid {
+  color: var(--ink-faint);
+  font-variant-numeric: tabular-nums;
+  margin-right: 4px;
+}
+.manual-list input {
+  margin-top: 3px;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--seal);
+}
+.ft {
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-top: 1.5px solid var(--line);
+  font-size: 12px;
+}
+.ft a {
+  color: var(--seal);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.err {
+  color: var(--crit);
+  font-weight: 600;
+}

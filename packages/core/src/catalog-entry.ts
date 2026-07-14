@@ -8,3 +8,4 @@ export * from "./catalog/rules";
 export * from "./catalog/kwcag";
 export * from "./manual/manualChecks";
 export * from "./report/aggregate";
+export * from "./scanner/normalize";

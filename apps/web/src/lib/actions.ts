@@ -67,6 +67,16 @@ export async function deleteDomain(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+/** 도메인 정기 자동 스캔 켜기/끄기 */
+export async function toggleAutoScan(formData: FormData): Promise<void> {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  const enabled = formData.get("enabled") === "true";
+  if (!id.success) return;
+  await supabase.from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  revalidateAll();
+}
+
 /** DNS TXT(_a11ychk.호스트) 또는 홈페이지 메타태그로 소유 확인 */
 export async function verifyDomain(formData: FormData): Promise<void> {
   const { supabase, user } = await requireUser();

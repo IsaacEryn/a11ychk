@@ -58,7 +58,15 @@
     "honestyTitle": "Honest automation",
     "honestyDesc": "Automated tools can only find part of all accessibility issues. A11Y Check states its limits clearly and guides you through the checks that require a human.",
     "openSourceTitle": "Built in the open",
-    "openSourceDesc": "The audit engine and rule catalog are MIT-licensed. Contributions to the guides are welcome."
+    "openSourceDesc": "The audit engine and rule catalog are MIT-licensed. Contributions to the guides are welcome.",
+    "demo": {
+      "title": "Web Accessibility Audit Report",
+      "rate": "% automated compliance",
+      "critical": "Critical",
+      "serious": "Serious",
+      "moderate": "Moderate",
+      "manual": "Manual checks"
+    }
   },
   "login": {
     "title": "Sign in",
@@ -77,7 +85,8 @@
       "placeholder": "https://example.com",
       "submit": "Start audit",
       "submitting": "Requesting…",
-      "hint": "Only public pages can be audited. Verified domains get up to 10 pages; others get 5."
+      "hint": "Only public pages can be audited. Verified domains get up to 10 pages; others get 5.",
+      "extensionLink": "Audit pages behind login with the Chrome extension →"
     },
     "quota": {
       "title": "Remaining audits",
@@ -100,7 +109,12 @@
       "verifyDns": "Add a DNS TXT record: _a11ychk.{host} → {token}",
       "verifyMeta": "Or add to your homepage <head>: <meta name=\"a11ychk-verify\" content=\"{token}\">",
       "verifyFailed": "Verification failed. DNS/deploy changes can take a few minutes.",
-      "verifySuccess": "Domain ownership verified!"
+      "verifySuccess": "Domain ownership verified!",
+      "badgeTitle": "Accessibility badge (latest compliance rate)",
+      "badgeAlt": "A11Y Check accessibility compliance rate",
+      "autoScanOn": "Scheduled audit on",
+      "autoScanEnable": "Enable scheduled audit",
+      "autoScanDisable": "Disable scheduled audit"
     },
     "recent": {
       "title": "Recent audits",
@@ -312,6 +326,17 @@
       "partial": "Partially automated",
       "none": "Fully manual"
     }
+  },
+  "extension": {
+    "title": "Connect Chrome extension",
+    "desc": "Install the A11Y Check Chrome extension to audit pages behind login or the screen you're working on, and use the manual checklist. Connect the extension to your account on this page.",
+    "step1": "Install the 'A11Y Check' extension from the Chrome Web Store.",
+    "step2": "Keep this page open and the extension connects to your account automatically.",
+    "step3": "Once connected, use 'Save results to my account' in the extension popup.",
+    "waiting": "Waiting for the extension to connect…",
+    "connected": "Extension connected!",
+    "notInstalled": "If the extension isn't installed or recognized yet, install it and refresh this page.",
+    "account": "Account"
   },
   "errors": {
     "notFoundTitle": "Page not found",

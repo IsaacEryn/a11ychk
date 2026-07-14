@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "A11Y Check — 웹 접근성 점검",
+  "version": "0.1.0",
+  "default_locale": "ko",
+  "description": "현재 페이지를 WCAG 2.2 · KWCAG 2.2 기준으로 검사하고, 수동 점검 체크리스트를 지원합니다. 로그인 필요 페이지도 검사할 수 있습니다.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["https://www.a11ychk.com/*", "https://a11ychk.com/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "A11Y Check",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.a11ychk.com/*/extension/connect*", "https://a11ychk.com/*/extension/connect*"],
+      "js": ["content-connect.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["vendor/axe.min.js"],
+      "matches": ["<all_urls>"]
+    }
+  ]
+}

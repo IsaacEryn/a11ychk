@@ -39,21 +39,21 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         {/* 보고서 미리보기 카드 (장식) */}
         <div aria-hidden="true" className="rise rise-4 doc-card hidden rotate-1 p-6 md:block">
           <div className="flex items-center justify-between border-b-[1.5px] border-[var(--color-ink)] pb-3">
-            <span className="font-display text-sm font-bold">웹 접근성 점검 보고서</span>
+            <span className="font-display text-sm font-bold">{t("demo.title")}</span>
             <span className="rounded-full border-[1.5px] border-[var(--color-seal)] px-2 py-0.5 text-xs font-bold text-[var(--color-seal)]">
               KWCAG 2.2
             </span>
           </div>
           <div className="mt-4 flex items-end gap-3">
             <span className="font-display text-6xl font-extrabold text-[var(--color-seal)]">87.5</span>
-            <span className="pb-2 text-sm text-[var(--color-ink-faint)]">% 자동 검사 준수율</span>
+            <span className="pb-2 text-sm text-[var(--color-ink-faint)]">{t("demo.rate")}</span>
           </div>
           <ul className="mt-5 space-y-2 text-sm">
             {[
-              ["치명적", "2", "var(--color-crit)"],
-              ["심각", "5", "var(--color-crit)"],
-              ["보통", "11", "var(--color-ink-soft)"],
-              ["수동 검사", "24", "var(--color-seal)"],
+              [t("demo.critical"), "2", "var(--color-crit)"],
+              [t("demo.serious"), "5", "var(--color-crit)"],
+              [t("demo.moderate"), "11", "var(--color-ink-soft)"],
+              [t("demo.manual"), "24", "var(--color-seal)"],
             ].map(([label, n, color]) => (
               <li key={label} className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-1.5">
                 <span>{label}</span>

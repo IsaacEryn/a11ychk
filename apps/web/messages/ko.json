@@ -58,7 +58,15 @@
     "honestyTitle": "정직한 자동 검사",
     "honestyDesc": "자동 도구는 접근성 문제의 일부만 찾을 수 있습니다. A11Y Check는 자동 검사의 한계를 명시하고, 반드시 사람이 확인해야 하는 항목을 검사 방법과 함께 안내합니다.",
     "openSourceTitle": "오픈소스로 만듭니다",
-    "openSourceDesc": "검사 엔진과 규칙 카탈로그는 MIT 라이선스로 공개되어 있습니다. 한국어 개선 가이드 기여를 환영합니다."
+    "openSourceDesc": "검사 엔진과 규칙 카탈로그는 MIT 라이선스로 공개되어 있습니다. 한국어 개선 가이드 기여를 환영합니다.",
+    "demo": {
+      "title": "웹 접근성 점검 보고서",
+      "rate": "% 자동 검사 준수율",
+      "critical": "치명적",
+      "serious": "심각",
+      "moderate": "보통",
+      "manual": "수동 검사"
+    }
   },
   "login": {
     "title": "로그인",
@@ -77,7 +85,8 @@
       "placeholder": "https://example.com",
       "submit": "검사 시작",
       "submitting": "검사 요청 중…",
-      "hint": "공개된 페이지만 검사할 수 있습니다. 소유 확인된 도메인은 최대 10페이지, 그 외 5페이지를 수집합니다."
+      "hint": "공개된 페이지만 검사할 수 있습니다. 소유 확인된 도메인은 최대 10페이지, 그 외 5페이지를 수집합니다.",
+      "extensionLink": "로그인이 필요한 페이지는 크롬 확장으로 검사하세요 →"
     },
     "quota": {
       "title": "남은 검사 횟수",
@@ -100,7 +109,12 @@
       "verifyDns": "DNS TXT 레코드에 추가: _a11ychk.{host} → {token}",
       "verifyMeta": "또는 홈페이지 <head>에 추가: <meta name=\"a11ychk-verify\" content=\"{token}\">",
       "verifyFailed": "확인에 실패했습니다. 설정 반영까지 몇 분 걸릴 수 있습니다.",
-      "verifySuccess": "도메인 소유가 확인되었습니다!"
+      "verifySuccess": "도메인 소유가 확인되었습니다!",
+      "badgeTitle": "접근성 배지 (최신 검사 준수율)",
+      "badgeAlt": "A11Y Check 접근성 점검 준수율",
+      "autoScanOn": "정기 검사 켜짐",
+      "autoScanEnable": "정기 검사 켜기",
+      "autoScanDisable": "정기 검사 끄기"
     },
     "recent": {
       "title": "최근 검사",
@@ -312,6 +326,17 @@
       "partial": "일부 자동 검사",
       "none": "완전 수동"
     }
+  },
+  "extension": {
+    "title": "크롬 확장 연결",
+    "desc": "A11Y Check 크롬 확장을 설치하면 로그인이 필요한 페이지나 작업 중인 화면도 바로 검사하고, 수동 점검 체크리스트를 사용할 수 있습니다. 이 페이지에서 확장과 계정을 연결하세요.",
+    "step1": "크롬 웹스토어에서 'A11Y Check' 확장을 설치합니다.",
+    "step2": "이 페이지를 열어 두면 확장이 자동으로 계정과 연결됩니다.",
+    "step3": "연결되면 확장 팝업에서 '결과를 내 계정에 저장'을 사용할 수 있습니다.",
+    "waiting": "확장 연결을 기다리는 중…",
+    "connected": "확장이 연결되었습니다!",
+    "notInstalled": "확장이 아직 설치되지 않았거나 인식되지 않으면, 설치 후 이 페이지를 새로고침하세요.",
+    "account": "계정"
   },
   "errors": {
     "notFoundTitle": "페이지를 찾을 수 없습니다",

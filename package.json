@@ -6,7 +6,8 @@
   "license": "MIT",
   "workspaces": [
     "packages/*",
-    "apps/web"
+    "apps/web",
+    "apps/extension"
   ],
   "scripts": {
     "dev": "npm run dev -w apps/web",

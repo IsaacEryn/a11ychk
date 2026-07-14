@@ -4,7 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
-import { addDomain, deleteDomain, verifyDomain } from "@/lib/actions";
+import { addDomain, deleteDomain, toggleAutoScan, verifyDomain } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
 import { StatusBadge } from "@/components/StatusBadge";
 
@@ -19,6 +19,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   setRequestLocale(locale);
   const t = await getTranslations("dashboard");
   const format = await getFormatter();
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
   const supabase = await createClient();
   const {
@@ -60,6 +61,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
             }}
           />
           <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{t("scanForm.hint")}</p>
+          <p className="mt-2 text-sm">
+            <Link href="/extension/connect" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+              {t("scanForm.extensionLink")}
+            </Link>
+          </p>
         </section>
 
         {/* 남은 횟수 */}
@@ -128,7 +134,22 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                       {t("domains.unverified")}
                     </span>
                   )}
-                  <div className="ml-auto flex gap-2">
+                  {d.auto_scan && (
+                    <span className="rounded-full bg-[var(--color-seal-tint)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-seal)]">
+                      {t("domains.autoScanOn")}
+                    </span>
+                  )}
+                  <div className="ml-auto flex flex-wrap gap-2">
+                    <form action={toggleAutoScan}>
+                      <input type="hidden" name="id" value={d.id} />
+                      <input type="hidden" name="enabled" value={String(d.auto_scan)} />
+                      <button
+                        type="submit"
+                        className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                      >
+                        {d.auto_scan ? t("domains.autoScanDisable") : t("domains.autoScanEnable")}
+                      </button>
+                    </form>
                     {!d.verified && (
                       <form action={verifyDomain}>
                         <input type="hidden" name="id" value={d.id} />
@@ -160,6 +181,18 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         </code>
                       </li>
                     </ol>
+                  </div>
+                )}
+                {d.verified && (
+                  <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
+                    <p className="mb-2 flex items-center gap-2 font-semibold">
+                      {t("domains.badgeTitle")}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={`/api/badge/${encodeURIComponent(d.hostname)}`} alt={t("domains.badgeAlt")} height={20} />
+                    </p>
+                    <code className="block break-all rounded bg-[var(--color-paper-warm)] px-2 py-1.5 text-[0.8em]">
+                      {`<a href="${siteUrl}/ko"><img src="${siteUrl}/api/badge/${d.hostname}" alt="${t("domains.badgeAlt")}"></a>`}
+                    </code>
                   </div>
                 )}
               </li>
