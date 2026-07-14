@@ -188,7 +188,12 @@
       "title": "Profile",
       "nickname": "Nickname",
       "save": "Save",
-      "saved": "Saved."
+      "saved": "Saved.",
+      "error": {
+        "invalid": "Nickname must be 1–30 characters.",
+        "impersonation": "Nicknames that could impersonate an administrator or operator are not allowed.",
+        "failed": "Failed to save. Please try again shortly."
+      }
     },
     "usage": {
       "title": "Audit usage"

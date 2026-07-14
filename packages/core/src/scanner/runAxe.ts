@@ -63,16 +63,20 @@ export function normalizeAxeResults(url: string, raw: AxeRunResults): PageScanRe
 
 /** 이미 로드된 페이지에 axe를 주입하고 실행 */
 export async function runAxeOnPage(page: Page): Promise<PageScanResult> {
+  // axe-core 라이브러리 주입 (라이브러리 소스 문자열 — 번들러 변환 영향 없음)
   await page.evaluate(axe.source);
-  const raw = (await page.evaluate(
-    async (tags) =>
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      await (globalThis as any).axe.run(document, {
-        runOnly: { type: "tag", values: tags },
-        resultTypes: ["violations", "passes", "incomplete"],
-      }),
-    AXE_RUN_TAGS,
-  )) as AxeRunResults;
+
+  // 중요: axe.run 호출을 "함수"가 아닌 "문자열"로 넘긴다.
+  // 함수를 넘기면 Playwright가 함수 소스를 직렬화해 페이지에서 실행하는데,
+  // 프로덕션 빌드에서 minify/트랜스파일된 클로저는 번들러 헬퍼(예: `t`)를
+  // 참조해 브라우저 컨텍스트에서 "ReferenceError: t is not defined"가 난다.
+  // 문자열 표현식은 트랜스파일 대상이 아니므로 이 문제를 근본적으로 피한다.
+  const options = JSON.stringify({
+    runOnly: { type: "tag", values: AXE_RUN_TAGS },
+    resultTypes: ["violations", "passes", "incomplete"],
+  });
+  // axe.run은 Promise를 반환하며 Playwright가 자동으로 await 한다.
+  const raw = (await page.evaluate(`window.axe.run(document, ${options})`)) as AxeRunResults;
   return normalizeAxeResults(page.url(), raw);
 }
 

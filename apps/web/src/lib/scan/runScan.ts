@@ -62,6 +62,12 @@ export async function runScan(scanId: string): Promise<void> {
         // 페이지 이동 직전 재검증 (수집 시점과 DNS가 달라졌을 수 있음)
         await assertPublicHttpUrl(row.url);
 
+        // 앞선 페이지에서 chromium이 크래시(OOM 등)했다면 재실행 —
+        // 한 페이지 실패가 이후 모든 페이지로 번지는 것을 방지한다.
+        if (!browser.isConnected()) {
+          browser = await launchGuardedBrowser();
+        }
+
         const context = await browser.newContext({
           viewport: { width: 1280, height: 800 },
           locale: "ko-KR",

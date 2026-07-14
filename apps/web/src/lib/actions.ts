@@ -7,6 +7,7 @@ import { z } from "zod";
 import { guardedFetch } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { isImpersonatingNickname } from "@/lib/nickname";
 
 /** 모든 로케일 경로 캐시 무효화 (단순화를 위해 layout 단위) */
 function revalidateAll() {
@@ -116,12 +117,28 @@ export async function verifyDomain(formData: FormData): Promise<void> {
 }
 
 // ─────────────── 프로필 ───────────────
-export async function updateNickname(formData: FormData): Promise<void> {
+/** 닉네임 저장 결과 코드 (UI에서 next-intl로 번역) */
+export interface NicknameState {
+  ok?: boolean;
+  /** "invalid" | "impersonation" | "failed" */
+  error?: string;
+}
+
+export async function updateNickname(_prev: NicknameState, formData: FormData): Promise<NicknameState> {
   const { supabase, user } = await requireUser();
   const parsed = z.string().trim().min(1).max(30).safeParse(formData.get("nickname"));
-  if (!parsed.success) return;
-  await supabase.from("profiles").update({ nickname: parsed.data }).eq("id", user.id);
+  if (!parsed.success) return { error: "invalid" };
+
+  // 관리자가 아니면 운영진 사칭 닉네임 차단
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role !== "admin" && isImpersonatingNickname(parsed.data)) {
+    return { error: "impersonation" };
+  }
+
+  const { error } = await supabase.from("profiles").update({ nickname: parsed.data }).eq("id", user.id);
+  if (error) return { error: "failed" };
   revalidateAll();
+  return { ok: true };
 }
 
 // ─────────────── 문의 ───────────────

@@ -4,8 +4,8 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, resolveLimits } from "@/lib/quota";
-import { updateNickname } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
+import { NicknameForm } from "./NicknameForm";
 import type { ScanSummary } from "@a11ychk/core/catalog";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -48,28 +48,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
           <h2 id="profile-heading" className="font-display text-xl font-bold">
             {t("profile.title")}
           </h2>
-          <form action={updateNickname} className="mt-4">
-            <label htmlFor="nickname" className="mb-1 block text-sm font-semibold">
-              {t("profile.nickname")}
-            </label>
-            <div className="flex gap-2">
-              <input
-                id="nickname"
-                name="nickname"
-                type="text"
-                required
-                maxLength={30}
-                defaultValue={profile?.nickname ?? ""}
-                className="min-w-0 flex-1 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2"
-              />
-              <button
-                type="submit"
-                className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
-              >
-                {t("profile.save")}
-              </button>
-            </div>
-          </form>
+          <NicknameForm defaultNickname={profile?.nickname ?? ""} />
           <p className="mt-4 break-all text-sm text-[var(--color-ink-faint)]">{user.email}</p>
         </section>
 
