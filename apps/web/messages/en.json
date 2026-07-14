@@ -258,7 +258,8 @@
       "colBlocked": "Blocked",
       "block": "Block",
       "unblock": "Unblock",
-      "blockedBadge": "Blocked"
+      "blockedBadge": "Blocked",
+      "resetDaily": "Reset daily quota"
     },
     "inquiriesSection": {
       "title": "Inquiry management",

@@ -2,7 +2,7 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { replyInquiry, toggleBlockUser } from "@/lib/actions";
+import { replyInquiry, resetDailyQuota, toggleBlockUser } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -141,22 +141,33 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
                     {format.dateTime(new Date(u.created_at), { dateStyle: "short" })}
                   </td>
                   <td className="py-2">
-                    {u.role !== "admin" && (
-                      <form action={toggleBlockUser}>
+                    <div className="flex flex-wrap gap-2">
+                      <form action={resetDailyQuota}>
                         <input type="hidden" name="id" value={u.id} />
-                        <input type="hidden" name="blocked" value={String(u.blocked)} />
                         <button
                           type="submit"
-                          className={`rounded border-[1.5px] px-3 py-1 text-xs font-bold ${
-                            u.blocked
-                              ? "border-[var(--color-seal)] text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]"
-                              : "border-[var(--color-crit)] text-[var(--color-crit)] hover:bg-[var(--color-crit-tint)]"
-                          }`}
+                          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-xs font-bold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
                         >
-                          {u.blocked ? t("users.unblock") : t("users.block")}
+                          {t("users.resetDaily")}
                         </button>
                       </form>
-                    )}
+                      {u.role !== "admin" && (
+                        <form action={toggleBlockUser}>
+                          <input type="hidden" name="id" value={u.id} />
+                          <input type="hidden" name="blocked" value={String(u.blocked)} />
+                          <button
+                            type="submit"
+                            className={`rounded border-[1.5px] px-3 py-1 text-xs font-bold ${
+                              u.blocked
+                                ? "border-[var(--color-seal)] text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]"
+                                : "border-[var(--color-crit)] text-[var(--color-crit)] hover:bg-[var(--color-crit-tint)]"
+                            }`}
+                          >
+                            {u.blocked ? t("users.unblock") : t("users.block")}
+                          </button>
+                        </form>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

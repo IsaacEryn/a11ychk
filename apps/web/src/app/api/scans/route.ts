@@ -3,7 +3,7 @@ import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, resolveLimits } from "@/lib/quota";
+import { checkQuota, getDailyResetAt, resolveLimits } from "@/lib/quota";
 import { runScan } from "@/lib/scan/runScan";
 
 // Vercel Fluid Compute — after() 콜백(스캔 실행)까지 포함한 최대 실행 시간
@@ -59,7 +59,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "검사를 실행할 수 없는 계정입니다." }, { status: 403 });
   }
 
-  const quota = await checkQuota(admin, user.id, resolveLimits(profile.scan_limit_override));
+  const quota = await checkQuota(
+    admin,
+    user.id,
+    resolveLimits(profile.scan_limit_override),
+    getDailyResetAt(profile.scan_limit_override),
+  );
   if (!quota.ok) {
     const windowLabel = { daily: "일간", weekly: "주간", monthly: "월간" }[quota.exceeded!];
     return NextResponse.json(

@@ -34,15 +34,31 @@ export function resolveLimits(override: unknown): ScanLimits {
   return base;
 }
 
-/** 롤링 윈도우(24시간/7일/30일) 기준 사용량 확인 */
+/**
+ * 관리자가 "일 한도 초기화"를 누른 시각.
+ * scan_limit_override.dailyResetAt(ISO)에 저장한다. 이 시각 이전의 검사는
+ * 일간 사용량 집계에서 제외되어 사용자가 그 즉시 다시 검사할 수 있다.
+ */
+export function getDailyResetAt(override: unknown): string | undefined {
+  if (override && typeof override === "object") {
+    const v = (override as Record<string, unknown>).dailyResetAt;
+    if (typeof v === "string" && !Number.isNaN(Date.parse(v))) return v;
+  }
+  return undefined;
+}
+
+/** 롤링 윈도우(24시간/7일/30일) 기준 사용량 확인. dailyResetAt 이후로만 일간 집계 */
 export async function checkQuota(
   admin: SupabaseClient,
   userId: string,
   limits: ScanLimits,
+  dailyResetAt?: string,
 ): Promise<QuotaResult> {
   const now = Date.now();
+  const dailyStart = new Date(now - 24 * 3600_000).toISOString();
   const windows = {
-    daily: new Date(now - 24 * 3600_000).toISOString(),
+    // 일간은 롤링 24시간과 관리자 리셋 시각 중 더 나중(=더 짧은 기간)을 하한으로
+    daily: dailyResetAt && dailyResetAt > dailyStart ? dailyResetAt : dailyStart,
     weekly: new Date(now - 7 * 24 * 3600_000).toISOString(),
     monthly: new Date(now - 30 * 24 * 3600_000).toISOString(),
   };

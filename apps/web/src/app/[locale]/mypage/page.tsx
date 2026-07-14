@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, resolveLimits } from "@/lib/quota";
+import { checkQuota, getDailyResetAt, resolveLimits } from "@/lib/quota";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
 import type { ScanSummary } from "@a11ychk/core/catalog";
@@ -36,7 +36,12 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
-  const quota = await checkQuota(createAdminClient(), user.id, resolveLimits(profile?.scan_limit_override));
+  const quota = await checkQuota(
+    createAdminClient(),
+    user.id,
+    resolveLimits(profile?.scan_limit_override),
+    getDailyResetAt(profile?.scan_limit_override),
+  );
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">

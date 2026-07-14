@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, resolveLimits } from "@/lib/quota";
+import { checkQuota, getDailyResetAt, resolveLimits } from "@/lib/quota";
 import { addDomain, deleteDomain, verifyDomain } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -32,7 +32,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     supabase.from("scans").select("id, root_url, status, created_at, summary").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8),
   ]);
 
-  const quota = await checkQuota(createAdminClient(), user.id, resolveLimits(profile?.scan_limit_override));
+  const quota = await checkQuota(
+    createAdminClient(),
+    user.id,
+    resolveLimits(profile?.scan_limit_override),
+    getDailyResetAt(profile?.scan_limit_override),
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">

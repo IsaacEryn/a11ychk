@@ -171,6 +171,28 @@ export async function toggleBlockUser(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+/** 사용자의 일간 검사 한도 초기화 — scan_limit_override.dailyResetAt을 현재 시각으로 */
+export async function resetDailyQuota(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return;
+  const admin = createAdminClient();
+  const { data: profile } = await admin
+    .from("profiles")
+    .select("scan_limit_override")
+    .eq("id", id.data)
+    .single();
+  const current =
+    profile?.scan_limit_override && typeof profile.scan_limit_override === "object"
+      ? (profile.scan_limit_override as Record<string, unknown>)
+      : {};
+  await admin
+    .from("profiles")
+    .update({ scan_limit_override: { ...current, dailyResetAt: new Date().toISOString() } })
+    .eq("id", id.data);
+  revalidateAll();
+}
+
 export async function replyInquiry(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
