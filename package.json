@@ -1,0 +1,21 @@
+{
+  "name": "a11ychk",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A11Y Check — 웹 접근성 자동 점검 보고서 및 개선 가이드 서비스 (WCAG 2.2 + KWCAG 2.2)",
+  "license": "MIT",
+  "workspaces": [
+    "packages/*",
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "test": "npm run test -w @a11ychk/core",
+    "lint": "npm run lint -w apps/web",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

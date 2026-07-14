@@ -1,0 +1,279 @@
+{
+  "common": {
+    "appName": "A11Y Check",
+    "skipToMain": "Skip to main content",
+    "nav": {
+      "dashboard": "Dashboard",
+      "mypage": "My Page",
+      "inquiries": "Support",
+      "admin": "Admin",
+      "guide": "Manual Testing Guide"
+    },
+    "auth": {
+      "login": "Sign in",
+      "logout": "Sign out"
+    },
+    "footer": {
+      "tagline": "The fastest first step toward a web for everyone",
+      "opensource": "Open source on GitHub",
+      "standards": "Based on WCAG 2.2 · KWCAG 2.2"
+    },
+    "localeSwitcher": "Select language"
+  },
+  "landing": {
+    "heroEyebrow": "Automated web accessibility audits & remediation guides",
+    "heroTitle1": "Is your website",
+    "heroTitleMark": "open to everyone",
+    "heroTitle2": "?",
+    "heroDesc": "Enter one URL — we collect representative pages, audit them against WCAG 2.2 and KWCAG 2.2, and produce an audit report with practical remediation guides.",
+    "ctaPrimary": "Start a free audit",
+    "ctaSecondary": "Manual testing guide",
+    "featuresTitle": "From audit to remediation, in one place",
+    "features": {
+      "autoTitle": "Automated audits",
+      "autoDesc": "The axe-core engine collects representative pages and checks ~90 rules automatically.",
+      "kwcagTitle": "WCAG + KWCAG mapping",
+      "kwcagDesc": "See WCAG 2.2 and all 33 KWCAG 2.2 checkpoints together in one report.",
+      "reportTitle": "Reports & PDF export",
+      "reportDesc": "Review violations with code locations and remediation guides, then download as PDF.",
+      "manualTitle": "Manual checks, disclosed",
+      "manualDesc": "We never hide what automation can't judge — each manual checkpoint ships with testing instructions."
+    },
+    "howTitle": "How it works",
+    "how1Title": "Enter a URL",
+    "how1Desc": "Sign in and enter your site address; representative pages are collected automatically.",
+    "how2Title": "Automated audit",
+    "how2Desc": "A headless browser opens each page and audits it against WCAG · KWCAG.",
+    "how3Title": "Get the report",
+    "how3Desc": "Compliance rate, checkpoint matrix, and remediation guides — on the web and in PDF.",
+    "honestyTitle": "Honest automation",
+    "honestyDesc": "Automated tools can only find part of all accessibility issues. A11Y Check states its limits clearly and guides you through the checks that require a human.",
+    "openSourceTitle": "Built in the open",
+    "openSourceDesc": "The audit engine and rule catalog are MIT-licensed. Contributions to the guides are welcome."
+  },
+  "login": {
+    "title": "Sign in",
+    "desc": "Continue with a social account — no extra password needed.",
+    "withGoogle": "Continue with Google",
+    "withGithub": "Continue with GitHub",
+    "error": "Sign-in failed. Please try again.",
+    "privacy": "We only collect your profile (name, email) to manage your audit history."
+  },
+  "dashboard": {
+    "title": "Dashboard",
+    "greeting": "Hello, {name}",
+    "scanForm": {
+      "legend": "Start a new audit",
+      "label": "Page URL to audit",
+      "placeholder": "https://example.com",
+      "submit": "Start audit",
+      "submitting": "Requesting…",
+      "hint": "Only public pages can be audited. Verified domains get up to 10 pages; others get 5."
+    },
+    "quota": {
+      "title": "Remaining audits",
+      "daily": "Today",
+      "weekly": "This week",
+      "monthly": "This month",
+      "unit": "{used} / {limit}"
+    },
+    "domains": {
+      "title": "My domains",
+      "add": "Add domain",
+      "hostnameLabel": "Domain (e.g. example.com)",
+      "verified": "Verified",
+      "unverified": "Unverified",
+      "verify": "Verify",
+      "delete": "Delete",
+      "deleteConfirm": "Delete this domain?",
+      "empty": "No domains yet. Register and verify a domain to audit more pages per scan.",
+      "verifyTitle": "How to verify ownership",
+      "verifyDns": "Add a DNS TXT record: _a11ychk.{host} → {token}",
+      "verifyMeta": "Or add to your homepage <head>: <meta name=\"a11ychk-verify\" content=\"{token}\">",
+      "verifyFailed": "Verification failed. DNS/deploy changes can take a few minutes.",
+      "verifySuccess": "Domain ownership verified!"
+    },
+    "recent": {
+      "title": "Recent audits",
+      "empty": "No audits yet — start your first one above.",
+      "viewReport": "View report",
+      "viewProgress": "View progress"
+    },
+    "status": {
+      "queued": "Queued",
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed"
+    }
+  },
+  "scan": {
+    "title": "Audit progress",
+    "target": "Target",
+    "statusLive": "Audit status",
+    "pagesTitle": "Per-page progress",
+    "viewReport": "View report",
+    "failedTitle": "The audit failed",
+    "backToDashboard": "Back to dashboard",
+    "runningDesc": "Collecting representative pages and running the automated audit. This takes about 1–3 minutes."
+  },
+  "report": {
+    "docTitle": "Web Accessibility Audit Report",
+    "meta": {
+      "url": "Target",
+      "date": "Audited at",
+      "pages": "Pages",
+      "pagesUnit": "{count}",
+      "engine": "Engine"
+    },
+    "score": {
+      "title": "Automated compliance rate",
+      "desc": "Share of automatically checkable rules that passed. This measures automated coverage, not overall accessibility.",
+      "violations": "Violated rules",
+      "violationNodes": "Violating elements",
+      "unit": "{count}"
+    },
+    "impact": {
+      "title": "Violations by severity",
+      "critical": "Critical",
+      "serious": "Serious",
+      "moderate": "Moderate",
+      "minor": "Minor"
+    },
+    "kwcag": {
+      "title": "KWCAG 2.2 checkpoint matrix",
+      "desc": "Automated results for all 33 checkpoints of the Korean Web Content Accessibility Guidelines 2.2.",
+      "colItem": "Checkpoint",
+      "colStatus": "Status",
+      "colCount": "Violations",
+      "status": {
+        "pass": "Pass",
+        "fail": "Fail",
+        "review": "Needs review",
+        "manual": "Manual check",
+        "not-applicable": "N/A"
+      },
+      "new22": "New in 2.2"
+    },
+    "violations": {
+      "title": "Violations & remediation guides",
+      "empty": "No violations found by the automated audit. Please review the manual checkpoints.",
+      "wcag": "WCAG",
+      "kwcag": "KWCAG",
+      "level": "Level",
+      "bp": "Best practice",
+      "nodes": "{count} elements",
+      "guideTitle": "How to fix",
+      "exampleTitle": "Where it occurs",
+      "pageLabel": "Page",
+      "selectorLabel": "Selector",
+      "axeHelp": "axe-core rule docs"
+    },
+    "manual": {
+      "title": "Checkpoints requiring manual testing",
+      "desc": "These checkpoints cannot be judged automatically — a human must verify them. Use the instructions below or get a professional audit.",
+      "howToTest": "How to test"
+    },
+    "failedPages": {
+      "title": "Pages that could not be audited",
+      "desc": "The following pages were excluded (load failure, etc.)."
+    },
+    "disclaimer": "This report is produced by an automated tool (axe-core) and does not guarantee overall accessibility compliance. Automated audits detect only a subset of issues; official certification requires expert manual review.",
+    "downloadPdf": "Download PDF",
+    "print": "Print",
+    "generatedBy": "Generated by A11Y Check (a11ychk.com)."
+  },
+  "mypage": {
+    "title": "My Page",
+    "profile": {
+      "title": "Profile",
+      "nickname": "Nickname",
+      "save": "Save",
+      "saved": "Saved."
+    },
+    "usage": {
+      "title": "Audit usage"
+    },
+    "history": {
+      "title": "Audit history",
+      "empty": "No audits yet.",
+      "colUrl": "Target",
+      "colDate": "Date",
+      "colStatus": "Status",
+      "colResult": "Result",
+      "complianceShort": "Compliance {rate}%"
+    }
+  },
+  "inquiries": {
+    "title": "Support & feature requests",
+    "desc": "Tell us about problems or ideas. Replies appear on this page.",
+    "new": {
+      "legend": "New inquiry",
+      "type": "Type",
+      "typeBug": "Bug report",
+      "typeFeature": "Feature request",
+      "typeQuestion": "Question",
+      "subject": "Subject",
+      "body": "Details",
+      "submit": "Submit",
+      "success": "Your inquiry has been submitted."
+    },
+    "list": {
+      "title": "My inquiries",
+      "empty": "No inquiries yet.",
+      "status": {
+        "open": "Open",
+        "answered": "Answered",
+        "closed": "Closed"
+      },
+      "adminReply": "Reply from the team"
+    }
+  },
+  "admin": {
+    "title": "Admin console",
+    "denied": "This page is for administrators only.",
+    "stats": {
+      "users": "Total users",
+      "scans30d": "Audits (30 days)",
+      "running": "Running audits",
+      "openInquiries": "Open inquiries"
+    },
+    "scans": {
+      "title": "Audit log",
+      "colUser": "User",
+      "colUrl": "Target",
+      "colStatus": "Status",
+      "colDate": "Date",
+      "colError": "Error"
+    },
+    "users": {
+      "title": "User management",
+      "colNickname": "Nickname",
+      "colRole": "Role",
+      "colJoined": "Joined",
+      "colBlocked": "Blocked",
+      "block": "Block",
+      "unblock": "Unblock",
+      "blockedBadge": "Blocked"
+    },
+    "inquiriesSection": {
+      "title": "Inquiry management",
+      "replyLabel": "Reply",
+      "send": "Send reply",
+      "from": "From"
+    }
+  },
+  "guide": {
+    "title": "Manual testing guide",
+    "desc": "KWCAG 2.2 checkpoints that automation cannot judge, with instructions for testing them yourself. Identical to the 'manual checks' section of A11Y Check reports.",
+    "wcagRef": "WCAG reference",
+    "coverage": {
+      "partial": "Partially automated",
+      "none": "Fully manual"
+    }
+  },
+  "errors": {
+    "notFoundTitle": "Page not found",
+    "notFoundDesc": "The address may have changed or the page was removed.",
+    "goHome": "Go home"
+  }
+}

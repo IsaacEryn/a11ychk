@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# builds
+.next/
+out/
+dist/
+*.tsbuildinfo
+
+# env — 시크릿은 절대 커밋하지 않는다 (.env.example만 커밋)
+.env
+.env.*
+!.env.example
+
+# logs / os
+npm-debug.log*
+.DS_Store
+
+# local planning docs (비공개 기획 문서)
+.private/
+
+# vercel
+.vercel/
+
+# test artifacts
+coverage/
+playwright-report/

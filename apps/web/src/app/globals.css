@@ -1,0 +1,175 @@
+@import "tailwindcss";
+
+/* ═══════════ A11Y Check 디자인 토큰 ═══════════
+   "정밀 진단 문서" — 종이 위 먹색 잉크, 딥 틸 인장, 포커스 링 모티프.
+   모든 색 조합은 WCAG 2.2 AA 대비(4.5:1)를 충족한다. */
+@theme {
+  --color-paper: #faf8f3;
+  --color-paper-warm: #f3efe6;
+  --color-ink: #1c2422;
+  --color-ink-soft: #47524e;
+  --color-ink-faint: #5d6a66;
+  --color-line: #d9d2c3;
+  --color-seal: #0b5d54; /* 딥 틸 — paper 대비 7.2:1 */
+  --color-seal-deep: #084a43;
+  --color-seal-tint: #e3efe9;
+  --color-mark: #f5d76e; /* 형광펜 — 어두운 텍스트 전용 배경 */
+  --color-crit: #a4243b; /* paper 대비 6.9:1 */
+  --color-crit-tint: #f8e8e8;
+  --color-warn-tint: #f7efd8;
+  --color-pass: #0b5d54;
+
+  --font-display: "Hahmlet", "Pretendard Variable", serif;
+  --font-body: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}
+
+:root {
+  color-scheme: light;
+}
+
+/* 다크 모드 — 잉크와 종이 반전, 대비 유지 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --color-paper: #14201d;
+    --color-paper-warm: #0e1816;
+    --color-ink: #eef0ea;
+    --color-ink-soft: #b9c4bd;
+    --color-ink-faint: #9dada5;
+    --color-line: #33443f;
+    --color-seal: #58c0ae; /* dark paper 대비 7.4:1 */
+    --color-seal-deep: #7ad4c4;
+    --color-seal-tint: #1b332e;
+    --color-mark: #a98a1f;
+    --color-crit: #f0899b;
+    --color-crit-tint: #3a2027;
+    --color-warn-tint: #33301c;
+    --color-pass: #58c0ae;
+  }
+}
+
+html {
+  font-family: var(--font-body);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 포커스 링 = 브랜드 모티프. 절대 제거하지 않는다 ── */
+:focus-visible {
+  outline: 3px solid var(--color-seal);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
+::selection {
+  background: var(--color-mark);
+  color: #1c2422;
+}
+
+/* ── 스킵 링크 ── */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  z-index: 100;
+}
+.skip-link:focus {
+  left: 12px;
+  top: 12px;
+  padding: 0.75rem 1.25rem;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-weight: 700;
+  border-radius: 4px;
+}
+
+/* ── 타이포 유틸 ── */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.015em;
+}
+
+/* 형광펜 하이라이트 (검사 마커 모티프) */
+.marker {
+  background: linear-gradient(transparent 55%, var(--color-mark) 55%, var(--color-mark) 92%, transparent 92%);
+}
+
+/* 점검 문서 카드 — 오프셋 그림자 (스탬프 느낌) */
+.doc-card {
+  background: var(--color-paper);
+  border: 1.5px solid var(--color-ink);
+  box-shadow: 5px 5px 0 0 var(--color-line);
+}
+
+/* 페이지 로드 스태거 리빌 */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.rise-1 { animation-delay: 0.05s; }
+.rise-2 { animation-delay: 0.15s; }
+.rise-3 { animation-delay: 0.25s; }
+.rise-4 { animation-delay: 0.38s; }
+
+/* 진행 중 스캔 점멸 (reduced-motion 시 정지) */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+.pulse-dot {
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+/* ═══════════ 인쇄(보고서 PDF) 스타일 ═══════════ */
+@media print {
+  html, body {
+    background: #fff !important;
+    color: #111 !important;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .doc-card {
+    box-shadow: none;
+    border-color: #444;
+  }
+  .print-break-before {
+    break-before: page;
+  }
+  .print-avoid-break {
+    break-inside: avoid;
+  }
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+}

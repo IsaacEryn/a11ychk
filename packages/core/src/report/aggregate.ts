@@ -1,0 +1,89 @@
+/**
+ * 스캔 결과 집계 — 페이지별 결과를 모아 보고서 요약(ScanSummary)을 만든다.
+ * 순수 함수 — 브라우저/서버 어디서든 실행 가능.
+ */
+import type { Impact, KwcagMatrixRow, KwcagStatus, PageScanResult, ScanSummary } from "../types";
+import { getRuleEntry } from "../catalog/rules";
+import { KWCAG_ITEMS } from "../catalog/kwcag";
+
+const EMPTY_IMPACTS: Record<Impact, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+
+export function aggregateScan(pages: PageScanResult[], axeVersion: string): ScanSummary {
+  const byImpact: Record<Impact, number> = { ...EMPTY_IMPACTS };
+  const byRule: Record<string, number> = {};
+  const failedRules = new Set<string>();
+  const passedRules = new Set<string>();
+  const incompleteRules = new Set<string>();
+  let totalViolationNodes = 0;
+  let totalViolations = 0;
+
+  // 규칙별 KWCAG 매핑 캐시 (violation의 태그 기반 fallback 포함)
+  const ruleKwcag = new Map<string, string[]>();
+
+  for (const page of pages) {
+    for (const v of page.violations) {
+      totalViolations += 1;
+      totalViolationNodes += v.nodes.length;
+      byImpact[v.impact] += v.nodes.length;
+      byRule[v.ruleId] = (byRule[v.ruleId] ?? 0) + v.nodes.length;
+      failedRules.add(v.ruleId);
+      if (!ruleKwcag.has(v.ruleId)) ruleKwcag.set(v.ruleId, getRuleEntry(v.ruleId, v.tags).kwcag);
+    }
+    for (const id of page.passes) passedRules.add(id);
+    for (const id of page.incomplete) incompleteRules.add(id);
+  }
+
+  // 통과 목록에서 위반된 규칙 제거 (한 페이지라도 위반이면 위반)
+  for (const id of failedRules) passedRules.delete(id);
+  for (const id of failedRules) incompleteRules.delete(id);
+
+  // KWCAG 매트릭스
+  const kwcagFail = new Map<string, { count: number; rules: Set<string> }>();
+  for (const [ruleId, kwcagIds] of ruleKwcag) {
+    for (const kw of kwcagIds) {
+      const cur = kwcagFail.get(kw) ?? { count: 0, rules: new Set<string>() };
+      cur.count += byRule[ruleId] ?? 0;
+      cur.rules.add(ruleId);
+      kwcagFail.set(kw, cur);
+    }
+  }
+  const kwcagPass = new Set<string>();
+  for (const id of passedRules) {
+    for (const kw of getRuleEntry(id).kwcag) kwcagPass.add(kw);
+  }
+  const kwcagReview = new Set<string>();
+  for (const id of incompleteRules) {
+    for (const kw of getRuleEntry(id).kwcag) kwcagReview.add(kw);
+  }
+
+  const kwcagMatrix: KwcagMatrixRow[] = KWCAG_ITEMS.map((item) => {
+    const fail = kwcagFail.get(item.id);
+    let status: KwcagStatus;
+    if (fail) status = "fail";
+    else if (kwcagReview.has(item.id)) status = "review";
+    else if (item.autoCoverage === "none") status = "manual";
+    else if (kwcagPass.has(item.id)) status = item.autoCoverage === "full" ? "pass" : "manual"; // partial은 자동 통과여도 수동 확인 필요
+    else status = item.autoCoverage === "full" ? "not-applicable" : "manual";
+    return {
+      itemId: item.id,
+      status,
+      violationCount: fail?.count ?? 0,
+      ruleIds: [...(fail?.rules ?? [])],
+    };
+  });
+
+  const checkedRuleCount = passedRules.size + failedRules.size;
+  const complianceRate = checkedRuleCount === 0 ? 0 : Math.round((passedRules.size / checkedRuleCount) * 1000) / 10;
+
+  return {
+    pageCount: pages.length,
+    scannedPageCount: pages.length,
+    totalViolations,
+    totalViolationNodes,
+    byImpact,
+    byRule,
+    kwcagMatrix,
+    complianceRate,
+    engine: { name: "axe-core", axeVersion },
+  };
+}
