@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LocaleSwitcher } from "./LocaleSwitcher";
+import { ThemeToggle } from "./ThemeToggle";
 import { signOut } from "@/lib/actions";
 
 export async function Header() {
@@ -53,6 +54,15 @@ export async function Header() {
         </nav>
 
         <div className="flex items-center gap-3">
+          <ThemeToggle
+            label={t("theme.label")}
+            labels={{
+              system: t("theme.system"),
+              light: t("theme.light"),
+              dark: t("theme.dark"),
+              contrast: t("theme.contrast"),
+            }}
+          />
           <LocaleSwitcher label={t("localeSwitcher")} />
           {user ? (
             <form action={signOut}>

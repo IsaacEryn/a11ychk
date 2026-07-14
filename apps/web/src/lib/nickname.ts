@@ -4,17 +4,34 @@
  * 실제 관리자(role=admin)는 이 제한에서 제외한다.
  */
 const BANNED_TOKENS = [
+  // 한국어 운영진 사칭
   "관리자",
   "관리팀",
   "운영자",
   "운영팀",
   "운영진",
-  "admin", // administrator, sysadmin 등도 포함
+  "매니저",
+  "마스터",
+  "시삽",
+  "어드민",
+  "슈퍼바이저",
+  "공식",
+  "고객센터",
+  "고객지원",
+  "헬프데스크",
+  // 영어 운영진 사칭
+  "admin", // administrator, sysadmin 등 포함
+  "manager",
+  "master",
   "root",
   "superuser",
   "moderator",
+  "supervisor",
+  "staff",
   "official",
-  "공식",
+  "support",
+  "helpdesk",
+  // 서비스 사칭
   "a11ychk",
   "a11ycheck",
 ];

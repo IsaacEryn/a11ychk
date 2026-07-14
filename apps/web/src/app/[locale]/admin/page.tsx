@@ -2,8 +2,10 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { replyInquiry, resetDailyQuota, toggleBlockUser } from "@/lib/actions";
+import { bulkSetPlan, replyInquiry, resetQuota, setUserLimits, toggleBlockUser } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
+import { PLANS, PLAN_IDS, getCustomLimits, getPlan, resolveLimits } from "@/lib/quota";
+import { UserLimitsForm } from "./UserLimitsForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -44,7 +46,11 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
       .select("id, root_url, status, error, created_at, profiles(nickname)")
       .order("created_at", { ascending: false })
       .limit(30),
-    admin.from("profiles").select("id, nickname, role, blocked, created_at").order("created_at", { ascending: false }).limit(100),
+    admin
+      .from("profiles")
+      .select("id, nickname, role, blocked, created_at, scan_limit_override")
+      .order("created_at", { ascending: false })
+      .limit(100),
     admin
       .from("inquiries")
       .select("id, type, title, body, status, admin_reply, created_at, profiles(nickname)")
@@ -114,66 +120,123 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
         <h2 id="admin-users-heading" className="font-display text-2xl font-bold">
           {t("users.title")}
         </h2>
-        <div className="mt-4 overflow-x-auto">
-          <table className="w-full border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
-            <caption className="sr-only">{t("users.title")}</caption>
-            <thead>
-              <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
-                <th scope="col" className="py-2 pr-3 font-bold">{t("users.colNickname")}</th>
-                <th scope="col" className="py-2 pr-3 font-bold">{t("users.colRole")}</th>
-                <th scope="col" className="py-2 pr-3 font-bold">{t("users.colJoined")}</th>
-                <th scope="col" className="py-2 font-bold">{t("users.colBlocked")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(allUsers.data ?? []).map((u) => (
-                <tr key={u.id} className="border-b border-[var(--color-line)]">
-                  <td className="py-2 pr-3 font-medium">
-                    {u.nickname}
-                    {u.blocked && (
-                      <span className="ml-2 rounded-sm bg-[var(--color-crit-tint)] px-1.5 py-0.5 text-xs font-bold text-[var(--color-crit)]">
-                        {t("users.blockedBadge")}
-                      </span>
-                    )}
-                  </td>
-                  <td className="py-2 pr-3">{u.role}</td>
-                  <td className="whitespace-nowrap py-2 pr-3 tabular-nums text-[var(--color-ink-faint)]">
-                    {format.dateTime(new Date(u.created_at), { dateStyle: "short" })}
-                  </td>
-                  <td className="py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <form action={resetDailyQuota}>
-                        <input type="hidden" name="id" value={u.id} />
-                        <button
-                          type="submit"
-                          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-xs font-bold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
-                        >
-                          {t("users.resetDaily")}
-                        </button>
-                      </form>
-                      {u.role !== "admin" && (
-                        <form action={toggleBlockUser}>
-                          <input type="hidden" name="id" value={u.id} />
-                          <input type="hidden" name="blocked" value={String(u.blocked)} />
-                          <button
-                            type="submit"
-                            className={`rounded border-[1.5px] px-3 py-1 text-xs font-bold ${
-                              u.blocked
-                                ? "border-[var(--color-seal)] text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]"
-                                : "border-[var(--color-crit)] text-[var(--color-crit)] hover:bg-[var(--color-crit-tint)]"
-                            }`}
-                          >
-                            {u.blocked ? t("users.unblock") : t("users.block")}
-                          </button>
-                        </form>
-                      )}
-                    </div>
-                  </td>
-                </tr>
+
+        {/* 요금제(그룹) 일괄 배정 */}
+        <form action={bulkSetPlan} className="mt-4 flex flex-wrap items-end gap-2 border-[1.5px] border-dashed border-[var(--color-line)] p-4">
+          <div>
+            <label htmlFor="bulk-plan" className="mb-1 block text-sm font-semibold">
+              {t("users.bulkPlanLabel")}
+            </label>
+            <select
+              id="bulk-plan"
+              name="plan"
+              defaultValue="free"
+              className="rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm"
+            >
+              {PLAN_IDS.map((p) => (
+                <option key={p} value={p}>
+                  {t(`users.plans.${p}`)} ({PLANS[p].daily}/{PLANS[p].weekly}/{PLANS[p].monthly})
+                </option>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </select>
+          </div>
+          <button
+            type="submit"
+            className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 text-sm font-bold hover:bg-[var(--color-paper-warm)]"
+          >
+            {t("users.bulkApply")}
+          </button>
+          <p className="w-full text-xs text-[var(--color-ink-faint)]">{t("users.bulkHint")}</p>
+        </form>
+
+        <ul className="mt-5 space-y-4">
+          {(allUsers.data ?? []).map((u) => {
+            const plan = getPlan(u.scan_limit_override);
+            const limits = resolveLimits(u.scan_limit_override);
+            return (
+              <li key={u.id} className="doc-card p-5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-display text-lg font-bold">{u.nickname}</span>
+                  <span className="rounded-full bg-[var(--color-paper-warm)] px-2 py-0.5 text-xs font-semibold text-[var(--color-ink-soft)]">
+                    {u.role}
+                  </span>
+                  {u.blocked && (
+                    <span className="rounded-full bg-[var(--color-crit-tint)] px-2 py-0.5 text-xs font-bold text-[var(--color-crit)]">
+                      {t("users.blockedBadge")}
+                    </span>
+                  )}
+                  <span className="ml-auto text-xs tabular-nums text-[var(--color-ink-faint)]">
+                    {t("users.colJoined")}: {format.dateTime(new Date(u.created_at), { dateStyle: "short" })}
+                  </span>
+                </div>
+
+                {/* 요금제·개별 한도 설정 */}
+                <UserLimitsForm
+                  action={setUserLimits}
+                  userId={u.id}
+                  currentPlan={plan}
+                  custom={getCustomLimits(u.scan_limit_override)}
+                  effective={limits}
+                  planOptions={PLAN_IDS.map((p) => ({ id: p, label: t(`users.plans.${p}`), limits: PLANS[p] }))}
+                  labels={{
+                    plan: t("users.planLabel"),
+                    daily: tDash("quota.daily"),
+                    weekly: tDash("quota.weekly"),
+                    monthly: tDash("quota.monthly"),
+                    save: t("users.saveLimits"),
+                    customHint: t("users.customHint"),
+                    effective: t("users.effective"),
+                  }}
+                />
+
+                {/* 초기화 · 차단 */}
+                <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-dashed border-[var(--color-line)] pt-3">
+                  <form action={resetQuota} className="flex items-end gap-2">
+                    <input type="hidden" name="id" value={u.id} />
+                    <div>
+                      <label htmlFor={`scope-${u.id}`} className="mb-1 block text-xs font-semibold">
+                        {t("users.resetScopeLabel")}
+                      </label>
+                      <select
+                        id={`scope-${u.id}`}
+                        name="scope"
+                        defaultValue="all"
+                        className="rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-xs"
+                      >
+                        <option value="all">{t("users.resetScope.all")}</option>
+                        <option value="daily">{t("users.resetScope.daily")}</option>
+                        <option value="weekly">{t("users.resetScope.weekly")}</option>
+                        <option value="monthly">{t("users.resetScope.monthly")}</option>
+                      </select>
+                    </div>
+                    <button
+                      type="submit"
+                      className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-xs font-bold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                    >
+                      {t("users.resetApply")}
+                    </button>
+                  </form>
+                  {u.role !== "admin" && (
+                    <form action={toggleBlockUser} className="ml-auto">
+                      <input type="hidden" name="id" value={u.id} />
+                      <input type="hidden" name="blocked" value={String(u.blocked)} />
+                      <button
+                        type="submit"
+                        className={`rounded border-[1.5px] px-3 py-1.5 text-xs font-bold ${
+                          u.blocked
+                            ? "border-[var(--color-seal)] text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]"
+                            : "border-[var(--color-crit)] text-[var(--color-crit)] hover:bg-[var(--color-crit-tint)]"
+                        }`}
+                      >
+                        {u.blocked ? t("users.unblock") : t("users.block")}
+                      </button>
+                    </form>
+                  )}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {/* 문의 관리 */}

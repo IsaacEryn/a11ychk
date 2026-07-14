@@ -3,7 +3,7 @@ import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getDailyResetAt, resolveLimits } from "@/lib/quota";
+import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { runScan } from "@/lib/scan/runScan";
 
 // Vercel Fluid Compute — after() 콜백(스캔 실행)까지 포함한 최대 실행 시간
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     admin,
     user.id,
     resolveLimits(profile.scan_limit_override),
-    getDailyResetAt(profile.scan_limit_override),
+    getResets(profile.scan_limit_override),
   );
   if (!quota.ok) {
     const windowLabel = { daily: "일간", weekly: "주간", monthly: "월간" }[quota.exceeded!];

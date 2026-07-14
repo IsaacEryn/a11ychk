@@ -18,7 +18,14 @@
       "opensource": "Open source on GitHub",
       "standards": "Based on WCAG 2.2 · KWCAG 2.2"
     },
-    "localeSwitcher": "Select language"
+    "localeSwitcher": "Select language",
+    "theme": {
+      "label": "Display theme",
+      "system": "System",
+      "light": "Light",
+      "dark": "Dark",
+      "contrast": "High contrast"
+    }
   },
   "landing": {
     "heroEyebrow": "Automated web accessibility audits & remediation guides",
@@ -175,7 +182,15 @@
     },
     "failedPages": {
       "title": "Pages that could not be audited",
-      "desc": "The following pages were excluded (load failure, etc.)."
+      "desc": "The following pages were excluded from this automated audit for the reasons below. Re-running the audit shortly usually resolves them.",
+      "reasons": {
+        "timeout": "The page did not finish loading within the time limit. This can happen with slow or heavy sites.",
+        "unreachable": "The page could not be reached. The address may have changed or the connection was temporarily unstable.",
+        "blocked": "The page could not be audited due to site policy (e.g. robots rules) or because it resolved to a private/internal address.",
+        "temporary": "A temporary error occurred during the audit. Re-running usually resolves it.",
+        "engine": "The audit engine hit a temporary problem. Please try again.",
+        "unknown": "This page could not be audited for an unknown reason. Please try again."
+      }
     },
     "disclaimer": "This report is produced by an automated tool (axe-core) and does not guarantee overall accessibility compliance. Automated audits detect only a subset of issues; official certification requires expert manual review.",
     "downloadPdf": "Download PDF",
@@ -259,7 +274,26 @@
       "block": "Block",
       "unblock": "Unblock",
       "blockedBadge": "Blocked",
-      "resetDaily": "Reset daily quota"
+      "planLabel": "Plan",
+      "plans": {
+        "free": "Free",
+        "pro": "Pro",
+        "enterprise": "Enterprise"
+      },
+      "saveLimits": "Save limits",
+      "customHint": "Leave blank to use the plan default; enter a number to set a per-user limit",
+      "effective": "Effective limits (daily/weekly/monthly)",
+      "resetScopeLabel": "Reset scope",
+      "resetScope": {
+        "all": "All (daily·weekly·monthly)",
+        "daily": "Daily",
+        "weekly": "Weekly",
+        "monthly": "Monthly"
+      },
+      "resetApply": "Reset quota",
+      "bulkPlanLabel": "Assign plan to all users",
+      "bulkApply": "Apply to all",
+      "bulkHint": "Applies the selected plan to every user. Per-user custom limits are cleared. (Group management for future monetization)"
     },
     "inquiriesSection": {
       "title": "Inquiry management",

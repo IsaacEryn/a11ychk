@@ -18,7 +18,14 @@
       "opensource": "GitHub 오픈소스",
       "standards": "WCAG 2.2 · KWCAG 2.2 기준"
     },
-    "localeSwitcher": "언어 선택"
+    "localeSwitcher": "언어 선택",
+    "theme": {
+      "label": "화면 테마",
+      "system": "시스템",
+      "light": "라이트",
+      "dark": "다크",
+      "contrast": "고대비"
+    }
   },
   "landing": {
     "heroEyebrow": "웹 접근성 자동 점검 · 개선 가이드",
@@ -175,7 +182,15 @@
     },
     "failedPages": {
       "title": "검사하지 못한 페이지",
-      "desc": "다음 페이지는 로드 실패 등으로 검사에서 제외되었습니다."
+      "desc": "다음 페이지는 아래 사유로 이번 자동 검사에서 제외되었습니다. 잠시 후 다시 검사하면 대부분 정상적으로 검사됩니다.",
+      "reasons": {
+        "timeout": "페이지가 제한 시간 안에 완전히 열리지 않았습니다. 사이트가 느리거나 로딩이 오래 걸리는 경우 발생할 수 있어요.",
+        "unreachable": "페이지에 접속하지 못했습니다. 주소가 바뀌었거나 일시적으로 접속이 원활하지 않을 수 있습니다.",
+        "blocked": "사이트 정책(robots 규칙 등) 또는 비공개/내부 주소로 확인되어 검사할 수 없었습니다.",
+        "temporary": "검사 도중 일시적인 오류가 발생했습니다. 다시 검사하면 대부분 해결됩니다.",
+        "engine": "검사 엔진에서 일시적인 문제가 발생했습니다. 다시 시도해 주세요.",
+        "unknown": "알 수 없는 이유로 이 페이지를 검사하지 못했습니다. 다시 시도해 주세요."
+      }
     },
     "disclaimer": "본 보고서는 자동 검사 도구(axe-core)의 결과로, 웹 접근성 전체 준수 여부를 보증하지 않습니다. 자동 검사는 전체 접근성 문제의 일부만 검출할 수 있으며, 공식 인증(웹 접근성 품질인증 마크 등)은 전문가의 수동 심사가 필요합니다.",
     "downloadPdf": "PDF 다운로드",
@@ -259,7 +274,26 @@
       "block": "차단",
       "unblock": "차단 해제",
       "blockedBadge": "차단됨",
-      "resetDaily": "일 한도 초기화"
+      "planLabel": "요금제",
+      "plans": {
+        "free": "무료",
+        "pro": "프로",
+        "enterprise": "엔터프라이즈"
+      },
+      "saveLimits": "한도 저장",
+      "customHint": "숫자를 비우면 요금제 기본값을 따르고, 입력하면 이 사용자만의 개별 한도가 됩니다",
+      "effective": "현재 적용 한도(일/주/월)",
+      "resetScopeLabel": "초기화 범위",
+      "resetScope": {
+        "all": "전체(일·주·월)",
+        "daily": "일간",
+        "weekly": "주간",
+        "monthly": "월간"
+      },
+      "resetApply": "한도 초기화",
+      "bulkPlanLabel": "전체 사용자 요금제 일괄 배정",
+      "bulkApply": "전체 적용",
+      "bulkHint": "선택한 요금제를 모든 사용자에게 적용합니다. 개별 한도 설정은 초기화됩니다. (유료화 대비 그룹 관리)"
     },
     "inquiriesSection": {
       "title": "문의 관리",

@@ -11,6 +11,7 @@ import {
 } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { classifyScanError } from "@/lib/scanError";
 import { verifyReportToken } from "@/lib/reportToken";
 import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
@@ -352,12 +353,16 @@ export default async function ReportPage({
             {t("failedPages.title")}
           </h2>
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("failedPages.desc")}</p>
-          <ul className="mt-3 list-disc space-y-1 pl-5 text-sm">
-            {failedPages.map((p) => (
-              <li key={p.id} className="break-all">
-                {p.url} {p.error && <span className="text-[var(--color-ink-faint)]">({p.error})</span>}
-              </li>
-            ))}
+          <ul className="mt-3 space-y-2.5">
+            {failedPages.map((p) => {
+              const reason = classifyScanError(p.error);
+              return (
+                <li key={p.id} className="border-l-[3px] border-[var(--color-line)] pl-3">
+                  <p className="break-all text-sm font-medium">{p.url}</p>
+                  <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{t(`failedPages.reasons.${reason}`)}</p>
+                </li>
+              );
+            })}
           </ul>
         </section>
       )}

@@ -3,8 +3,10 @@ import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
+import Script from "next/script";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { themeInitScript } from "@/components/ThemeToggle";
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -57,6 +59,10 @@ export default async function LocaleLayout({
         />
       </head>
       <body className="flex min-h-svh flex-col">
+        {/* 저장된 테마를 렌더 전에 적용해 깜빡임(FOUC) 방지 */}
+        <Script id="theme-init" strategy="beforeInteractive">
+          {themeInitScript}
+        </Script>
         <a href="#main" className="skip-link">
           {t("skipToMain")}
         </a>

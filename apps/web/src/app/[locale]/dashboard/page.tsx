@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getDailyResetAt, resolveLimits } from "@/lib/quota";
+import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { addDomain, deleteDomain, verifyDomain } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -36,7 +36,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     createAdminClient(),
     user.id,
     resolveLimits(profile?.scan_limit_override),
-    getDailyResetAt(profile?.scan_limit_override),
+    getResets(profile?.scan_limit_override),
   );
 
   return (
