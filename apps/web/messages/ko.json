@@ -16,7 +16,9 @@
     "footer": {
       "tagline": "모두를 위한 웹을 만드는 가장 빠른 첫걸음",
       "opensource": "GitHub 오픈소스",
-      "standards": "WCAG 2.2 · KWCAG 2.2 기준"
+      "standards": "WCAG 2.2 · KWCAG 2.2 기준",
+      "madeBy": "만든 사람",
+      "newWindow": "새 창 열림"
     },
     "localeSwitcher": "언어 선택",
     "theme": {

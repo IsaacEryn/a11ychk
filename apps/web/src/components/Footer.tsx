@@ -13,11 +13,23 @@ export async function Footer() {
           <li>{t("footer.standards")}</li>
           <li>
             <a
-              href="https://github.com/isaaceryn/a11ychk"
+              href="https://github.com/IsaacEryn/a11ychk"
               className="font-medium underline underline-offset-4 hover:text-[var(--color-ink)]"
               rel="noopener"
             >
               {t("footer.opensource")}
+            </a>
+          </li>
+          <li>
+            {t("footer.madeBy")}{" "}
+            <a
+              href="https://www.codeslog.com"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-[var(--color-ink)] underline underline-offset-4 hover:text-[var(--color-seal)]"
+            >
+              isaaceryn
+              <span className="sr-only"> ({t("footer.newWindow")})</span>
             </a>
           </li>
         </ul>

@@ -16,7 +16,9 @@
     "footer": {
       "tagline": "The fastest first step toward a web for everyone",
       "opensource": "Open source on GitHub",
-      "standards": "Based on WCAG 2.2 · KWCAG 2.2"
+      "standards": "Based on WCAG 2.2 · KWCAG 2.2",
+      "madeBy": "Made by",
+      "newWindow": "opens in a new window"
     },
     "localeSwitcher": "Select language",
     "theme": {
