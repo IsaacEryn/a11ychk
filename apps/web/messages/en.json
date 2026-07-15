@@ -86,7 +86,15 @@
     "withGithub": "Continue with GitHub",
     "error": "Sign-in failed. Please try again.",
     "privacy": "We only collect your profile (name, email) to manage your audit history.",
-    "privacyLink": "View privacy policy"
+    "privacyLink": "View privacy policy",
+    "or": "or",
+    "emailLabel": "Continue with email",
+    "emailPlaceholder": "you@example.com",
+    "sendLink": "Send sign-in link",
+    "sending": "Sending…",
+    "sent": "We sent a sign-in link to your email. Check your inbox (and spam folder).",
+    "sendFailed": "Failed to send. Please try again shortly.",
+    "errorConfirm": "The link has expired or was already used. Please request a new one."
   },
   "scanPage": {
     "title": "Run Audit",
@@ -473,6 +481,17 @@
       "labelsHint": "Check that each label clearly says what to enter.",
       "genericLinks": "Link text needing context (2.4.4)",
       "genericLinksHint": "Passes if the surrounding sentence or list clarifies the link's purpose."
+    },
+    "compare": {
+      "title": "Change since previous audit",
+      "adminOnly": "Admin preview",
+      "desc": "Compared with the audit on {date}. See the effect of your remediation work.",
+      "rate": "Compliance change",
+      "nodes": "Violating elements",
+      "resolved": "Rules resolved",
+      "new": "New violations",
+      "resolvedList": "Resolved",
+      "newList": "Newly found"
     }
   },
   "mypage": {
@@ -650,7 +669,12 @@
       "detailMonthly": "monthly {n}",
       "detailPages": "pages {n}",
       "detailPagesCleared": "page limit cleared",
-      "detailCount": "{n} users"
+      "detailCount": "{n} users",
+      "errorsTitle": "Server errors",
+      "errorsEmpty": "No errors recorded. 🎉",
+      "errorsNotMigrated": "Error log table does not exist yet. Apply supabase/migrations/0008_app_errors.sql in the Supabase SQL Editor.",
+      "colPath": "Path",
+      "colMessage": "Message"
     }
   },
   "guide": {

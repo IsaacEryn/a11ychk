@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { OAuthButtons } from "./OAuthButtons";
+import { EmailLoginForm } from "./EmailLoginForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -36,11 +37,29 @@ export default async function LoginPage({
 
         {error && (
           <p role="alert" className="mt-4 border-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] px-3 py-2 text-sm font-medium text-[var(--color-crit)]">
-            {t("error")}
+            {error === "confirm" ? t("errorConfirm") : t("error")}
           </p>
         )}
 
         <OAuthButtons locale={locale} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} />
+
+        {/* 이메일 매직링크 로그인/가입 */}
+        <div className="mt-6 flex items-center gap-3 text-xs text-[var(--color-ink-faint)]" aria-hidden="true">
+          <span className="h-px flex-1 bg-[var(--color-line)]" />
+          {t("or")}
+          <span className="h-px flex-1 bg-[var(--color-line)]" />
+        </div>
+        <EmailLoginForm
+          locale={locale}
+          labels={{
+            emailLabel: t("emailLabel"),
+            emailPlaceholder: t("emailPlaceholder"),
+            sendLink: t("sendLink"),
+            sending: t("sending"),
+            sent: t("sent"),
+            sendFailed: t("sendFailed"),
+          }}
+        />
 
         <p className="mt-6 text-xs text-[var(--color-ink-faint)]">
           {t("privacy")}{" "}

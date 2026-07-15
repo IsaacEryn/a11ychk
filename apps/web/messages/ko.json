@@ -86,7 +86,15 @@
     "withGithub": "GitHub로 계속하기",
     "error": "로그인에 실패했습니다. 다시 시도해 주세요.",
     "privacy": "로그인 시 프로필(이름, 이메일)만 수집하며 검사 이력 관리에만 사용합니다.",
-    "privacyLink": "개인정보 처리방침 보기"
+    "privacyLink": "개인정보 처리방침 보기",
+    "or": "또는",
+    "emailLabel": "이메일로 시작하기",
+    "emailPlaceholder": "you@example.com",
+    "sendLink": "인증 링크 받기",
+    "sending": "전송 중…",
+    "sent": "인증 링크를 이메일로 보냈습니다. 메일함(스팸함 포함)을 확인해 주세요.",
+    "sendFailed": "전송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    "errorConfirm": "인증 링크가 만료되었거나 이미 사용되었습니다. 다시 링크를 요청해 주세요."
   },
   "scanPage": {
     "title": "검사 수행",
@@ -473,6 +481,17 @@
       "labelsHint": "각 레이블이 무엇을 입력해야 하는지 명확히 알려주는지 확인하세요.",
       "genericLinks": "맥락 확인이 필요한 링크 텍스트 (2.4.4)",
       "genericLinksHint": "주변 문장·목록에서 링크 목적을 알 수 있으면 통과입니다."
+    },
+    "compare": {
+      "title": "이전 검사 대비 변화",
+      "adminOnly": "관리자 미리보기",
+      "desc": "{date} 검사와 비교한 결과입니다. 개선 활동의 효과를 확인하세요.",
+      "rate": "준수율 변화",
+      "nodes": "위반 요소 변화",
+      "resolved": "해결된 규칙",
+      "new": "새 위반 규칙",
+      "resolvedList": "해결됨",
+      "newList": "새로 발견"
     }
   },
   "mypage": {
@@ -650,7 +669,12 @@
       "detailMonthly": "월 {n}회",
       "detailPages": "페이지 {n}",
       "detailPagesCleared": "페이지 한도 해제",
-      "detailCount": "사용자 {n}명"
+      "detailCount": "사용자 {n}명",
+      "errorsTitle": "서버 오류",
+      "errorsEmpty": "기록된 오류가 없습니다. 🎉",
+      "errorsNotMigrated": "오류 로그 테이블이 아직 없습니다. Supabase SQL Editor에서 supabase/migrations/0008_app_errors.sql을 적용해 주세요.",
+      "colPath": "경로",
+      "colMessage": "메시지"
     }
   },
   "guide": {

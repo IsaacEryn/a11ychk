@@ -66,6 +66,7 @@ export default async function ReportPage({
   // 접근 제어: PDF 생성용 단기 토큰(스캔 1건 한정) 또는 로그인 사용자(RLS)
   let db: SupabaseClient;
   let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
+  let isAdmin = false; // 관리자 전용 미리보기 기능(전후 비교) 게이트
   if (token && verifyReportToken(id, token)) {
     db = createAdminClient();
   } else {
@@ -76,6 +77,8 @@ export default async function ReportPage({
     if (!user) redirect(`/${locale}/login`);
     db = supabase as unknown as SupabaseClient;
     canEdit = true; // RLS 통과 = 소유자 또는 관리자
+    const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+    isAdmin = me?.role === "admin";
   }
 
   // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
@@ -122,6 +125,41 @@ export default async function ReportPage({
       impact: rows[0]?.impact ?? "moderate",
     }))
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
+
+  // ── 전후 비교 (관리자 우선 공개): 같은 사용자·같은 대상의 직전 완료 검사와 비교 ──
+  interface CompareData {
+    prevDate: string;
+    rateDelta: number; // 통합(없으면 자동) 준수율 변화 %p
+    nodesDelta: number; // 위반 요소 수 변화
+    resolvedRules: string[]; // 이전엔 위반, 지금은 아님
+    newRules: string[]; // 이번에 새로 위반
+  }
+  let compare: CompareData | null = null;
+  if (isAdmin) {
+    const { data: prev } = await db
+      .from("scans")
+      .select("summary, created_at")
+      .eq("user_id", scan.user_id)
+      .eq("root_url", scan.root_url)
+      .eq("status", "done")
+      .lt("created_at", scan.created_at)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const prevSummary = (prev?.summary ?? null) as ScanSummary | null;
+    if (prev && prevSummary) {
+      const rateOf = (s: ScanSummary) => s.scores?.combined.rate ?? s.complianceRate;
+      const prevRules = Object.keys(prevSummary.byRule ?? {});
+      const curRules = Object.keys(summary.byRule ?? {});
+      compare = {
+        prevDate: prev.created_at,
+        rateDelta: Math.round((rateOf(summary) - rateOf(prevSummary)) * 10) / 10,
+        nodesDelta: summary.totalViolationNodes - prevSummary.totalViolationNodes,
+        resolvedRules: prevRules.filter((r) => !curRules.includes(r)),
+        newRules: curRules.filter((r) => !prevRules.includes(r)),
+      };
+    }
+  }
 
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
   const manualItems = getManualCheckItems();
@@ -449,6 +487,72 @@ export default async function ReportPage({
           </div>
         </div>
       </section>
+
+      {/* ─── 전후 비교 (관리자 우선 공개 — 추후 전체 공개 예정) ─── */}
+      {compare && (
+        <section
+          aria-labelledby="compare-heading"
+          className="print-avoid-break mt-6 border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] p-6"
+        >
+          <div className="flex flex-wrap items-baseline gap-x-3">
+            <h2 id="compare-heading" className="font-display text-xl font-bold">
+              {t("compare.title")}
+            </h2>
+            <span className="no-print rounded-full bg-[var(--color-paper)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
+              {t("compare.adminOnly")}
+            </span>
+          </div>
+          <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">
+            {t("compare.desc", { date: format.dateTime(new Date(compare.prevDate), { dateStyle: "medium" }) })}
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+            <div>
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t("compare.rate")}</dt>
+              <dd
+                className={`font-display text-3xl font-extrabold tabular-nums ${
+                  compare.rateDelta > 0 ? "text-[var(--color-seal)]" : compare.rateDelta < 0 ? "text-[var(--color-crit)]" : ""
+                }`}
+              >
+                {compare.rateDelta > 0 ? "+" : ""}
+                {compare.rateDelta}%p
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t("compare.nodes")}</dt>
+              <dd
+                className={`font-display text-3xl font-extrabold tabular-nums ${
+                  compare.nodesDelta < 0 ? "text-[var(--color-seal)]" : compare.nodesDelta > 0 ? "text-[var(--color-crit)]" : ""
+                }`}
+              >
+                {compare.nodesDelta > 0 ? "+" : ""}
+                {compare.nodesDelta}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t("compare.resolved")}</dt>
+              <dd className="font-display text-3xl font-extrabold tabular-nums text-[var(--color-seal)]">
+                {compare.resolvedRules.length}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t("compare.new")}</dt>
+              <dd className="font-display text-3xl font-extrabold tabular-nums">{compare.newRules.length}</dd>
+            </div>
+          </dl>
+          {compare.resolvedRules.length > 0 && (
+            <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
+              <strong>{t("compare.resolvedList")}:</strong>{" "}
+              {compare.resolvedRules.map((r) => pick(getRuleEntry(r).title, locale)).join(" · ")}
+            </p>
+          )}
+          {compare.newRules.length > 0 && (
+            <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">
+              <strong>{t("compare.newList")}:</strong>{" "}
+              {compare.newRules.map((r) => pick(getRuleEntry(r).title, locale)).join(" · ")}
+            </p>
+          )}
+        </section>
+      )}
 
       {/* ─── WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4) ─── */}
       {summary.wcagMatrix && summary.wcagMatrix.length > 0 && (
