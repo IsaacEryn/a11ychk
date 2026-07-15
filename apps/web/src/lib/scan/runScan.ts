@@ -172,7 +172,6 @@ export async function runScan(scanId: string): Promise<void> {
     if (insertError || !pageRows) throw new Error(`페이지 행 생성 실패: ${insertError?.message}`);
 
     // 3) 페이지별 스캔 (부분 실패 허용) — 구조/무작위 표본별 위반 규칙 추적(WCAG-EM 4.c)
-    browser = await launchGuardedBrowser();
     const results: PageScanResult[] = [];
     const structuredRules = new Set<string>();
     const randomRules = new Set<string>();
@@ -181,21 +180,24 @@ export async function runScan(scanId: string): Promise<void> {
       await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
       let lastError: Error | undefined;
 
-      // 실패 시 1회 재시도. 중요: 실패한 브라우저는 자원 고갈(ERR_INSUFFICIENT_RESOURCES)
-      // 상태일 수 있으므로 살아 있어도 반드시 폐기하고 새로 띄운다.
+      // 메모리 누적 방지: 페이지마다 브라우저를 새로 띄우고 끝나면 완전히 닫는다.
+      // (Hobby 2GB 한도에서 여러 페이지에 걸친 자원 누적 → ERR_INSUFFICIENT_RESOURCES 방지)
+      // 실패 시 1회 재시도 — 재시도도 깨끗한 브라우저로 실행된다.
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           await assertPublicHttpUrl(row.url);
-          if (!browser || !browser.isConnected()) {
-            browser = await launchGuardedBrowser();
+          browser = await launchGuardedBrowser();
+          try {
+            const result = await scanSinglePage(browser, row.url);
+            await persistPageResult(db, row.id, result);
+            results.push(result);
+
+            const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
+            for (const v of result.violations) ruleTarget.add(v.ruleId);
+          } finally {
+            await disposeBrowser(browser);
+            browser = null;
           }
-          const result = await scanSinglePage(browser, row.url);
-          await persistPageResult(db, row.id, result);
-          results.push(result);
-
-          const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
-          for (const v of result.violations) ruleTarget.add(v.ruleId);
-
           lastError = undefined;
           break;
         } catch (pageError) {

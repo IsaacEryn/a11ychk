@@ -12,8 +12,11 @@ export async function launchBrowser(): Promise<Browser> {
 
   if (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME) {
     const sparticuz = (await import("@sparticuz/chromium")).default;
+    // 그래픽 스택(WebGL 등) 비활성화 — 접근성 검사에 불필요하고 메모리를 크게 절약.
+    // Hobby 플랜의 2GB 한도 내에서 자원 고갈(ERR_INSUFFICIENT_RESOURCES)을 줄인다.
+    sparticuz.setGraphicsMode = false;
     return chromium.launch({
-      args: sparticuz.args,
+      args: [...sparticuz.args, "--disable-gpu", "--js-flags=--max-old-space-size=512"],
       executablePath: await sparticuz.executablePath(),
       headless: true,
     });
