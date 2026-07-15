@@ -21,6 +21,11 @@ export async function Footer() {
                 {t("footer.privacy")}
               </Link>
             </li>
+            <li>
+              <Link href="/impact" className={legalLinkCls}>
+                {t("footer.impact")}
+              </Link>
+            </li>
           </ul>
         </div>
         <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">

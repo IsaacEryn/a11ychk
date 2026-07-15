@@ -1,6 +1,14 @@
 # A11Y Check (a11ychk)
 
+[![CI](https://github.com/IsaacEryn/a11ychk/actions/workflows/ci.yml/badge.svg)](https://github.com/IsaacEryn/a11ychk/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-1a7f6e.svg)](LICENSE)
+[![WCAG 2.2](https://img.shields.io/badge/WCAG-2.2%20A%2FAA-1a7f6e.svg)](https://www.w3.org/TR/WCAG22/)
+[![KWCAG 2.2](https://img.shields.io/badge/KWCAG-2.2%20(33%ED%95%AD%EB%AA%A9)-1a7f6e.svg)](https://www.wa.or.kr/)
+
 **[a11ychk.com](https://a11ychk.com)** — 웹 접근성 자동 점검 보고서 · 개선 가이드 서비스
+
+*Open-source web accessibility auditing with WCAG 2.2 + KWCAG 2.2 (Korean guidelines) mapping
+and Korean-language remediation guides. [Impact metrics →](https://a11ychk.com/ko/impact)*
 
 URL 하나로 대표 페이지들을 수집해 **WCAG 2.2 + KWCAG 2.2(한국형 웹 콘텐츠 접근성 지침)** 기준으로
 자동 점검하고, 한국어 개선 가이드가 담긴 점검 보고서를 생성합니다. PDF 다운로드·인쇄를 지원하며,
@@ -58,6 +66,7 @@ npm run typecheck && npm run lint
 ## 기여
 
 규칙 카탈로그(`packages/core/src/catalog/`)의 한국어 개선 가이드 보강 PR을 가장 환영합니다.
+코드가 아니어도 매핑 교정·가이드 개선·새 규칙 제안 모두 기여입니다 — [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
 
 ## 라이선스
 

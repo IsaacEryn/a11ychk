@@ -26,7 +26,8 @@
       "madeBy": "Made by",
       "newWindow": "opens in a new window",
       "terms": "Terms of Service",
-      "privacy": "Privacy Policy"
+      "privacy": "Privacy Policy",
+      "impact": "Impact"
     },
     "localeSwitcher": "Select language",
     "theme": {
@@ -725,5 +726,34 @@
     "openDesc": "The audit engine, WCAG/KWCAG mapping catalog, and remediation guides are all MIT-licensed. Anyone can verify and contribute.",
     "ctaScan": "Start an audit",
     "ctaContact": "Contact us"
+  },
+  "impact": {
+    "eyebrow": "Transparency metrics",
+    "title": "The impact of A11Y Check",
+    "desc": "A11Y Check is an open-source service run for the public good of web accessibility. We publish aggregate metrics of the change it creates — no individual site or user data is included.",
+    "stats": {
+      "sites": "Sites audited",
+      "scans": "Audits completed",
+      "pages": "Pages audited",
+      "findings": "Violations found"
+    },
+    "improve": {
+      "title": "Verified improvements",
+      "desc": "When a site is re-audited with fewer violations or a higher compliance rate than its first audit, we count it as a verified improvement.",
+      "rescanned": "Sites re-audited",
+      "improved": "Sites improved",
+      "avgGain": "Avg. compliance gain"
+    },
+    "recent": {
+      "title": "Audits in the last 30 days",
+      "unit": "Completed audits"
+    },
+    "oss": {
+      "title": "Open source",
+      "desc": "The audit engine and the full Korean-language KWCAG 2.2 rule catalog are MIT-licensed. Anyone can verify and contribute.",
+      "link": "View on GitHub →"
+    },
+    "note": "Metrics refresh hourly (last computed: {date}). Compliance rates cover the automated scope only — automated tools find part of all accessibility issues.",
+    "cta": "Audit your site"
   }
 }
