@@ -99,7 +99,9 @@
     "manualPlaceholder": "https://example.com/\nhttps://example.com/about\nhttps://example.com/contact",
     "manualCount": "{count} / {max} pages",
     "manualOriginHint": "Only pages on the same domain as the audit URL are allowed; extra lines beyond the limit are dropped.",
-    "accessCheckLink": "Does the site block bots? Check auditability →"
+    "accessCheckLink": "Does the site block bots? Check auditability →",
+    "manualOverLimit": "You entered more pages than this domain's limit ({max}). Please reduce to {max} or fewer.",
+    "manualVerifyHint": "Verifying domain ownership raises the limit to {verified} pages."
   },
   "accessCheck": {
     "title": "Bot-block checker",

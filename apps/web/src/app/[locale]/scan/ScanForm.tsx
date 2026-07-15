@@ -22,9 +22,21 @@ export interface ScanFormLabels {
   manualPlaceholder: string;
   manualCount: string; // "{count} / {max}"
   manualOriginHint: string;
+  manualOverLimit: string; // "{max}"
+  manualVerifyHint: string; // "{verified}"
 }
 
-export function ScanForm({ maxPages, labels }: { maxPages: number; labels: ScanFormLabels }) {
+export function ScanForm({
+  verifiedSize,
+  unverifiedSize,
+  verifiedHostnames,
+  labels,
+}: {
+  verifiedSize: number;
+  unverifiedSize: number;
+  verifiedHostnames: string[];
+  labels: ScanFormLabels;
+}) {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<"auto" | "manual">("auto");
@@ -42,6 +54,16 @@ export function ScanForm({ maxPages, labels }: { maxPages: number; labels: ScanF
         .filter(Boolean),
     [pagesText],
   );
+
+  // 입력한 URL의 도메인이 소유 확인된 도메인이면 더 큰 한도 적용
+  const maxPages = useMemo(() => {
+    try {
+      const host = new URL(url).hostname.toLowerCase();
+      return verifiedHostnames.includes(host) ? verifiedSize : unverifiedSize;
+    } catch {
+      return unverifiedSize;
+    }
+  }, [url, verifiedHostnames, verifiedSize, unverifiedSize]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +113,7 @@ export function ScanForm({ maxPages, labels }: { maxPages: number; labels: ScanF
         />
         <button
           type="submit"
-          disabled={submitting || (mode === "manual" && manualPages.length === 0)}
+          disabled={submitting || (mode === "manual" && (manualPages.length === 0 || overLimit))}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] disabled:opacity-60"
         >
           {submitting ? labels.submitting : labels.submit}
@@ -163,6 +185,12 @@ export function ScanForm({ maxPages, labels }: { maxPages: number; labels: ScanF
           <p id="manual-pages-hint" className="mt-1 text-xs text-[var(--color-ink-faint)]">
             {labels.manualOriginHint}
           </p>
+          {overLimit && (
+            <p role="alert" className="mt-1.5 text-xs font-semibold text-[var(--color-crit)]">
+              {labels.manualOverLimit.replace("{max}", String(maxPages))}
+              {maxPages < verifiedSize && ` ${labels.manualVerifyHint.replace("{verified}", String(verifiedSize))}`}
+            </p>
+          )}
         </div>
       )}
 

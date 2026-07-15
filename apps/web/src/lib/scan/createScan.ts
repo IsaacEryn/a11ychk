@@ -6,12 +6,22 @@ import { getPlansActive } from "@/lib/appSettings";
 
 export type CreateScanResult = { ok: true; id: string } | { ok: false; status: number; error: string };
 
+interface CreateScanOptions {
+  /** true면 직접 입력 표본이 한도를 초과할 때 잘라내지 않고 오류를 반환 (신규 검사) */
+  strictManualLimit?: boolean;
+}
+
 /**
  * 스캔 생성 공통 정책 — 신규 검사와 동일 조건 재검사가 공유한다.
  * 계정 상태·한도·동시 실행을 검증하고 scans 행(queued)을 만든다.
  * (호출자는 성공 시 after(() => runScan(id))로 실행을 예약할 것)
  */
-export async function createScanForUser(userId: string, url: URL, scope: EvaluationScope): Promise<CreateScanResult> {
+export async function createScanForUser(
+  userId: string,
+  url: URL,
+  scope: EvaluationScope,
+  options: CreateScanOptions = {},
+): Promise<CreateScanResult> {
   const admin = createAdminClient();
 
   // 계정 상태·한도
@@ -63,6 +73,18 @@ export async function createScanForUser(userId: string, url: URL, scope: Evaluat
     verified: domain?.verified ?? false,
     plansActive,
   });
+
+  // 직접 입력 표본이 한도를 초과하면: 신규 검사는 명확히 거부, 재검사는 조용히 절단
+  if (options.strictManualLimit && scope.manualPages && scope.manualPages.length > pageLimit) {
+    const verifyHint = domain?.verified
+      ? ""
+      : " 도메인 소유를 확인하면 더 많은 페이지를 검사할 수 있습니다.";
+    return {
+      ok: false,
+      status: 400,
+      error: `직접 입력한 페이지가 ${scope.manualPages.length}개인데, 이 도메인의 검사 한도는 ${pageLimit}페이지입니다.${verifyHint}`,
+    };
+  }
 
   const finalScope: EvaluationScope = {
     ...scope,

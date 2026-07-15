@@ -25,11 +25,10 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/login`);
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("scan_limit_override")
-    .eq("id", user.id)
-    .single();
+  const [{ data: profile }, { data: verifiedDomains }] = await Promise.all([
+    supabase.from("profiles").select("scan_limit_override").eq("id", user.id).single(),
+    supabase.from("domains").select("hostname").eq("user_id", user.id).eq("verified", true),
+  ]);
 
   const admin = createAdminClient();
   const plansActive = await getPlansActive(admin);
@@ -39,8 +38,10 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
     resolveLimits(profile?.scan_limit_override, plansActive),
     getResets(profile?.scan_limit_override),
   );
-  // 직접 입력 상한 = 소유 확인 도메인 기준 최대 표본 크기
-  const maxPages = getSampleSize({ override: profile?.scan_limit_override, verified: true, plansActive });
+  // 직접 입력 상한 — 소유 확인 여부에 따라 다르므로 두 값을 모두 넘겨 폼이 도메인별로 판단
+  const verifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: true, plansActive });
+  const unverifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive });
+  const verifiedHostnames = (verifiedDomains ?? []).map((d) => d.hostname);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -52,7 +53,9 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
           {tDash("scanForm.legend")}
         </h2>
         <ScanForm
-          maxPages={maxPages}
+          verifiedSize={verifiedSize}
+          unverifiedSize={unverifiedSize}
+          verifiedHostnames={verifiedHostnames}
           labels={{
             label: tDash("scanForm.label"),
             placeholder: tDash("scanForm.placeholder"),
@@ -72,6 +75,8 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
             manualPlaceholder: t("manualPlaceholder"),
             manualCount: t("manualCount"),
             manualOriginHint: t("manualOriginHint"),
+            manualOverLimit: t("manualOverLimit"),
+            manualVerifyHint: t("manualVerifyHint"),
           }}
         />
         <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{tDash("scanForm.hint")}</p>

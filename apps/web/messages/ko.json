@@ -99,7 +99,9 @@
     "manualPlaceholder": "https://example.com/\nhttps://example.com/about\nhttps://example.com/contact",
     "manualCount": "{count} / {max}페이지",
     "manualOriginHint": "위 검사 주소와 같은 도메인의 페이지만 검사할 수 있으며, 초과분은 한도까지만 검사됩니다.",
-    "accessCheckLink": "사이트가 봇을 차단하나요? 검사 가능 여부 진단 →"
+    "accessCheckLink": "사이트가 봇을 차단하나요? 검사 가능 여부 진단 →",
+    "manualOverLimit": "입력한 페이지가 이 도메인의 검사 한도({max}페이지)를 초과했습니다. {max}페이지 이하로 줄여 주세요.",
+    "manualVerifyHint": "도메인 소유를 확인하면 최대 {verified}페이지까지 가능합니다."
   },
   "accessCheck": {
     "title": "봇 차단 검증",

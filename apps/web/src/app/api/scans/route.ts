@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     notes: parsed.data.scope?.notes,
   };
 
-  const result = await createScanForUser(user.id, url, scope);
+  const result = await createScanForUser(user.id, url, scope, { strictManualLimit: true });
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
