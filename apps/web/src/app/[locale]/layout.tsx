@@ -45,7 +45,9 @@ export default async function LocaleLayout({
   const t = await getTranslations({ locale, namespace: "common" });
 
   return (
-    <html lang={locale}>
+    // suppressHydrationWarning: 테마 초기화 스크립트가 hydration 전에 data-theme를
+    // 설정하므로 html 속성 불일치 경고를 억제한다 (theme attribute 표준 패턴)
+    <html lang={locale} suppressHydrationWarning>
       <head>
         <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
         <link

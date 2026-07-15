@@ -6,11 +6,15 @@ import {
   aggregateScan,
   assertPublicHttpUrl,
   buildSample,
+  categorizePage,
+  detectTechnologies,
   guardedFetch,
   isPrivateAddress,
+  normalizeUrl,
   runAxeOnPage,
   type EvaluationScope,
   type PageScanResult,
+  type SampleResult,
   type SampleSummary,
   type WcagLevel,
 } from "@a11ychk/core";
@@ -45,11 +49,34 @@ export async function runScan(scanId: string): Promise<void> {
 
   let browser: Browser | null = null;
   try {
-    // 1) WCAG-EM Step 2·3 — 탐색 + 대표 표본 구성 (구조/무작위 태깅, 기술 감지)
-    const sample = await buildSample(scan.root_url, {
-      maxPages: scan.page_limit,
-      fetcher: (u) => guardedFetch(u),
-    });
+    // 1) WCAG-EM Step 2·3 — 표본 구성
+    //    점검자가 직접 페이지를 지정했으면 그 목록을, 아니면 자동 수집(buildSample)
+    let sample: SampleResult;
+    if (scope?.manualPages && scope.manualPages.length > 0) {
+      let technologies = ["HTML"];
+      try {
+        const res = await guardedFetch(scan.root_url);
+        if (res.ok) technologies = detectTechnologies((await res.text()).slice(0, 3_000_000));
+      } catch {
+        // 기술 감지 실패해도 검사는 진행
+      }
+      const rootNorm = normalizeUrl(scan.root_url);
+      sample = {
+        pages: scope.manualPages.map((u) => ({
+          url: u,
+          category: categorizePage(u, u === rootNorm),
+          sampleType: "structured" as const,
+        })),
+        technologies,
+        sampleMethod: `점검자 직접 입력 표본 ${scope.manualPages.length}개 (WCAG-EM 3.a 구조 표본)`,
+        source: "root-only",
+      };
+    } else {
+      sample = await buildSample(scan.root_url, {
+        maxPages: scan.page_limit,
+        fetcher: (u) => guardedFetch(u),
+      });
+    }
 
     // 2) 페이지 행 생성 (표본 유형·분류 기록)
     const { data: pageRows, error: insertError } = await db
@@ -165,6 +192,7 @@ export async function runScan(scanId: string): Promise<void> {
     const summary = aggregateScan(results, AXE_VERSION, {
       conformanceTarget,
       sample: sampleSummary,
+      plannedPageCount: sample.pages.length,
     });
     await db
       .from("scans")

@@ -9,6 +9,9 @@ import {
   getRuleEntry,
   type EvaluationScope,
   type Impact,
+  type PageCategory,
+  type ReportMeta,
+  type SampleType,
   type ScanSummary,
   type WcagOutcome,
 } from "@a11ychk/core/catalog";
@@ -18,6 +21,8 @@ import { classifyScanError } from "@/lib/scanError";
 import { verifyReportToken } from "@/lib/reportToken";
 import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
+import { ReviewCell, type ReviewValue } from "./ReviewCell";
+import { ReportMetaForm } from "./ReportMetaForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
@@ -57,6 +62,7 @@ export default async function ReportPage({
 
   // 접근 제어: PDF 생성용 단기 토큰(스캔 1건 한정) 또는 로그인 사용자(RLS)
   let db: SupabaseClient;
+  let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
   if (token && verifyReportToken(id, token)) {
     db = createAdminClient();
   } else {
@@ -66,6 +72,7 @@ export default async function ReportPage({
     } = await supabase.auth.getUser();
     if (!user) redirect(`/${locale}/login`);
     db = supabase as unknown as SupabaseClient;
+    canEdit = true; // RLS 통과 = 소유자 또는 관리자
   }
 
   // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
@@ -74,9 +81,22 @@ export default async function ReportPage({
 
   const summary = scan.summary as ScanSummary;
   const scope = (scan.scope ?? null) as EvaluationScope | null;
+  const meta = (scan.report_meta ?? null) as ReportMeta | null;
+
+  // 점검자 판정 (migration 0004 전에는 테이블이 없어 실패 → 빈 목록으로 진행)
+  const { data: reviewRows } = await db
+    .from("scan_reviews")
+    .select("standard, item_id, outcome, note")
+    .eq("scan_id", id);
+  const wcagReviews = new Map<string, ReviewValue>();
+  const kwcagReviews = new Map<string, ReviewValue>();
+  for (const r of reviewRows ?? []) {
+    const target = r.standard === "wcag" ? wcagReviews : kwcagReviews;
+    target.set(r.item_id, { outcome: r.outcome, note: r.note });
+  }
 
   const [{ data: pages }, { data: findings }] = await Promise.all([
-    db.from("scan_pages").select("id, url, status, error").eq("scan_id", id).order("url"),
+    db.from("scan_pages").select("*").eq("scan_id", id).order("url"),
     db
       .from("findings")
       .select("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)")
@@ -132,6 +152,12 @@ export default async function ReportPage({
           {t("downloadEarl")}
         </a>
         <a
+          href={`/api/scans/${scan.id}/report-tool`}
+          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
+        >
+          {t("downloadReportTool")}
+        </a>
+        <a
           href={`/api/scans/${scan.id}/pdf`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
         >
@@ -139,11 +165,32 @@ export default async function ReportPage({
         </a>
       </div>
 
+      {/* ─── 보고서 정보 입력 (점검자, 화면 전용) ─── */}
+      {canEdit && <ReportMetaForm scanId={scan.id} meta={meta} />}
+
       {/* ─── 표지/메타 ─── */}
       <header className="doc-card p-8">
         <p className="text-sm font-bold tracking-widest text-[var(--color-seal)]">A11Y CHECK · a11ychk.com</p>
-        <h1 className="font-display mt-2 text-3xl font-extrabold sm:text-4xl">{t("docTitle")}</h1>
+        <h1 className="font-display mt-2 text-3xl font-extrabold sm:text-4xl">{meta?.title || t("docTitle")}</h1>
         <dl className="mt-6 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+          {meta?.siteName && (
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-bold">{t("meta.siteName")}</dt>
+              <dd>{meta.siteName}</dd>
+            </div>
+          )}
+          {meta?.evaluatorName && (
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-bold">{t("meta.evaluator")}</dt>
+              <dd>{meta.evaluatorName}</dd>
+            </div>
+          )}
+          {meta?.organization && (
+            <div className="flex gap-2">
+              <dt className="shrink-0 font-bold">{t("meta.organization")}</dt>
+              <dd>{meta.organization}</dd>
+            </div>
+          )}
           <div className="flex gap-2">
             <dt className="shrink-0 font-bold">{t("meta.url")}</dt>
             <dd className="break-all">{scan.root_url}</dd>
@@ -166,6 +213,16 @@ export default async function ReportPage({
           </div>
         </dl>
       </header>
+
+      {/* ─── Executive Summary (총평) ─── */}
+      {meta?.executiveSummary && (
+        <section aria-labelledby="exec-heading" className="print-avoid-break doc-card mt-8 p-6">
+          <h2 id="exec-heading" className="font-display text-xl font-bold">
+            {t("execSummary")}
+          </h2>
+          <p className="mt-2 whitespace-pre-wrap leading-relaxed">{meta.executiveSummary}</p>
+        </section>
+      )}
 
       {/* ─── WCAG-EM Step 1·2·3: 평가 범위 + 표본 ─── */}
       {(scope || summary.sample) && (
@@ -228,6 +285,62 @@ export default async function ReportPage({
         </section>
       )}
 
+      {/* ─── 표본 페이지 상세 (Step 3 + 검사 상태) ─── */}
+      {(pages ?? []).length > 0 && (
+        <section aria-labelledby="pages-heading" className="mt-8">
+          <h2 id="pages-heading" className="font-display text-xl font-bold">
+            {t("pages.title")}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+            {t("pages.summary", {
+              total: (pages ?? []).length,
+              done: (pages ?? []).filter((p) => p.status === "done").length,
+              failed: failedPages.length,
+            })}
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
+              <caption className="sr-only">{t("pages.title")}</caption>
+              <thead>
+                <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
+                  <th scope="col" className="py-2 pr-3 font-bold">{t("pages.colUrl")}</th>
+                  <th scope="col" className="w-24 py-2 pr-3 font-bold">{t("pages.colCategory")}</th>
+                  <th scope="col" className="w-20 py-2 pr-3 font-bold">{t("pages.colSample")}</th>
+                  <th scope="col" className="w-40 py-2 font-bold">{t("pages.colStatus")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(pages ?? []).map((p) => {
+                  const category = (p.category ?? "content") as PageCategory;
+                  const sampleType = (p.sample_type ?? "structured") as SampleType;
+                  return (
+                    <tr key={p.id} className="border-b border-[var(--color-line)] align-top">
+                      <td className="break-all py-2 pr-3">{p.url}</td>
+                      <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.category.${category}`)}</td>
+                      <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.sample.${sampleType}`)}</td>
+                      <td className="py-2">
+                        {p.status === "done" ? (
+                          <span className="font-bold text-[var(--color-pass)]">{t("pages.statusDone")}</span>
+                        ) : p.status === "failed" ? (
+                          <>
+                            <span className="font-bold text-[var(--color-crit)]">{t("pages.statusFailed")}</span>
+                            <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-ink-soft)]">
+                              {t(`failedPages.reasons.${classifyScanError(p.error)}`)}
+                            </p>
+                          </>
+                        ) : (
+                          <span className="text-[var(--color-ink-faint)]">{t("pages.statusSkipped")}</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
       {/* ─── 요약 ─── */}
       <section aria-labelledby="score-heading" className="print-avoid-break mt-8 grid gap-5 sm:grid-cols-[auto_1fr]">
         <div className="doc-card flex flex-col items-center justify-center px-10 py-8 text-center">
@@ -283,29 +396,49 @@ export default async function ReportPage({
                 <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
                   <th scope="col" className="py-2 pr-3 font-bold">{t("wcag.colSc")}</th>
                   <th scope="col" className="w-16 py-2 pr-3 font-bold">{t("wcag.colLevel")}</th>
-                  <th scope="col" className="w-28 py-2 pr-3 font-bold">{t("wcag.colOutcome")}</th>
-                  <th scope="col" className="w-16 py-2 text-right font-bold">{t("wcag.colCount")}</th>
+                  <th scope="col" className="w-32 py-2 pr-3 font-bold">{t("wcag.colOutcome")}</th>
+                  <th scope="col" className="w-14 py-2 pr-3 text-right font-bold">{t("wcag.colCount")}</th>
+                  {canEdit && (
+                    <th scope="col" className="no-print w-24 py-2 font-bold">{t("review.col")}</th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {summary.wcagMatrix.map((row) => {
                   const c = WCAG_BY_ID.get(row.scId);
                   if (!c) return null;
+                  const review = wcagReviews.get(row.scId) ?? null;
+                  const effective = (review?.outcome as WcagOutcome | undefined) ?? row.outcome;
                   return (
-                    <tr key={row.scId} className="border-b border-[var(--color-line)]">
+                    <tr key={row.scId} className="border-b border-[var(--color-line)] align-top">
                       <th scope="row" className="py-2 pr-3 text-left font-medium">
                         <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
                         {pick(c.name, locale)}
+                        {review?.note && (
+                          <p className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
+                            <strong>{t("review.noteLabel")}:</strong> {review.note}
+                          </p>
+                        )}
                       </th>
                       <td className="py-2 pr-3 text-[var(--color-ink-faint)]">{c.level}</td>
                       <td className="py-2 pr-3">
-                        <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[row.outcome]}`}>
-                          {t(`wcag.outcome.${row.outcome}`)}
+                        <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[effective]}`}>
+                          {t(`wcag.outcome.${effective}`)}
                         </span>
+                        {review && (
+                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[#1c2422]">
+                            {t("review.badge")}
+                          </span>
+                        )}
                       </td>
-                      <td className="py-2 text-right font-bold tabular-nums">
+                      <td className="py-2 pr-3 text-right font-bold tabular-nums">
                         {row.violationCount > 0 ? row.violationCount : "—"}
                       </td>
+                      {canEdit && (
+                        <td className="no-print py-2">
+                          <ReviewCell scanId={scan.id} standard="wcag" itemId={row.scId} current={review} />
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
@@ -330,20 +463,24 @@ export default async function ReportPage({
                 <th scope="col" className="py-2 pr-3 font-bold">
                   {t("kwcag.colItem")}
                 </th>
-                <th scope="col" className="w-28 py-2 pr-3 font-bold">
+                <th scope="col" className="w-32 py-2 pr-3 font-bold">
                   {t("kwcag.colStatus")}
                 </th>
-                <th scope="col" className="w-16 py-2 text-right font-bold">
+                <th scope="col" className="w-14 py-2 pr-3 text-right font-bold">
                   {t("kwcag.colCount")}
                 </th>
+                {canEdit && (
+                  <th scope="col" className="no-print w-24 py-2 font-bold">{t("review.col")}</th>
+                )}
               </tr>
             </thead>
             <tbody>
               {summary.kwcagMatrix.map((row) => {
                 const item = KWCAG_BY_ID.get(row.itemId);
                 if (!item) return null;
+                const review = kwcagReviews.get(row.itemId) ?? null;
                 return (
-                  <tr key={row.itemId} className="border-b border-[var(--color-line)]">
+                  <tr key={row.itemId} className="border-b border-[var(--color-line)] align-top">
                     <th scope="row" className="py-2 pr-3 text-left font-medium">
                       <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
                       {pick(item.name, locale)}
@@ -355,13 +492,36 @@ export default async function ReportPage({
                       <span className="ml-2 text-xs text-[var(--color-ink-faint)]">
                         {KWCAG_PRINCIPLE_LABEL[item.principle][locale === "en" ? "en" : "ko"]}
                       </span>
+                      {review?.note && (
+                        <p className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
+                          <strong>{t("review.noteLabel")}:</strong> {review.note}
+                        </p>
+                      )}
                     </th>
                     <td className="py-2 pr-3">
-                      <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${statusStyle[row.status]}`}>
-                        {t(`kwcag.status.${row.status}`)}
-                      </span>
+                      {review ? (
+                        <>
+                          <span
+                            className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[review.outcome as WcagOutcome]}`}
+                          >
+                            {t(`wcag.outcome.${review.outcome as WcagOutcome}`)}
+                          </span>
+                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[#1c2422]">
+                            {t("review.badge")}
+                          </span>
+                        </>
+                      ) : (
+                        <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${statusStyle[row.status]}`}>
+                          {t(`kwcag.status.${row.status}`)}
+                        </span>
+                      )}
                     </td>
-                    <td className="py-2 text-right font-bold tabular-nums">{row.violationCount > 0 ? row.violationCount : "—"}</td>
+                    <td className="py-2 pr-3 text-right font-bold tabular-nums">{row.violationCount > 0 ? row.violationCount : "—"}</td>
+                    {canEdit && (
+                      <td className="no-print py-2">
+                        <ReviewCell scanId={scan.id} standard="kwcag" itemId={row.itemId} current={review} />
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -468,27 +628,6 @@ export default async function ReportPage({
           ))}
         </ul>
       </section>
-
-      {/* ─── 검사 실패 페이지 ─── */}
-      {failedPages.length > 0 && (
-        <section aria-labelledby="failed-heading" className="mt-12">
-          <h2 id="failed-heading" className="font-display text-xl font-bold">
-            {t("failedPages.title")}
-          </h2>
-          <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("failedPages.desc")}</p>
-          <ul className="mt-3 space-y-2.5">
-            {failedPages.map((p) => {
-              const reason = classifyScanError(p.error);
-              return (
-                <li key={p.id} className="border-l-[3px] border-[var(--color-line)] pl-3">
-                  <p className="break-all text-sm font-medium">{p.url}</p>
-                  <p className="mt-0.5 text-sm text-[var(--color-ink-soft)]">{t(`failedPages.reasons.${reason}`)}</p>
-                </li>
-              );
-            })}
-          </ul>
-        </section>
-      )}
 
       {/* ─── WCAG-EM 적합성 진술 (Step 5.c) ─── */}
       <section aria-labelledby="statement-heading" className="print-avoid-break mt-12 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] p-6">

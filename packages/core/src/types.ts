@@ -105,7 +105,31 @@ export interface EvaluationScope {
   /** 포함/제외 URL 패턴 (범위 정의) */
   includePatterns?: string[];
   excludePatterns?: string[];
+  /** 점검자가 직접 지정한 표본 페이지 (자동 수집 대신 사용) */
+  manualPages?: string[];
   notes?: string;
+}
+
+/** 보고서 메타 정보 (scans.report_meta) — 점검자가 보고서 페이지에서 입력 */
+export interface ReportMeta {
+  /** 사이트 이름 (예: "코드슬로그") */
+  siteName?: string;
+  /** 의뢰 기관/조직 (WCAG-EM commissioner) */
+  organization?: string;
+  /** 평가자 이름 (dct:creator) */
+  evaluatorName?: string;
+  /** 보고서 제목 (dct:title) */
+  title?: string;
+  /** 총평 / Executive Summary (dct:summary) */
+  executiveSummary?: string;
+}
+
+/** 점검자 판정 (scan_reviews 행) */
+export interface ScanReview {
+  standard: "wcag" | "kwcag";
+  itemId: string;
+  outcome: WcagOutcome;
+  note: string;
 }
 
 export type PageCategory =

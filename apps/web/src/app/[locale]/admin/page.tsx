@@ -2,7 +2,8 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { bulkSetPlan, replyInquiry, resetQuota, setUserLimits, toggleBlockUser, togglePlansActive } from "@/lib/actions";
+import { bulkSetPlan, replyInquiry, setUserLimits, toggleBlockUser, togglePlansActive } from "@/lib/actions";
+import { QuotaResetForm } from "./QuotaResetForm";
 import { StatusBadge } from "@/components/StatusBadge";
 import { PLANS, PLAN_IDS, getCustomLimits, getPlan, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
@@ -220,31 +221,7 @@ export default async function AdminPage({ params }: { params: Promise<{ locale: 
 
                 {/* 초기화 · 차단 */}
                 <div className="mt-3 flex flex-wrap items-end gap-2 border-t border-dashed border-[var(--color-line)] pt-3">
-                  <form action={resetQuota} className="flex items-end gap-2">
-                    <input type="hidden" name="id" value={u.id} />
-                    <div>
-                      <label htmlFor={`scope-${u.id}`} className="mb-1 block text-xs font-semibold">
-                        {t("users.resetScopeLabel")}
-                      </label>
-                      <select
-                        id={`scope-${u.id}`}
-                        name="scope"
-                        defaultValue="all"
-                        className="rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-xs"
-                      >
-                        <option value="all">{t("users.resetScope.all")}</option>
-                        <option value="daily">{t("users.resetScope.daily")}</option>
-                        <option value="weekly">{t("users.resetScope.weekly")}</option>
-                        <option value="monthly">{t("users.resetScope.monthly")}</option>
-                      </select>
-                    </div>
-                    <button
-                      type="submit"
-                      className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-xs font-bold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
-                    >
-                      {t("users.resetApply")}
-                    </button>
-                  </form>
+                  <QuotaResetForm userId={u.id} />
                   {u.role !== "admin" && (
                     <form action={toggleBlockUser} className="ml-auto">
                       <input type="hidden" name="id" value={u.id} />

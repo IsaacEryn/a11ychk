@@ -6,7 +6,6 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { addDomain, deleteDomain, toggleAutoScan, verifyDomain } from "@/lib/actions";
-import { ScanForm } from "./ScanForm";
 import { StatusBadge } from "@/components/StatusBadge";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -49,31 +48,28 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       <p className="mt-1 text-[var(--color-ink-soft)]">{t("greeting", { name: profile?.nickname ?? "" })}</p>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
-        {/* 새 검사 */}
-        <section aria-labelledby="scan-form-heading" className="doc-card p-6">
-          <h2 id="scan-form-heading" className="font-display text-xl font-bold">
-            {t("scanForm.legend")}
-          </h2>
-          <ScanForm
-            locale={locale}
-            labels={{
-              label: t("scanForm.label"),
-              placeholder: t("scanForm.placeholder"),
-              submit: t("scanForm.submit"),
-              submitting: t("scanForm.submitting"),
-              advanced: t("scanForm.advanced"),
-              target: t("scanForm.target"),
-              targetHint: t("scanForm.targetHint"),
-              notes: t("scanForm.notes"),
-              notesPlaceholder: t("scanForm.notesPlaceholder"),
-            }}
-          />
-          <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{t("scanForm.hint")}</p>
-          <p className="mt-2 text-sm">
-            <Link href="/extension/connect" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+        {/* 새 검사 CTA — 검사 수행은 전용 페이지에서 */}
+        <section aria-labelledby="scan-cta-heading" className="doc-card flex flex-col justify-between p-6">
+          <div>
+            <h2 id="scan-cta-heading" className="font-display text-xl font-bold">
+              {t("scanCta.title")}
+            </h2>
+            <p className="mt-2 text-[var(--color-ink-soft)]">{t("scanCta.desc")}</p>
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/scan"
+              className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-6 py-2.5 font-bold text-[var(--color-paper)] shadow-[3px_3px_0_0_var(--color-line)] hover:bg-[var(--color-seal-deep)]"
+            >
+              {t("scanCta.button")}
+            </Link>
+            <Link
+              href="/extension/connect"
+              className="rounded border-[1.5px] border-[var(--color-ink)] px-5 py-2.5 font-semibold hover:bg-[var(--color-paper-warm)]"
+            >
               {t("scanForm.extensionLink")}
             </Link>
-          </p>
+          </div>
         </section>
 
         {/* 남은 횟수 */}

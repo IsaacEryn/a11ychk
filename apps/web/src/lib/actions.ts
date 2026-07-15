@@ -173,6 +173,112 @@ export async function createInquiry(formData: FormData): Promise<void> {
   revalidateAll();
 }
 
+// ─────────────── 보고서 워크벤치 (점검자 판정·메타) ───────────────
+/** 공통 저장 결과 (useActionState 피드백용) */
+export interface SaveState {
+  ok?: boolean;
+  /** "invalid" | "forbidden" | "failed" */
+  error?: string;
+}
+
+const ReviewSchema = z.object({
+  scanId: z.string().uuid(),
+  standard: z.enum(["wcag", "kwcag"]),
+  itemId: z.string().min(1).max(20),
+  outcome: z.enum(["passed", "failed", "cannotTell", "notPresent", "notChecked"]),
+  note: z.string().max(5000).default(""),
+});
+
+/** 점검자 판정 저장 (upsert). 빈 outcome 전달 시 판정 삭제 */
+export async function saveReview(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { supabase, user } = await requireUser();
+
+  const scanId = z.string().uuid().safeParse(formData.get("scanId"));
+  if (!scanId.success) return { error: "invalid" };
+  // 소유자 검증 (RLS로도 막히지만 명시적으로)
+  const { data: scan } = await supabase.from("scans").select("id, user_id").eq("id", scanId.data).maybeSingle();
+  if (!scan || scan.user_id !== user.id) return { error: "forbidden" };
+
+  // 판정 해제 (자동 판정으로 되돌리기)
+  if (formData.get("outcome") === "") {
+    const standard = z.enum(["wcag", "kwcag"]).safeParse(formData.get("standard"));
+    const itemId = z.string().min(1).max(20).safeParse(formData.get("itemId"));
+    if (!standard.success || !itemId.success) return { error: "invalid" };
+    const { error } = await supabase
+      .from("scan_reviews")
+      .delete()
+      .eq("scan_id", scanId.data)
+      .eq("standard", standard.data)
+      .eq("item_id", itemId.data);
+    if (error) return { error: "failed" };
+    revalidateAll();
+    return { ok: true };
+  }
+
+  const parsed = ReviewSchema.safeParse({
+    scanId: formData.get("scanId"),
+    standard: formData.get("standard"),
+    itemId: formData.get("itemId"),
+    outcome: formData.get("outcome"),
+    note: formData.get("note") ?? "",
+  });
+  if (!parsed.success) return { error: "invalid" };
+
+  const { error } = await supabase.from("scan_reviews").upsert(
+    {
+      scan_id: parsed.data.scanId,
+      standard: parsed.data.standard,
+      item_id: parsed.data.itemId,
+      outcome: parsed.data.outcome,
+      note: parsed.data.note,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: "scan_id,standard,item_id" },
+  );
+  if (error) return { error: "failed" };
+  revalidateAll();
+  return { ok: true };
+}
+
+const ReportMetaSchema = z.object({
+  siteName: z.string().max(200).optional(),
+  organization: z.string().max(200).optional(),
+  evaluatorName: z.string().max(100).optional(),
+  title: z.string().max(300).optional(),
+  executiveSummary: z.string().max(10000).optional(),
+});
+
+/** 보고서 메타 정보 저장 (scans.report_meta) */
+export async function saveReportMeta(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { supabase, user } = await requireUser();
+
+  const scanId = z.string().uuid().safeParse(formData.get("scanId"));
+  if (!scanId.success) return { error: "invalid" };
+  const { data: scan } = await supabase.from("scans").select("id, user_id").eq("id", scanId.data).maybeSingle();
+  if (!scan || scan.user_id !== user.id) return { error: "forbidden" };
+
+  const parsed = ReportMetaSchema.safeParse({
+    siteName: str(formData.get("siteName")),
+    organization: str(formData.get("organization")),
+    evaluatorName: str(formData.get("evaluatorName")),
+    title: str(formData.get("title")),
+    executiveSummary: str(formData.get("executiveSummary")),
+  });
+  if (!parsed.success) return { error: "invalid" };
+
+  // service role로 갱신 (scans는 클라이언트 update 정책이 없음 — 서버에서 소유 검증 후)
+  const admin = createAdminClient();
+  const { error } = await admin.from("scans").update({ report_meta: parsed.data }).eq("id", scanId.data);
+  if (error) return { error: "failed" };
+  revalidateAll();
+  return { ok: true };
+}
+
+function str(v: FormDataEntryValue | null): string | undefined {
+  const s = typeof v === "string" ? v.trim() : "";
+  return s === "" ? undefined : s;
+}
+
 // ─────────────── 관리자 ───────────────
 export async function toggleBlockUser(formData: FormData): Promise<void> {
   await requireAdmin();
@@ -191,16 +297,23 @@ async function readOverride(admin: SupabaseClient, userId: string): Promise<Reco
     : {};
 }
 
+/** 한도 초기화 결과 (useActionState 피드백용) */
+export interface ResetQuotaState {
+  ok?: boolean;
+  resetScope?: "daily" | "weekly" | "monthly" | "all";
+  error?: string;
+}
+
 /**
  * 검사 한도 초기화. scope: daily | weekly | monthly | all.
  * 해당 윈도우의 리셋 시각(scan_limit_override.{window}ResetAt)을 현재로 설정해
  * 그 이전 검사를 사용량 집계에서 제외한다.
  */
-export async function resetQuota(formData: FormData): Promise<void> {
+export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Promise<ResetQuotaState> {
   await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const scope = z.enum(["daily", "weekly", "monthly", "all"]).safeParse(formData.get("scope"));
-  if (!id.success || !scope.success) return;
+  if (!id.success || !scope.success) return { error: "invalid" };
 
   const admin = createAdminClient();
   const current = await readOverride(admin, id.data);
@@ -209,11 +322,13 @@ export async function resetQuota(formData: FormData): Promise<void> {
   const patch: Record<string, string> = {};
   for (const w of windows) patch[`${w}ResetAt`] = nowIso;
 
-  await admin
+  const { error } = await admin
     .from("profiles")
     .update({ scan_limit_override: { ...current, ...patch } })
     .eq("id", id.data);
+  if (error) return { error: "failed" };
   revalidateAll();
+  return { ok: true, resetScope: scope.data };
 }
 
 /** 사용자별 요금제·개별 최대 한도 설정. 빈 숫자는 개별값 제거(요금제 한도 사용) */

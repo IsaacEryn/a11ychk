@@ -1,6 +1,6 @@
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
-import { UrlGuardError, assertPublicHttpUrl, type EvaluationScope } from "@a11ychk/core";
+import { UrlGuardError, assertPublicHttpUrl, isSameOrigin, normalizeUrl, type EvaluationScope } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
@@ -20,6 +20,8 @@ const DEFAULT_BASELINE = [
 
 const CreateScanSchema = z.object({
   url: z.string().min(1).max(2000),
+  /** 점검자 직접 입력 표본 (없으면 자동 수집) */
+  pages: z.array(z.string().min(1).max(2000)).max(60).optional(),
   scope: z
     .object({
       conformanceTarget: z.enum(["A", "AA", "AAA"]).optional(),
@@ -116,6 +118,31 @@ export async function POST(request: Request) {
     plansActive,
   });
 
+  // 점검자 직접 입력 표본 검증: 정규화 → 같은 origin만 → 중복 제거 → 한도 절단
+  let manualPages: string[] | undefined;
+  if (parsed.data.pages && parsed.data.pages.length > 0) {
+    const seen = new Set<string>();
+    const rejected: string[] = [];
+    for (const raw of parsed.data.pages) {
+      const normalized = normalizeUrl(raw);
+      if (!normalized || !isSameOrigin(normalized, url.origin)) {
+        rejected.push(raw);
+        continue;
+      }
+      seen.add(normalized);
+    }
+    if (rejected.length > 0) {
+      return NextResponse.json(
+        { error: `검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: ${rejected[0]}` },
+        { status: 400 },
+      );
+    }
+    manualPages = [...seen].slice(0, pageLimit);
+    if (manualPages.length === 0) {
+      return NextResponse.json({ error: "검사할 페이지를 1개 이상 입력해 주세요." }, { status: 400 });
+    }
+  }
+
   // WCAG-EM Step 1 평가 범위 (미입력 시 합리적 기본값)
   const scope: EvaluationScope = {
     conformanceTarget: parsed.data.scope?.conformanceTarget ?? "AA",
@@ -125,6 +152,7 @@ export async function POST(request: Request) {
         : DEFAULT_BASELINE,
     includePatterns: parsed.data.scope?.includePatterns,
     excludePatterns: parsed.data.scope?.excludePatterns,
+    manualPages,
     notes: parsed.data.scope?.notes,
   };
 

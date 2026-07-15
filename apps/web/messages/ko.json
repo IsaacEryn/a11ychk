@@ -3,6 +3,7 @@
     "appName": "A11Y Check",
     "skipToMain": "본문 바로가기",
     "nav": {
+      "scan": "검사 수행",
       "dashboard": "대시보드",
       "mypage": "마이페이지",
       "inquiries": "문의하기",
@@ -76,9 +77,27 @@
     "error": "로그인에 실패했습니다. 다시 시도해 주세요.",
     "privacy": "로그인 시 프로필(이름, 이메일)만 수집하며 검사 이력 관리에만 사용합니다."
   },
+  "scanPage": {
+    "title": "검사 수행",
+    "desc": "검사할 사이트 주소를 입력하고 표본 수집 방식을 선택하세요. WCAG 2.2와 KWCAG 2.2 기준으로 자동 검사 후 보고서가 생성됩니다.",
+    "modeLegend": "표본 수집 방식",
+    "modeAuto": "자동 수집",
+    "modeAutoDesc": "sitemap과 내부 링크에서 공통 페이지·페이지 유형별 대표 표본을 자동으로 구성합니다 (WCAG-EM 구조+무작위 표본).",
+    "modeManual": "직접 입력",
+    "modeManualDesc": "점검자가 검사할 페이지 목록을 직접 지정합니다. 같은 사이트(동일 도메인)의 페이지만 가능합니다.",
+    "manualLabel": "검사할 페이지 목록 (줄바꿈으로 구분)",
+    "manualPlaceholder": "https://example.com/\nhttps://example.com/about\nhttps://example.com/contact",
+    "manualCount": "{count} / {max}페이지",
+    "manualOriginHint": "위 검사 주소와 같은 도메인의 페이지만 검사할 수 있으며, 초과분은 한도까지만 검사됩니다."
+  },
   "dashboard": {
     "title": "대시보드",
     "greeting": "{name}님, 안녕하세요",
+    "scanCta": {
+      "title": "새 검사 시작",
+      "desc": "검사 수행 페이지에서 자동 수집 또는 직접 입력으로 표본을 구성하고 검사를 시작하세요.",
+      "button": "검사 수행 →"
+    },
     "scanForm": {
       "legend": "새 검사 시작",
       "label": "검사할 페이지 주소",
@@ -147,6 +166,9 @@
   "report": {
     "docTitle": "웹 접근성 점검 보고서",
     "meta": {
+      "siteName": "사이트 이름",
+      "evaluator": "평가자",
+      "organization": "의뢰 기관",
       "url": "검사 대상",
       "date": "검사 일시",
       "pages": "검사 페이지",
@@ -166,6 +188,77 @@
       "serious": "심각",
       "moderate": "보통",
       "minor": "경미"
+    },
+    "execSummary": "총평 (Executive Summary)",
+    "metaForm": {
+      "legend": "보고서 정보 입력",
+      "hint": "여기 입력한 정보는 보고서 표지·인쇄물·WCAG-EM Report Tool 내보내기에 반영됩니다.",
+      "title": "보고서 제목",
+      "titlePlaceholder": "예: 코드슬로그 웹 접근성 평가 보고서",
+      "siteName": "사이트 이름",
+      "siteNamePlaceholder": "예: 코드슬로그",
+      "organization": "의뢰 기관/조직",
+      "organizationPlaceholder": "예: (주)회사명, 팀명",
+      "evaluatorName": "평가자",
+      "evaluatorNamePlaceholder": "예: 홍길동",
+      "executiveSummary": "총평 (Executive Summary)",
+      "executiveSummaryPlaceholder": "평가 결과에 대한 종합 의견을 작성하세요. 인쇄 보고서 상단에 표시됩니다.",
+      "save": "저장",
+      "saving": "저장 중…",
+      "saved": "저장되었습니다.",
+      "failed": "저장에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    },
+    "review": {
+      "col": "판정 기입",
+      "add": "판정 기입",
+      "edit": "판정 수정",
+      "outcome": "점검자 판정",
+      "outcomes": {
+        "passed": "통과",
+        "failed": "위반",
+        "cannotTell": "확인 필요",
+        "notPresent": "해당 없음",
+        "clear": "판정 해제 (자동 결과로)"
+      },
+      "note": "관찰 내용 (보고서에 기록)",
+      "notePlaceholder": "직접 검사한 방법과 발견 사항을 기록하세요.",
+      "save": "저장",
+      "saving": "저장 중…",
+      "saved": "저장됨",
+      "badge": "점검자",
+      "noteLabel": "관찰 내용",
+      "errors": {
+        "invalid": "입력값 오류",
+        "forbidden": "권한 없음",
+        "failed": "저장 실패"
+      }
+    },
+    "pages": {
+      "title": "표본 페이지 상세",
+      "summary": "표본 {total}페이지 중 {done}페이지 검사 완료, {failed}페이지 검사 실패. 실패 페이지는 아래 사유를 확인하고 다시 검사하면 대부분 해결됩니다.",
+      "colUrl": "페이지",
+      "colCategory": "분류",
+      "colSample": "표본",
+      "colStatus": "검사 상태",
+      "statusDone": "검사 완료",
+      "statusFailed": "검사 실패",
+      "statusSkipped": "미검사",
+      "category": {
+        "home": "홈",
+        "login": "로그인",
+        "contact": "문의",
+        "sitemap": "사이트맵",
+        "help": "도움말",
+        "legal": "약관·정책",
+        "search": "검색",
+        "form": "신청·양식",
+        "content": "콘텐츠"
+      },
+      "sample": {
+        "structured": "구조",
+        "random": "무작위",
+        "process": "프로세스"
+      }
     },
     "em": {
       "scopeTitle": "평가 범위 (WCAG-EM Step 1)",
@@ -250,6 +343,7 @@
     "disclaimer": "본 보고서는 자동 검사 도구(axe-core)의 결과로, 웹 접근성 전체 준수 여부를 보증하지 않습니다. 자동 검사는 전체 접근성 문제의 일부만 검출할 수 있으며, 공식 인증(웹 접근성 품질인증 마크 등)은 전문가의 수동 심사가 필요합니다.",
     "downloadPdf": "PDF 다운로드",
     "downloadEarl": "EARL(JSON)",
+    "downloadReportTool": "WCAG-EM Report Tool(JSON)",
     "print": "인쇄",
     "generatedBy": "이 보고서는 A11Y Check (a11ychk.com)에서 생성되었습니다."
   },
@@ -354,6 +448,9 @@
         "monthly": "월간"
       },
       "resetApply": "한도 초기화",
+      "resetPending": "초기화 중…",
+      "resetDone": "{scope} 한도가 초기화되었습니다",
+      "resetFailed": "초기화에 실패했습니다. 다시 시도해 주세요.",
       "bulkPlanLabel": "전체 사용자 요금제 일괄 배정",
       "bulkApply": "전체 적용",
       "bulkHint": "선택한 요금제를 모든 사용자에게 적용합니다. 개별 한도 설정은 초기화됩니다. (유료화 대비 그룹 관리)"

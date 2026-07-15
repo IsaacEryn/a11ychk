@@ -3,6 +3,7 @@
     "appName": "A11Y Check",
     "skipToMain": "Skip to main content",
     "nav": {
+      "scan": "Run Audit",
       "dashboard": "Dashboard",
       "mypage": "My Page",
       "inquiries": "Support",
@@ -76,9 +77,27 @@
     "error": "Sign-in failed. Please try again.",
     "privacy": "We only collect your profile (name, email) to manage your audit history."
   },
+  "scanPage": {
+    "title": "Run Audit",
+    "desc": "Enter the site URL and choose how to build the sample. The audit runs against WCAG 2.2 and KWCAG 2.2 and produces a report.",
+    "modeLegend": "Sampling mode",
+    "modeAuto": "Automatic",
+    "modeAutoDesc": "Builds a representative sample from the sitemap and internal links (WCAG-EM structured + random sample).",
+    "modeManual": "Manual list",
+    "modeManualDesc": "You specify the exact pages to audit. Only pages on the same site (same domain) are allowed.",
+    "manualLabel": "Pages to audit (one per line)",
+    "manualPlaceholder": "https://example.com/\nhttps://example.com/about\nhttps://example.com/contact",
+    "manualCount": "{count} / {max} pages",
+    "manualOriginHint": "Only pages on the same domain as the audit URL are allowed; extra lines beyond the limit are dropped."
+  },
   "dashboard": {
     "title": "Dashboard",
     "greeting": "Hello, {name}",
+    "scanCta": {
+      "title": "Start a new audit",
+      "desc": "On the audit page, build the sample automatically or enter pages manually, then start the audit.",
+      "button": "Run audit →"
+    },
     "scanForm": {
       "legend": "Start a new audit",
       "label": "Page URL to audit",
@@ -147,6 +166,9 @@
   "report": {
     "docTitle": "Web Accessibility Audit Report",
     "meta": {
+      "siteName": "Site name",
+      "evaluator": "Evaluator",
+      "organization": "Commissioner",
       "url": "Target",
       "date": "Audited at",
       "pages": "Pages",
@@ -166,6 +188,77 @@
       "serious": "Serious",
       "moderate": "Moderate",
       "minor": "Minor"
+    },
+    "execSummary": "Executive Summary",
+    "metaForm": {
+      "legend": "Report details",
+      "hint": "This information appears on the report cover, print output, and the WCAG-EM Report Tool export.",
+      "title": "Report title",
+      "titlePlaceholder": "e.g. Codeslog Web Accessibility Evaluation Report",
+      "siteName": "Site name",
+      "siteNamePlaceholder": "e.g. Codeslog",
+      "organization": "Commissioner / organization",
+      "organizationPlaceholder": "e.g. Company Inc., Team name",
+      "evaluatorName": "Evaluator",
+      "evaluatorNamePlaceholder": "e.g. Jane Doe",
+      "executiveSummary": "Executive summary",
+      "executiveSummaryPlaceholder": "Write an overall assessment. Shown at the top of the printed report.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved.",
+      "failed": "Failed to save. Please try again shortly."
+    },
+    "review": {
+      "col": "Review",
+      "add": "Add review",
+      "edit": "Edit review",
+      "outcome": "Evaluator outcome",
+      "outcomes": {
+        "passed": "Passed",
+        "failed": "Failed",
+        "cannotTell": "Cannot tell",
+        "notPresent": "Not present",
+        "clear": "Clear (back to automated)"
+      },
+      "note": "Observations (recorded in the report)",
+      "notePlaceholder": "Record how you tested and what you found.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Saved",
+      "badge": "Reviewed",
+      "noteLabel": "Observations",
+      "errors": {
+        "invalid": "Invalid input",
+        "forbidden": "Not allowed",
+        "failed": "Save failed"
+      }
+    },
+    "pages": {
+      "title": "Sample pages",
+      "summary": "{done} of {total} sample pages audited; {failed} failed. Failed pages usually succeed on a re-run — see the reasons below.",
+      "colUrl": "Page",
+      "colCategory": "Category",
+      "colSample": "Sample",
+      "colStatus": "Status",
+      "statusDone": "Audited",
+      "statusFailed": "Failed",
+      "statusSkipped": "Not audited",
+      "category": {
+        "home": "Home",
+        "login": "Login",
+        "contact": "Contact",
+        "sitemap": "Sitemap",
+        "help": "Help",
+        "legal": "Legal",
+        "search": "Search",
+        "form": "Forms",
+        "content": "Content"
+      },
+      "sample": {
+        "structured": "Structured",
+        "random": "Random",
+        "process": "Process"
+      }
     },
     "em": {
       "scopeTitle": "Evaluation scope (WCAG-EM Step 1)",
@@ -250,6 +343,7 @@
     "disclaimer": "This report is produced by an automated tool (axe-core) and does not guarantee overall accessibility compliance. Automated audits detect only a subset of issues; official certification requires expert manual review.",
     "downloadPdf": "Download PDF",
     "downloadEarl": "EARL (JSON)",
+    "downloadReportTool": "WCAG-EM Report Tool (JSON)",
     "print": "Print",
     "generatedBy": "Generated by A11Y Check (a11ychk.com)."
   },
@@ -354,6 +448,9 @@
         "monthly": "Monthly"
       },
       "resetApply": "Reset quota",
+      "resetPending": "Resetting…",
+      "resetDone": "{scope} quota has been reset",
+      "resetFailed": "Reset failed. Please try again.",
       "bulkPlanLabel": "Assign plan to all users",
       "bulkApply": "Apply to all",
       "bulkHint": "Applies the selected plan to every user. Per-user custom limits are cleared. (Group management for future monetization)"

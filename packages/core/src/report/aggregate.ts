@@ -23,6 +23,8 @@ export interface AggregateOptions {
   conformanceTarget?: WcagLevel | "AAA";
   /** WCAG-EM 표본 요약 (있으면 summary.sample에 포함) */
   sample?: SampleSummary;
+  /** 표본으로 계획된 전체 페이지 수 (성공한 pages와 다를 수 있음) */
+  plannedPageCount?: number;
 }
 
 export function aggregateScan(
@@ -127,7 +129,7 @@ export function aggregateScan(
   const complianceRate = checkedRuleCount === 0 ? 0 : Math.round((passedRules.size / checkedRuleCount) * 1000) / 10;
 
   return {
-    pageCount: pages.length,
+    pageCount: options.plannedPageCount ?? pages.length,
     scannedPageCount: pages.length,
     totalViolations,
     totalViolationNodes,

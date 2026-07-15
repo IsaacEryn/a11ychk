@@ -1,31 +1,47 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 
-export function ScanForm({
-  locale,
-  labels,
-}: {
-  locale: string;
-  labels: {
-    label: string;
-    placeholder: string;
-    submit: string;
-    submitting: string;
-    advanced: string;
-    target: string;
-    targetHint: string;
-    notes: string;
-    notesPlaceholder: string;
-  };
-}) {
+export interface ScanFormLabels {
+  label: string;
+  placeholder: string;
+  submit: string;
+  submitting: string;
+  advanced: string;
+  target: string;
+  targetHint: string;
+  notes: string;
+  notesPlaceholder: string;
+  modeLegend: string;
+  modeAuto: string;
+  modeAutoDesc: string;
+  modeManual: string;
+  modeManualDesc: string;
+  manualLabel: string;
+  manualPlaceholder: string;
+  manualCount: string; // "{count} / {max}"
+  manualOriginHint: string;
+}
+
+export function ScanForm({ maxPages, labels }: { maxPages: number; labels: ScanFormLabels }) {
   const router = useRouter();
   const [url, setUrl] = useState("");
+  const [mode, setMode] = useState<"auto" | "manual">("auto");
+  const [pagesText, setPagesText] = useState("");
   const [target, setTarget] = useState<"A" | "AA" | "AAA">("AA");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const manualPages = useMemo(
+    () =>
+      pagesText
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [pagesText],
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,6 +53,7 @@ export function ScanForm({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           url,
+          pages: mode === "manual" ? manualPages.slice(0, maxPages) : undefined,
           scope: { conformanceTarget: target, notes: notes.trim() || undefined },
         }),
       });
@@ -52,6 +69,8 @@ export function ScanForm({
       setSubmitting(false);
     }
   }
+
+  const overLimit = mode === "manual" && manualPages.length > maxPages;
 
   return (
     <form onSubmit={onSubmit} className="mt-4">
@@ -72,7 +91,7 @@ export function ScanForm({
         />
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || (mode === "manual" && manualPages.length === 0)}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] disabled:opacity-60"
         >
           {submitting ? labels.submitting : labels.submit}
@@ -82,6 +101,69 @@ export function ScanForm({
         <p id="scan-url-error" role="alert" className="mt-2 text-sm font-medium text-[var(--color-crit)]">
           {error}
         </p>
+      )}
+
+      {/* 표본 수집 방식 */}
+      <fieldset className="mt-4">
+        <legend className="mb-2 text-sm font-semibold">{labels.modeLegend}</legend>
+        <div className="grid gap-2 sm:grid-cols-2">
+          {(
+            [
+              { id: "auto", label: labels.modeAuto, desc: labels.modeAutoDesc },
+              { id: "manual", label: labels.modeManual, desc: labels.modeManualDesc },
+            ] as const
+          ).map((opt) => (
+            <label
+              key={opt.id}
+              className={`flex cursor-pointer items-start gap-2.5 rounded border-[1.5px] p-3 ${
+                mode === opt.id ? "border-[var(--color-seal)] bg-[var(--color-seal-tint)]" : "border-[var(--color-line)]"
+              }`}
+            >
+              <input
+                type="radio"
+                name="sample-mode"
+                value={opt.id}
+                checked={mode === opt.id}
+                onChange={() => setMode(opt.id)}
+                className="mt-1 h-4 w-4 accent-[var(--color-seal)]"
+              />
+              <span>
+                <span className="block text-sm font-bold">{opt.label}</span>
+                <span className="block text-xs text-[var(--color-ink-soft)]">{opt.desc}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+      </fieldset>
+
+      {mode === "manual" && (
+        <div className="mt-3">
+          <div className="mb-1 flex items-baseline justify-between">
+            <label htmlFor="manual-pages" className="text-sm font-semibold">
+              {labels.manualLabel}
+            </label>
+            <span
+              className={`text-xs font-bold tabular-nums ${overLimit ? "text-[var(--color-crit)]" : "text-[var(--color-ink-faint)]"}`}
+              aria-live="polite"
+            >
+              {labels.manualCount.replace("{count}", String(manualPages.length)).replace("{max}", String(maxPages))}
+            </span>
+          </div>
+          <textarea
+            id="manual-pages"
+            value={pagesText}
+            onChange={(e) => setPagesText(e.target.value)}
+            rows={6}
+            placeholder={labels.manualPlaceholder}
+            aria-describedby="manual-pages-hint"
+            className={`w-full rounded border-[1.5px] bg-[var(--color-paper)] px-3 py-2 font-mono text-sm ${
+              overLimit ? "border-[var(--color-crit)]" : "border-[var(--color-ink)]"
+            }`}
+          />
+          <p id="manual-pages-hint" className="mt-1 text-xs text-[var(--color-ink-faint)]">
+            {labels.manualOriginHint}
+          </p>
+        </div>
       )}
 
       {/* WCAG-EM Step 1 — 평가 범위 (고급, 접기형) */}
@@ -120,9 +202,6 @@ export function ScanForm({
           </div>
         </div>
       </details>
-
-      {/* 로케일은 라우터가 관리 — prop은 향후 확장용 */}
-      <input type="hidden" name="locale" value={locale} />
     </form>
   );
 }
