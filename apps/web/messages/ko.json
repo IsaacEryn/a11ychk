@@ -437,6 +437,13 @@
       "manualFallback": "이 성공기준은 자동 검사 대상이 아닙니다. W3C 이해 문서의 검사 방법을 참고해 직접 확인하세요.",
       "understanding": "W3C 이해 문서 (Understanding)",
       "newWindow": "새 창 열림"
+    },
+    "rescan": {
+      "pageButton": "이 페이지 재검사",
+      "pagePending": "재검사 중…",
+      "rerunButton": "동일 조건 재검사",
+      "rerunPending": "검사 생성 중…",
+      "failed": "재검사에 실패했습니다. 잠시 후 다시 시도해 주세요."
     }
   },
   "mypage": {

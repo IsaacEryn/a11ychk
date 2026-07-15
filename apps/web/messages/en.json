@@ -437,6 +437,13 @@
       "manualFallback": "This success criterion is not covered by automated testing. See the W3C Understanding document for testing guidance.",
       "understanding": "W3C Understanding document",
       "newWindow": "opens in a new window"
+    },
+    "rescan": {
+      "pageButton": "Rescan this page",
+      "pagePending": "Rescanning…",
+      "rerunButton": "Re-run same audit",
+      "rerunPending": "Creating audit…",
+      "failed": "Rescan failed. Please try again shortly."
     }
   },
   "mypage": {

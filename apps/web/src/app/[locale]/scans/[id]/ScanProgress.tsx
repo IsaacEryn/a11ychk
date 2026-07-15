@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
+import { RerunScanButton } from "./report/RescanButtons";
 
 interface PageRow {
   id: string;
@@ -85,9 +86,12 @@ export function ScanProgress({
         <div role="alert" className="mt-4 border-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] p-4">
           <p className="font-bold text-[var(--color-crit)]">{labels.failedTitle}</p>
           {error && <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{error}</p>}
-          <Link href="/dashboard" className="mt-3 inline-block font-semibold underline underline-offset-4">
-            {labels.backToDashboard}
-          </Link>
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <RerunScanButton scanId={scanId} />
+            <Link href="/dashboard" className="font-semibold underline underline-offset-4">
+              {labels.backToDashboard}
+            </Link>
+          </div>
         </div>
       )}
 

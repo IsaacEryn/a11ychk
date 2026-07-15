@@ -24,6 +24,7 @@ import { PrintButton } from "./PrintButton";
 import { ReviewCell, type ReviewValue } from "./ReviewCell";
 import { ReportMetaForm } from "./ReportMetaForm";
 import { MatrixDetail } from "./MatrixDetail";
+import { RerunScanButton, RescanPageButton } from "./RescanButtons";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
@@ -145,6 +146,7 @@ export default async function ReportPage({
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       {/* 액션 바 */}
       <div className="no-print mb-8 flex flex-wrap items-center justify-end gap-2">
+        {canEdit && <RerunScanButton scanId={scan.id} />}
         <PrintButton label={t("print")} />
         <a
           href={`/api/scans/${scan.id}/earl`}
@@ -324,7 +326,8 @@ export default async function ReportPage({
                           <span className="font-bold text-[var(--color-pass)]">{t("pages.statusDone")}</span>
                         ) : p.status === "failed" ? (
                           <>
-                            <span className="font-bold text-[var(--color-crit)]">{t("pages.statusFailed")}</span>
+                            <span className="mr-2 font-bold text-[var(--color-crit)]">{t("pages.statusFailed")}</span>
+                            {canEdit && <RescanPageButton scanId={scan.id} pageId={p.id} />}
                             <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-ink-soft)]">
                               {t(`failedPages.reasons.${classifyScanError(p.error)}`)}
                             </p>

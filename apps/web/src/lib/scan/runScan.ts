@@ -1,6 +1,7 @@
 import "server-only";
 import net from "node:net";
 import type { Browser } from "playwright-core";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AXE_VERSION,
   aggregateScan,
@@ -13,6 +14,8 @@ import {
   normalizeUrl,
   runAxeOnPage,
   type EvaluationScope,
+  type Finding,
+  type Impact,
   type PageScanResult,
   type SampleResult,
   type SampleSummary,
@@ -29,6 +32,81 @@ function isBlockedHost(hostname: string): boolean {
     return true;
   }
   return net.isIP(host) !== 0 && isPrivateAddress(host);
+}
+
+async function launchGuardedBrowser(): Promise<Browser> {
+  const { launchBrowser } = await import("./browser");
+  return launchBrowser();
+}
+
+/** 브라우저를 확실히 폐기 (크래시 상태여도 예외 없이) */
+async function disposeBrowser(browser: Browser | null): Promise<void> {
+  if (!browser) return;
+  try {
+    await browser.close();
+  } catch {
+    // 이미 죽은 브라우저 — 무시
+  }
+}
+
+/** 한 페이지를 스캔해 결과 반환. 컨텍스트는 항상 정리한다. */
+async function scanSinglePage(browser: Browser, url: string): Promise<PageScanResult> {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    locale: "ko-KR",
+    userAgent: "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)",
+  });
+  try {
+    const page = await context.newPage();
+    await page.route("**/*", (route) => {
+      const req = route.request();
+      // 서브리소스의 내부망 접근 차단 (SSRF 심층 방어)
+      if (isBlockedHost(new URL(req.url()).hostname)) return route.abort();
+      // 메모리 절약: axe는 DOM·CSS 기반이므로 무거운 리소스는 내려받지 않는다.
+      const type = req.resourceType();
+      if (type === "image" || type === "media" || type === "font") return route.abort();
+      return route.continue();
+    });
+    await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
+    await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
+    return await runAxeOnPage(page);
+  } finally {
+    await context.close().catch(() => undefined);
+  }
+}
+
+/** 페이지 결과를 DB에 저장 (기존 findings 교체) */
+async function persistPageResult(db: SupabaseClient, pageRowId: string, result: PageScanResult): Promise<void> {
+  await db.from("findings").delete().eq("scan_page_id", pageRowId);
+  if (result.violations.length > 0) {
+    const findingRows = result.violations.flatMap((v) =>
+      v.nodes.map((n) => ({
+        scan_page_id: pageRowId,
+        rule_id: v.ruleId,
+        impact: v.impact,
+        tags: v.tags,
+        help_url: v.helpUrl,
+        selector: n.selector,
+        html_snippet: n.html,
+        failure_summary: n.failureSummary,
+      })),
+    );
+    const { error } = await db.from("findings").insert(findingRows);
+    if (error) throw new Error(`위반 저장 실패: ${error.message}`);
+  }
+  const counts: Record<string, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+  for (const v of result.violations) counts[v.impact] = (counts[v.impact] ?? 0) + v.nodes.length;
+  await db
+    .from("scan_pages")
+    .update({
+      status: "done",
+      error: null,
+      violation_counts: counts,
+      passes: result.passes,
+      incomplete: result.incomplete,
+      scanned_at: result.scannedAt,
+    })
+    .eq("id", pageRowId);
 }
 
 /**
@@ -103,81 +181,27 @@ export async function runScan(scanId: string): Promise<void> {
       await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
       let lastError: Error | undefined;
 
-      // 크로미엄 크래시(OOM 등)는 일시적이므로 페이지당 1회 재시도한다.
+      // 실패 시 1회 재시도. 중요: 실패한 브라우저는 자원 고갈(ERR_INSUFFICIENT_RESOURCES)
+      // 상태일 수 있으므로 살아 있어도 반드시 폐기하고 새로 띄운다.
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          // 페이지 이동 직전 재검증 (수집 시점과 DNS가 달라졌을 수 있음)
           await assertPublicHttpUrl(row.url);
-
-          // 크래시된 브라우저는 재실행 — 한 페이지 실패가 이후로 번지는 것을 방지
-          if (!browser.isConnected()) {
+          if (!browser || !browser.isConnected()) {
             browser = await launchGuardedBrowser();
           }
+          const result = await scanSinglePage(browser, row.url);
+          await persistPageResult(db, row.id, result);
+          results.push(result);
 
-          const context = await browser.newContext({
-            viewport: { width: 1280, height: 800 },
-            locale: "ko-KR",
-            userAgent: "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)",
-          });
-          try {
-            const page = await context.newPage();
-            await page.route("**/*", (route) => {
-              const req = route.request();
-              // 서브리소스의 내부망 접근 차단 (SSRF 심층 방어)
-              if (isBlockedHost(new URL(req.url()).hostname)) return route.abort();
-              // 메모리 절약: axe는 DOM·CSS 기반이므로 무거운 리소스는 내려받지 않는다.
-              // (배경 이미지 위 대비 등은 axe가 원래 '확인 필요'로 처리 — 정확도 영향 최소)
-              const type = req.resourceType();
-              if (type === "image" || type === "media" || type === "font") return route.abort();
-              return route.continue();
-            });
-            await page.goto(row.url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
-            await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
+          const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
+          for (const v of result.violations) ruleTarget.add(v.ruleId);
 
-            const result = await runAxeOnPage(page);
-            results.push(result);
-
-            // 표본 유형별 위반 규칙 집계 (WCAG-EM 4.c 대표성 비교)
-            const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
-            for (const v of result.violations) ruleTarget.add(v.ruleId);
-
-            // findings 저장
-            if (result.violations.length > 0) {
-              const findingRows = result.violations.flatMap((v) =>
-                v.nodes.map((n) => ({
-                  scan_page_id: row.id,
-                  rule_id: v.ruleId,
-                  impact: v.impact,
-                  tags: v.tags,
-                  help_url: v.helpUrl,
-                  selector: n.selector,
-                  html_snippet: n.html,
-                  failure_summary: n.failureSummary,
-                })),
-              );
-              const { error: fErr } = await db.from("findings").insert(findingRows);
-              if (fErr) throw new Error(`위반 저장 실패: ${fErr.message}`);
-            }
-
-            const counts: Record<string, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
-            for (const v of result.violations) counts[v.impact] = (counts[v.impact] ?? 0) + v.nodes.length;
-            await db
-              .from("scan_pages")
-              .update({
-                status: "done",
-                violation_counts: counts,
-                passes: result.passes,
-                incomplete: result.incomplete,
-                scanned_at: result.scannedAt,
-              })
-              .eq("id", row.id);
-          } finally {
-            await context.close().catch(() => undefined);
-          }
           lastError = undefined;
-          break; // 성공 — 재시도 불필요
+          break;
         } catch (pageError) {
           lastError = pageError as Error;
+          await disposeBrowser(browser);
+          browser = null;
         }
       }
 
@@ -191,7 +215,7 @@ export async function runScan(scanId: string): Promise<void> {
 
     if (results.length === 0) {
       throw new Error(
-        "모든 페이지 스캔에 실패했습니다. '봇 차단 검증' 메뉴에서 사이트가 봇을 차단하는지 진단해 보세요. 차단된 사이트는 크롬 확장으로 검사할 수 있습니다.",
+        "모든 페이지 검사에 실패했습니다. 일시적인 자원 부족일 수 있으니 잠시 후 다시 검사해 주세요. 계속 실패하면 '봇 차단 검증' 메뉴로 사이트의 봇 차단 여부를 진단하고, 차단된 사이트는 크롬 확장으로 검사하세요.",
       );
     }
 
@@ -224,13 +248,126 @@ export async function runScan(scanId: string): Promise<void> {
       })
       .eq("id", scanId);
   } finally {
-    await browser?.close().catch(() => undefined);
+    await disposeBrowser(browser);
   }
 }
 
-async function launchGuardedBrowser(): Promise<Browser> {
-  const { launchBrowser } = await import("./browser");
-  return launchBrowser();
+/** DB에 저장된 페이지 결과(passes/incomplete/findings)에서 PageScanResult를 복원 */
+async function reconstructResults(
+  db: SupabaseClient,
+  scanId: string,
+): Promise<{ results: PageScanResult[]; structuredRules: Set<string>; randomRules: Set<string> }> {
+  const { data: pages } = await db
+    .from("scan_pages")
+    .select("id, url, status, sample_type, passes, incomplete, scanned_at")
+    .eq("scan_id", scanId);
+  const donePages = (pages ?? []).filter((p) => p.status === "done");
+
+  const { data: findings } = await db
+    .from("findings")
+    .select("scan_page_id, rule_id, impact, tags, help_url, selector, html_snippet, failure_summary")
+    .in("scan_page_id", donePages.map((p) => p.id))
+    .limit(5000);
+
+  const byPage = new Map<string, Map<string, Finding>>();
+  for (const f of findings ?? []) {
+    const pageMap = byPage.get(f.scan_page_id) ?? byPage.set(f.scan_page_id, new Map()).get(f.scan_page_id)!;
+    const finding =
+      pageMap.get(f.rule_id) ??
+      pageMap
+        .set(f.rule_id, {
+          ruleId: f.rule_id,
+          impact: f.impact as Impact,
+          tags: (f.tags as string[]) ?? [],
+          helpUrl: f.help_url ?? "",
+          nodes: [],
+        })
+        .get(f.rule_id)!;
+    finding.nodes.push({ selector: f.selector, html: f.html_snippet, failureSummary: f.failure_summary });
+  }
+
+  const results: PageScanResult[] = [];
+  const structuredRules = new Set<string>();
+  const randomRules = new Set<string>();
+  for (const p of donePages) {
+    const violations = [...(byPage.get(p.id)?.values() ?? [])];
+    results.push({
+      url: p.url,
+      violations,
+      passes: (p.passes as string[]) ?? [],
+      incomplete: (p.incomplete as string[]) ?? [],
+      scannedAt: p.scanned_at ?? new Date().toISOString(),
+    });
+    const target = p.sample_type === "random" ? randomRules : structuredRules;
+    for (const v of violations) target.add(v.ruleId);
+  }
+  return { results, structuredRules, randomRules };
+}
+
+/** 저장된 페이지 결과 전체로 scans.summary를 다시 집계 */
+async function reaggregate(db: SupabaseClient, scanId: string): Promise<void> {
+  const { data: scan } = await db.from("scans").select("*").eq("id", scanId).single();
+  if (!scan) return;
+  const scope = (scan.scope ?? null) as EvaluationScope | null;
+
+  const { count: totalPages } = await db
+    .from("scan_pages")
+    .select("id", { count: "exact", head: true })
+    .eq("scan_id", scanId);
+
+  const { results, structuredRules, randomRules } = await reconstructResults(db, scanId);
+  if (results.length === 0) return;
+
+  const prevSample = (scan.summary as { sample?: SampleSummary } | null)?.sample;
+  const sampleSummary: SampleSummary | undefined = prevSample
+    ? { ...prevSample, randomSurfacedNewRules: [...randomRules].filter((r) => !structuredRules.has(r)) }
+    : undefined;
+
+  const summary = aggregateScan(results, AXE_VERSION, {
+    conformanceTarget: scope?.conformanceTarget ?? "AA",
+    sample: sampleSummary,
+    plannedPageCount: totalPages ?? results.length,
+  });
+  await db
+    .from("scans")
+    .update({ status: "done", error: null, summary, finished_at: new Date().toISOString() })
+    .eq("id", scanId);
+}
+
+/**
+ * 실패한 단일 페이지 재검사 — 성공하면 findings를 교체하고 보고서 전체를 재집계한다.
+ * 새 브라우저를 페이지 전용으로 띄워 실행 (자원 격리).
+ */
+export async function rescanPage(scanId: string, pageId: string): Promise<{ ok: boolean; error?: string }> {
+  const db = createAdminClient();
+  const { data: page } = await db
+    .from("scan_pages")
+    .select("id, url, status, scan_id")
+    .eq("id", pageId)
+    .eq("scan_id", scanId)
+    .maybeSingle();
+  if (!page) return { ok: false, error: "페이지를 찾을 수 없습니다." };
+  if (page.status !== "failed") return { ok: false, error: "실패한 페이지만 재검사할 수 있습니다." };
+
+  await db.from("scan_pages").update({ status: "running", error: null }).eq("id", pageId);
+
+  let browser: Browser | null = null;
+  try {
+    await assertPublicHttpUrl(page.url);
+    browser = await launchGuardedBrowser();
+    const result = await scanSinglePage(browser, page.url);
+    await persistPageResult(db, pageId, result);
+    await reaggregate(db, scanId);
+    return { ok: true };
+  } catch (e) {
+    await db
+      .from("scan_pages")
+      .update({ status: "failed", error: truncate((e as Error).message, 500) })
+      .eq("id", pageId);
+    return { ok: false, error: "재검사에 실패했습니다. 잠시 후 다시 시도해 주세요." };
+  } finally {
+    await disposeBrowser(browser);
+  }
 }
 
 function truncate(text: string, max: number): string {

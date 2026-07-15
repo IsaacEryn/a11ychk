@@ -16,6 +16,8 @@ export function classifyScanError(raw: string | null | undefined): ScanErrorReas
   const e = raw.toLowerCase();
 
   if (e.includes("timeout") || e.includes("timed out")) return "timeout";
+  // 검사 엔진 쪽 자원 고갈 — 대상 사이트 문제가 아니므로 '접속 불가'보다 먼저 분류
+  if (e.includes("err_insufficient_resources") || e.includes("out of memory")) return "temporary";
   if (
     e.includes("err_name_not_resolved") ||
     e.includes("err_connection") ||
