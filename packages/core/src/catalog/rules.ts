@@ -1000,6 +1000,74 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     title: { ko: "iframe 내부는 검사되지 않았습니다", en: "Frames were not tested" },
     guide: { ko: "iframe 내부 문서는 이번 자동 검사 범위에 포함되지 않았습니다. 프레임 내부 페이지를 별도로 검사하세요.", en: "Scan the framed document separately." },
   },
+
+  // ───────── A11Y Check 자체 규칙 (axe 미커버 SC 보완) ─────────
+  {
+    ruleId: "a11ychk:reflow",
+    wcag: ["1.4.10"],
+    kwcag: [],
+    level: "AA",
+    title: { ko: "320px 폭에서 가로 스크롤이 발생합니다", en: "Horizontal scrolling occurs at 320px width" },
+    guide: {
+      ko: "화면을 400%까지 확대(320 CSS px 폭 상당)해도 가로 스크롤 없이 콘텐츠가 다시 배치(리플로우)되어야 합니다. 저시력 사용자가 확대해서 볼 때 좌우로 스크롤하지 않게 하기 위함입니다.\n\n```css\n/* 고정 폭 대신 반응형 단위 사용 */\n.container { max-width: 100%; }\nimg, table, pre { max-width: 100%; }\n```\n\n데이터 표·지도처럼 2차원 배치가 본질적으로 필요한 콘텐츠는 예외입니다.",
+      en: "Content must reflow without horizontal scrolling at 320 CSS px (≈400% zoom), except for 2D content like data tables or maps.",
+    },
+  },
+  {
+    ruleId: "a11ychk:keyboard-clickable",
+    wcag: ["2.1.1"],
+    kwcag: ["6.1.1"],
+    level: "A",
+    title: { ko: "클릭은 되지만 키보드로 조작할 수 없는 요소가 있습니다", en: "Clickable element is not keyboard operable" },
+    guide: {
+      ko: "`onclick`이 붙었지만 키보드 초점을 받지 못하는 `<div>`·`<span>` 등이 있습니다. 키보드 사용자가 실행할 수 없습니다. 가능하면 `<button>`을 쓰고, 불가피하면 `tabindex=\"0\"`·`role`·키보드 이벤트를 함께 제공하세요.\n\n```html\n<!-- 잘못된 예 -->\n<div onclick=\"submit()\">전송</div>\n<!-- 올바른 예 -->\n<button type=\"button\" onclick=\"submit()\">전송</button>\n```",
+      en: "Elements with onclick but no keyboard focus/handler can't be operated by keyboard. Prefer <button>, or add tabindex, role, and key handlers.",
+    },
+  },
+  {
+    ruleId: "a11ychk:focus-visible",
+    wcag: ["2.4.7"],
+    kwcag: ["6.1.2"],
+    level: "AA",
+    title: { ko: "키보드 초점 표시가 보이지 않을 수 있습니다", en: "Keyboard focus indicator may not be visible" },
+    guide: {
+      ko: "키보드로 초점을 옮겼을 때 어떤 요소에 있는지 시각적으로 보여야 합니다. `outline: none`으로 기본 표시를 제거하고 대체 스타일을 주지 않으면 키보드 사용자가 위치를 알 수 없습니다.\n\n```css\n/* outline을 없앴다면 반드시 대체 표시 제공 */\na:focus-visible, button:focus-visible {\n  outline: 3px solid #0b5d54;\n  outline-offset: 2px;\n}\n```\n\n실제로 Tab 키로 이동하며 초점 표시가 뚜렷한지 확인하세요.",
+      en: "Keyboard focus must be visibly indicated. If you remove the default outline, provide a clear alternative (outline, box-shadow, etc.).",
+    },
+  },
+  {
+    ruleId: "a11ychk:page-title-unique",
+    wcag: ["2.4.2"],
+    kwcag: ["6.4.2"],
+    level: "A",
+    title: { ko: "여러 페이지의 제목이 모두 동일합니다", en: "Multiple pages share the same title" },
+    guide: {
+      ko: "표본으로 검사한 여러 페이지의 `<title>`이 전부 같습니다. 각 페이지는 내용을 구분할 수 있는 고유한 제목을 가져야 합니다(예: \"회사소개 - OO대학교\", \"입학안내 - OO대학교\"). 스크린 리더·탭·북마크에서 페이지를 식별하는 핵심 정보입니다.",
+      en: "Sampled pages all share the same <title>. Each page needs a unique, descriptive title.",
+    },
+  },
+  {
+    ruleId: "a11ychk:consistent-navigation",
+    wcag: ["3.2.3"],
+    kwcag: [],
+    level: "AA",
+    title: { ko: "페이지마다 내비게이션 순서가 다릅니다", en: "Navigation order differs across pages" },
+    guide: {
+      ko: "여러 페이지에서 반복되는 내비게이션(주 메뉴 등)은 상대적 순서를 일관되게 유지해야 합니다. 페이지마다 메뉴 순서가 바뀌면 사용자가 예측하기 어렵습니다. 공통 레이아웃/템플릿으로 내비게이션을 렌더링하세요.",
+      en: "Repeated navigation must keep a consistent relative order across pages. Render it from a shared layout/template.",
+    },
+  },
+  {
+    ruleId: "a11ychk:multiple-ways",
+    wcag: ["2.4.5"],
+    kwcag: [],
+    level: "AA",
+    title: { ko: "페이지를 찾는 방법이 하나뿐입니다", en: "Only one way to locate pages" },
+    guide: {
+      ko: "사이트 내에서 페이지를 찾는 방법이 두 가지 이상 제공되어야 합니다(예: 주 메뉴 + 검색, 또는 메뉴 + 사이트맵). 표본에서 내비게이션 외에 검색·사이트맵을 찾지 못했습니다. 검색 기능이나 사이트맵 링크를 제공하세요.",
+      en: "Provide at least two ways to find pages (e.g., navigation + search, or navigation + sitemap).",
+    },
+  },
 ];
 
 export const RULE_BY_ID: ReadonlyMap<string, RuleCatalogEntry> = new Map(RULE_CATALOG.map((r) => [r.ruleId, r]));

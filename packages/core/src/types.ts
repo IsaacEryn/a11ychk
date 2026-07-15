@@ -58,6 +58,25 @@ export interface Finding {
   nodes: FindingNode[];
 }
 
+/** 사이트 수준 검사를 위한 페이지 시그니처 (WCAG-EM Phase C) */
+export interface PageSignature {
+  url: string;
+  title: string;
+  /** 주 내비게이션 링크 텍스트 시퀀스 */
+  navLinks: string[];
+  hasSearch: boolean;
+  hasSitemap: boolean;
+  hasMedia: boolean;
+}
+
+/** 사이트 수준 검사 결과 (집계 시 규칙 세트로 편입) */
+export interface SiteCheckOutcome {
+  ruleId: string;
+  outcome: "failed" | "passed" | "review";
+  count: number;
+  nodes: FindingNode[];
+}
+
 /** 한 페이지의 스캔 결과 */
 export interface PageScanResult {
   url: string;
@@ -182,6 +201,35 @@ export interface SampleSummary {
   randomSurfacedNewRules: string[];
 }
 
+/** 한 종류의 준수율 계산 결과 (자동/수동/통합 공통) */
+export interface ScoreBreakdown {
+  /** 준수율 % (0–100). 판정된 항목 기준 (passed / (passed+failed)) */
+  rate: number;
+  /** 준수(통과)로 판정된 성공기준 수 */
+  passed: number;
+  /** 미준수(위반)로 판정된 성공기준 수 */
+  failed: number;
+  /** 판정된 성공기준 수 (passed + failed) */
+  evaluated: number;
+  /** 아직 판정되지 않은 성공기준 수 (수동 확인 필요·미확인·해당없음) */
+  notEvaluated: number;
+}
+
+/**
+ * 세 가지 준수율 (WCAG-EM Phase D).
+ * - automated: 자동 검사(axe + 자체 규칙 + 사이트 검사)만의 결과
+ * - manual: 점검자가 직접 판정 기입한 결과만
+ * - combined: 자동 + 수동을 통합 (점검자 판정이 자동 판정을 우선)
+ * 모두 목표 적합성 수준의 WCAG 성공기준을 기준으로 계산.
+ */
+export interface ScanScores {
+  automated: ScoreBreakdown;
+  manual: ScoreBreakdown;
+  combined: ScoreBreakdown;
+  /** 목표 수준 전체 성공기준 수 (분모 기준) */
+  totalCriteria: number;
+}
+
 /** 스캔 전체 요약 (scans.summary jsonb에 저장) */
 export interface ScanSummary {
   pageCount: number;
@@ -194,8 +242,10 @@ export interface ScanSummary {
   kwcagMatrix: KwcagMatrixRow[];
   /** WCAG 2.2 성공기준별 판정 (WCAG-EM Step 4) */
   wcagMatrix: WcagMatrixRow[];
-  /** 자동 검사 가능 규칙 기준 준수율 (0–100) */
+  /** 자동 검사 가능 규칙 기준 준수율 (0–100) — 하위 호환용(자동 검사 규칙 기준) */
   complianceRate: number;
+  /** 자동/수동/통합 세 준수율 (WCAG 성공기준 기준). 구버전 스캔엔 없을 수 있음 */
+  scores?: ScanScores;
   engine: { name: string; axeVersion: string };
   /** WCAG-EM 표본 요약 (없을 수 있음 — 구버전 스캔 호환) */
   sample?: SampleSummary;

@@ -8,7 +8,9 @@ import {
   assertPublicHttpUrl,
   buildSample,
   categorizePage,
+  computeSiteChecks,
   detectTechnologies,
+  extractPageSignature,
   guardedFetch,
   isPrivateAddress,
   normalizeUrl,
@@ -17,9 +19,11 @@ import {
   type Finding,
   type Impact,
   type PageScanResult,
+  type PageSignature,
   type SampleResult,
   type SampleSummary,
   type WcagLevel,
+  type WcagOutcome,
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -49,8 +53,13 @@ async function disposeBrowser(browser: Browser | null): Promise<void> {
   }
 }
 
-/** 한 페이지를 스캔해 결과 반환. 컨텍스트는 항상 정리한다. */
-async function scanSinglePage(browser: Browser, url: string): Promise<PageScanResult> {
+interface SinglePageOutcome {
+  result: PageScanResult;
+  signature: PageSignature | null;
+}
+
+/** 한 페이지를 스캔해 결과 + 사이트 시그니처를 반환. 컨텍스트는 항상 정리한다. */
+async function scanSinglePage(browser: Browser, url: string): Promise<SinglePageOutcome> {
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     locale: "ko-KR",
@@ -69,14 +78,36 @@ async function scanSinglePage(browser: Browser, url: string): Promise<PageScanRe
     });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
     await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
-    return await runAxeOnPage(page);
+    // 시그니처는 뷰포트 변경(리플로우 검사) 전에 추출
+    const signature = await extractPageSignature(page).catch(() => null);
+    const result = await runAxeOnPage(page);
+    return { result, signature };
   } finally {
     await context.close().catch(() => undefined);
   }
 }
 
+/** 점검자 판정을 standard별 itemId→outcome 맵으로 로드 (통합 점수용) */
+async function loadReviews(
+  db: SupabaseClient,
+  scanId: string,
+): Promise<{ wcag: Record<string, WcagOutcome>; kwcag: Record<string, WcagOutcome> }> {
+  const { data } = await db.from("scan_reviews").select("standard, item_id, outcome").eq("scan_id", scanId);
+  const reviews = { wcag: {} as Record<string, WcagOutcome>, kwcag: {} as Record<string, WcagOutcome> };
+  for (const r of data ?? []) {
+    const bucket = r.standard === "kwcag" ? reviews.kwcag : reviews.wcag;
+    bucket[r.item_id as string] = r.outcome as WcagOutcome;
+  }
+  return reviews;
+}
+
 /** 페이지 결과를 DB에 저장 (기존 findings 교체) */
-async function persistPageResult(db: SupabaseClient, pageRowId: string, result: PageScanResult): Promise<void> {
+async function persistPageResult(
+  db: SupabaseClient,
+  pageRowId: string,
+  result: PageScanResult,
+  signature?: PageSignature | null,
+): Promise<void> {
   await db.from("findings").delete().eq("scan_page_id", pageRowId);
   if (result.violations.length > 0) {
     const findingRows = result.violations.flatMap((v) =>
@@ -107,6 +138,16 @@ async function persistPageResult(db: SupabaseClient, pageRowId: string, result: 
       scanned_at: result.scannedAt,
     })
     .eq("id", pageRowId);
+
+  // 시그니처는 별도 best-effort 업데이트 (migration 0005 미적용 시 컬럼 부재로 실패 → 무시).
+  // 핵심 결과 저장을 이 부가 컬럼이 막지 않도록 분리한다.
+  if (signature !== undefined) {
+    await db
+      .from("scan_pages")
+      .update({ signature })
+      .eq("id", pageRowId)
+      .then(undefined, () => undefined);
+  }
 }
 
 /**
@@ -173,6 +214,7 @@ export async function runScan(scanId: string): Promise<void> {
 
     // 3) 페이지별 스캔 (부분 실패 허용) — 구조/무작위 표본별 위반 규칙 추적(WCAG-EM 4.c)
     const results: PageScanResult[] = [];
+    const signatures: PageSignature[] = [];
     const structuredRules = new Set<string>();
     const randomRules = new Set<string>();
 
@@ -188,9 +230,10 @@ export async function runScan(scanId: string): Promise<void> {
           await assertPublicHttpUrl(row.url);
           browser = await launchGuardedBrowser();
           try {
-            const result = await scanSinglePage(browser, row.url);
-            await persistPageResult(db, row.id, result);
+            const { result, signature } = await scanSinglePage(browser, row.url);
+            await persistPageResult(db, row.id, result, signature);
             results.push(result);
+            if (signature) signatures.push(signature);
 
             const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
             for (const v of result.violations) ruleTarget.add(v.ruleId);
@@ -235,6 +278,8 @@ export async function runScan(scanId: string): Promise<void> {
       conformanceTarget,
       sample: sampleSummary,
       plannedPageCount: sample.pages.length,
+      siteChecks: computeSiteChecks(signatures),
+      reviews: await loadReviews(db, scanId),
     });
     await db
       .from("scans")
@@ -258,12 +303,28 @@ export async function runScan(scanId: string): Promise<void> {
 async function reconstructResults(
   db: SupabaseClient,
   scanId: string,
-): Promise<{ results: PageScanResult[]; structuredRules: Set<string>; randomRules: Set<string> }> {
+): Promise<{
+  results: PageScanResult[];
+  signatures: PageSignature[];
+  structuredRules: Set<string>;
+  randomRules: Set<string>;
+}> {
   const { data: pages } = await db
     .from("scan_pages")
     .select("id, url, status, sample_type, passes, incomplete, scanned_at")
     .eq("scan_id", scanId);
   const donePages = (pages ?? []).filter((p) => p.status === "done");
+
+  // 시그니처는 별도 best-effort 조회 (migration 0005 미적용 시 컬럼 부재로 실패 → 빈 맵)
+  const sigById = new Map<string, PageSignature>();
+  const { data: sigRows } = await db
+    .from("scan_pages")
+    .select("id, signature")
+    .eq("scan_id", scanId)
+    .then((r) => r, () => ({ data: null }));
+  for (const s of sigRows ?? []) {
+    if (s.signature) sigById.set(s.id as string, s.signature as PageSignature);
+  }
 
   const { data: findings } = await db
     .from("findings")
@@ -289,6 +350,7 @@ async function reconstructResults(
   }
 
   const results: PageScanResult[] = [];
+  const signatures: PageSignature[] = [];
   const structuredRules = new Set<string>();
   const randomRules = new Set<string>();
   for (const p of donePages) {
@@ -300,10 +362,12 @@ async function reconstructResults(
       incomplete: (p.incomplete as string[]) ?? [],
       scannedAt: p.scanned_at ?? new Date().toISOString(),
     });
+    const sig = sigById.get(p.id);
+    if (sig) signatures.push(sig);
     const target = p.sample_type === "random" ? randomRules : structuredRules;
     for (const v of violations) target.add(v.ruleId);
   }
-  return { results, structuredRules, randomRules };
+  return { results, signatures, structuredRules, randomRules };
 }
 
 /** 저장된 페이지 결과 전체로 scans.summary를 다시 집계 */
@@ -317,7 +381,7 @@ async function reaggregate(db: SupabaseClient, scanId: string): Promise<void> {
     .select("id", { count: "exact", head: true })
     .eq("scan_id", scanId);
 
-  const { results, structuredRules, randomRules } = await reconstructResults(db, scanId);
+  const { results, signatures, structuredRules, randomRules } = await reconstructResults(db, scanId);
   if (results.length === 0) return;
 
   const prevSample = (scan.summary as { sample?: SampleSummary } | null)?.sample;
@@ -329,6 +393,8 @@ async function reaggregate(db: SupabaseClient, scanId: string): Promise<void> {
     conformanceTarget: scope?.conformanceTarget ?? "AA",
     sample: sampleSummary,
     plannedPageCount: totalPages ?? results.length,
+    siteChecks: computeSiteChecks(signatures),
+    reviews: await loadReviews(db, scanId),
   });
   await db
     .from("scans")
@@ -357,8 +423,8 @@ export async function rescanPage(scanId: string, pageId: string): Promise<{ ok: 
   try {
     await assertPublicHttpUrl(page.url);
     browser = await launchGuardedBrowser();
-    const result = await scanSinglePage(browser, page.url);
-    await persistPageResult(db, pageId, result);
+    const { result, signature } = await scanSinglePage(browser, page.url);
+    await persistPageResult(db, pageId, result, signature);
     await reaggregate(db, scanId);
     return { ok: true };
   } catch (e) {

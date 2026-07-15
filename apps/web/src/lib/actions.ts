@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { resolveTxt } from "node:dns/promises";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { computeScores, type ScanSummary, type WcagMatrixRow, type WcagOutcome } from "@a11ychk/core";
 import { guardedFetch } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -190,6 +191,28 @@ const ReviewSchema = z.object({
 });
 
 /** 점검자 판정 저장 (upsert). 빈 outcome 전달 시 판정 삭제 */
+/**
+ * 점검자 판정 변경 후 summary.scores(수동·통합 준수율)만 다시 계산해 저장.
+ * 자동 판정 매트릭스는 그대로이므로 전체 재집계 없이 점수만 갱신한다.
+ */
+async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<void> {
+  const { data: scan } = await supabase.from("scans").select("summary").eq("id", scanId).maybeSingle();
+  const summary = scan?.summary as ScanSummary | null;
+  if (!summary?.wcagMatrix) return;
+
+  const { data: reviews } = await supabase
+    .from("scan_reviews")
+    .select("standard, item_id, outcome")
+    .eq("scan_id", scanId);
+  const wcagReviews: Record<string, WcagOutcome> = {};
+  for (const r of reviews ?? []) {
+    if (r.standard === "wcag") wcagReviews[r.item_id as string] = r.outcome as WcagOutcome;
+  }
+
+  const scores = computeScores(summary.wcagMatrix as WcagMatrixRow[], wcagReviews);
+  await supabase.from("scans").update({ summary: { ...summary, scores } }).eq("id", scanId);
+}
+
 export async function saveReview(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
 
@@ -211,6 +234,7 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
       .eq("standard", standard.data)
       .eq("item_id", itemId.data);
     if (error) return { error: "failed" };
+    await refreshScores(supabase, scanId.data);
     revalidateAll();
     return { ok: true };
   }
@@ -236,6 +260,7 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
     { onConflict: "scan_id,standard,item_id" },
   );
   if (error) return { error: "failed" };
+  await refreshScores(supabase, parsed.data.scanId);
   revalidateAll();
   return { ok: true };
 }

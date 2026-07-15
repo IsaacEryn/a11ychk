@@ -267,6 +267,21 @@
       "violationNodes": "Violating elements",
       "unit": "{count}"
     },
+    "scores": {
+      "combined": "Combined compliance",
+      "combinedDesc": "Final rate integrating automated checks and reviewer judgments.",
+      "automated": "Automated",
+      "automatedDesc": "Automatically determined by axe, custom rules, and site-level checks.",
+      "manual": "Manual review",
+      "manualDesc": "Judgments entered by the reviewer after manual inspection.",
+      "coverage": "{evaluated}/{total} criteria judged",
+      "passFail": "Pass {passed} · Fail {failed}",
+      "noManual": "No judgments entered",
+      "legend": "Combined uses the reviewer's judgment for each criterion when present, otherwise the automated result.",
+      "violations": "Violated rules",
+      "violationNodes": "Violating elements",
+      "unit": "{count}"
+    },
     "impact": {
       "title": "Violations by severity",
       "critical": "Critical",

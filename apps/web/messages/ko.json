@@ -267,6 +267,21 @@
       "violationNodes": "위반 요소",
       "unit": "{count}건"
     },
+    "scores": {
+      "combined": "통합 준수율",
+      "combinedDesc": "자동 검사와 점검자 판정을 통합한 최종 준수율입니다.",
+      "automated": "자동 검사",
+      "automatedDesc": "axe·자체 규칙·사이트 수준 검사로 자동 판정한 결과입니다.",
+      "manual": "수동 검사",
+      "manualDesc": "점검자가 직접 확인해 판정을 기입한 결과입니다.",
+      "coverage": "성공기준 {evaluated}/{total} 판정",
+      "passFail": "통과 {passed} · 위반 {failed}",
+      "noManual": "판정 기입 없음",
+      "legend": "통합 준수율은 각 성공기준에 대해 점검자 판정이 있으면 그 결과를, 없으면 자동 판정을 사용합니다.",
+      "violations": "위반 항목",
+      "violationNodes": "위반 요소",
+      "unit": "{count}건"
+    },
     "impact": {
       "title": "심각도별 위반 요소",
       "critical": "치명적",

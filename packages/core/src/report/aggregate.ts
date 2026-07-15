@@ -8,7 +8,10 @@ import type {
   KwcagStatus,
   PageScanResult,
   SampleSummary,
+  ScanScores,
   ScanSummary,
+  ScoreBreakdown,
+  SiteCheckOutcome,
   WcagMatrixRow,
   WcagOutcome,
 } from "../types";
@@ -25,6 +28,10 @@ export interface AggregateOptions {
   sample?: SampleSummary;
   /** 표본으로 계획된 전체 페이지 수 (성공한 pages와 다를 수 있음) */
   plannedPageCount?: number;
+  /** 사이트 수준 검사 결과 (Phase C) — 규칙 세트로 편입 */
+  siteChecks?: SiteCheckOutcome[];
+  /** 점검자 판정 (scan_reviews) — 통합 점수 계산용. standard별 itemId→outcome */
+  reviews?: { wcag: Record<string, WcagOutcome>; kwcag: Record<string, WcagOutcome> };
 }
 
 export function aggregateScan(
@@ -54,6 +61,19 @@ export function aggregateScan(
     }
     for (const id of page.passes) passedRules.add(id);
     for (const id of page.incomplete) incompleteRules.add(id);
+  }
+
+  // 사이트 수준 검사 결과를 규칙 세트로 편입 (Phase C)
+  for (const sc of options.siteChecks ?? []) {
+    if (sc.outcome === "failed") {
+      failedRules.add(sc.ruleId);
+      byRule[sc.ruleId] = (byRule[sc.ruleId] ?? 0) + sc.count;
+      if (!ruleKwcag.has(sc.ruleId)) ruleKwcag.set(sc.ruleId, getRuleEntry(sc.ruleId).kwcag);
+    } else if (sc.outcome === "passed") {
+      passedRules.add(sc.ruleId);
+    } else {
+      incompleteRules.add(sc.ruleId);
+    }
   }
 
   // 통과 목록에서 위반된 규칙 제거 (한 페이지라도 위반이면 위반)
@@ -140,6 +160,9 @@ export function aggregateScan(
   const checkedRuleCount = passedRules.size + failedRules.size;
   const complianceRate = checkedRuleCount === 0 ? 0 : Math.round((passedRules.size / checkedRuleCount) * 1000) / 10;
 
+  // ── 세 가지 준수율 (WCAG-EM Phase D): 자동 / 수동 / 통합 ──
+  const scores = computeScores(wcagMatrix, options.reviews?.wcag ?? {});
+
   return {
     pageCount: options.plannedPageCount ?? pages.length,
     scannedPageCount: pages.length,
@@ -150,7 +173,56 @@ export function aggregateScan(
     kwcagMatrix,
     wcagMatrix,
     complianceRate,
+    scores,
     engine: { name: "axe-core", axeVersion },
     ...(options.sample ? { sample: options.sample } : {}),
+  };
+}
+
+/** passed/failed 카운트로 준수율 breakdown 생성 */
+function breakdown(passed: number, failed: number, total: number): ScoreBreakdown {
+  const evaluated = passed + failed;
+  const rate = evaluated === 0 ? 0 : Math.round((passed / evaluated) * 1000) / 10;
+  return { rate, passed, failed, evaluated, notEvaluated: total - evaluated };
+}
+
+/**
+ * 자동 / 수동 / 통합 준수율 계산.
+ * - 자동: wcagMatrix의 passed·failed (axe + 자체 + 사이트 검사)
+ * - 수동: 점검자가 판정 기입한 성공기준의 passed·failed
+ * - 통합: 각 성공기준마다 점검자 판정이 있으면 그것을, 없으면 자동 판정을 사용
+ */
+export function computeScores(
+  wcagMatrix: WcagMatrixRow[],
+  reviews: Record<string, WcagOutcome>,
+): ScanScores {
+  const total = wcagMatrix.length;
+  let autoPass = 0;
+  let autoFail = 0;
+  let manualPass = 0;
+  let manualFail = 0;
+  let combPass = 0;
+  let combFail = 0;
+
+  for (const row of wcagMatrix) {
+    if (row.outcome === "passed") autoPass += 1;
+    else if (row.outcome === "failed") autoFail += 1;
+
+    const rv = reviews[row.scId];
+    if (rv === "passed") manualPass += 1;
+    else if (rv === "failed") manualFail += 1;
+
+    // 통합: 점검자 판정 우선 (passed/failed/notPresent만 확정으로 인정)
+    const finalOutcome: WcagOutcome =
+      rv === "passed" || rv === "failed" || rv === "notPresent" ? rv : row.outcome;
+    if (finalOutcome === "passed" || finalOutcome === "notPresent") combPass += 1;
+    else if (finalOutcome === "failed") combFail += 1;
+  }
+
+  return {
+    automated: breakdown(autoPass, autoFail, total),
+    manual: breakdown(manualPass, manualFail, total),
+    combined: breakdown(combPass, combFail, total),
+    totalCriteria: total,
   };
 }

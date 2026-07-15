@@ -133,6 +133,48 @@ describe("WCAG 2.2 SC 매트릭스 (WCAG-EM)", () => {
     expect(s.wcagMatrix.find((r) => r.scId === "1.4.3")?.outcome).toBe("cannotTell");
   });
 
+  it("사이트 검사 결과(siteChecks)를 규칙 세트로 편입해 매트릭스에 반영", () => {
+    const s = aggregateScan([page({})], "4.10.0", {
+      conformanceTarget: "AA",
+      siteChecks: [
+        { ruleId: "a11ychk:page-title-unique", outcome: "failed", count: 3, nodes: [] }, // → 2.4.2
+        { ruleId: "a11ychk:multiple-ways", outcome: "passed", count: 0, nodes: [] }, // → 2.4.5
+      ],
+    });
+    expect(s.wcagMatrix.find((r) => r.scId === "2.4.2")?.outcome).toBe("failed");
+    expect(s.wcagMatrix.find((r) => r.scId === "2.4.2")?.violationCount).toBe(3);
+    expect(s.wcagMatrix.find((r) => r.scId === "2.4.5")?.outcome).toBe("passed");
+  });
+
+  it("자동·수동·통합 세 준수율 계산 (점검자 판정이 통합에서 우선)", () => {
+    const s = aggregateScan(
+      [
+        page({
+          violations: [
+            { ruleId: "color-contrast", impact: "serious", tags: [], helpUrl: "", nodes: [{ selector: "p", html: "<p>", failureSummary: "" }] }, // 1.4.3 fail
+          ],
+          passes: ["html-has-lang"], // 3.1.1 pass
+        }),
+      ],
+      "4.10.0",
+      {
+        conformanceTarget: "AA",
+        // 점검자가 1.4.3을 통과로 뒤집고, 자동 미확인 1.2.2를 위반으로 판정
+        reviews: { wcag: { "1.4.3": "passed", "1.2.2": "failed" }, kwcag: {} },
+      },
+    );
+    // 자동: 1통과(3.1.1) / 1위반(1.4.3)
+    expect(s.scores?.automated.passed).toBe(1);
+    expect(s.scores?.automated.failed).toBe(1);
+    expect(s.scores?.automated.rate).toBe(50);
+    // 수동: 1통과(1.4.3) / 1위반(1.2.2)
+    expect(s.scores?.manual.passed).toBe(1);
+    expect(s.scores?.manual.failed).toBe(1);
+    // 통합: 1.4.3은 점검자 통과로, 1.2.2는 점검자 위반, 3.1.1 자동 통과 → 2통과 1위반
+    expect(s.scores?.combined.passed).toBe(2);
+    expect(s.scores?.combined.failed).toBe(1);
+  });
+
   it("sample 요약을 전달하면 summary.sample에 포함", () => {
     const s = aggregateScan([], "4.10.0", {
       sample: {
