@@ -26,6 +26,7 @@ export function QuotaResetForm({ userId }: { userId: string }) {
           <option value="daily">{t("resetScope.daily")}</option>
           <option value="weekly">{t("resetScope.weekly")}</option>
           <option value="monthly">{t("resetScope.monthly")}</option>
+          <option value="extension">{t("resetScope.extension")}</option>
         </select>
       </div>
       <button

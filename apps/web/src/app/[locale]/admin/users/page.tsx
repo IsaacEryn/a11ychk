@@ -1,7 +1,17 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { setUserLimits, toggleBlockUser } from "@/lib/actions";
-import { MAX_PAGES_PER_SCAN, PLANS, PLAN_IDS, getCustomLimits, getCustomPages, getPlan, resolveLimits } from "@/lib/quota";
+import {
+  EXT_DAILY_DEFAULT,
+  MAX_PAGES_PER_SCAN,
+  PLANS,
+  PLAN_IDS,
+  getCustomLimits,
+  getCustomPages,
+  getExtDailyLimit,
+  getPlan,
+  resolveLimits,
+} from "@/lib/quota";
 import { QuotaResetForm } from "../QuotaResetForm";
 import { UserLimitsForm } from "../UserLimitsForm";
 
@@ -92,6 +102,13 @@ export default async function AdminUsersPage({
                 currentPlan={plan}
                 custom={getCustomLimits(u.scan_limit_override)}
                 customPages={getCustomPages(u.scan_limit_override)}
+                customExtDaily={
+                  getExtDailyLimit(u.scan_limit_override) === EXT_DAILY_DEFAULT &&
+                  !(u.scan_limit_override as Record<string, unknown> | null)?.extDaily
+                    ? undefined
+                    : getExtDailyLimit(u.scan_limit_override)
+                }
+                extDailyDefault={EXT_DAILY_DEFAULT}
                 effective={limits}
                 maxPages={MAX_PAGES_PER_SCAN}
                 planOptions={PLAN_IDS.map((p) => ({
@@ -107,6 +124,7 @@ export default async function AdminUsersPage({
                   monthly: tDash("quota.monthly"),
                   pages: t("users.pagesLabel"),
                   pagesHint: t("users.pagesHint", { max: MAX_PAGES_PER_SCAN }),
+                  extDaily: t("users.extDailyLabel"),
                   save: t("users.saveLimits"),
                   customHint: t("users.customHint"),
                   effective: t("users.effective"),

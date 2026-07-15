@@ -368,7 +368,8 @@
         "structured": "구조",
         "random": "무작위",
         "process": "프로세스"
-      }
+      },
+      "viaExtension": "확장 검사"
     },
     "em": {
       "scopeTitle": "평가 범위 (WCAG-EM Step 1)",
@@ -596,7 +597,8 @@
         "all": "전체(일·주·월)",
         "daily": "일간",
         "weekly": "주간",
-        "monthly": "월간"
+        "monthly": "월간",
+        "extension": "확장 사용량"
       },
       "resetApply": "한도 초기화",
       "resetPending": "초기화 중…",
@@ -609,7 +611,8 @@
       "searchApply": "검색",
       "noResults": "일치하는 사용자가 없습니다.",
       "pagesLabel": "페이지 한도",
-      "pagesHint": "페이지 한도: 소유 확인 도메인은 2배 적용, 최대 {max}페이지"
+      "pagesHint": "페이지 한도: 소유 확인 도메인은 2배 적용, 최대 {max}페이지",
+      "extDailyLabel": "확장/일"
     },
     "inquiriesSection": {
       "title": "문의 관리",

@@ -22,6 +22,8 @@ export function UserLimitsForm({
   currentPlan,
   custom,
   customPages,
+  customExtDaily,
+  extDailyDefault,
   effective,
   maxPages,
   planOptions,
@@ -33,6 +35,10 @@ export function UserLimitsForm({
   custom: Partial<ScanLimits>;
   /** 사용자별 기본 페이지 한도 (scan_limit_override.pages) */
   customPages?: number;
+  /** 사용자별 확장 일일 한도 (scan_limit_override.extDaily) */
+  customExtDaily?: number;
+  /** 확장 일일 한도 기본값 (EXT_DAILY_DEFAULT) */
+  extDailyDefault: number;
   effective: ScanLimits;
   /** 절대 상한 (MAX_PAGES_PER_SCAN) */
   maxPages: number;
@@ -44,6 +50,7 @@ export function UserLimitsForm({
     monthly: string;
     pages: string;
     pagesHint: string;
+    extDaily: string;
     save: string;
     customHint: string;
     effective: string;
@@ -115,6 +122,23 @@ export function UserLimitsForm({
             defaultValue={customPages ?? ""}
             placeholder={String(Math.min(selectedPlan?.sampleSize ?? 5, maxPages))}
             aria-describedby={`pages-hint-${userId}`}
+            className="w-24 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-sm tabular-nums"
+          />
+        </div>
+
+        <div>
+          <label htmlFor={`ext-${userId}`} className="mb-1 block text-xs font-semibold">
+            {labels.extDaily}
+          </label>
+          <input
+            id={`ext-${userId}`}
+            name="extDaily"
+            type="number"
+            min={0}
+            max={10000}
+            inputMode="numeric"
+            defaultValue={customExtDaily ?? ""}
+            placeholder={String(extDailyDefault)}
             className="w-24 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-sm tabular-nums"
           />
         </div>

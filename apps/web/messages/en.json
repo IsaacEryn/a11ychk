@@ -368,7 +368,8 @@
         "structured": "Structured",
         "random": "Random",
         "process": "Process"
-      }
+      },
+      "viaExtension": "Extension"
     },
     "em": {
       "scopeTitle": "Evaluation scope (WCAG-EM Step 1)",
@@ -596,7 +597,8 @@
         "all": "All (daily·weekly·monthly)",
         "daily": "Daily",
         "weekly": "Weekly",
-        "monthly": "Monthly"
+        "monthly": "Monthly",
+        "extension": "Extension usage"
       },
       "resetApply": "Reset quota",
       "resetPending": "Resetting…",
@@ -609,7 +611,8 @@
       "searchApply": "Search",
       "noResults": "No matching users.",
       "pagesLabel": "Page limit",
-      "pagesHint": "Page limit: doubled for verified domains, max {max} pages"
+      "pagesHint": "Page limit: doubled for verified domains, max {max} pages",
+      "extDailyLabel": "Ext/day"
     },
     "inquiriesSection": {
       "title": "Inquiry management",

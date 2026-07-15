@@ -364,9 +364,17 @@ export default async function ReportPage({
                 {(pages ?? []).map((p) => {
                   const category = (p.category ?? "content") as PageCategory;
                   const sampleType = (p.sample_type ?? "structured") as SampleType;
+                  const viaExtension = p.via === "extension";
                   return (
                     <tr key={p.id} className="border-b border-[var(--color-line)] align-top">
-                      <td className="break-all py-2 pr-3">{p.url}</td>
+                      <td className="break-all py-2 pr-3">
+                        {p.url}
+                        {viaExtension && (
+                          <span className="ml-2 inline-block whitespace-nowrap rounded-full border border-[var(--color-seal)] px-2 py-0.5 text-xs font-bold text-[var(--color-seal)]">
+                            {t("pages.viaExtension")}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.category.${category}`)}</td>
                       <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.sample.${sampleType}`)}</td>
                       <td className="py-2">

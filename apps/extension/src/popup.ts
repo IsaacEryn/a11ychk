@@ -35,6 +35,44 @@ async function getSession(): Promise<StoredSession | null> {
   return null;
 }
 
+/** 비로그인 일일 무료 검사 횟수 (로컬 집계 — 가입 유도) */
+const ANON_DAILY_LIMIT = 3;
+
+function todayKey(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+async function getAnonUsage(): Promise<number> {
+  const { anon_usage } = await chrome.storage.local.get("anon_usage");
+  const u = anon_usage as { day: string; count: number } | undefined;
+  return u && u.day === todayKey() ? u.count : 0;
+}
+
+async function bumpAnonUsage(): Promise<number> {
+  const next = (await getAnonUsage()) + 1;
+  await chrome.storage.local.set({ anon_usage: { day: todayKey(), count: next } });
+  return next;
+}
+
+/** 사용량 안내/가입 유도 문구 갱신 */
+function setUsageNote(html: { text: string; cta?: boolean; err?: boolean }) {
+  const el = $("usage");
+  el.innerHTML = "";
+  const span = document.createElement("span");
+  if (html.err) span.className = "err";
+  span.textContent = html.text;
+  el.appendChild(span);
+  if (html.cta) {
+    el.appendChild(document.createTextNode(" "));
+    const a = document.createElement("a");
+    a.href = `${SITE_ORIGIN}/ko/login`;
+    a.target = "_blank";
+    a.rel = "noopener";
+    a.textContent = "무료 가입하기 →";
+    el.appendChild(a);
+  }
+}
+
 const IMPACTS: Impact[] = ["critical", "serious", "moderate", "minor"];
 const IMPACT_LABEL: Record<Impact, string> = {
   critical: "치명적",
@@ -208,6 +246,38 @@ async function scan() {
   }
   currentTabId = tab.id;
   const scanBtn = $<HTMLButtonElement>("scan");
+
+  // ── 사용량 확인: 로그인 = 서버 확장 한도(웹 검사와 분리) / 비로그인 = 로컬 3회·가입 유도 ──
+  const session = await getSession();
+  if (session) {
+    try {
+      const res = await fetch(`${SITE_ORIGIN}/api/extension/usage`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${session.accessToken}` },
+      });
+      const data = (await res.json()) as { ok?: boolean; used?: number; limit?: number; error?: string };
+      if (res.status === 429) {
+        setUsageNote({ text: data.error ?? "오늘의 확장 검사 한도를 모두 사용했습니다.", err: true });
+        return;
+      }
+      if (res.ok && data.used != null && data.limit != null) {
+        setUsageNote({ text: `오늘 확장 검사 ${data.used}/${data.limit}회 사용` });
+      }
+    } catch {
+      // 네트워크 오류 — 검사는 로컬 실행이므로 차단하지 않음
+    }
+  } else {
+    const used = await getAnonUsage();
+    if (used >= ANON_DAILY_LIMIT) {
+      setUsageNote({
+        text: `오늘 무료 검사 ${ANON_DAILY_LIMIT}회를 모두 사용했습니다. 가입하면 하루 30회 검사와 보고서 저장·관리가 가능합니다.`,
+        cta: true,
+        err: true,
+      });
+      return;
+    }
+  }
+
   scanBtn.disabled = true;
   scanBtn.textContent = "검사 중…";
   try {
@@ -247,6 +317,15 @@ async function scan() {
 
     const summary = aggregateScan([page], AXE_VERSION);
     renderResult(page, summary, tab.url);
+
+    // 비로그인: 로컬 사용량 증가 + 가입 유도
+    if (!session) {
+      const used = await bumpAnonUsage();
+      setUsageNote({
+        text: `오늘 무료 검사 ${used}/${ANON_DAILY_LIMIT}회 사용 · 가입하면 하루 30회 + 보고서 저장·사이트 단위 관리.`,
+        cta: true,
+      });
+    }
   } catch (e) {
     $("target").innerHTML = `<span class="err">검사에 실패했습니다: ${(e as Error).message}</span>`;
   } finally {
@@ -392,7 +471,7 @@ async function saveToAccount() {
       },
       body: JSON.stringify({ page: lastPage, manual, sampleType: isProcess ? "process" : "structured" }),
     });
-    const data = (await res.json()) as { id?: string; error?: string };
+    const data = (await res.json()) as { id?: string; error?: string; merged?: boolean; rootUrl?: string };
     if (!res.ok || !data.id) {
       msg.textContent = "";
       const err = document.createElement("span");
@@ -400,7 +479,9 @@ async function saveToAccount() {
       err.textContent = data.error ?? "저장에 실패했습니다.";
       msg.appendChild(err);
     } else {
-      msg.textContent = "저장되었습니다. ";
+      msg.textContent = data.merged
+        ? `기존 사이트 보고서(${data.rootUrl ?? ""})에 이 페이지를 추가했습니다. `
+        : "저장되었습니다. ";
       const link = document.createElement("a");
       link.href = `${SITE_ORIGIN}/ko/scans/${data.id}`;
       link.target = "_blank";

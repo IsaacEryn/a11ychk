@@ -44,6 +44,51 @@ export const VERIFIED_FREE_SAMPLE_SIZE = 10;
 /** 스캔 1회당 절대 최대 표본 페이지 수 (하드 캡) — Vercel 함수 실행 시간 한도 고려 */
 export const MAX_PAGES_PER_SCAN = 30;
 
+/** 크롬 확장 검사 기본 일일 한도 (웹 검사 한도와 분리, 로그인 사용자) */
+export const EXT_DAILY_DEFAULT = 30;
+
+/** 사용자별 확장 일일 한도 override (scan_limit_override.extDaily). 없으면 기본값 */
+export function getExtDailyLimit(override: unknown): number {
+  const v = asRecord(override).extDaily;
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : EXT_DAILY_DEFAULT;
+}
+
+/**
+ * 확장 검사 사용량 소비/확인 (extension_usage — migration 0009).
+ * consume=true면 1 증가시켜 기록. 테이블 미적용 시 허용으로 폴백.
+ */
+export async function checkExtUsage(
+  admin: SupabaseClient,
+  userId: string,
+  limit: number,
+  consume: boolean,
+): Promise<{ ok: boolean; used: number; limit: number }> {
+  const day = new Date().toISOString().slice(0, 10);
+  try {
+    const { data, error } = await admin
+      .from("extension_usage")
+      .select("count")
+      .eq("user_id", userId)
+      .eq("day", day)
+      .maybeSingle();
+    if (error) return { ok: true, used: 0, limit }; // 마이그레이션 미적용 — 차단하지 않음
+    const used = data?.count ?? 0;
+    if (used >= limit) return { ok: false, used, limit };
+    if (consume) {
+      await admin
+        .from("extension_usage")
+        .upsert(
+          { user_id: userId, day, count: used + 1, updated_at: new Date().toISOString() },
+          { onConflict: "user_id,day" },
+        );
+      return { ok: true, used: used + 1, limit };
+    }
+    return { ok: true, used, limit };
+  } catch {
+    return { ok: true, used: 0, limit };
+  }
+}
+
 /** 관리자가 지정한 사용자별 기본 페이지 한도 (scan_limit_override.pages). 없으면 undefined */
 export function getCustomPages(override: unknown): number | undefined {
   const v = asRecord(override).pages;

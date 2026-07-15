@@ -373,7 +373,7 @@ async function reconstructResults(
 }
 
 /** 저장된 페이지 결과 전체로 scans.summary를 다시 집계 */
-async function reaggregate(db: SupabaseClient, scanId: string): Promise<void> {
+export async function reaggregate(db: SupabaseClient, scanId: string): Promise<void> {
   const { data: scan } = await db.from("scans").select("*").eq("id", scanId).single();
   if (!scan) return;
   const scope = (scan.scope ?? null) as EvaluationScope | null;

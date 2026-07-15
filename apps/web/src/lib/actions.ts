@@ -327,7 +327,7 @@ async function readOverride(admin: SupabaseClient, userId: string): Promise<Reco
 /** 한도 초기화 결과 (useActionState 피드백용) */
 export interface ResetQuotaState {
   ok?: boolean;
-  resetScope?: "daily" | "weekly" | "monthly" | "all";
+  resetScope?: "daily" | "weekly" | "monthly" | "all" | "extension";
   error?: string;
 }
 
@@ -339,10 +339,20 @@ export interface ResetQuotaState {
 export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Promise<ResetQuotaState> {
   const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
-  const scope = z.enum(["daily", "weekly", "monthly", "all"]).safeParse(formData.get("scope"));
+  const scope = z.enum(["daily", "weekly", "monthly", "all", "extension"]).safeParse(formData.get("scope"));
   if (!id.success || !scope.success) return { error: "invalid" };
 
   const admin = createAdminClient();
+
+  // 확장 사용량 초기화 — extension_usage 행 삭제 (웹 한도와 분리)
+  if (scope.data === "extension") {
+    const { error } = await admin.from("extension_usage").delete().eq("user_id", id.data);
+    if (error) return { error: "failed" };
+    await logAdminAction(admin, actor.id, "user.reset_quota", id.data, { scope: "extension" });
+    revalidateAll();
+    return { ok: true, resetScope: scope.data };
+  }
+
   const current = await readOverride(admin, id.data);
   const nowIso = new Date().toISOString();
   const windows = scope.data === "all" ? (["daily", "weekly", "monthly"] as const) : [scope.data];
@@ -393,11 +403,23 @@ export async function setUserLimits(formData: FormData): Promise<void> {
     }
   }
 
+  // 확장 일일 검사 한도 (웹 검사 한도와 분리)
+  {
+    const raw = formData.get("extDaily");
+    const str = typeof raw === "string" ? raw.trim() : "";
+    if (str === "") {
+      delete next.extDaily;
+    } else {
+      const n = Number(str);
+      if (Number.isInteger(n) && n >= 0 && n <= 10000) next.extDaily = n;
+    }
+  }
+
   await admin.from("profiles").update({ scan_limit_override: next }).eq("id", id.data);
   await logAdminAction(admin, actor.id, "user.set_limits", id.data, {
     plan: plan.data,
     ...Object.fromEntries(
-      (["daily", "weekly", "monthly", "pages"] as const)
+      (["daily", "weekly", "monthly", "pages", "extDaily"] as const)
         .filter((k) => next[k] !== undefined)
         .map((k) => [k, next[k]]),
     ),
