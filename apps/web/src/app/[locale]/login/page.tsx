@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
+import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { OAuthButtons } from "./OAuthButtons";
 
@@ -41,7 +42,12 @@ export default async function LoginPage({
 
         <OAuthButtons locale={locale} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} />
 
-        <p className="mt-6 text-xs text-[var(--color-ink-faint)]">{t("privacy")}</p>
+        <p className="mt-6 text-xs text-[var(--color-ink-faint)]">
+          {t("privacy")}{" "}
+          <Link href="/privacy" className="font-semibold underline underline-offset-2">
+            {t("privacyLink")}
+          </Link>
+        </p>
       </div>
     </div>
   );

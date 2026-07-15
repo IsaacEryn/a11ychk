@@ -3,13 +3,17 @@
     "appName": "A11Y Check",
     "skipToMain": "Skip to main content",
     "nav": {
+      "about": "About",
+      "audit": "Audit",
       "scan": "Run Audit",
+      "accessCheck": "Bot-block Checker",
+      "extension": "Chrome Extension",
+      "guide": "Guide",
+      "my": "My Work",
       "dashboard": "Dashboard",
       "mypage": "My Page",
       "inquiries": "Support",
-      "admin": "Admin",
-      "guide": "Manual Testing Guide",
-      "accessCheck": "Bot check"
+      "admin": "Admin"
     },
     "auth": {
       "login": "Sign in",
@@ -20,7 +24,9 @@
       "opensource": "Open source on GitHub",
       "standards": "Based on WCAG 2.2 · KWCAG 2.2",
       "madeBy": "Made by",
-      "newWindow": "opens in a new window"
+      "newWindow": "opens in a new window",
+      "terms": "Terms of Service",
+      "privacy": "Privacy Policy"
     },
     "localeSwitcher": "Select language",
     "theme": {
@@ -67,7 +73,9 @@
       "critical": "Critical",
       "serious": "Serious",
       "moderate": "Moderate",
-      "manual": "Manual checks"
+      "manual": "Manual checks",
+      "sampleBadge": "SAMPLE",
+      "sampleCaption": "The card above is an illustrative sample. Running an audit produces a real report in this format."
     }
   },
   "login": {
@@ -76,7 +84,8 @@
     "withGoogle": "Continue with Google",
     "withGithub": "Continue with GitHub",
     "error": "Sign-in failed. Please try again.",
-    "privacy": "We only collect your profile (name, email) to manage your audit history."
+    "privacy": "We only collect your profile (name, email) to manage your audit history.",
+    "privacyLink": "View privacy policy"
   },
   "scanPage": {
     "title": "Run Audit",
@@ -569,5 +578,54 @@
     "notFoundTitle": "Page not found",
     "notFoundDesc": "The address may have changed or the page was removed.",
     "goHome": "Go home"
+  },
+  "about": {
+    "title": "About",
+    "intro": "A11Y Check is a web accessibility evaluation tool: automated audits plus an evaluator workbench for manual judgments, producing complete evaluation reports. Start with one URL and get a WCAG-EM structured report with remediation guides.",
+    "methodTitle": "Standards-based methodology",
+    "methodDesc": "Not an ad-hoc checker — we follow the criteria and methodology defined by the W3C and Korean standards.",
+    "method": {
+      "wcagem": {
+        "name": "WCAG-EM",
+        "desc": "The W3C's official website accessibility evaluation methodology: scope → explore → sample → audit → report, with exports compatible with the official Report Tool."
+      },
+      "wcag": {
+        "name": "WCAG 2.2",
+        "desc": "The international Web Content Accessibility Guidelines. Automated outcomes for all 55 A/AA success criteria."
+      },
+      "kwcag": {
+        "name": "KWCAG 2.2",
+        "desc": "The Korean Web Content Accessibility Guidelines (KS X OT0003) — a 33-checkpoint matrix aligned with domestic certification criteria."
+      }
+    },
+    "featuresTitle": "Features",
+    "features": {
+      "auto": {
+        "name": "Automated audits",
+        "desc": "Build a representative sample automatically from sitemaps and links, or specify pages manually; the axe-core engine checks ~90 rules."
+      },
+      "workbench": {
+        "name": "Evaluation workbench",
+        "desc": "Record manual outcomes and observations per success criterion on top of automated results, add report details and an executive summary, and produce print/PDF reports."
+      },
+      "extension": {
+        "name": "Chrome extension",
+        "desc": "Audit pages behind login or bot-blocked sites right in your browser, saving results to your account."
+      },
+      "badge": {
+        "name": "Accessibility badge",
+        "desc": "Publish an SVG badge showing the latest compliance rate for your verified domain."
+      },
+      "schedule": {
+        "name": "Scheduled audits",
+        "desc": "Enable per-domain daily automated audits to continuously track accessibility."
+      }
+    },
+    "honestyTitle": "Honest automation",
+    "honestyDesc": "Automated tools find only part of all accessibility issues. A11Y Check states this limit in every report and honestly marks human-required checks as 'manual' with testing guidance. Our automated evaluation alone does not support a conformance claim.",
+    "openTitle": "Open source",
+    "openDesc": "The audit engine, WCAG/KWCAG mapping catalog, and remediation guides are all MIT-licensed. Anyone can verify and contribute.",
+    "ctaScan": "Start an audit",
+    "ctaContact": "Contact us"
   }
 }

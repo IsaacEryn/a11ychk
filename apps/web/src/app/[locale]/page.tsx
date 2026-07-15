@@ -36,9 +36,17 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           </div>
         </div>
 
-        {/* 보고서 미리보기 카드 (장식) */}
-        <div aria-hidden="true" className="rise rise-4 doc-card hidden rotate-1 p-6 md:block">
-          <div className="flex items-center justify-between border-b-[1.5px] border-[var(--color-ink)] pb-3">
+        {/* 보고서 미리보기 (예시임을 명확히 표시) */}
+        <div className="hidden md:block">
+          <div aria-hidden="true" className="rise rise-4 doc-card relative rotate-1 overflow-hidden p-6">
+            {/* 대각선 SAMPLE 워터마크 */}
+            <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[24deg] select-none font-display text-6xl font-extrabold tracking-[0.2em] text-[var(--color-ink)] opacity-[0.07]">
+              SAMPLE
+            </span>
+            <span className="absolute right-3 top-3 rounded-sm bg-[var(--color-mark)] px-2 py-0.5 text-xs font-extrabold text-[#1c2422]">
+              {t("demo.sampleBadge")}
+            </span>
+          <div className="flex items-center justify-between border-b-[1.5px] border-[var(--color-ink)] pb-3 pr-14">
             <span className="font-display text-sm font-bold">{t("demo.title")}</span>
             <span className="rounded-full border-[1.5px] border-[var(--color-seal)] px-2 py-0.5 text-xs font-bold text-[var(--color-seal)]">
               KWCAG 2.2
@@ -63,7 +71,10 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
               </li>
             ))}
           </ul>
-          <p className="mt-4 text-xs text-[var(--color-ink-faint)]">a11ychk.com · axe-core 4.10</p>
+            <p className="mt-4 text-xs text-[var(--color-ink-faint)]">a11ychk.com · axe-core 4.10</p>
+          </div>
+          {/* 예시 캡션 (보이는 텍스트 — 실제 결과로 오인 방지) */}
+          <p className="rise rise-4 mt-4 text-center text-sm text-[var(--color-ink-faint)]">{t("demo.sampleCaption")}</p>
         </div>
       </section>
 

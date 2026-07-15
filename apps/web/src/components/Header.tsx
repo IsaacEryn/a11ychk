@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { LocaleSwitcher } from "./LocaleSwitcher";
+import { NavMenu } from "./NavMenu";
 import { ThemeToggle } from "./ThemeToggle";
 import { signOut } from "@/lib/actions";
 
@@ -30,32 +31,36 @@ export async function Header() {
         </Link>
 
         <nav aria-label="주 메뉴" className="flex flex-1 flex-wrap items-center gap-x-1 gap-y-1">
+          <Link href="/about" className={linkCls}>
+            {t("nav.about")}
+          </Link>
+          {user && (
+            <NavMenu
+              label={t("nav.audit")}
+              items={[
+                { href: "/scan", label: t("nav.scan") },
+                { href: "/access-check", label: t("nav.accessCheck") },
+                { href: "/extension/connect", label: t("nav.extension") },
+              ]}
+            />
+          )}
           <Link href="/guide" className={linkCls}>
             {t("nav.guide")}
           </Link>
           {user && (
-            <>
-              <Link href="/scan" className={linkCls}>
-                {t("nav.scan")}
-              </Link>
-              <Link href="/access-check" className={linkCls}>
-                {t("nav.accessCheck")}
-              </Link>
-              <Link href="/dashboard" className={linkCls}>
-                {t("nav.dashboard")}
-              </Link>
-              <Link href="/mypage" className={linkCls}>
-                {t("nav.mypage")}
-              </Link>
-              <Link href="/inquiries" className={linkCls}>
-                {t("nav.inquiries")}
-              </Link>
-              {isAdmin && (
-                <Link href="/admin" className={linkCls}>
-                  {t("nav.admin")}
-                </Link>
-              )}
-            </>
+            <NavMenu
+              label={t("nav.my")}
+              items={[
+                { href: "/dashboard", label: t("nav.dashboard") },
+                { href: "/mypage", label: t("nav.mypage") },
+                { href: "/inquiries", label: t("nav.inquiries") },
+              ]}
+            />
+          )}
+          {user && isAdmin && (
+            <Link href="/admin" className={linkCls}>
+              {t("nav.admin")}
+            </Link>
           )}
         </nav>
 
