@@ -103,6 +103,48 @@ function filterCandidates(urls: string[], rootUrl: string, robots: RobotsRules):
 }
 
 /**
+ * 후보 URL 수집 (표본 선정 전 단계). sitemap 우선, 없으면 루트 문서 내부 링크.
+ * 루트는 candidates에 포함하지 않는다(표본 구성 시 별도 처리). 루트 HTML도 함께 반환.
+ */
+export async function collectCandidates(
+  rootUrl: string,
+  robots: RobotsRules,
+  fetcher: (u: string) => Promise<Response>,
+  limit: number,
+): Promise<{ candidates: string[]; rootHtml?: string; source: CrawlResult["source"] }> {
+  const origin = new URL(rootUrl).origin;
+
+  // 1) sitemap 우선
+  const sitemapUrls = filterCandidates(await fetchSitemapUrls(origin, fetcher), rootUrl, robots).filter(
+    (u) => u !== rootUrl,
+  );
+
+  // 루트 HTML은 기술 감지·링크 수집에 필요하므로 가능하면 항상 가져온다
+  let rootHtml: string | undefined;
+  let linkCandidates: string[] = [];
+  try {
+    const res = await fetcher(rootUrl);
+    const contentType = res.headers.get("content-type") ?? "";
+    if (res.ok && contentType.includes("html")) {
+      rootHtml = (await res.text()).slice(0, 3_000_000);
+      linkCandidates = filterCandidates(extractLinks(rootHtml, rootUrl), rootUrl, robots).filter(
+        (u) => u !== rootUrl,
+      );
+    }
+  } catch {
+    // 무시 — 후보가 sitemap만으로 구성될 수 있음
+  }
+
+  if (sitemapUrls.length > 0) {
+    return { candidates: sitemapUrls.slice(0, limit), rootHtml, source: "sitemap" };
+  }
+  if (linkCandidates.length > 0) {
+    return { candidates: linkCandidates.slice(0, limit), rootHtml, source: "links" };
+  }
+  return { candidates: [], rootHtml, source: "root-only" };
+}
+
+/**
  * 루트 URL에서 시작해 최대 maxPages개의 대표 페이지 URL을 수집.
  * robots.txt에서 루트 자체가 차단되면 에러를 던진다.
  */
@@ -122,31 +164,10 @@ export async function collectPages(rootRawUrl: string, options: CrawlOptions): P
   const pages = [rootUrl];
   if (max === 1) return { urls: pages, source: "root-only" };
 
-  // 1) sitemap 우선
-  const sitemapUrls = filterCandidates(await fetchSitemapUrls(origin, fetcher), rootUrl, robots);
-  if (sitemapUrls.length > 0) {
-    for (const u of prioritizeUrls(sitemapUrls, rootUrl)) {
-      if (pages.length >= max) break;
-      if (!pages.includes(u)) pages.push(u);
-    }
-    if (pages.length > 1) return { urls: pages, source: "sitemap" };
+  const { candidates, source } = await collectCandidates(rootUrl, robots, fetcher, max * 2);
+  for (const u of prioritizeUrls(candidates, rootUrl)) {
+    if (pages.length >= max) break;
+    if (!pages.includes(u)) pages.push(u);
   }
-
-  // 2) 루트 문서의 내부 링크
-  try {
-    const res = await fetcher(rootUrl);
-    const contentType = res.headers.get("content-type") ?? "";
-    if (res.ok && contentType.includes("html")) {
-      const html = (await res.text()).slice(0, 3_000_000);
-      const links = filterCandidates(extractLinks(html, rootUrl), rootUrl, robots);
-      for (const u of prioritizeUrls(links, rootUrl)) {
-        if (pages.length >= max) break;
-        if (!pages.includes(u)) pages.push(u);
-      }
-    }
-  } catch {
-    // 링크 수집 실패해도 루트 단독 스캔은 진행
-  }
-
-  return { urls: pages, source: pages.length > 1 ? "links" : "root-only" };
+  return { urls: pages, source: pages.length > 1 ? source : "root-only" };
 }

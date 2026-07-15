@@ -78,6 +78,62 @@ export interface KwcagMatrixRow {
   ruleIds: string[];
 }
 
+/**
+ * WCAG-EM/EARL 정렬 성공기준 판정값.
+ * - passed: 자동 검사에서 통과
+ * - failed: 자동 검사에서 위반
+ * - cannotTell: 자동 판정 불가(확인 필요, axe incomplete)
+ * - notChecked: 자동 규칙이 없어 자동 검사 대상이 아님 → 수동 평가 필요
+ * - notPresent: 해당 콘텐츠가 없어 적용되지 않음
+ */
+export type WcagOutcome = "passed" | "failed" | "cannotTell" | "notChecked" | "notPresent";
+
+export interface WcagMatrixRow {
+  /** 성공기준 번호 (예: "1.4.3") */
+  scId: string;
+  outcome: WcagOutcome;
+  violationCount: number;
+  ruleIds: string[];
+}
+
+/** WCAG-EM Step 1 평가 범위 (scans.scope에 저장) */
+export interface EvaluationScope {
+  /** 목표 적합성 수준 */
+  conformanceTarget: "A" | "AA" | "AAA";
+  /** 접근성 지원 기준 (브라우저·보조기기 조합) */
+  accessibilitySupportBaseline: string[];
+  /** 포함/제외 URL 패턴 (범위 정의) */
+  includePatterns?: string[];
+  excludePatterns?: string[];
+  notes?: string;
+}
+
+export type PageCategory =
+  | "home"
+  | "login"
+  | "contact"
+  | "sitemap"
+  | "help"
+  | "legal"
+  | "search"
+  | "form"
+  | "content";
+
+export type SampleType = "structured" | "random" | "process";
+
+/** WCAG-EM Step 2·3 결과 요약 (ScanSummary.sample에 저장) */
+export interface SampleSummary {
+  structuredCount: number;
+  randomCount: number;
+  processCount: number;
+  /** 무작위 표본 선정 방법 설명 */
+  method: string;
+  /** 의존 기술 (HTML/CSS/JavaScript/WAI-ARIA/SVG/PDF 등) */
+  technologies: string[];
+  /** 4.c: 무작위 표본이 구조 표본에 없는 새 위반 규칙을 드러냈는지 */
+  randomSurfacedNewRules: string[];
+}
+
 /** 스캔 전체 요약 (scans.summary jsonb에 저장) */
 export interface ScanSummary {
   pageCount: number;
@@ -88,9 +144,13 @@ export interface ScanSummary {
   /** ruleId → 위반 노드 수 */
   byRule: Record<string, number>;
   kwcagMatrix: KwcagMatrixRow[];
+  /** WCAG 2.2 성공기준별 판정 (WCAG-EM Step 4) */
+  wcagMatrix: WcagMatrixRow[];
   /** 자동 검사 가능 규칙 기준 준수율 (0–100) */
   complianceRate: number;
   engine: { name: string; axeVersion: string };
+  /** WCAG-EM 표본 요약 (없을 수 있음 — 구버전 스캔 호환) */
+  sample?: SampleSummary;
 }
 
 export interface CrawlOptions {
@@ -104,4 +164,25 @@ export interface CrawlResult {
   urls: string[];
   /** 페이지 수집 방식 */
   source: "sitemap" | "links" | "root-only";
+}
+
+/** WCAG-EM 표본에 선정된 페이지 (분류·표본유형 태깅) */
+export interface SampledPage {
+  url: string;
+  category: PageCategory;
+  sampleType: SampleType;
+}
+
+export interface SampleResult {
+  pages: SampledPage[];
+  /** 의존 기술 (루트 문서에서 감지) */
+  technologies: string[];
+  /** 표본 선정 방법 설명 */
+  sampleMethod: string;
+  source: CrawlResult["source"];
+}
+
+export interface BuildSampleOptions extends CrawlOptions {
+  /** 구조 표본 최대 페이지 수 (요금제 연동). 무작위 표본은 이의 10%가 추가된다. */
+  maxPages: number;
 }

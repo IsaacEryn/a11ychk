@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { getPlansActive } from "@/lib/appSettings";
 import { addDomain, deleteDomain, toggleAutoScan, verifyDomain } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -33,10 +34,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     supabase.from("scans").select("id, root_url, status, created_at, summary").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8),
   ]);
 
+  const admin = createAdminClient();
+  const plansActive = await getPlansActive(admin);
   const quota = await checkQuota(
-    createAdminClient(),
+    admin,
     user.id,
-    resolveLimits(profile?.scan_limit_override),
+    resolveLimits(profile?.scan_limit_override, plansActive),
     getResets(profile?.scan_limit_override),
   );
 
@@ -58,6 +61,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
               placeholder: t("scanForm.placeholder"),
               submit: t("scanForm.submit"),
               submitting: t("scanForm.submitting"),
+              advanced: t("scanForm.advanced"),
+              target: t("scanForm.target"),
+              targetHint: t("scanForm.targetHint"),
+              notes: t("scanForm.notes"),
+              notesPlaceholder: t("scanForm.notesPlaceholder"),
             }}
           />
           <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{t("scanForm.hint")}</p>

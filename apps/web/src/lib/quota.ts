@@ -10,22 +10,45 @@ export interface ScanLimits {
   monthly: number;
 }
 
+export interface PlanConfig extends ScanLimits {
+  /** WCAG-EM 구조 표본 페이지 수 (무작위 표본은 이의 10%가 추가됨) */
+  sampleSize: number;
+}
+
 /**
  * 요금제(그룹). 추후 유료화 시 사용자를 이 그룹에 배정하고, 그룹별 한도를
  * 여기서 일괄 관리한다. 관리자가 사용자별로 개별 한도를 지정하면 그 값이 우선한다.
+ * 요금제 시행은 app_settings의 plans.active로 켜기 전까지 비활성(전원 free).
  */
 export const PLANS = {
-  free: { daily: 3, weekly: 10, monthly: 20 },
-  pro: { daily: 20, weekly: 80, monthly: 300 },
-  enterprise: { daily: 100, weekly: 500, monthly: 2000 },
-} as const satisfies Record<string, ScanLimits>;
+  free: { daily: 3, weekly: 10, monthly: 20, sampleSize: 5 },
+  pro: { daily: 20, weekly: 80, monthly: 300, sampleSize: 20 },
+  enterprise: { daily: 100, weekly: 500, monthly: 2000, sampleSize: 40 },
+} as const satisfies Record<string, PlanConfig>;
 
 export type PlanId = keyof typeof PLANS;
 export const PLAN_IDS = Object.keys(PLANS) as PlanId[];
 export const DEFAULT_PLAN: PlanId = "free";
 
 /** 기본 한도 = free 요금제 */
-export const DEFAULT_SCAN_LIMITS: ScanLimits = PLANS[DEFAULT_PLAN];
+export const DEFAULT_SCAN_LIMITS: ScanLimits = {
+  daily: PLANS.free.daily,
+  weekly: PLANS.free.weekly,
+  monthly: PLANS.free.monthly,
+};
+
+/** 소유 확인된 도메인의 free 등급 보너스 표본 수 (현행 동작 유지) */
+export const VERIFIED_FREE_SAMPLE_SIZE = 10;
+
+/**
+ * 유효 표본 크기(구조 표본).
+ * - 요금제 비활성: 현행 유지 — 소유확인 10p / 그 외 5p
+ * - 요금제 활성: 배정 요금제의 sampleSize
+ */
+export function getSampleSize(opts: { override: unknown; verified: boolean; plansActive: boolean }): number {
+  if (!opts.plansActive) return opts.verified ? VERIFIED_FREE_SAMPLE_SIZE : PLANS.free.sampleSize;
+  return PLANS[getPlan(opts.override)].sampleSize;
+}
 
 function asRecord(override: unknown): Record<string, unknown> {
   return override && typeof override === "object" ? (override as Record<string, unknown>) : {};
@@ -38,11 +61,13 @@ export function getPlan(override: unknown): PlanId {
 
 /**
  * 최종 한도 계산 (우선순위): 사용자별 개별 숫자 override > 요금제 한도 > 기본값.
- * override 예: { plan: "pro", daily: 50 } → 주/월은 pro, 일간만 50.
+ * 요금제가 비활성(plansActive=false, 기본)이면 배정 요금제를 무시하고 free 한도를 쓰되,
+ * 관리자가 지정한 개별 숫자 override는 항상 적용된다.
  */
-export function resolveLimits(override: unknown): ScanLimits {
+export function resolveLimits(override: unknown, plansActive = false): ScanLimits {
   const o = asRecord(override);
-  const base: ScanLimits = { ...PLANS[getPlan(override)] };
+  const plan = plansActive ? PLANS[getPlan(override)] : PLANS.free;
+  const base: ScanLimits = { daily: plan.daily, weekly: plan.weekly, monthly: plan.monthly };
   for (const key of QUOTA_WINDOWS) {
     const v = o[key];
     if (typeof v === "number" && Number.isFinite(v) && v >= 0) base[key] = v;

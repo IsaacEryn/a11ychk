@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AXE_VERSION, aggregateScan, assertHttpUrl, type PageScanResult } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { getPlansActive } from "@/lib/appSettings";
 
 export const maxDuration = 60;
 
@@ -28,6 +29,8 @@ const PageSchema = z.object({
 const BodySchema = z.object({
   page: PageSchema,
   manual: z.array(z.string().max(20)).max(60).optional(),
+  /** WCAG-EM: 이 페이지가 다단계 프로세스의 한 단계인지 표시 */
+  sampleType: z.enum(["structured", "random", "process"]).optional(),
 });
 
 /** 크롬 확장에서 이미 실행한 단일 페이지 검사 결과를 사용자 계정에 저장 */
@@ -70,10 +73,11 @@ export async function POST(request: Request) {
   if (!profile || profile.blocked) {
     return NextResponse.json({ error: "검사를 실행할 수 없는 계정입니다." }, { status: 403 });
   }
+  const plansActive = await getPlansActive(admin);
   const quota = await checkQuota(
     admin,
     user.id,
-    resolveLimits(profile.scan_limit_override),
+    resolveLimits(profile.scan_limit_override, plansActive),
     getResets(profile.scan_limit_override),
   );
   if (!quota.ok) {
@@ -111,6 +115,7 @@ export async function POST(request: Request) {
       scan_id: scan.id,
       url: page.url,
       status: "done",
+      sample_type: parsed.data.sampleType ?? "structured",
       violation_counts: counts,
       passes: page.passes,
       incomplete: page.incomplete,

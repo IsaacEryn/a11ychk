@@ -10,6 +10,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isImpersonatingNickname } from "@/lib/nickname";
 import { PLAN_IDS } from "@/lib/quota";
+import { setPlansActive } from "@/lib/appSettings";
 
 /** 모든 로케일 경로 캐시 무효화 (단순화를 위해 layout 단위) */
 function revalidateAll() {
@@ -238,6 +239,14 @@ export async function setUserLimits(formData: FormData): Promise<void> {
   }
 
   await admin.from("profiles").update({ scan_limit_override: next }).eq("id", id.data);
+  revalidateAll();
+}
+
+/** 요금제 시행 시작/중지 — app_settings.plans.active 토글 */
+export async function togglePlansActive(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const active = formData.get("active") === "true";
+  await setPlansActive(createAdminClient(), !active);
   revalidateAll();
 }
 

@@ -6,6 +6,7 @@
 export * from "./types";
 export * from "./catalog/rules";
 export * from "./catalog/kwcag";
+export * from "./catalog/wcag";
 export * from "./manual/manualChecks";
 export * from "./report/aggregate";
 export * from "./scanner/normalize";

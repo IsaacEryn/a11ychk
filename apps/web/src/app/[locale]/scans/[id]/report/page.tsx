@@ -4,10 +4,13 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   KWCAG_BY_ID,
   KWCAG_PRINCIPLE_LABEL,
+  WCAG_BY_ID,
   getManualCheckItems,
   getRuleEntry,
+  type EvaluationScope,
   type Impact,
   type ScanSummary,
+  type WcagOutcome,
 } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -65,14 +68,12 @@ export default async function ReportPage({
     db = supabase as unknown as SupabaseClient;
   }
 
-  const { data: scan } = await db
-    .from("scans")
-    .select("id, root_url, status, summary, created_at, finished_at, page_limit")
-    .eq("id", id)
-    .maybeSingle();
+  // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
+  const { data: scan } = await db.from("scans").select("*").eq("id", id).maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) notFound();
 
   const summary = scan.summary as ScanSummary;
+  const scope = (scan.scope ?? null) as EvaluationScope | null;
 
   const [{ data: pages }, { data: findings }] = await Promise.all([
     db.from("scan_pages").select("id, url, status, error").eq("scan_id", id).order("url"),
@@ -111,11 +112,25 @@ export default async function ReportPage({
     "not-applicable": "text-[var(--color-ink-faint)] border-[var(--color-line)]",
   };
 
+  const outcomeStyle: Record<WcagOutcome, string> = {
+    passed: "bg-[var(--color-seal-tint)] text-[var(--color-pass)] border-[var(--color-seal)]",
+    failed: "bg-[var(--color-crit-tint)] text-[var(--color-crit)] border-[var(--color-crit)]",
+    cannotTell: "bg-[var(--color-warn-tint)] text-[var(--color-ink)] border-[var(--color-line)]",
+    notChecked: "bg-[var(--color-paper-warm)] text-[var(--color-ink-soft)] border-[var(--color-line)]",
+    notPresent: "text-[var(--color-ink-faint)] border-[var(--color-line)]",
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       {/* 액션 바 */}
       <div className="no-print mb-8 flex flex-wrap items-center justify-end gap-2">
         <PrintButton label={t("print")} />
+        <a
+          href={`/api/scans/${scan.id}/earl`}
+          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
+        >
+          {t("downloadEarl")}
+        </a>
         <a
           href={`/api/scans/${scan.id}/pdf`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
@@ -151,6 +166,67 @@ export default async function ReportPage({
           </div>
         </dl>
       </header>
+
+      {/* ─── WCAG-EM Step 1·2·3: 평가 범위 + 표본 ─── */}
+      {(scope || summary.sample) && (
+        <section aria-labelledby="scope-heading" className="print-avoid-break mt-8 grid gap-5 md:grid-cols-2">
+          {scope && (
+            <div className="doc-card p-6">
+              <h2 id="scope-heading" className="font-display text-lg font-bold">
+                {t("em.scopeTitle")}
+              </h2>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div className="flex gap-2">
+                  <dt className="shrink-0 font-bold">{t("em.target")}</dt>
+                  <dd>WCAG 2.2 {scope.conformanceTarget}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold">{t("em.baseline")}</dt>
+                  <dd className="mt-1 text-[var(--color-ink-soft)]">
+                    {scope.accessibilitySupportBaseline.join(" · ")}
+                  </dd>
+                </div>
+                {scope.notes && (
+                  <div>
+                    <dt className="font-bold">{t("em.notes")}</dt>
+                    <dd className="mt-1 whitespace-pre-wrap text-[var(--color-ink-soft)]">{scope.notes}</dd>
+                  </div>
+                )}
+              </dl>
+            </div>
+          )}
+          {summary.sample && (
+            <div className="doc-card p-6">
+              <h2 className="font-display text-lg font-bold">{t("em.sampleTitle")}</h2>
+              <dl className="mt-3 space-y-2 text-sm">
+                <div className="flex gap-2">
+                  <dt className="shrink-0 font-bold">{t("em.technologies")}</dt>
+                  <dd>{summary.sample.technologies.join(", ")}</dd>
+                </div>
+                <div className="flex gap-2">
+                  <dt className="shrink-0 font-bold">{t("em.sampleCounts")}</dt>
+                  <dd>
+                    {t("em.structured")} {summary.sample.structuredCount} · {t("em.random")} {summary.sample.randomCount}
+                    {summary.sample.processCount > 0 ? ` · ${t("em.process")} ${summary.sample.processCount}` : ""}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-bold">{t("em.method")}</dt>
+                  <dd className="mt-1 text-[var(--color-ink-soft)]">{summary.sample.method}</dd>
+                </div>
+                <div>
+                  <dt className="font-bold">{t("em.representativeness")}</dt>
+                  <dd className="mt-1 text-[var(--color-ink-soft)]">
+                    {summary.sample.randomSurfacedNewRules.length === 0
+                      ? t("em.repOk")
+                      : t("em.repNew", { count: summary.sample.randomSurfacedNewRules.length })}
+                  </dd>
+                </div>
+              </dl>
+            </div>
+          )}
+        </section>
+      )}
 
       {/* ─── 요약 ─── */}
       <section aria-labelledby="score-heading" className="print-avoid-break mt-8 grid gap-5 sm:grid-cols-[auto_1fr]">
@@ -192,6 +268,53 @@ export default async function ReportPage({
           <p className="mt-4 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("score.desc")}</p>
         </div>
       </section>
+
+      {/* ─── WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4) ─── */}
+      {summary.wcagMatrix && summary.wcagMatrix.length > 0 && (
+        <section aria-labelledby="wcag-heading" className="print-break-before mt-10">
+          <h2 id="wcag-heading" className="font-display text-2xl font-bold">
+            {t("wcag.title")}
+          </h2>
+          <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("wcag.desc")}</p>
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
+              <caption className="sr-only">{t("wcag.title")}</caption>
+              <thead>
+                <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
+                  <th scope="col" className="py-2 pr-3 font-bold">{t("wcag.colSc")}</th>
+                  <th scope="col" className="w-16 py-2 pr-3 font-bold">{t("wcag.colLevel")}</th>
+                  <th scope="col" className="w-28 py-2 pr-3 font-bold">{t("wcag.colOutcome")}</th>
+                  <th scope="col" className="w-16 py-2 text-right font-bold">{t("wcag.colCount")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {summary.wcagMatrix.map((row) => {
+                  const c = WCAG_BY_ID.get(row.scId);
+                  if (!c) return null;
+                  return (
+                    <tr key={row.scId} className="border-b border-[var(--color-line)]">
+                      <th scope="row" className="py-2 pr-3 text-left font-medium">
+                        <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
+                        {pick(c.name, locale)}
+                      </th>
+                      <td className="py-2 pr-3 text-[var(--color-ink-faint)]">{c.level}</td>
+                      <td className="py-2 pr-3">
+                        <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[row.outcome]}`}>
+                          {t(`wcag.outcome.${row.outcome}`)}
+                        </span>
+                      </td>
+                      <td className="py-2 text-right font-bold tabular-nums">
+                        {row.violationCount > 0 ? row.violationCount : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("wcag.notCheckedNote")}</p>
+        </section>
+      )}
 
       {/* ─── KWCAG 매트릭스 ─── */}
       <section aria-labelledby="kwcag-heading" className="mt-10">
@@ -367,8 +490,16 @@ export default async function ReportPage({
         </section>
       )}
 
+      {/* ─── WCAG-EM 적합성 진술 (Step 5.c) ─── */}
+      <section aria-labelledby="statement-heading" className="print-avoid-break mt-12 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] p-6">
+        <h2 id="statement-heading" className="font-display text-xl font-bold">
+          {t("em.statementTitle")}
+        </h2>
+        <p className="mt-2 leading-relaxed">{t("em.statement", { target: scope?.conformanceTarget ?? "AA" })}</p>
+      </section>
+
       {/* ─── 고지 ─── */}
-      <footer className="mt-12 border-t-[1.5px] border-[var(--color-ink)] pt-5 text-sm leading-relaxed text-[var(--color-ink-faint)]">
+      <footer className="mt-8 border-t-[1.5px] border-[var(--color-ink)] pt-5 text-sm leading-relaxed text-[var(--color-ink-faint)]">
         <p>{t("disclaimer")}</p>
         <p className="mt-2">{t("generatedBy")}</p>
       </footer>

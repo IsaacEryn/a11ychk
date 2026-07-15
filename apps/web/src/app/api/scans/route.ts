@@ -1,20 +1,35 @@
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
-import { UrlGuardError, assertPublicHttpUrl } from "@a11ychk/core";
+import { UrlGuardError, assertPublicHttpUrl, type EvaluationScope } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
+import { getPlansActive } from "@/lib/appSettings";
 import { runScan } from "@/lib/scan/runScan";
 
 // Vercel Fluid Compute — after() 콜백(스캔 실행)까지 포함한 최대 실행 시간
 export const maxDuration = 300;
 
+/** 한국 기본 접근성 지원 기준 (WCAG-EM Step 1.c 프리셋) */
+const DEFAULT_BASELINE = [
+  "NVDA + Chrome (Windows)",
+  "VoiceOver + Safari (macOS/iOS)",
+  "센스리더 + Chrome (Windows)",
+  "TalkBack + Chrome (Android)",
+];
+
 const CreateScanSchema = z.object({
   url: z.string().min(1).max(2000),
+  scope: z
+    .object({
+      conformanceTarget: z.enum(["A", "AA", "AAA"]).optional(),
+      accessibilitySupportBaseline: z.array(z.string().max(120)).max(20).optional(),
+      includePatterns: z.array(z.string().max(300)).max(30).optional(),
+      excludePatterns: z.array(z.string().max(300)).max(30).optional(),
+      notes: z.string().max(2000).optional(),
+    })
+    .optional(),
 });
-
-const UNVERIFIED_PAGE_LIMIT = 5;
-const VERIFIED_PAGE_LIMIT = 10;
 
 export async function POST(request: Request) {
   // 1) 인증
@@ -59,10 +74,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "검사를 실행할 수 없는 계정입니다." }, { status: 403 });
   }
 
+  const plansActive = await getPlansActive(admin);
   const quota = await checkQuota(
     admin,
     user.id,
-    resolveLimits(profile.scan_limit_override),
+    resolveLimits(profile.scan_limit_override, plansActive),
     getResets(profile.scan_limit_override),
   );
   if (!quota.ok) {
@@ -86,13 +102,31 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요." }, { status: 409 });
   }
 
-  // 6) 도메인 연결 + 소유 확인 여부에 따른 페이지 수
+  // 6) 도메인 연결 + 요금제·소유확인 기반 표본 크기
   const { data: domain } = await admin
     .from("domains")
     .select("id, verified")
     .eq("user_id", user.id)
     .eq("hostname", url.hostname)
     .maybeSingle();
+
+  const pageLimit = getSampleSize({
+    override: profile.scan_limit_override,
+    verified: domain?.verified ?? false,
+    plansActive,
+  });
+
+  // WCAG-EM Step 1 평가 범위 (미입력 시 합리적 기본값)
+  const scope: EvaluationScope = {
+    conformanceTarget: parsed.data.scope?.conformanceTarget ?? "AA",
+    accessibilitySupportBaseline:
+      parsed.data.scope?.accessibilitySupportBaseline?.length
+        ? parsed.data.scope.accessibilitySupportBaseline
+        : DEFAULT_BASELINE,
+    includePatterns: parsed.data.scope?.includePatterns,
+    excludePatterns: parsed.data.scope?.excludePatterns,
+    notes: parsed.data.scope?.notes,
+  };
 
   const { data: scan, error: insertError } = await admin
     .from("scans")
@@ -101,7 +135,8 @@ export async function POST(request: Request) {
       domain_id: domain?.id ?? null,
       root_url: url.toString(),
       status: "queued",
-      page_limit: domain?.verified ? VERIFIED_PAGE_LIMIT : UNVERIFIED_PAGE_LIMIT,
+      page_limit: pageLimit,
+      scope,
     })
     .select("id")
     .single();

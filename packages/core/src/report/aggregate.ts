@@ -2,13 +2,34 @@
  * 스캔 결과 집계 — 페이지별 결과를 모아 보고서 요약(ScanSummary)을 만든다.
  * 순수 함수 — 브라우저/서버 어디서든 실행 가능.
  */
-import type { Impact, KwcagMatrixRow, KwcagStatus, PageScanResult, ScanSummary } from "../types";
+import type {
+  Impact,
+  KwcagMatrixRow,
+  KwcagStatus,
+  PageScanResult,
+  SampleSummary,
+  ScanSummary,
+  WcagMatrixRow,
+  WcagOutcome,
+} from "../types";
 import { getRuleEntry } from "../catalog/rules";
 import { KWCAG_ITEMS } from "../catalog/kwcag";
+import { criteriaForTarget, type WcagLevel } from "../catalog/wcag";
 
 const EMPTY_IMPACTS: Record<Impact, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
 
-export function aggregateScan(pages: PageScanResult[], axeVersion: string): ScanSummary {
+export interface AggregateOptions {
+  /** 목표 적합성 수준 (WCAG SC 매트릭스 범위) */
+  conformanceTarget?: WcagLevel | "AAA";
+  /** WCAG-EM 표본 요약 (있으면 summary.sample에 포함) */
+  sample?: SampleSummary;
+}
+
+export function aggregateScan(
+  pages: PageScanResult[],
+  axeVersion: string,
+  options: AggregateOptions = {},
+): ScanSummary {
   const byImpact: Record<Impact, number> = { ...EMPTY_IMPACTS };
   const byRule: Record<string, number> = {};
   const failedRules = new Set<string>();
@@ -72,6 +93,36 @@ export function aggregateScan(pages: PageScanResult[], axeVersion: string): Scan
     };
   });
 
+  // ── WCAG 2.2 성공기준(SC) 매트릭스 (WCAG-EM Step 4) ──
+  const scFail = new Map<string, { count: number; rules: Set<string> }>();
+  for (const ruleId of failedRules) {
+    for (const sc of getRuleEntry(ruleId).wcag) {
+      const cur = scFail.get(sc) ?? { count: 0, rules: new Set<string>() };
+      cur.count += byRule[ruleId] ?? 0;
+      cur.rules.add(ruleId);
+      scFail.set(sc, cur);
+    }
+  }
+  const scPass = new Set<string>();
+  for (const id of passedRules) for (const sc of getRuleEntry(id).wcag) scPass.add(sc);
+  const scReview = new Set<string>();
+  for (const id of incompleteRules) for (const sc of getRuleEntry(id).wcag) scReview.add(sc);
+
+  const wcagMatrix: WcagMatrixRow[] = criteriaForTarget(options.conformanceTarget ?? "AA").map((c) => {
+    const fail = scFail.get(c.id);
+    let outcome: WcagOutcome;
+    if (fail) outcome = "failed";
+    else if (scReview.has(c.id)) outcome = "cannotTell";
+    else if (scPass.has(c.id)) outcome = "passed";
+    else outcome = "notChecked"; // 자동 규칙이 없거나 결과가 없는 SC → 수동 평가 필요
+    return {
+      scId: c.id,
+      outcome,
+      violationCount: fail?.count ?? 0,
+      ruleIds: [...(fail?.rules ?? [])],
+    };
+  });
+
   const checkedRuleCount = passedRules.size + failedRules.size;
   const complianceRate = checkedRuleCount === 0 ? 0 : Math.round((passedRules.size / checkedRuleCount) * 1000) / 10;
 
@@ -83,7 +134,9 @@ export function aggregateScan(pages: PageScanResult[], axeVersion: string): Scan
     byImpact,
     byRule,
     kwcagMatrix,
+    wcagMatrix,
     complianceRate,
     engine: { name: "axe-core", axeVersion },
+    ...(options.sample ? { sample: options.sample } : {}),
   };
 }

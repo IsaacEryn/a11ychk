@@ -6,6 +6,7 @@
 2. **SQL Editor**에서 마이그레이션을 순서대로 실행
    - `supabase/migrations/0001_initial_schema.sql`
    - `supabase/migrations/0002_scheduled_scans.sql` (정기 스캔용 — 안 하면 정기 스캔만 비활성)
+   - `supabase/migrations/0003_wcag_em.sql` (**WCAG-EM 평가 범위·표본 + 요금제 설정 — 새 검사 실행에 필수**)
 3. **Authentication → Providers**에서 Google, GitHub OAuth 활성화
    - Google: [Google Cloud Console](https://console.cloud.google.com)에서 OAuth 클라이언트 생성,
      승인된 리디렉션 URI에 `https://<프로젝트>.supabase.co/auth/v1/callback` 추가

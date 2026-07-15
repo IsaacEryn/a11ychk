@@ -140,9 +140,10 @@ function renderResult(
     list.appendChild(li);
   }
 
-  // 연결돼 있으면 저장 버튼 노출
+  // 연결돼 있으면 저장 버튼·프로세스 태그 노출
   getSession().then((s) => {
     $("save").hidden = !s;
+    $("procWrap").hidden = !s;
   });
   void url;
 }
@@ -156,13 +157,14 @@ async function saveToAccount() {
   msg.textContent = "저장 중…";
   try {
     const manual = await getManualState(lastPage.url);
+    const isProcess = ($("isProcess") as HTMLInputElement).checked;
     const res = await fetch(`${SITE_ORIGIN}/api/extension/scan`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
       },
-      body: JSON.stringify({ page: lastPage, manual }),
+      body: JSON.stringify({ page: lastPage, manual, sampleType: isProcess ? "process" : "structured" }),
     });
     const data = (await res.json()) as { id?: string; error?: string };
     if (!res.ok || !data.id) {

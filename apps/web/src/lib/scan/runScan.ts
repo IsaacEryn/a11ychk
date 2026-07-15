@@ -5,11 +5,14 @@ import {
   AXE_VERSION,
   aggregateScan,
   assertPublicHttpUrl,
-  collectPages,
+  buildSample,
   guardedFetch,
   isPrivateAddress,
   runAxeOnPage,
+  type EvaluationScope,
   type PageScanResult,
+  type SampleSummary,
+  type WcagLevel,
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 
@@ -37,24 +40,37 @@ export async function runScan(scanId: string): Promise<void> {
 
   await db.from("scans").update({ status: "running", started_at: new Date().toISOString() }).eq("id", scanId);
 
+  const scope = (scan.scope ?? null) as EvaluationScope | null;
+  const conformanceTarget: WcagLevel | "AAA" = scope?.conformanceTarget ?? "AA";
+
   let browser: Browser | null = null;
   try {
-    // 1) 대표 페이지 수집 (robots.txt 존중, SSRF 가드 fetch)
-    const crawl = await collectPages(scan.root_url, {
+    // 1) WCAG-EM Step 2·3 — 탐색 + 대표 표본 구성 (구조/무작위 태깅, 기술 감지)
+    const sample = await buildSample(scan.root_url, {
       maxPages: scan.page_limit,
       fetcher: (u) => guardedFetch(u),
     });
 
-    // 2) 페이지 행 생성
+    // 2) 페이지 행 생성 (표본 유형·분류 기록)
     const { data: pageRows, error: insertError } = await db
       .from("scan_pages")
-      .insert(crawl.urls.map((url) => ({ scan_id: scanId, url, status: "pending" })))
-      .select("id, url");
+      .insert(
+        sample.pages.map((p) => ({
+          scan_id: scanId,
+          url: p.url,
+          status: "pending",
+          category: p.category,
+          sample_type: p.sampleType,
+        })),
+      )
+      .select("id, url, sample_type");
     if (insertError || !pageRows) throw new Error(`페이지 행 생성 실패: ${insertError?.message}`);
 
-    // 3) 페이지별 스캔 (부분 실패 허용)
+    // 3) 페이지별 스캔 (부분 실패 허용) — 구조/무작위 표본별 위반 규칙 추적(WCAG-EM 4.c)
     browser = await launchGuardedBrowser();
     const results: PageScanResult[] = [];
+    const structuredRules = new Set<string>();
+    const randomRules = new Set<string>();
 
     for (const row of pageRows) {
       await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
@@ -86,6 +102,10 @@ export async function runScan(scanId: string): Promise<void> {
 
           const result = await runAxeOnPage(page);
           results.push(result);
+
+          // 표본 유형별 위반 규칙 집계 (WCAG-EM 4.c 대표성 비교)
+          const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
+          for (const v of result.violations) ruleTarget.add(v.ruleId);
 
           // findings 저장
           if (result.violations.length > 0) {
@@ -132,8 +152,20 @@ export async function runScan(scanId: string): Promise<void> {
       throw new Error("모든 페이지 스캔에 실패했습니다. 사이트가 봇 접근을 차단하는지 확인해 주세요.");
     }
 
-    // 4) 집계 → 완료
-    const summary = aggregateScan(results, AXE_VERSION);
+    // 4) 집계 → 완료 (WCAG-EM 표본 요약 + 목표 수준 반영)
+    const randomSurfacedNewRules = [...randomRules].filter((r) => !structuredRules.has(r));
+    const sampleSummary: SampleSummary = {
+      structuredCount: sample.pages.filter((p) => p.sampleType === "structured").length,
+      randomCount: sample.pages.filter((p) => p.sampleType === "random").length,
+      processCount: 0,
+      method: sample.sampleMethod,
+      technologies: sample.technologies,
+      randomSurfacedNewRules,
+    };
+    const summary = aggregateScan(results, AXE_VERSION, {
+      conformanceTarget,
+      sample: sampleSummary,
+    });
     await db
       .from("scans")
       .update({ status: "done", summary, finished_at: new Date().toISOString() })

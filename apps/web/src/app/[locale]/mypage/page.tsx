@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { getPlansActive } from "@/lib/appSettings";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
 import type { ScanSummary } from "@a11ychk/core/catalog";
@@ -36,10 +37,12 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
       .order("created_at", { ascending: false })
       .limit(50),
   ]);
+  const mpAdmin = createAdminClient();
+  const plansActive = await getPlansActive(mpAdmin);
   const quota = await checkQuota(
-    createAdminClient(),
+    mpAdmin,
     user.id,
-    resolveLimits(profile?.scan_limit_override),
+    resolveLimits(profile?.scan_limit_override, plansActive),
     getResets(profile?.scan_limit_override),
   );
 

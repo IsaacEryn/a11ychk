@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { assertPublicHttpUrl } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
+import { getPlansActive } from "@/lib/appSettings";
 import { runScan } from "@/lib/scan/runScan";
 
 export const maxDuration = 300;
@@ -24,6 +25,7 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
+  const plansActive = await getPlansActive(admin);
   const cutoff = new Date(Date.now() - MIN_INTERVAL_HOURS * 3600_000).toISOString();
 
   const { data: domains } = await admin
@@ -53,7 +55,7 @@ export async function GET(request: Request) {
     const quota = await checkQuota(
       admin,
       d.user_id,
-      resolveLimits(profile.scan_limit_override),
+      resolveLimits(profile.scan_limit_override, plansActive),
       getResets(profile.scan_limit_override),
     );
     if (!quota.ok) {
@@ -76,7 +78,7 @@ export async function GET(request: Request) {
         domain_id: d.id,
         root_url: rootUrl,
         status: "queued",
-        page_limit: d.verified ? 10 : 5,
+        page_limit: getSampleSize({ override: profile.scan_limit_override, verified: d.verified, plansActive }),
       })
       .select("id")
       .single();
