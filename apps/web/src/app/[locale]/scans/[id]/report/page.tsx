@@ -23,6 +23,7 @@ import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
 import { ReviewCell, type ReviewValue } from "./ReviewCell";
 import { ReportMetaForm } from "./ReportMetaForm";
+import { MatrixDetail } from "./MatrixDetail";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
@@ -419,6 +420,16 @@ export default async function ReportPage({
                             <strong>{t("review.noteLabel")}:</strong> {review.note}
                           </p>
                         )}
+                        {/* 스크롤 없이 그 자리에서: 위반→개선 방법 / 확인 필요→확인 방법 / 수동→검사 방법 */}
+                        {row.outcome === "failed" && row.ruleIds.length > 0 && (
+                          <MatrixDetail kind="fix" ruleIds={row.ruleIds} scId={row.scId} locale={locale} />
+                        )}
+                        {row.outcome === "cannotTell" && (row.reviewRuleIds?.length ?? 0) > 0 && (
+                          <MatrixDetail kind="review" ruleIds={row.reviewRuleIds} scId={row.scId} locale={locale} />
+                        )}
+                        {row.outcome === "notChecked" && (
+                          <MatrixDetail kind="manual" scId={row.scId} locale={locale} />
+                        )}
                       </th>
                       <td className="py-2 pr-3 text-[var(--color-ink-faint)]">{c.level}</td>
                       <td className="py-2 pr-3">
@@ -496,6 +507,15 @@ export default async function ReportPage({
                         <p className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
                           <strong>{t("review.noteLabel")}:</strong> {review.note}
                         </p>
+                      )}
+                      {row.status === "fail" && row.ruleIds.length > 0 && (
+                        <MatrixDetail kind="fix" ruleIds={row.ruleIds} locale={locale} />
+                      )}
+                      {row.status === "review" && (row.reviewRuleIds?.length ?? 0) > 0 && (
+                        <MatrixDetail kind="review" ruleIds={row.reviewRuleIds} locale={locale} />
+                      )}
+                      {(row.status === "manual" || row.status === "not-applicable") && item.howToTest && (
+                        <MatrixDetail kind="manual" howToTest={item.howToTest} locale={locale} />
                       )}
                     </th>
                     <td className="py-2 pr-3">

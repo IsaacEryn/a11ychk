@@ -84,6 +84,24 @@ describe("스캔 엔진 E2E", () => {
     expect(summary.complianceRate).toBeLessThan(100);
   });
 
+  it("무거운 리소스(이미지 등)를 차단해도 위반 검출은 동일하다", async () => {
+    // runScan의 메모리 절약 차단과 동일한 조건 재현
+    const page = await browser.newPage();
+    await page.route("**/*", (route) => {
+      const type = route.request().resourceType();
+      if (type === "image" || type === "media" || type === "font") return route.abort();
+      return route.continue();
+    });
+    await page.goto(`${origin}/`, { waitUntil: "load" });
+    const result = await runAxeOnPage(page);
+    await page.close();
+
+    const ruleIds = result.violations.map((v) => v.ruleId);
+    expect(ruleIds).toContain("image-alt"); // 이미지 바이트 없이도 DOM 기반 검출 유지
+    expect(ruleIds).toContain("color-contrast");
+    expect(ruleIds).toContain("html-has-lang");
+  });
+
   it("정상 페이지에서는 해당 위반이 없다", async () => {
     const page = await browser.newPage();
     await page.goto(`${origin}/about`, { waitUntil: "load" });

@@ -76,6 +76,8 @@ export interface KwcagMatrixRow {
   status: KwcagStatus;
   violationCount: number;
   ruleIds: string[];
+  /** 자동 판정 불가(확인 필요)로 나온 규칙 id — 인라인 확인 가이드용 */
+  reviewRuleIds?: string[];
 }
 
 /**
@@ -94,6 +96,8 @@ export interface WcagMatrixRow {
   outcome: WcagOutcome;
   violationCount: number;
   ruleIds: string[];
+  /** 자동 판정 불가(확인 필요)로 나온 규칙 id — 인라인 확인 가이드용 */
+  reviewRuleIds?: string[];
 }
 
 /** WCAG-EM Step 1 평가 범위 (scans.scope에 저장) */

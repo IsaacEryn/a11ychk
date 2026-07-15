@@ -75,8 +75,12 @@ export function aggregateScan(
     for (const kw of getRuleEntry(id).kwcag) kwcagPass.add(kw);
   }
   const kwcagReview = new Set<string>();
+  const kwcagReviewRules = new Map<string, Set<string>>();
   for (const id of incompleteRules) {
-    for (const kw of getRuleEntry(id).kwcag) kwcagReview.add(kw);
+    for (const kw of getRuleEntry(id).kwcag) {
+      kwcagReview.add(kw);
+      (kwcagReviewRules.get(kw) ?? kwcagReviewRules.set(kw, new Set()).get(kw)!).add(id);
+    }
   }
 
   const kwcagMatrix: KwcagMatrixRow[] = KWCAG_ITEMS.map((item) => {
@@ -92,6 +96,7 @@ export function aggregateScan(
       status,
       violationCount: fail?.count ?? 0,
       ruleIds: [...(fail?.rules ?? [])],
+      reviewRuleIds: [...(kwcagReviewRules.get(item.id) ?? [])],
     };
   });
 
@@ -108,7 +113,13 @@ export function aggregateScan(
   const scPass = new Set<string>();
   for (const id of passedRules) for (const sc of getRuleEntry(id).wcag) scPass.add(sc);
   const scReview = new Set<string>();
-  for (const id of incompleteRules) for (const sc of getRuleEntry(id).wcag) scReview.add(sc);
+  const scReviewRules = new Map<string, Set<string>>();
+  for (const id of incompleteRules) {
+    for (const sc of getRuleEntry(id).wcag) {
+      scReview.add(sc);
+      (scReviewRules.get(sc) ?? scReviewRules.set(sc, new Set()).get(sc)!).add(id);
+    }
+  }
 
   const wcagMatrix: WcagMatrixRow[] = criteriaForTarget(options.conformanceTarget ?? "AA").map((c) => {
     const fail = scFail.get(c.id);
@@ -122,6 +133,7 @@ export function aggregateScan(
       outcome,
       violationCount: fail?.count ?? 0,
       ruleIds: [...(fail?.rules ?? [])],
+      reviewRuleIds: [...(scReviewRules.get(c.id) ?? [])],
     };
   });
 

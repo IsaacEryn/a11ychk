@@ -419,7 +419,16 @@
     "downloadEarl": "EARL(JSON)",
     "downloadReportTool": "WCAG-EM Report Tool(JSON)",
     "print": "인쇄",
-    "generatedBy": "이 보고서는 A11Y Check (a11ychk.com)에서 생성되었습니다."
+    "generatedBy": "이 보고서는 A11Y Check (a11ychk.com)에서 생성되었습니다.",
+    "inline": {
+      "fixSummary": "개선 방법 보기 ({count}개 규칙)",
+      "reviewSummary": "확인 방법 보기 ({count}개 규칙)",
+      "manualSummary": "검사 방법 보기",
+      "reviewIntro": "자동 도구가 판정하지 못한 규칙입니다. 아래 안내에 따라 직접 확인한 뒤 '판정 기입'으로 결과를 기록하세요.",
+      "manualFallback": "이 성공기준은 자동 검사 대상이 아닙니다. W3C 이해 문서의 검사 방법을 참고해 직접 확인하세요.",
+      "understanding": "W3C 이해 문서 (Understanding)",
+      "newWindow": "새 창 열림"
+    }
   },
   "mypage": {
     "title": "마이페이지",

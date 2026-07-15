@@ -101,76 +101,90 @@ export async function runScan(scanId: string): Promise<void> {
 
     for (const row of pageRows) {
       await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
-      try {
-        // 페이지 이동 직전 재검증 (수집 시점과 DNS가 달라졌을 수 있음)
-        await assertPublicHttpUrl(row.url);
+      let lastError: Error | undefined;
 
-        // 앞선 페이지에서 chromium이 크래시(OOM 등)했다면 재실행 —
-        // 한 페이지 실패가 이후 모든 페이지로 번지는 것을 방지한다.
-        if (!browser.isConnected()) {
-          browser = await launchGuardedBrowser();
-        }
-
-        const context = await browser.newContext({
-          viewport: { width: 1280, height: 800 },
-          locale: "ko-KR",
-          userAgent: "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)",
-        });
+      // 크로미엄 크래시(OOM 등)는 일시적이므로 페이지당 1회 재시도한다.
+      for (let attempt = 1; attempt <= 2; attempt++) {
         try {
-          const page = await context.newPage();
-          // 서브리소스의 내부망 접근 차단
-          await page.route("**/*", (route) => {
-            const host = new URL(route.request().url()).hostname;
-            if (isBlockedHost(host)) return route.abort();
-            return route.continue();
-          });
-          await page.goto(row.url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
-          await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
+          // 페이지 이동 직전 재검증 (수집 시점과 DNS가 달라졌을 수 있음)
+          await assertPublicHttpUrl(row.url);
 
-          const result = await runAxeOnPage(page);
-          results.push(result);
-
-          // 표본 유형별 위반 규칙 집계 (WCAG-EM 4.c 대표성 비교)
-          const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
-          for (const v of result.violations) ruleTarget.add(v.ruleId);
-
-          // findings 저장
-          if (result.violations.length > 0) {
-            const findingRows = result.violations.flatMap((v) =>
-              v.nodes.map((n) => ({
-                scan_page_id: row.id,
-                rule_id: v.ruleId,
-                impact: v.impact,
-                tags: v.tags,
-                help_url: v.helpUrl,
-                selector: n.selector,
-                html_snippet: n.html,
-                failure_summary: n.failureSummary,
-              })),
-            );
-            const { error: fErr } = await db.from("findings").insert(findingRows);
-            if (fErr) throw new Error(`위반 저장 실패: ${fErr.message}`);
+          // 크래시된 브라우저는 재실행 — 한 페이지 실패가 이후로 번지는 것을 방지
+          if (!browser.isConnected()) {
+            browser = await launchGuardedBrowser();
           }
 
-          const counts: Record<string, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
-          for (const v of result.violations) counts[v.impact] = (counts[v.impact] ?? 0) + v.nodes.length;
-          await db
-            .from("scan_pages")
-            .update({
-              status: "done",
-              violation_counts: counts,
-              passes: result.passes,
-              incomplete: result.incomplete,
-              scanned_at: result.scannedAt,
-            })
-            .eq("id", row.id);
-        } finally {
-          await context.close();
+          const context = await browser.newContext({
+            viewport: { width: 1280, height: 800 },
+            locale: "ko-KR",
+            userAgent: "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)",
+          });
+          try {
+            const page = await context.newPage();
+            await page.route("**/*", (route) => {
+              const req = route.request();
+              // 서브리소스의 내부망 접근 차단 (SSRF 심층 방어)
+              if (isBlockedHost(new URL(req.url()).hostname)) return route.abort();
+              // 메모리 절약: axe는 DOM·CSS 기반이므로 무거운 리소스는 내려받지 않는다.
+              // (배경 이미지 위 대비 등은 axe가 원래 '확인 필요'로 처리 — 정확도 영향 최소)
+              const type = req.resourceType();
+              if (type === "image" || type === "media" || type === "font") return route.abort();
+              return route.continue();
+            });
+            await page.goto(row.url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
+            await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
+
+            const result = await runAxeOnPage(page);
+            results.push(result);
+
+            // 표본 유형별 위반 규칙 집계 (WCAG-EM 4.c 대표성 비교)
+            const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
+            for (const v of result.violations) ruleTarget.add(v.ruleId);
+
+            // findings 저장
+            if (result.violations.length > 0) {
+              const findingRows = result.violations.flatMap((v) =>
+                v.nodes.map((n) => ({
+                  scan_page_id: row.id,
+                  rule_id: v.ruleId,
+                  impact: v.impact,
+                  tags: v.tags,
+                  help_url: v.helpUrl,
+                  selector: n.selector,
+                  html_snippet: n.html,
+                  failure_summary: n.failureSummary,
+                })),
+              );
+              const { error: fErr } = await db.from("findings").insert(findingRows);
+              if (fErr) throw new Error(`위반 저장 실패: ${fErr.message}`);
+            }
+
+            const counts: Record<string, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+            for (const v of result.violations) counts[v.impact] = (counts[v.impact] ?? 0) + v.nodes.length;
+            await db
+              .from("scan_pages")
+              .update({
+                status: "done",
+                violation_counts: counts,
+                passes: result.passes,
+                incomplete: result.incomplete,
+                scanned_at: result.scannedAt,
+              })
+              .eq("id", row.id);
+          } finally {
+            await context.close().catch(() => undefined);
+          }
+          lastError = undefined;
+          break; // 성공 — 재시도 불필요
+        } catch (pageError) {
+          lastError = pageError as Error;
         }
-      } catch (pageError) {
+      }
+
+      if (lastError) {
         await db
           .from("scan_pages")
-          .update({ status: "failed", error: truncate((pageError as Error).message, 500) })
+          .update({ status: "failed", error: truncate(lastError.message, 500) })
           .eq("id", row.id);
       }
     }
