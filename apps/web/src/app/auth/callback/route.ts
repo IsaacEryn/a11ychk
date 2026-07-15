@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { logLogin } from "@/lib/logs";
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
@@ -10,8 +12,18 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = await createClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
+      // 로그인 기록 (best-effort — 실패해도 로그인은 정상 진행)
+      if (data.user) {
+        await logLogin(createAdminClient(), {
+          userId: data.user.id,
+          email: data.user.email ?? undefined,
+          provider: (data.user.app_metadata?.provider as string | undefined) ?? undefined,
+          ip: request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? undefined,
+          userAgent: request.headers.get("user-agent") ?? undefined,
+        });
+      }
       return NextResponse.redirect(`${origin}${next}`);
     }
   }

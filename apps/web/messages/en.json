@@ -101,7 +101,8 @@
     "manualOriginHint": "Only pages on the same domain as the audit URL are allowed; extra lines beyond the limit are dropped.",
     "accessCheckLink": "Does the site block bots? Check auditability →",
     "manualOverLimit": "You entered more pages than this domain's limit ({max}). Please reduce to {max} or fewer.",
-    "manualVerifyHint": "Verifying domain ownership raises the limit to {verified} pages."
+    "manualVerifyHint": "Verifying domain ownership raises the limit to {verified} pages.",
+    "manualHostMismatch": "These pages are on a different host than the audit URL ({host}) and cannot be scanned. Remove or fix these lines."
   },
   "accessCheck": {
     "title": "Bot-block checker",
@@ -521,7 +522,8 @@
       "users": "Total users",
       "scans30d": "Audits (30 days)",
       "running": "Running audits",
-      "openInquiries": "Open inquiries"
+      "openInquiries": "Open inquiries",
+      "failedRate": "30-day failure rate"
     },
     "scans": {
       "title": "Audit log",
@@ -529,7 +531,10 @@
       "colUrl": "Target",
       "colStatus": "Status",
       "colDate": "Date",
-      "colError": "Error"
+      "colError": "Error",
+      "filterLabel": "Status filter",
+      "filterAll": "All",
+      "filterApply": "Apply"
     },
     "plansControl": {
       "active": "Plans active",
@@ -569,13 +574,54 @@
       "resetFailed": "Reset failed. Please try again.",
       "bulkPlanLabel": "Assign plan to all users",
       "bulkApply": "Apply to all",
-      "bulkHint": "Applies the selected plan to every user. Per-user custom limits are cleared. (Group management for future monetization)"
+      "bulkHint": "Applies the selected plan to every user. Per-user custom limits are cleared. (Group management for future monetization)",
+      "searchLabel": "Search nickname",
+      "searchApply": "Search",
+      "noResults": "No matching users.",
+      "pagesLabel": "Page limit",
+      "pagesHint": "Page limit: doubled for verified domains, max {max} pages"
     },
     "inquiriesSection": {
       "title": "Inquiry management",
       "replyLabel": "Reply",
       "send": "Send reply",
       "from": "From"
+    },
+    "nav": {
+      "label": "Admin menu",
+      "dashboard": "Dashboard",
+      "users": "Users",
+      "scans": "Scan log",
+      "inquiries": "Inquiries",
+      "settings": "Settings",
+      "logs": "Logs"
+    },
+    "dashboard": {
+      "goDetail": "Details →",
+      "recentScans": "Recent scans",
+      "viewAll": "View all →",
+      "empty": "Nothing to show."
+    },
+    "settings": {
+      "title": "Settings",
+      "bulkPagesLabel": "Bulk set page limit for all users",
+      "bulkPagesHint": "Sets the base page limit for every user (doubled for verified domains, max {max} pages). Apply with an empty value to revert to plan/default limits."
+    },
+    "logs": {
+      "title": "Logs",
+      "loginTitle": "Login history",
+      "auditTitle": "Admin action audit",
+      "colUser": "User",
+      "colEmail": "Email",
+      "colProvider": "Provider",
+      "colIp": "IP",
+      "colDate": "Date",
+      "colActor": "Actor",
+      "colAction": "Action",
+      "colTarget": "Target",
+      "colDetail": "Detail",
+      "empty": "No records.",
+      "notMigrated": "Log tables do not exist yet. Apply supabase/migrations/0006_admin_logs.sql in the Supabase SQL Editor."
     }
   },
   "guide": {

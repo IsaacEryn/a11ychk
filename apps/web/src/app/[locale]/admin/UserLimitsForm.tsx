@@ -7,6 +7,8 @@ interface PlanOption {
   id: PlanId;
   label: string;
   limits: ScanLimits;
+  /** 요금제 기본 표본 페이지 수 (pages placeholder용) */
+  sampleSize: number;
 }
 
 /**
@@ -19,7 +21,9 @@ export function UserLimitsForm({
   userId,
   currentPlan,
   custom,
+  customPages,
   effective,
+  maxPages,
   planOptions,
   labels,
 }: {
@@ -27,20 +31,27 @@ export function UserLimitsForm({
   userId: string;
   currentPlan: PlanId;
   custom: Partial<ScanLimits>;
+  /** 사용자별 기본 페이지 한도 (scan_limit_override.pages) */
+  customPages?: number;
   effective: ScanLimits;
+  /** 절대 상한 (MAX_PAGES_PER_SCAN) */
+  maxPages: number;
   planOptions: PlanOption[];
   labels: {
     plan: string;
     daily: string;
     weekly: string;
     monthly: string;
+    pages: string;
+    pagesHint: string;
     save: string;
     customHint: string;
     effective: string;
   };
 }) {
   const [plan, setPlan] = useState<PlanId>(currentPlan);
-  const planDefaults = planOptions.find((p) => p.id === plan)?.limits;
+  const selectedPlan = planOptions.find((p) => p.id === plan);
+  const planDefaults = selectedPlan?.limits;
 
   const windows: { key: "daily" | "weekly" | "monthly"; label: string }[] = [
     { key: "daily", label: labels.daily },
@@ -90,6 +101,24 @@ export function UserLimitsForm({
           </div>
         ))}
 
+        <div>
+          <label htmlFor={`pages-${userId}`} className="mb-1 block text-xs font-semibold">
+            {labels.pages}
+          </label>
+          <input
+            id={`pages-${userId}`}
+            name="pages"
+            type="number"
+            min={1}
+            max={maxPages}
+            inputMode="numeric"
+            defaultValue={customPages ?? ""}
+            placeholder={String(Math.min(selectedPlan?.sampleSize ?? 5, maxPages))}
+            aria-describedby={`pages-hint-${userId}`}
+            className="w-24 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-sm tabular-nums"
+          />
+        </div>
+
         <button
           type="submit"
           className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-bold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]"
@@ -97,8 +126,8 @@ export function UserLimitsForm({
           {labels.save}
         </button>
       </div>
-      <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
-        {labels.customHint} · {labels.effective}: {effective.daily}/{effective.weekly}/{effective.monthly}
+      <p id={`pages-hint-${userId}`} className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
+        {labels.customHint} · {labels.effective}: {effective.daily}/{effective.weekly}/{effective.monthly} · {labels.pagesHint}
       </p>
     </form>
   );

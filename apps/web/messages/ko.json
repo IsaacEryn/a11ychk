@@ -101,7 +101,8 @@
     "manualOriginHint": "위 검사 주소와 같은 도메인의 페이지만 검사할 수 있으며, 초과분은 한도까지만 검사됩니다.",
     "accessCheckLink": "사이트가 봇을 차단하나요? 검사 가능 여부 진단 →",
     "manualOverLimit": "입력한 페이지가 이 도메인의 검사 한도({max}페이지)를 초과했습니다. {max}페이지 이하로 줄여 주세요.",
-    "manualVerifyHint": "도메인 소유를 확인하면 최대 {verified}페이지까지 가능합니다."
+    "manualVerifyHint": "도메인 소유를 확인하면 최대 {verified}페이지까지 가능합니다.",
+    "manualHostMismatch": "다음 페이지는 검사 주소의 도메인({host})과 달라 검사할 수 없습니다. 해당 줄을 삭제하거나 수정해 주세요."
   },
   "accessCheck": {
     "title": "봇 차단 검증",
@@ -521,7 +522,8 @@
       "users": "전체 사용자",
       "scans30d": "최근 30일 검사",
       "running": "진행 중 검사",
-      "openInquiries": "미답변 문의"
+      "openInquiries": "미답변 문의",
+      "failedRate": "30일 실패율"
     },
     "scans": {
       "title": "검사 로그",
@@ -529,7 +531,10 @@
       "colUrl": "대상",
       "colStatus": "상태",
       "colDate": "일시",
-      "colError": "오류"
+      "colError": "오류",
+      "filterLabel": "상태 필터",
+      "filterAll": "전체",
+      "filterApply": "적용"
     },
     "plansControl": {
       "active": "요금제 시행 중",
@@ -569,13 +574,54 @@
       "resetFailed": "초기화에 실패했습니다. 다시 시도해 주세요.",
       "bulkPlanLabel": "전체 사용자 요금제 일괄 배정",
       "bulkApply": "전체 적용",
-      "bulkHint": "선택한 요금제를 모든 사용자에게 적용합니다. 개별 한도 설정은 초기화됩니다. (유료화 대비 그룹 관리)"
+      "bulkHint": "선택한 요금제를 모든 사용자에게 적용합니다. 개별 한도 설정은 초기화됩니다. (유료화 대비 그룹 관리)",
+      "searchLabel": "닉네임 검색",
+      "searchApply": "검색",
+      "noResults": "일치하는 사용자가 없습니다.",
+      "pagesLabel": "페이지 한도",
+      "pagesHint": "페이지 한도: 소유 확인 도메인은 2배 적용, 최대 {max}페이지"
     },
     "inquiriesSection": {
       "title": "문의 관리",
       "replyLabel": "답변 내용",
       "send": "답변 등록",
       "from": "작성자"
+    },
+    "nav": {
+      "label": "관리자 메뉴",
+      "dashboard": "대시보드",
+      "users": "사용자",
+      "scans": "검사 로그",
+      "inquiries": "문의",
+      "settings": "운영 설정",
+      "logs": "로그"
+    },
+    "dashboard": {
+      "goDetail": "자세히 →",
+      "recentScans": "최근 검사",
+      "viewAll": "전체 보기 →",
+      "empty": "표시할 항목이 없습니다."
+    },
+    "settings": {
+      "title": "운영 설정",
+      "bulkPagesLabel": "전체 사용자 페이지 한도 일괄 설정",
+      "bulkPagesHint": "모든 사용자의 기본 페이지 한도를 설정합니다 (소유 확인 도메인은 2배, 최대 {max}페이지). 비우고 적용하면 요금제/기본 한도로 복귀합니다."
+    },
+    "logs": {
+      "title": "로그",
+      "loginTitle": "로그인 기록",
+      "auditTitle": "관리자 행위 감사",
+      "colUser": "사용자",
+      "colEmail": "이메일",
+      "colProvider": "로그인 방식",
+      "colIp": "IP",
+      "colDate": "일시",
+      "colActor": "수행자",
+      "colAction": "행위",
+      "colTarget": "대상",
+      "colDetail": "상세",
+      "empty": "기록이 없습니다.",
+      "notMigrated": "로그 테이블이 아직 없습니다. Supabase SQL Editor에서 supabase/migrations/0006_admin_logs.sql을 적용해 주세요."
     }
   },
   "guide": {

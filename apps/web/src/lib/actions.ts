@@ -10,8 +10,9 @@ import { guardedFetch } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isImpersonatingNickname } from "@/lib/nickname";
-import { PLAN_IDS } from "@/lib/quota";
+import { MAX_PAGES_PER_SCAN, PLAN_IDS } from "@/lib/quota";
 import { setPlansActive } from "@/lib/appSettings";
+import { logAdminAction } from "@/lib/logs";
 
 /** 모든 로케일 경로 캐시 무효화 (단순화를 위해 layout 단위) */
 function revalidateAll() {
@@ -306,12 +307,13 @@ function str(v: FormDataEntryValue | null): string | undefined {
 
 // ─────────────── 관리자 ───────────────
 export async function toggleBlockUser(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const blocked = formData.get("blocked") === "true";
   if (!id.success) return;
   const admin = createAdminClient();
   await admin.from("profiles").update({ blocked: !blocked }).eq("id", id.data);
+  await logAdminAction(admin, actor.id, blocked ? "user.unblock" : "user.block", id.data);
   revalidateAll();
 }
 
@@ -335,7 +337,7 @@ export interface ResetQuotaState {
  * 그 이전 검사를 사용량 집계에서 제외한다.
  */
 export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Promise<ResetQuotaState> {
-  await requireAdmin();
+  const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const scope = z.enum(["daily", "weekly", "monthly", "all"]).safeParse(formData.get("scope"));
   if (!id.success || !scope.success) return { error: "invalid" };
@@ -352,13 +354,14 @@ export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Pr
     .update({ scan_limit_override: { ...current, ...patch } })
     .eq("id", id.data);
   if (error) return { error: "failed" };
+  await logAdminAction(admin, actor.id, "user.reset_quota", id.data, { scope: scope.data });
   revalidateAll();
   return { ok: true, resetScope: scope.data };
 }
 
 /** 사용자별 요금제·개별 최대 한도 설정. 빈 숫자는 개별값 제거(요금제 한도 사용) */
 export async function setUserLimits(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const plan = z.enum(PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
   if (!id.success || !plan.success) return;
@@ -378,21 +381,43 @@ export async function setUserLimits(formData: FormData): Promise<void> {
     }
   }
 
+  // 사용자별 기본 페이지 한도 (소유 확인 도메인은 ×2, 최대 MAX_PAGES_PER_SCAN)
+  {
+    const raw = formData.get("pages");
+    const str = typeof raw === "string" ? raw.trim() : "";
+    if (str === "") {
+      delete next.pages;
+    } else {
+      const n = Number(str);
+      if (Number.isInteger(n) && n >= 1 && n <= MAX_PAGES_PER_SCAN) next.pages = n;
+    }
+  }
+
   await admin.from("profiles").update({ scan_limit_override: next }).eq("id", id.data);
+  await logAdminAction(admin, actor.id, "user.set_limits", id.data, {
+    plan: plan.data,
+    ...Object.fromEntries(
+      (["daily", "weekly", "monthly", "pages"] as const)
+        .filter((k) => next[k] !== undefined)
+        .map((k) => [k, next[k]]),
+    ),
+  });
   revalidateAll();
 }
 
 /** 요금제 시행 시작/중지 — app_settings.plans.active 토글 */
 export async function togglePlansActive(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const { user: actor } = await requireAdmin();
   const active = formData.get("active") === "true";
-  await setPlansActive(createAdminClient(), !active);
+  const admin = createAdminClient();
+  await setPlansActive(admin, !active);
+  await logAdminAction(admin, actor.id, "plans.toggle", undefined, { active: !active });
   revalidateAll();
 }
 
-/** 요금제(그룹) 일괄 배정 — 전체 사용자를 지정 요금제로. 개별 한도 override는 제거 */
+/** 요금제(그룹) 일괄 배정 — 전체 사용자를 지정 요금제로. 개별 한도 override(횟수·페이지)는 제거 */
 export async function bulkSetPlan(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const { user: actor } = await requireAdmin();
   const plan = z.enum(PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
   if (!plan.success) return;
 
@@ -403,18 +428,53 @@ export async function bulkSetPlan(formData: FormData): Promise<void> {
       u.scan_limit_override && typeof u.scan_limit_override === "object"
         ? (u.scan_limit_override as Record<string, unknown>)
         : {};
-    // 개별 한도(daily/weekly/monthly)는 제거하고 요금제만 지정 (그룹 일괄 정책 우선)
+    // 개별 한도(daily/weekly/monthly/pages)는 제거하고 요금제만 지정 (그룹 일괄 정책 우선)
     const next: Record<string, unknown> = { plan: plan.data };
     for (const k of ["dailyResetAt", "weeklyResetAt", "monthlyResetAt"] as const) {
       if (current[k] !== undefined) next[k] = current[k];
     }
     await admin.from("profiles").update({ scan_limit_override: next }).eq("id", u.id);
   }
+  await logAdminAction(admin, actor.id, "plans.bulk_set", undefined, {
+    plan: plan.data,
+    count: users?.length ?? 0,
+  });
+  revalidateAll();
+}
+
+/** 페이지 한도 일괄 설정 — 전체 사용자의 scan_limit_override.pages를 지정/해제 (다른 키는 보존) */
+export async function bulkSetPages(formData: FormData): Promise<void> {
+  const { user: actor } = await requireAdmin();
+  const raw = formData.get("pages");
+  const str = typeof raw === "string" ? raw.trim() : "";
+  let pages: number | null = null; // null = 해제 (요금제/기본 한도로 복귀)
+  if (str !== "") {
+    const n = Number(str);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES_PER_SCAN) return;
+    pages = n;
+  }
+
+  const admin = createAdminClient();
+  const { data: users } = await admin.from("profiles").select("id, scan_limit_override");
+  for (const u of users ?? []) {
+    const current =
+      u.scan_limit_override && typeof u.scan_limit_override === "object"
+        ? (u.scan_limit_override as Record<string, unknown>)
+        : {};
+    const next: Record<string, unknown> = { ...current };
+    if (pages === null) delete next.pages;
+    else next.pages = pages;
+    await admin.from("profiles").update({ scan_limit_override: next }).eq("id", u.id);
+  }
+  await logAdminAction(admin, actor.id, "pages.bulk_set", undefined, {
+    pages,
+    count: users?.length ?? 0,
+  });
   revalidateAll();
 }
 
 export async function replyInquiry(formData: FormData): Promise<void> {
-  await requireAdmin();
+  const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const reply = z.string().trim().min(1).max(5000).safeParse(formData.get("reply"));
   if (!id.success || !reply.success) return;
@@ -423,5 +483,6 @@ export async function replyInquiry(formData: FormData): Promise<void> {
     .from("inquiries")
     .update({ admin_reply: reply.data, status: "answered", replied_at: new Date().toISOString() })
     .eq("id", id.data);
+  await logAdminAction(admin, actor.id, "inquiry.reply", id.data);
   revalidateAll();
 }

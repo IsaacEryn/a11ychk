@@ -23,6 +23,7 @@ export interface PlanConfig extends ScanLimits {
 export const PLANS = {
   free: { daily: 3, weekly: 10, monthly: 20, sampleSize: 5 },
   pro: { daily: 20, weekly: 80, monthly: 300, sampleSize: 20 },
+  // enterprise sampleSize 40은 MAX_PAGES_PER_SCAN(30)으로 클램프되어 실효 30
   enterprise: { daily: 100, weekly: 500, monthly: 2000, sampleSize: 40 },
 } as const satisfies Record<string, PlanConfig>;
 
@@ -40,14 +41,29 @@ export const DEFAULT_SCAN_LIMITS: ScanLimits = {
 /** 소유 확인된 도메인의 free 등급 보너스 표본 수 (현행 동작 유지) */
 export const VERIFIED_FREE_SAMPLE_SIZE = 10;
 
+/** 스캔 1회당 절대 최대 표본 페이지 수 (하드 캡) — Vercel 함수 실행 시간 한도 고려 */
+export const MAX_PAGES_PER_SCAN = 30;
+
+/** 관리자가 지정한 사용자별 기본 페이지 한도 (scan_limit_override.pages). 없으면 undefined */
+export function getCustomPages(override: unknown): number | undefined {
+  const v = asRecord(override).pages;
+  return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : undefined;
+}
+
 /**
- * 유효 표본 크기(구조 표본).
- * - 요금제 비활성: 현행 유지 — 소유확인 10p / 그 외 5p
- * - 요금제 활성: 배정 요금제의 sampleSize
+ * 유효 표본 크기(구조 표본). 우선순위:
+ * 1. 사용자별 pages override — 소유 확인 도메인은 ×2
+ * 2. 요금제 활성 시 배정 요금제의 sampleSize
+ * 3. free 기본 — 소유확인 10p / 그 외 5p (현행 유지)
+ * 모두 MAX_PAGES_PER_SCAN(30)으로 클램프.
  */
 export function getSampleSize(opts: { override: unknown; verified: boolean; plansActive: boolean }): number {
-  if (!opts.plansActive) return opts.verified ? VERIFIED_FREE_SAMPLE_SIZE : PLANS.free.sampleSize;
-  return PLANS[getPlan(opts.override)].sampleSize;
+  const pages = getCustomPages(opts.override);
+  let size: number;
+  if (pages !== undefined) size = opts.verified ? pages * 2 : pages;
+  else if (opts.plansActive) size = PLANS[getPlan(opts.override)].sampleSize;
+  else size = opts.verified ? VERIFIED_FREE_SAMPLE_SIZE : PLANS.free.sampleSize;
+  return Math.min(size, MAX_PAGES_PER_SCAN);
 }
 
 function asRecord(override: unknown): Record<string, unknown> {

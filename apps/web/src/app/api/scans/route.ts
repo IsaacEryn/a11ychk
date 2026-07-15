@@ -4,6 +4,7 @@ import { UrlGuardError, assertPublicHttpUrl, isSameOrigin, normalizeUrl, type Ev
 import { createClient } from "@/lib/supabase/server";
 import { createScanForUser } from "@/lib/scan/createScan";
 import { runScan } from "@/lib/scan/runScan";
+import { MAX_PAGES_PER_SCAN } from "@/lib/quota";
 
 // Vercel Fluid Compute — after() 콜백(스캔 실행)까지 포함한 최대 실행 시간
 export const maxDuration = 300;
@@ -19,7 +20,7 @@ const DEFAULT_BASELINE = [
 const CreateScanSchema = z.object({
   url: z.string().min(1).max(2000),
   /** 점검자 직접 입력 표본 (없으면 자동 수집) */
-  pages: z.array(z.string().min(1).max(2000)).max(60).optional(),
+  pages: z.array(z.string().min(1).max(2000)).max(MAX_PAGES_PER_SCAN).optional(),
   scope: z
     .object({
       conformanceTarget: z.enum(["A", "AA", "AAA"]).optional(),

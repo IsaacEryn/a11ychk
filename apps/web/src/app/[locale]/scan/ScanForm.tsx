@@ -24,6 +24,12 @@ export interface ScanFormLabels {
   manualOriginHint: string;
   manualOverLimit: string; // "{max}"
   manualVerifyHint: string; // "{verified}"
+  manualHostMismatch: string; // "{host}"
+}
+
+/** 메시지 템플릿의 {key} 플레이스홀더를 모두 치환 (replace는 첫 항목만 바꿔 버그가 됐었음) */
+function fill(template: string, vars: Record<string, string | number>): string {
+  return Object.entries(vars).reduce((s, [k, v]) => s.replaceAll(`{${k}}`, String(v)), template);
 }
 
 export function ScanForm({
@@ -55,15 +61,32 @@ export function ScanForm({
     [pagesText],
   );
 
-  // 입력한 URL의 도메인이 소유 확인된 도메인이면 더 큰 한도 적용
-  const maxPages = useMemo(() => {
+  // 검사 주소의 호스트 (미입력·잘못된 URL이면 null)
+  const rootHost = useMemo(() => {
     try {
-      const host = new URL(url).hostname.toLowerCase();
-      return verifiedHostnames.includes(host) ? verifiedSize : unverifiedSize;
+      return new URL(url).hostname.toLowerCase();
     } catch {
-      return unverifiedSize;
+      return null;
     }
-  }, [url, verifiedHostnames, verifiedSize, unverifiedSize]);
+  }, [url]);
+
+  // 입력한 URL의 도메인이 소유 확인된 도메인이면 더 큰 한도 적용
+  const maxPages = useMemo(
+    () => (rootHost && verifiedHostnames.includes(rootHost) ? verifiedSize : unverifiedSize),
+    [rootHost, verifiedHostnames, verifiedSize, unverifiedSize],
+  );
+
+  // 직접 입력 페이지 중 검사 주소와 호스트가 다르거나 URL이 아닌 줄 (서버도 거부하므로 폼에서 미리 알림)
+  const invalidLines = useMemo(() => {
+    if (mode !== "manual" || !rootHost) return [];
+    return manualPages.filter((line) => {
+      try {
+        return new URL(line).hostname.toLowerCase() !== rootHost;
+      } catch {
+        return true;
+      }
+    });
+  }, [mode, manualPages, rootHost]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -113,7 +136,7 @@ export function ScanForm({
         />
         <button
           type="submit"
-          disabled={submitting || (mode === "manual" && (manualPages.length === 0 || overLimit))}
+          disabled={submitting || (mode === "manual" && (manualPages.length === 0 || overLimit || invalidLines.length > 0))}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] disabled:opacity-60"
         >
           {submitting ? labels.submitting : labels.submit}
@@ -168,7 +191,7 @@ export function ScanForm({
               className={`text-xs font-bold tabular-nums ${overLimit ? "text-[var(--color-crit)]" : "text-[var(--color-ink-faint)]"}`}
               aria-live="polite"
             >
-              {labels.manualCount.replace("{count}", String(manualPages.length)).replace("{max}", String(maxPages))}
+              {fill(labels.manualCount, { count: manualPages.length, max: maxPages })}
             </span>
           </div>
           <textarea
@@ -177,18 +200,35 @@ export function ScanForm({
             onChange={(e) => setPagesText(e.target.value)}
             rows={6}
             placeholder={labels.manualPlaceholder}
-            aria-describedby="manual-pages-hint"
+            aria-describedby={`manual-pages-hint${invalidLines.length > 0 ? " manual-pages-host-error" : ""}`}
             className={`w-full rounded border-[1.5px] bg-[var(--color-paper)] px-3 py-2 font-mono text-sm ${
-              overLimit ? "border-[var(--color-crit)]" : "border-[var(--color-ink)]"
+              overLimit || invalidLines.length > 0 ? "border-[var(--color-crit)]" : "border-[var(--color-ink)]"
             }`}
           />
           <p id="manual-pages-hint" className="mt-1 text-xs text-[var(--color-ink-faint)]">
             {labels.manualOriginHint}
           </p>
+          {invalidLines.length > 0 && (
+            <div
+              id="manual-pages-host-error"
+              role="alert"
+              aria-live="polite"
+              className="mt-1.5 text-xs font-semibold text-[var(--color-crit)]"
+            >
+              <p>{fill(labels.manualHostMismatch, { host: rootHost ?? "" })}</p>
+              <ul className="mt-1 list-disc pl-5 font-mono font-normal">
+                {invalidLines.map((line) => (
+                  <li key={line} className="break-all">
+                    {line}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {overLimit && (
             <p role="alert" className="mt-1.5 text-xs font-semibold text-[var(--color-crit)]">
-              {labels.manualOverLimit.replace("{max}", String(maxPages))}
-              {maxPages < verifiedSize && ` ${labels.manualVerifyHint.replace("{verified}", String(verifiedSize))}`}
+              {fill(labels.manualOverLimit, { max: maxPages })}
+              {maxPages < verifiedSize && ` ${fill(labels.manualVerifyHint, { verified: verifiedSize })}`}
             </p>
           )}
         </div>
