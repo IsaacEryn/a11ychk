@@ -12,6 +12,7 @@
   "devDependencies": {
     "@types/chrome": "^0.0.287",
     "esbuild": "^0.24.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "axe-core": "^4.12.1"
   }
 }

@@ -258,3 +258,69 @@ h2 {
   color: var(--crit);
   font-weight: 600;
 }
+
+/* 위반 요소 목록 + 표시 버튼 */
+.vnodes {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+}
+.vnodes li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  padding: 2px 0;
+}
+.vnodes code {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--ink-faint);
+}
+.vnodes .locate {
+  flex-shrink: 0;
+  border: 1px solid var(--seal);
+  background: transparent;
+  color: var(--seal);
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 1px 7px;
+  cursor: pointer;
+}
+.vnodes .locate:hover {
+  background: var(--seal);
+  color: #fff;
+}
+.vnodes .vmore {
+  color: var(--ink-faint);
+  font-size: 11px;
+}
+
+/* 개선 가이드 접기 */
+.vguide {
+  margin-top: 6px;
+}
+.vguide summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--seal);
+}
+.vguide p {
+  margin: 4px 0 0;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  white-space: pre-wrap;
+}
+.save-msg a {
+  color: var(--seal);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

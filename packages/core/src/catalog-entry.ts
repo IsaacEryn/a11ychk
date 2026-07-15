@@ -10,3 +10,4 @@ export * from "./catalog/wcag";
 export * from "./manual/manualChecks";
 export * from "./report/aggregate";
 export * from "./scanner/normalize";
+export * from "./scanner/pageChecks";

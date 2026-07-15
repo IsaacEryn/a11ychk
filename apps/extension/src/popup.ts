@@ -1,16 +1,19 @@
 import {
   AXE_RUN_TAGS,
   aggregateScan,
+  customFindingsFromSignals,
   getManualCheckItems,
   getRuleEntry,
   normalizeAxeResults,
   type AxeRunResults,
   type Impact,
+  type PageCheckSignals,
 } from "@a11ychk/core/catalog";
 
 // 빌드 시 esbuild define으로 치환됨
-declare const process: { env: { A11YCHK_SITE_ORIGIN: string } };
+declare const process: { env: { A11YCHK_SITE_ORIGIN: string; A11YCHK_AXE_VERSION: string } };
 const SITE_ORIGIN = process.env.A11YCHK_SITE_ORIGIN;
+const AXE_VERSION = process.env.A11YCHK_AXE_VERSION;
 
 interface StoredSession {
   accessToken: string;
@@ -49,12 +52,161 @@ function runAxeInPage(tags: string[]): Promise<AxeRunResults> {
   });
 }
 
+/**
+ * 자체 커스텀 검사 신호 수집 (ISOLATED world에서 실행).
+ * ⚠️ 서버 스캐너의 BASE_SCRIPT(packages/core/src/scanner/customChecks.ts)와
+ * 동일한 신호를 수집해야 한다 — 판정은 공용 customFindingsFromSignals가 담당.
+ * 자기 완결 함수여야 함 (chrome.scripting이 함수 소스를 직렬화해 주입).
+ */
+function collectPageSignals(): PageCheckSignals {
+  const res: PageCheckSignals = {
+    inlineClickNonInteractive: [], focusSampled: 0, focusNoOutline: 0, focusExamples: [],
+    hasMedia: false, altSampled: 0, altFilename: [], altGeneric: [], autoplay: [], genericLinks: 0,
+    smallTargets: [], targetSampled: 0,
+  };
+  function cssPath(el: Element): string {
+    try {
+      if (el.id) return "#" + el.id;
+      const parts: string[] = [];
+      let cur: Element | null = el;
+      let depth = 0;
+      while (cur && cur.nodeType === 1 && depth < 4) {
+        let sel = cur.tagName.toLowerCase();
+        const cn = cur.getAttribute("class");
+        if (cn) { const c = cn.trim().split(/\s+/)[0]; if (c) sel += "." + c; }
+        parts.unshift(sel);
+        cur = cur.parentElement;
+        depth++;
+      }
+      return parts.join(" > ");
+    } catch { return el.tagName ? el.tagName.toLowerCase() : "?"; }
+  }
+  try { res.hasMedia = !!document.querySelector("video, audio"); } catch { /* 무시 */ }
+  try {
+    // 1.1.1 — alt가 파일명(F30) 또는 의미 없는 일반어인 이미지
+    const FILE = /\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)\s*$/i;
+    const GENERIC_ALT = /^(이미지|사진|그림|아이콘|배너|image|img|photo|picture|graphic|icon|banner|untitled|spacer|\*|-)$/i;
+    const imgs = document.querySelectorAll("img[alt]");
+    for (let ia = 0; ia < imgs.length; ia++) {
+      const img = imgs[ia];
+      if (!img) continue;
+      const alt = (img.getAttribute("alt") || "").trim();
+      if (!alt) continue;
+      res.altSampled++;
+      if (FILE.test(alt) && res.altFilename.length < 8)
+        res.altFilename.push({ selector: cssPath(img), html: img.outerHTML.slice(0, 300), alt });
+      else if (GENERIC_ALT.test(alt) && res.altGeneric.length < 8)
+        res.altGeneric.push({ selector: cssPath(img), html: img.outerHTML.slice(0, 300), alt });
+    }
+  } catch { /* 무시 */ }
+  try {
+    // 1.4.2 — 음소거 없이 자동 재생되는 미디어
+    const med = document.querySelectorAll<HTMLMediaElement>("video[autoplay], audio[autoplay]");
+    for (let m = 0; m < med.length && res.autoplay.length < 4; m++) {
+      const mediaEl = med[m];
+      if (!mediaEl || mediaEl.hasAttribute("muted") || mediaEl.muted) continue;
+      res.autoplay.push({ selector: cssPath(mediaEl), html: mediaEl.outerHTML.slice(0, 300) });
+    }
+  } catch { /* 무시 */ }
+  try {
+    // 2.4.4 — 목적을 알기 어려운 일반어 링크 텍스트
+    const GENERIC_LINK = /^(여기|여기를?\s*클릭|클릭(하세요)?|더\s*보기|더보기|자세히(\s*보기)?|바로\s*가기|바로가기|here|click\s*here|click|more|read\s*more|learn\s*more|go|link)$/i;
+    const as2 = document.querySelectorAll("a[href]");
+    for (let l = 0; l < as2.length; l++) {
+      const t2 = (as2[l]?.textContent || "").replace(/\s+/g, " ").trim();
+      if (t2 && GENERIC_LINK.test(t2)) res.genericLinks++;
+    }
+  } catch { /* 무시 */ }
+  try {
+    // 2.5.8 — 24×24px 미만 타깃 (인라인 링크 예외)
+    const targets = document.querySelectorAll("a[href], button, input:not([type=hidden]), [role=button]");
+    const limit2 = Math.min(targets.length, 60);
+    for (let s = 0; s < limit2; s++) {
+      const el2 = targets[s];
+      if (!el2) continue;
+      const st = getComputedStyle(el2);
+      if (st.display === "inline") continue;
+      const r = el2.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+      res.targetSampled++;
+      if ((r.width < 24 || r.height < 24) && res.smallTargets.length < 6) {
+        res.smallTargets.push({
+          selector: cssPath(el2),
+          html: el2.outerHTML.slice(0, 200),
+          size: Math.round(r.width) + "×" + Math.round(r.height),
+        });
+      }
+    }
+  } catch { /* 무시 */ }
+  try {
+    // 2.1.1 — 인라인 onclick이 붙은 비대화형·비초점 요소
+    const NATIVE = /^(A|BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY)$/;
+    const INTERACTIVE_ROLE = /^(button|link|checkbox|menuitem|menuitemcheckbox|menuitemradio|tab|switch|radio|option|slider|spinbutton|textbox)$/;
+    const clickers = document.querySelectorAll("[onclick]");
+    for (let i = 0; i < clickers.length && res.inlineClickNonInteractive.length < 8; i++) {
+      const el = clickers[i];
+      if (!el || NATIVE.test(el.tagName)) continue;
+      const role = el.getAttribute("role");
+      const ti = el.getAttribute("tabindex");
+      if ((role && INTERACTIVE_ROLE.test(role)) || ti !== null) continue;
+      res.inlineClickNonInteractive.push({ selector: cssPath(el), html: el.outerHTML.slice(0, 300) });
+    }
+  } catch { /* 무시 */ }
+  try {
+    // 2.4.7 — 초점 시 시각 변화 표본 검사 (기존 초점 복원)
+    const prevFocus = document.activeElement as HTMLElement | null;
+    const focusables = document.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex^="-"])',
+    );
+    const limit = Math.min(focusables.length, 20);
+    for (let j = 0; j < limit; j++) {
+      const f = focusables[j];
+      if (!f) continue;
+      const b = getComputedStyle(f);
+      const boBefore = b.boxShadow;
+      const brBefore = b.borderColor;
+      const bgBefore = b.backgroundColor;
+      try { f.focus({ preventScroll: true }); } catch { continue; }
+      if (document.activeElement !== f) continue;
+      res.focusSampled++;
+      const a = getComputedStyle(f);
+      const outlineVisible = a.outlineStyle !== "none" && a.outlineWidth !== "0px";
+      const boxShadowChanged = a.boxShadow !== boBefore && a.boxShadow !== "none";
+      const borderChanged = a.borderColor !== brBefore;
+      const bgChanged = a.backgroundColor !== bgBefore;
+      if (!outlineVisible && !boxShadowChanged && !borderChanged && !bgChanged) {
+        res.focusNoOutline++;
+        if (res.focusExamples.length < 5) res.focusExamples.push({ selector: cssPath(f), html: f.outerHTML.slice(0, 200) });
+      }
+    }
+    try { (prevFocus ?? document.body)?.focus?.({ preventScroll: true }); } catch { /* 무시 */ }
+  } catch { /* 무시 */ }
+  return res;
+}
+
+/** 페이지에서 해당 요소를 강조 표시 (스크롤 + 3초 outline) */
+function highlightInPage(selector: string): boolean {
+  const el = document.querySelector<HTMLElement>(selector);
+  if (!el) return false;
+  el.scrollIntoView({ behavior: "smooth", block: "center" });
+  const prevOutline = el.style.outline;
+  const prevOffset = el.style.outlineOffset;
+  el.style.outline = "3px solid #e0533d";
+  el.style.outlineOffset = "2px";
+  setTimeout(() => {
+    el.style.outline = prevOutline;
+    el.style.outlineOffset = prevOffset;
+  }, 3000);
+  return true;
+}
+
 async function scan() {
   const tab = await getActiveTab();
   if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) {
     $("target").innerHTML = '<span class="err">이 페이지는 검사할 수 없습니다 (http/https 페이지에서 실행하세요).</span>';
     return;
   }
+  currentTabId = tab.id;
   const scanBtn = $<HTMLButtonElement>("scan");
   scanBtn.disabled = true;
   scanBtn.textContent = "검사 중…";
@@ -75,7 +227,25 @@ async function scan() {
     const raw = results[0]?.result as AxeRunResults | undefined;
     if (!raw) throw new Error("검사 결과를 가져오지 못했습니다.");
     const page = normalizeAxeResults(tab.url, raw);
-    const summary = aggregateScan([page], "4.10");
+
+    // 3) 자체 커스텀 검사 (서버 스캐너와 동일 규칙 — 리플로우 제외)
+    try {
+      const signalResults = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: collectPageSignals,
+      });
+      const signals = signalResults[0]?.result as PageCheckSignals | undefined;
+      if (signals) {
+        const custom = customFindingsFromSignals(signals);
+        page.violations.push(...custom.violations);
+        page.passes.push(...custom.passes);
+        page.incomplete.push(...custom.incomplete);
+      }
+    } catch {
+      // 커스텀 검사 실패 — axe 결과만으로 진행
+    }
+
+    const summary = aggregateScan([page], AXE_VERSION);
     renderResult(page, summary, tab.url);
   } catch (e) {
     $("target").innerHTML = `<span class="err">검사에 실패했습니다: ${(e as Error).message}</span>`;
@@ -86,6 +256,7 @@ async function scan() {
 }
 
 let lastPage: ReturnType<typeof normalizeAxeResults> | null = null;
+let currentTabId: number | null = null;
 
 function renderResult(
   page: ReturnType<typeof normalizeAxeResults>,
@@ -121,6 +292,7 @@ function renderResult(
     li.style.borderColor = "var(--seal)";
     list.appendChild(li);
   }
+  const tabId = currentTabId;
   for (const v of sorted) {
     const entry = getRuleEntry(v.ruleId, v.tags);
     const li = document.createElement("li");
@@ -137,6 +309,60 @@ function renderResult(
       (entry.wcag.length ? ` · WCAG ${entry.wcag.join(", ")}` : "") +
       (entry.kwcag.length ? ` · KWCAG ${entry.kwcag.join(", ")}` : "");
     li.append(title, meta);
+
+    // 위반 요소 목록 (최대 3) — "표시" 버튼으로 페이지에서 강조
+    const nodesUl = document.createElement("ul");
+    nodesUl.className = "vnodes";
+    for (const node of v.nodes.slice(0, 3)) {
+      const nli = document.createElement("li");
+      const sel = document.createElement("code");
+      sel.textContent = node.selector;
+      sel.title = node.html;
+      nli.appendChild(sel);
+      if (tabId) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "locate";
+        btn.textContent = "표시";
+        btn.setAttribute("aria-label", `${node.selector} 요소를 페이지에서 표시`);
+        btn.addEventListener("click", async () => {
+          try {
+            const r = await chrome.scripting.executeScript({
+              target: { tabId },
+              args: [node.selector],
+              func: highlightInPage,
+            });
+            btn.textContent = r[0]?.result ? "표시됨 ✓" : "못 찾음";
+          } catch {
+            btn.textContent = "실패";
+          }
+          setTimeout(() => (btn.textContent = "표시"), 2500);
+        });
+        nli.appendChild(btn);
+      }
+      nodesUl.appendChild(nli);
+    }
+    if (v.nodes.length > 3) {
+      const more = document.createElement("li");
+      more.className = "vmore";
+      more.textContent = `외 ${v.nodes.length - 3}개 요소`;
+      nodesUl.appendChild(more);
+    }
+    li.appendChild(nodesUl);
+
+    // 개선 가이드 (첫 단락) — 접기형
+    const guideFirst = entry.guide.ko.split("\n\n")[0]?.trim();
+    if (guideFirst) {
+      const details = document.createElement("details");
+      details.className = "vguide";
+      const summaryEl = document.createElement("summary");
+      summaryEl.textContent = "개선 가이드";
+      const p = document.createElement("p");
+      p.textContent = guideFirst;
+      details.append(summaryEl, p);
+      li.appendChild(details);
+    }
+
     list.appendChild(li);
   }
 
@@ -168,9 +394,19 @@ async function saveToAccount() {
     });
     const data = (await res.json()) as { id?: string; error?: string };
     if (!res.ok || !data.id) {
-      msg.innerHTML = `<span class="err">${data.error ?? "저장에 실패했습니다."}</span>`;
+      msg.textContent = "";
+      const err = document.createElement("span");
+      err.className = "err";
+      err.textContent = data.error ?? "저장에 실패했습니다.";
+      msg.appendChild(err);
     } else {
-      msg.textContent = "저장되었습니다. 마이페이지에서 확인하세요.";
+      msg.textContent = "저장되었습니다. ";
+      const link = document.createElement("a");
+      link.href = `${SITE_ORIGIN}/ko/scans/${data.id}`;
+      link.target = "_blank";
+      link.rel = "noopener";
+      link.textContent = "보고서 보기 →";
+      msg.appendChild(link);
     }
   } catch {
     msg.innerHTML = '<span class="err">네트워크 오류가 발생했습니다.</span>';
