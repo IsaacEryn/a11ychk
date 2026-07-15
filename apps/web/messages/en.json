@@ -751,7 +751,8 @@
     "oss": {
       "title": "Open source",
       "desc": "The audit engine and the full Korean-language KWCAG 2.2 rule catalog are MIT-licensed. Anyone can verify and contribute.",
-      "link": "View on GitHub →"
+      "link": "View on GitHub →",
+      "traffic": "Since {since}: {views} repository views ({visitors} visitors) · {clones} clones"
     },
     "note": "Metrics refresh hourly (last computed: {date}). Compliance rates cover the automated scope only — automated tools find part of all accessibility issues.",
     "cta": "Audit your site"

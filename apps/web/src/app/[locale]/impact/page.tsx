@@ -22,6 +22,8 @@ interface ImpactStats {
   /** 개선 사이트들의 평균 준수율 상승(%p) */
   avgRateGain: number;
   github: { stars: number; forks: number } | null;
+  /** 저장소 누적 트래픽 (repo_stats 크론 축적분 — migration 0007 전엔 null) */
+  traffic: { views: number; uniqueViews: number; clones: number; since: string } | null;
   computedAt: string;
 }
 
@@ -79,6 +81,26 @@ const getImpactStats = unstable_cache(
       }
     }
 
+    // 저장소 누적 트래픽 (repo-stats 크론이 쌓은 일별 데이터 합산 — 테이블 미적용 시 생략)
+    let traffic: ImpactStats["traffic"] = null;
+    const { data: statRows } = await admin
+      .from("repo_stats")
+      .select("date, views, unique_views, clones")
+      .order("date", { ascending: true })
+      .limit(3660)
+      .then(
+        (r) => r,
+        () => ({ data: null }),
+      );
+    if (statRows && statRows.length > 0) {
+      traffic = {
+        views: statRows.reduce((sum, r) => sum + (r.views ?? 0), 0),
+        uniqueViews: statRows.reduce((sum, r) => sum + (r.unique_views ?? 0), 0),
+        clones: statRows.reduce((sum, r) => sum + (r.clones ?? 0), 0),
+        since: statRows[0]!.date as string,
+      };
+    }
+
     // 오픈소스 지표 (실패해도 페이지는 정상)
     let github: ImpactStats["github"] = null;
     try {
@@ -104,6 +126,7 @@ const getImpactStats = unstable_cache(
       rescannedSites,
       avgRateGain: improvedSites === 0 ? 0 : Math.round((rateGainSum / improvedSites) * 10) / 10,
       github,
+      traffic,
       computedAt: new Date().toISOString(),
     };
   },
@@ -200,6 +223,16 @@ export default async function ImpactPage({ params }: { params: Promise<{ locale:
               {t("oss.link")}
             </a>
           </p>
+          {stats.traffic && (
+            <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
+              {t("oss.traffic", {
+                views: n(stats.traffic.views),
+                visitors: n(stats.traffic.uniqueViews),
+                clones: n(stats.traffic.clones),
+                since: format.dateTime(new Date(stats.traffic.since), { dateStyle: "medium" }),
+              })}
+            </p>
+          )}
         </section>
       </div>
 
