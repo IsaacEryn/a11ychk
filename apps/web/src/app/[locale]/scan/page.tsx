@@ -75,7 +75,10 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
           }}
         />
         <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{tDash("scanForm.hint")}</p>
-        <p className="mt-2 text-sm">
+        <p className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          <Link href="/access-check" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+            {t("accessCheckLink")}
+          </Link>
           <Link href="/extension/connect" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
             {tDash("scanForm.extensionLink")}
           </Link>

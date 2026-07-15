@@ -132,6 +132,26 @@ export interface ScanReview {
   note: string;
 }
 
+/** 봇 차단 검증 판정 */
+export type AccessVerdict =
+  | "ok" // 자동 검사 가능
+  | "robots-blocked" // robots.txt가 봇을 차단 (우리는 존중하여 검사하지 않음)
+  | "ua-blocked" // 봇 UA만 차단 (브라우저 UA는 통과)
+  | "challenge" // 봇 방어 챌린지 (Cloudflare 등) — UA와 무관하게 차단
+  | "http-error" // 봇 여부와 무관한 HTTP 오류
+  | "unreachable"; // 접속 불가
+
+export interface AccessCheckResult {
+  verdict: AccessVerdict;
+  robotsAllowed: boolean;
+  /** 봇 UA로 요청한 HTTP 상태 */
+  botStatus?: number;
+  /** 일반 브라우저 UA로 요청한 HTTP 상태 (봇이 차단된 경우에만 확인) */
+  browserStatus?: number;
+  /** 감지된 봇 방어 서비스 (cloudflare 등) */
+  challengeVendor?: string;
+}
+
 export type PageCategory =
   | "home"
   | "login"

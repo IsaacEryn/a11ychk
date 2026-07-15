@@ -8,7 +8,8 @@
       "mypage": "My Page",
       "inquiries": "Support",
       "admin": "Admin",
-      "guide": "Manual Testing Guide"
+      "guide": "Manual Testing Guide",
+      "accessCheck": "Bot check"
     },
     "auth": {
       "login": "Sign in",
@@ -88,7 +89,80 @@
     "manualLabel": "Pages to audit (one per line)",
     "manualPlaceholder": "https://example.com/\nhttps://example.com/about\nhttps://example.com/contact",
     "manualCount": "{count} / {max} pages",
-    "manualOriginHint": "Only pages on the same domain as the audit URL are allowed; extra lines beyond the limit are dropped."
+    "manualOriginHint": "Only pages on the same domain as the audit URL are allowed; extra lines beyond the limit are dropped.",
+    "accessCheckLink": "Does the site block bots? Check auditability →"
+  },
+  "accessCheck": {
+    "title": "Bot-block checker",
+    "desc": "Diagnose whether and how a site blocks automated audit bots. Does not use your audit quota.",
+    "urlLabel": "Site URL to check",
+    "check": "Diagnose",
+    "checking": "Diagnosing…",
+    "failed": "Diagnosis failed. Please try again shortly.",
+    "verdict": {
+      "ok": {
+        "label": "✓ Automated audit possible",
+        "desc": "No bot blocking detected. You can run the automated audit right away.",
+        "solution": "No action needed — start your audit."
+      },
+      "robots-blocked": {
+        "label": "Blocked by robots.txt",
+        "desc": "The site's robots.txt disallows our audit bot. A11Y Check respects robots.txt, so automated audits will not run in this state.",
+        "solution": "If you manage the site, add an allow rule for a11ychk-bot (guide #1 below). Otherwise, audit with the Chrome extension."
+      },
+      "ua-blocked": {
+        "label": "Bot User-Agent blocked",
+        "desc": "Regular browsers connect fine, but the audit bot's User-Agent is blocked — a server or WAF UA filter.",
+        "solution": "Ask the site admin to allow the a11ychk-bot User-Agent (guide #2). For an immediate audit, use the Chrome extension."
+      },
+      "challenge": {
+        "label": "Bot-defense challenge",
+        "desc": "A bot-defense service (e.g. Cloudflare) is blocking all automated access. Allowing the UA alone may not be enough.",
+        "solution": "Add an exception for a11ychk-bot in the security service, or audit with the Chrome extension — it runs in your real browser, unaffected by bot defenses."
+      },
+      "http-error": {
+        "label": "HTTP error",
+        "desc": "The page returns an error regardless of bot blocking. Check the address and whether the site is up.",
+        "solution": "Verify the URL and try again shortly."
+      },
+      "unreachable": {
+        "label": "Unreachable",
+        "desc": "Could not connect to the site — wrong address, DNS issue, or temporary outage.",
+        "solution": "Verify the URL and try again shortly."
+      }
+    },
+    "detail": {
+      "robots": "robots.txt",
+      "allowed": "Allowed",
+      "disallowed": "Disallowed",
+      "botStatus": "Bot UA response",
+      "browserStatus": "Browser UA response",
+      "vendor": "Detected bot defense"
+    },
+    "solutionTitle": "How to resolve",
+    "extensionCta": "Audit with the Chrome extension → (works despite bot blocking / login)",
+    "scanCta": "Start an audit now →",
+    "guideTitle": "Bot-blocking playbook",
+    "guideDesc": "Recommended solutions by block type. The Chrome extension always works.",
+    "guide": {
+      "robots": {
+        "title": "Allow the audit bot in robots.txt",
+        "desc": "If you manage the site, add the rule below. A11Y Check is a well-behaved bot that respects robots.txt, so an allow rule is all it takes."
+      },
+      "waf": {
+        "title": "Allow the User-Agent in your WAF/CDN",
+        "desc": "If you use Cloudflare, AWS WAF, etc., add a skip/allow rule for the audit bot UA. In Cloudflare: Security → WAF → Custom rules with a User-Agent condition."
+      },
+      "extension": {
+        "title": "Audit with the Chrome extension (most reliable)",
+        "desc": "The extension runs inside your real browser, so it audits any page regardless of bot blocking, login, or intranet restrictions. Results are saved to your account.",
+        "cta": "Connect the Chrome extension →"
+      },
+      "staging": {
+        "title": "Audit a staging environment",
+        "desc": "If you can't add security exceptions in production, audit a staging/dev URL without bot defenses. Note it must be reachable from the public internet — private IPs cannot be audited."
+      }
+    }
   },
   "dashboard": {
     "title": "Dashboard",

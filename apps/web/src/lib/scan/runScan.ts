@@ -176,7 +176,9 @@ export async function runScan(scanId: string): Promise<void> {
     }
 
     if (results.length === 0) {
-      throw new Error("모든 페이지 스캔에 실패했습니다. 사이트가 봇 접근을 차단하는지 확인해 주세요.");
+      throw new Error(
+        "모든 페이지 스캔에 실패했습니다. '봇 차단 검증' 메뉴에서 사이트가 봇을 차단하는지 진단해 보세요. 차단된 사이트는 크롬 확장으로 검사할 수 있습니다.",
+      );
     }
 
     // 4) 집계 → 완료 (WCAG-EM 표본 요약 + 목표 수준 반영)

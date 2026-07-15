@@ -8,7 +8,8 @@
       "mypage": "마이페이지",
       "inquiries": "문의하기",
       "admin": "관리자",
-      "guide": "수동 검사 가이드"
+      "guide": "수동 검사 가이드",
+      "accessCheck": "봇 차단"
     },
     "auth": {
       "login": "로그인",
@@ -88,7 +89,80 @@
     "manualLabel": "검사할 페이지 목록 (줄바꿈으로 구분)",
     "manualPlaceholder": "https://example.com/\nhttps://example.com/about\nhttps://example.com/contact",
     "manualCount": "{count} / {max}페이지",
-    "manualOriginHint": "위 검사 주소와 같은 도메인의 페이지만 검사할 수 있으며, 초과분은 한도까지만 검사됩니다."
+    "manualOriginHint": "위 검사 주소와 같은 도메인의 페이지만 검사할 수 있으며, 초과분은 한도까지만 검사됩니다.",
+    "accessCheckLink": "사이트가 봇을 차단하나요? 검사 가능 여부 진단 →"
+  },
+  "accessCheck": {
+    "title": "봇 차단 검증",
+    "desc": "사이트가 자동 검사 봇을 차단하는지, 어떤 방식으로 차단하는지 진단합니다. 검사 한도를 사용하지 않습니다.",
+    "urlLabel": "확인할 사이트 주소",
+    "check": "진단하기",
+    "checking": "진단 중…",
+    "failed": "진단에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+    "verdict": {
+      "ok": {
+        "label": "✓ 자동 검사 가능",
+        "desc": "봇 차단이 감지되지 않았습니다. 자동 검사를 바로 실행할 수 있습니다.",
+        "solution": "별도 조치 없이 검사를 시작하세요."
+      },
+      "robots-blocked": {
+        "label": "robots.txt 차단",
+        "desc": "사이트의 robots.txt가 검사 봇의 접근을 허용하지 않습니다. A11Y Check는 robots.txt를 존중하므로 이 상태에서는 자동 검사를 실행하지 않습니다.",
+        "solution": "사이트 관리자라면 robots.txt에 a11ychk-bot 허용 규칙을 추가하세요(아래 가이드 1번). 관리 권한이 없다면 크롬 확장으로 검사하세요."
+      },
+      "ua-blocked": {
+        "label": "봇 UA 차단",
+        "desc": "일반 브라우저는 접속되지만 검사 봇의 User-Agent는 차단됩니다. 서버 또는 WAF의 UA 필터가 원인입니다.",
+        "solution": "사이트 관리자에게 a11ychk-bot User-Agent 허용을 요청하세요(아래 가이드 2번). 즉시 검사가 필요하면 크롬 확장을 사용하세요."
+      },
+      "challenge": {
+        "label": "봇 방어 챌린지",
+        "desc": "Cloudflare 등 봇 방어 서비스가 자동화된 접근 전체를 차단하고 있습니다. UA 허용만으로는 해결되지 않을 수 있습니다.",
+        "solution": "보안 서비스 설정에서 a11ychk-bot 예외(허용 규칙)를 추가하거나, 크롬 확장으로 검사하세요. 확장은 사용자의 실제 브라우저에서 실행되므로 봇 방어의 영향을 받지 않습니다."
+      },
+      "http-error": {
+        "label": "HTTP 오류",
+        "desc": "봇 차단과 무관하게 페이지가 오류 상태를 반환합니다. 주소가 정확한지, 사이트가 정상 운영 중인지 확인하세요.",
+        "solution": "주소를 확인하고 잠시 후 다시 진단해 보세요."
+      },
+      "unreachable": {
+        "label": "접속 불가",
+        "desc": "사이트에 접속하지 못했습니다. 주소 오류, DNS 문제, 또는 일시적 장애일 수 있습니다.",
+        "solution": "주소를 확인하고 잠시 후 다시 진단해 보세요."
+      }
+    },
+    "detail": {
+      "robots": "robots.txt",
+      "allowed": "허용",
+      "disallowed": "차단",
+      "botStatus": "봇 UA 응답",
+      "browserStatus": "브라우저 UA 응답",
+      "vendor": "감지된 봇 방어"
+    },
+    "solutionTitle": "해결 방법",
+    "extensionCta": "크롬 확장으로 검사하기 → (봇 차단·로그인 무관)",
+    "scanCta": "바로 검사 시작하기 →",
+    "guideTitle": "봇 차단 대응 가이드",
+    "guideDesc": "차단 유형별 권장 해결 순서입니다. 어떤 경우든 크롬 확장은 항상 동작합니다.",
+    "guide": {
+      "robots": {
+        "title": "robots.txt에 검사 봇 허용",
+        "desc": "사이트 관리자라면 robots.txt에 아래 규칙을 추가하세요. A11Y Check는 robots.txt를 존중하는 착한 봇이므로, 허용 규칙만으로 자동 검사가 가능해집니다."
+      },
+      "waf": {
+        "title": "WAF·CDN에서 User-Agent 허용",
+        "desc": "Cloudflare, AWS WAF 등 보안 서비스를 쓰는 경우 방화벽 규칙에 검사 봇 UA 허용(Skip/Allow) 규칙을 추가하세요. Cloudflare는 Security → WAF → Custom rules에서 User-Agent 조건으로 설정할 수 있습니다."
+      },
+      "extension": {
+        "title": "크롬 확장으로 검사 (가장 확실한 방법)",
+        "desc": "확장은 점검자의 실제 브라우저 안에서 실행되므로 봇 차단·로그인·사내망 여부와 무관하게 어떤 페이지든 검사할 수 있습니다. 결과는 계정에 저장되어 보고서로 관리됩니다.",
+        "cta": "크롬 확장 연결하기 →"
+      },
+      "staging": {
+        "title": "스테이징 환경 검사",
+        "desc": "운영 사이트에 보안 예외를 둘 수 없다면, 봇 방어가 없는 스테이징·개발 환경 주소로 검사하세요. 단, 스테이징도 공개 인터넷에서 접근 가능해야 하며 사설 IP는 검사할 수 없습니다."
+      }
+    }
   },
   "dashboard": {
     "title": "대시보드",

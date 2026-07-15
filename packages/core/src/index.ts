@@ -7,6 +7,7 @@ export * from "./security/urlGuard";
 export * from "./security/robots";
 export * from "./crawler/collectPages";
 export * from "./crawler/buildSample";
+export * from "./access/checkAccess";
 export * from "./scanner/runAxe";
 export * from "./catalog/rules";
 export * from "./catalog/kwcag";

@@ -38,6 +38,9 @@ export async function Header() {
               <Link href="/scan" className={linkCls}>
                 {t("nav.scan")}
               </Link>
+              <Link href="/access-check" className={linkCls}>
+                {t("nav.accessCheck")}
+              </Link>
               <Link href="/dashboard" className={linkCls}>
                 {t("nav.dashboard")}
               </Link>
