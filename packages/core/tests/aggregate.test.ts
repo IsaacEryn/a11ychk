@@ -175,6 +175,19 @@ describe("WCAG 2.2 SC 매트릭스 (WCAG-EM)", () => {
     expect(s.scores?.combined.failed).toBe(1);
   });
 
+  it("notPresentScs — 미디어 없으면 1.2.x는 해당 없음, KWCAG 5.2.1은 not-applicable, 자동 점수에 충족으로 반영", () => {
+    const s = aggregateScan([page({ passes: ["html-has-lang"] })], "4.10.0", {
+      conformanceTarget: "AA",
+      notPresentScs: ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5"],
+    });
+    expect(s.wcagMatrix.find((r) => r.scId === "1.2.1")?.outcome).toBe("notPresent");
+    expect(s.wcagMatrix.find((r) => r.scId === "1.2.5")?.outcome).toBe("notPresent");
+    // 5.2.1(자막 제공)은 1.2.1~1.2.3 대응 → 해당 없음
+    expect(s.kwcagMatrix.find((r) => r.itemId === "5.2.1")?.status).toBe("not-applicable");
+    // 자동 점수: 3.1.1 통과 + 1.2.x 5건 해당없음 = 6건 충족
+    expect(s.scores?.automated.passed).toBe(6);
+  });
+
   it("sample 요약을 전달하면 summary.sample에 포함", () => {
     const s = aggregateScan([], "4.10.0", {
       sample: {

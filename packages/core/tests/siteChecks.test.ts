@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeSiteChecks } from "../src/report/siteChecks";
+import { computeNotPresentScs, computeSiteChecks } from "../src/report/siteChecks";
 import type { PageSignature } from "../src/types";
 
 function sig(partial: Partial<PageSignature>): PageSignature {
@@ -57,6 +57,18 @@ describe("computeSiteChecks", () => {
       sig({ url: "https://x.com/b", navLinks: ["제품", "회사소개", "문의"] }),
     ]);
     expect(out.find((o) => o.ruleId === "a11ychk:consistent-navigation")?.outcome).toBe("review");
+  });
+
+  it("computeNotPresentScs — 전 페이지 시그니처 확보 + 미디어 전무일 때만 1.2.x 반환", () => {
+    const a = sig({ url: "https://x.com/a" });
+    const b = sig({ url: "https://x.com/b" });
+    expect(computeNotPresentScs([a, b], 2)).toContain("1.2.1");
+    expect(computeNotPresentScs([a, b], 2)).toHaveLength(5);
+    // 한 페이지라도 미디어가 있으면 판단하지 않음
+    expect(computeNotPresentScs([a, sig({ url: "https://x.com/c", hasMedia: true })], 2)).toEqual([]);
+    // 시그니처가 일부만 수집됐으면 판단 보류
+    expect(computeNotPresentScs([a], 2)).toEqual([]);
+    expect(computeNotPresentScs([], 0)).toEqual([]);
   });
 
   it("내비게이션 순서가 일관되면 3.2.3 통과", () => {

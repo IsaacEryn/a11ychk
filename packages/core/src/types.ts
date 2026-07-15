@@ -58,6 +58,12 @@ export interface Finding {
   nodes: FindingNode[];
 }
 
+/** 점검자 확증용으로 자동 수집한 값 (존재는 확인됨 — 품질은 사람이 판정) */
+export interface ReviewSample {
+  selector: string;
+  text: string;
+}
+
 /** 사이트 수준 검사를 위한 페이지 시그니처 (WCAG-EM Phase C) */
 export interface PageSignature {
   url: string;
@@ -67,6 +73,12 @@ export interface PageSignature {
   hasSearch: boolean;
   hasSitemap: boolean;
   hasMedia: boolean;
+  /** 확인용 수집 자료 — 대체 텍스트·폼 레이블·맥락 확인이 필요한 링크 텍스트 (구버전 스캔엔 없음) */
+  review?: {
+    alts: ReviewSample[];
+    labels: ReviewSample[];
+    genericLinks: ReviewSample[];
+  };
 }
 
 /** 사이트 수준 검사 결과 (집계 시 규칙 세트로 편입) */

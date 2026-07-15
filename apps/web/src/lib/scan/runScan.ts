@@ -8,6 +8,7 @@ import {
   assertPublicHttpUrl,
   buildSample,
   categorizePage,
+  computeNotPresentScs,
   computeSiteChecks,
   detectTechnologies,
   extractPageSignature,
@@ -279,6 +280,7 @@ export async function runScan(scanId: string): Promise<void> {
       sample: sampleSummary,
       plannedPageCount: sample.pages.length,
       siteChecks: computeSiteChecks(signatures),
+      notPresentScs: computeNotPresentScs(signatures, results.length),
       reviews: await loadReviews(db, scanId),
     });
     await db
@@ -394,6 +396,7 @@ async function reaggregate(db: SupabaseClient, scanId: string): Promise<void> {
     sample: sampleSummary,
     plannedPageCount: totalPages ?? results.length,
     siteChecks: computeSiteChecks(signatures),
+    notPresentScs: computeNotPresentScs(signatures, results.length),
     reviews: await loadReviews(db, scanId),
   });
   await db

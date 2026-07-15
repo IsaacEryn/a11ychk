@@ -462,6 +462,16 @@
       "rerunButton": "동일 조건 재검사",
       "rerunPending": "검사 생성 중…",
       "failed": "재검사에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    },
+    "reviewData": {
+      "title": "확인용 수집 자료",
+      "desc": "자동 검사로 '값이 존재함'까지는 확인된 항목입니다. 값이 내용을 올바르게 설명하는지는 사람이 판정해야 하므로, 아래 수집 자료를 훑어본 뒤 위 매트릭스의 판정 기입으로 통과/위반을 확정하세요.",
+      "alts": "이미지 대체 텍스트 (1.1.1)",
+      "altsHint": "각 대체 텍스트가 이미지의 의미를 실제로 전달하는지 확인하세요.",
+      "labels": "폼 입력 레이블 (3.3.2)",
+      "labelsHint": "각 레이블이 무엇을 입력해야 하는지 명확히 알려주는지 확인하세요.",
+      "genericLinks": "맥락 확인이 필요한 링크 텍스트 (2.4.4)",
+      "genericLinksHint": "주변 문장·목록에서 링크 목적을 알 수 있으면 통과입니다."
     }
   },
   "mypage": {
@@ -621,7 +631,25 @@
       "colTarget": "대상",
       "colDetail": "상세",
       "empty": "기록이 없습니다.",
-      "notMigrated": "로그 테이블이 아직 없습니다. Supabase SQL Editor에서 supabase/migrations/0006_admin_logs.sql을 적용해 주세요."
+      "notMigrated": "로그 테이블이 아직 없습니다. Supabase SQL Editor에서 supabase/migrations/0006_admin_logs.sql을 적용해 주세요.",
+      "actions": {
+        "user_block": "사용자 차단",
+        "user_unblock": "차단 해제",
+        "user_set_limits": "한도 설정",
+        "user_reset_quota": "한도 초기화",
+        "plans_toggle": "요금제 시행 전환",
+        "plans_bulk_set": "요금제 일괄 배정",
+        "pages_bulk_set": "페이지 한도 일괄 설정",
+        "inquiry_reply": "문의 답변"
+      },
+      "detailActive": "시행 시작",
+      "detailInactive": "시행 중지",
+      "detailDaily": "일 {n}회",
+      "detailWeekly": "주 {n}회",
+      "detailMonthly": "월 {n}회",
+      "detailPages": "페이지 {n}",
+      "detailPagesCleared": "페이지 한도 해제",
+      "detailCount": "사용자 {n}명"
     }
   },
   "guide": {

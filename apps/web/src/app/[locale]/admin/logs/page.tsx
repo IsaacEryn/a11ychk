@@ -60,6 +60,64 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
   const loginLogs = (loginRes.data ?? []) as unknown as LoginLogRow[];
   const auditLogs = (auditRes.data ?? []) as unknown as AuditLogRow[];
 
+  // ── 인간 친화 표시: 대상 UUID → 닉네임/문의 제목 ──
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const targetIds = [...new Set(auditLogs.map((l) => l.target).filter((x): x is string => !!x && UUID.test(x)))];
+  const targetNames = new Map<string, string>();
+  if (targetIds.length > 0) {
+    const [profRes, inqRes] = await Promise.all([
+      admin.from("profiles").select("id, nickname").in("id", targetIds),
+      admin.from("inquiries").select("id, title").in("id", targetIds),
+    ]);
+    for (const p of profRes.data ?? []) targetNames.set(p.id, p.nickname as string);
+    for (const q of inqRes.data ?? []) targetNames.set(q.id, `"${q.title}"`);
+  }
+
+  const planNames: Record<string, string> = {
+    free: t("users.plans.free"),
+    pro: t("users.plans.pro"),
+    enterprise: t("users.plans.enterprise"),
+  };
+  const scopeNames: Record<string, string> = {
+    all: t("users.resetScope.all"),
+    daily: t("users.resetScope.daily"),
+    weekly: t("users.resetScope.weekly"),
+    monthly: t("users.resetScope.monthly"),
+  };
+
+  /** 행위 코드 → 한국어 문장 라벨 */
+  function actionLabel(action: string): string {
+    const known = [
+      "user.block",
+      "user.unblock",
+      "user.set_limits",
+      "user.reset_quota",
+      "plans.toggle",
+      "plans.bulk_set",
+      "pages.bulk_set",
+      "inquiry.reply",
+    ];
+    return known.includes(action) ? t(`logs.actions.${action.replace(".", "_")}`) : action;
+  }
+
+  /** detail jsonb → 읽기 쉬운 요약 */
+  function detailLabel(l: AuditLogRow): string {
+    const d = l.detail ?? {};
+    const parts: string[] = [];
+    if (typeof d.scope === "string") parts.push(scopeNames[d.scope] ?? d.scope);
+    if (typeof d.plan === "string") parts.push(planNames[d.plan] ?? d.plan);
+    if (typeof d.active === "boolean") parts.push(d.active ? t("logs.detailActive") : t("logs.detailInactive"));
+    const limits: string[] = [];
+    if (typeof d.daily === "number") limits.push(t("logs.detailDaily", { n: d.daily }));
+    if (typeof d.weekly === "number") limits.push(t("logs.detailWeekly", { n: d.weekly }));
+    if (typeof d.monthly === "number") limits.push(t("logs.detailMonthly", { n: d.monthly }));
+    if (typeof d.pages === "number") limits.push(t("logs.detailPages", { n: d.pages }));
+    if (d.pages === null) limits.push(t("logs.detailPagesCleared"));
+    if (limits.length > 0) parts.push(limits.join(" · "));
+    if (typeof d.count === "number") parts.push(t("logs.detailCount", { n: d.count }));
+    return parts.join(" · ");
+  }
+
   return (
     <div className="mt-8">
       <h2 className="font-display text-2xl font-bold">{t("logs.title")}</h2>
@@ -92,7 +150,9 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
                 <tr key={l.id} className="border-b border-[var(--color-line)]">
                   <td className="whitespace-nowrap py-2 pr-3">{l.profiles?.nickname ?? "—"}</td>
                   <td className="py-2 pr-3">{l.email}</td>
-                  <td className="py-2 pr-3">{l.provider}</td>
+                  <td className="py-2 pr-3">
+                    {l.provider === "google" ? "Google" : l.provider === "github" ? "GitHub" : l.provider}
+                  </td>
                   <td className="py-2 pr-3 tabular-nums">{l.ip}</td>
                   <td className="whitespace-nowrap py-2 tabular-nums text-[var(--color-ink-faint)]">
                     {format.dateTime(new Date(l.created_at), { dateStyle: "short", timeStyle: "medium" })}
@@ -132,13 +192,13 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
               {auditLogs.map((l) => (
                 <tr key={l.id} className="border-b border-[var(--color-line)]">
                   <td className="whitespace-nowrap py-2 pr-3">{l.profiles?.nickname ?? "—"}</td>
-                  <td className="py-2 pr-3 font-mono text-xs">{l.action}</td>
-                  <td className="max-w-40 truncate py-2 pr-3 font-mono text-xs">{l.target}</td>
-                  <td className="max-w-56 truncate py-2 pr-3 font-mono text-xs">
-                    {l.detail ? JSON.stringify(l.detail) : ""}
+                  <td className="py-2 pr-3 font-semibold">{actionLabel(l.action)}</td>
+                  <td className="max-w-44 truncate py-2 pr-3">
+                    {l.target ? (targetNames.get(l.target) ?? <code className="font-mono text-xs">{l.target.slice(0, 8)}…</code>) : "—"}
                   </td>
+                  <td className="max-w-64 py-2 pr-3 text-[var(--color-ink-soft)]">{detailLabel(l) || "—"}</td>
                   <td className="whitespace-nowrap py-2 tabular-nums text-[var(--color-ink-faint)]">
-                    {format.dateTime(new Date(l.created_at), { dateStyle: "short", timeStyle: "medium" })}
+                    {format.dateTime(new Date(l.created_at), { dateStyle: "short", timeStyle: "short" })}
                   </td>
                 </tr>
               ))}

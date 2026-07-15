@@ -462,6 +462,16 @@
       "rerunButton": "Re-run same audit",
       "rerunPending": "Creating audit…",
       "failed": "Rescan failed. Please try again shortly."
+    },
+    "reviewData": {
+      "title": "Collected values for review",
+      "desc": "Automation confirmed these values exist; whether they are meaningful requires human judgment. Skim the collected values, then record pass/fail in the matrices above.",
+      "alts": "Image alt text (1.1.1)",
+      "altsHint": "Check that each alt text actually conveys the image's meaning.",
+      "labels": "Form input labels (3.3.2)",
+      "labelsHint": "Check that each label clearly says what to enter.",
+      "genericLinks": "Link text needing context (2.4.4)",
+      "genericLinksHint": "Passes if the surrounding sentence or list clarifies the link's purpose."
     }
   },
   "mypage": {
@@ -621,7 +631,25 @@
       "colTarget": "Target",
       "colDetail": "Detail",
       "empty": "No records.",
-      "notMigrated": "Log tables do not exist yet. Apply supabase/migrations/0006_admin_logs.sql in the Supabase SQL Editor."
+      "notMigrated": "Log tables do not exist yet. Apply supabase/migrations/0006_admin_logs.sql in the Supabase SQL Editor.",
+      "actions": {
+        "user_block": "Block user",
+        "user_unblock": "Unblock user",
+        "user_set_limits": "Set limits",
+        "user_reset_quota": "Reset quota",
+        "plans_toggle": "Toggle plan enforcement",
+        "plans_bulk_set": "Bulk assign plan",
+        "pages_bulk_set": "Bulk set page limit",
+        "inquiry_reply": "Reply to inquiry"
+      },
+      "detailActive": "enforcement on",
+      "detailInactive": "enforcement off",
+      "detailDaily": "daily {n}",
+      "detailWeekly": "weekly {n}",
+      "detailMonthly": "monthly {n}",
+      "detailPages": "pages {n}",
+      "detailPagesCleared": "page limit cleared",
+      "detailCount": "{n} users"
     }
   },
   "guide": {

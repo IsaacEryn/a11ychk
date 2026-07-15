@@ -18,6 +18,20 @@ function orderConsistent(a: string[], b: string[]): boolean {
   return common.join("␟") === commonB.join("␟");
 }
 
+/** 미디어(오디오·비디오)가 없을 때 '해당 없음' 처리할 WCAG 성공기준 (A/AA의 1.2.x) */
+export const MEDIA_SCS = ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5"];
+
+/**
+ * '해당 없음(notPresent)' 성공기준 계산.
+ * 검사에 성공한 모든 페이지의 시그니처가 있고(부분 수집이면 판단 보류)
+ * 어느 페이지에도 <video>/<audio>가 없으면 1.2.x는 해당 콘텐츠가 없어 적용되지 않는다.
+ */
+export function computeNotPresentScs(signatures: PageSignature[], scannedPageCount: number): string[] {
+  if (scannedPageCount === 0 || signatures.length < scannedPageCount) return [];
+  if (signatures.some((s) => s.hasMedia)) return [];
+  return [...MEDIA_SCS];
+}
+
 export function computeSiteChecks(signatures: PageSignature[]): SiteCheckOutcome[] {
   const out: SiteCheckOutcome[] = [];
   if (signatures.length < 2) return out; // 사이트 수준 검사는 표본 2페이지 이상일 때만

@@ -30,6 +30,8 @@ export interface AggregateOptions {
   plannedPageCount?: number;
   /** 사이트 수준 검사 결과 (Phase C) — 규칙 세트로 편입 */
   siteChecks?: SiteCheckOutcome[];
+  /** 해당 콘텐츠가 없어 적용되지 않는 성공기준 (예: 미디어 없음 → 1.2.x) */
+  notPresentScs?: string[];
   /** 점검자 판정 (scan_reviews) — 통합 점수 계산용. standard별 itemId→outcome */
   reviews?: { wcag: Record<string, WcagOutcome>; kwcag: Record<string, WcagOutcome> };
 }
@@ -103,11 +105,14 @@ export function aggregateScan(
     }
   }
 
+  const notPresentScs = new Set(options.notPresentScs ?? []);
   const kwcagMatrix: KwcagMatrixRow[] = KWCAG_ITEMS.map((item) => {
     const fail = kwcagFail.get(item.id);
     let status: KwcagStatus;
     if (fail) status = "fail";
     else if (kwcagReview.has(item.id)) status = "review";
+    else if (item.wcag.length > 0 && item.wcag.every((sc) => notPresentScs.has(sc)) && !kwcagPass.has(item.id))
+      status = "not-applicable"; // 대응 SC의 콘텐츠가 없음 (예: 미디어 부재)
     else if (item.autoCoverage === "none") status = "manual";
     else if (kwcagPass.has(item.id)) status = item.autoCoverage === "full" ? "pass" : "manual"; // partial은 자동 통과여도 수동 확인 필요
     else status = item.autoCoverage === "full" ? "not-applicable" : "manual";
@@ -147,6 +152,7 @@ export function aggregateScan(
     if (fail) outcome = "failed";
     else if (scReview.has(c.id)) outcome = "cannotTell";
     else if (scPass.has(c.id)) outcome = "passed";
+    else if (notPresentScs.has(c.id)) outcome = "notPresent"; // 해당 콘텐츠 없음 (예: 미디어 부재)
     else outcome = "notChecked"; // 자동 규칙이 없거나 결과가 없는 SC → 수동 평가 필요
     return {
       scId: c.id,
@@ -205,7 +211,8 @@ export function computeScores(
   let combFail = 0;
 
   for (const row of wcagMatrix) {
-    if (row.outcome === "passed") autoPass += 1;
+    // notPresent(해당 없음)는 적합성 판단상 충족으로 취급 (WCAG conformance)
+    if (row.outcome === "passed" || row.outcome === "notPresent") autoPass += 1;
     else if (row.outcome === "failed") autoFail += 1;
 
     const rv = reviews[row.scId];

@@ -1068,6 +1068,50 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
       en: "Provide at least two ways to find pages (e.g., navigation + search, or navigation + sitemap).",
     },
   },
+  {
+    ruleId: "a11ychk:alt-quality",
+    wcag: ["1.1.1"],
+    kwcag: ["5.1.1"],
+    level: "A",
+    title: { ko: "대체 텍스트가 파일명이거나 의미 없는 값입니다", en: "Alt text is a filename or meaningless value" },
+    guide: {
+      ko: "대체 텍스트는 '있는 것'만으로는 부족하고 이미지의 의미를 전달해야 합니다. 파일명(예: `photo01.jpg`)이나 \"이미지\"·\"사진\" 같은 일반어는 스크린 리더 사용자에게 아무 정보도 주지 못합니다(WCAG 실패 사례 F30).\n\n```html\n<!-- 잘못된 예 -->\n<img src=\"chart.png\" alt=\"chart.png\">\n<img src=\"banner.jpg\" alt=\"이미지\">\n<!-- 올바른 예 -->\n<img src=\"chart.png\" alt=\"2025년 분기별 매출 추이 — 4분기 32% 증가\">\n```\n\n장식 목적의 이미지라면 `alt=\"\"`(빈 값)로 두어 스크린 리더가 건너뛰게 하세요.",
+      en: "Alt text must convey the image's meaning. Filenames (F30) or generic words like \"image\" give screen-reader users no information. Use empty alt for decorative images.",
+    },
+  },
+  {
+    ruleId: "a11ychk:autoplay",
+    wcag: ["1.4.2"],
+    kwcag: ["5.4.2"],
+    level: "A",
+    title: { ko: "소리가 자동으로 재생됩니다", en: "Audio plays automatically" },
+    guide: {
+      ko: "페이지 진입 시 3초 이상 소리가 자동 재생되면 스크린 리더 음성과 겹쳐 사용자가 페이지를 이용할 수 없습니다. `autoplay`를 제거하는 것이 가장 좋고, 유지해야 한다면 `muted`를 함께 지정하고 화면 앞부분에 정지/음량 조절 수단을 제공하세요.\n\n```html\n<!-- 잘못된 예 -->\n<video autoplay src=\"intro.mp4\"></video>\n<!-- 개선 예 -->\n<video autoplay muted playsinline src=\"intro.mp4\"></video>\n```",
+      en: "Auto-playing audio over 3s conflicts with screen readers. Remove autoplay, or add muted and provide a pause/volume control early in the page.",
+    },
+  },
+  {
+    ruleId: "a11ychk:link-text",
+    wcag: ["2.4.4"],
+    kwcag: ["6.4.3"],
+    level: "A",
+    title: { ko: "링크 텍스트만으로 목적을 알기 어렵습니다", en: "Link text may not describe its purpose" },
+    guide: {
+      ko: "\"여기\", \"더보기\", \"클릭\" 같은 일반어 링크가 발견되었습니다. 링크 목록만 훑어 듣는 스크린 리더 사용자는 무엇에 대한 링크인지 알 수 없습니다. 주변 문장·목록 항목에서 목적을 알 수 있으면 통과이므로 직접 확인하세요.\n\n개선 방법: 링크 텍스트 자체를 구체적으로 바꾸거나(\"채용 공고 더보기\"), 시각 디자인을 유지해야 하면 `aria-label`이나 숨김 텍스트로 보완하세요.\n\n```html\n<a href=\"/jobs\">더보기<span class=\"sr-only\"> — 채용 공고</span></a>\n```",
+      en: "Generic link text (\"here\", \"more\") was found. It passes if the surrounding sentence or list item provides context — verify manually, or make the text specific / add aria-label.",
+    },
+  },
+  {
+    ruleId: "a11ychk:target-size",
+    wcag: ["2.5.8"],
+    kwcag: ["6.1.3"],
+    level: "AA",
+    title: { ko: "클릭·터치 대상이 24×24px보다 작습니다", en: "Target smaller than 24×24 px" },
+    guide: {
+      ko: "버튼·링크 등 조작 대상은 최소 24×24 CSS px이어야 합니다(WCAG 2.2 신설). 작은 대상은 손떨림이 있거나 터치 기기를 쓰는 사용자가 누르기 어렵습니다. 단, 주변에 충분한 간격(24px 원 안에 다른 타깃이 없음)이 있거나 문장 속 인라인 링크면 예외이므로 직접 확인하세요.\n\n```css\n.icon-button { min-width: 24px; min-height: 24px; }\n/* 시각 크기를 못 키우면 히트 영역만 확장 */\n.icon-button { position: relative; }\n.icon-button::after { content: \"\"; position: absolute; inset: -6px; }\n```",
+      en: "Interactive targets need ≥24×24 CSS px (WCAG 2.2), unless spacing or inline-text exceptions apply — verify flagged elements manually.",
+    },
+  },
 ];
 
 export const RULE_BY_ID: ReadonlyMap<string, RuleCatalogEntry> = new Map(RULE_CATALOG.map((r) => [r.ruleId, r]));
