@@ -26,9 +26,17 @@ const PageSchema = z.object({
   incomplete: z.array(z.string().max(200)).max(300),
   scannedAt: z.string().max(40),
 });
+const ReviewSchema = z.object({
+  standard: z.enum(["wcag", "kwcag"]),
+  itemId: z.string().min(1).max(20),
+  outcome: z.enum(["passed", "failed", "cannotTell", "notPresent", "notChecked"]),
+  note: z.string().max(2000).default(""),
+});
 const BodySchema = z.object({
   page: PageSchema,
   manual: z.array(z.string().max(20)).max(60).optional(),
+  /** 확장에서 기입한 전문가 판정 → scan_reviews에 반영 */
+  reviews: z.array(ReviewSchema).max(60).optional(),
   /** WCAG-EM: 이 페이지가 다단계 프로세스의 한 단계인지 표시 */
   sampleType: z.enum(["structured", "random", "process"]).optional(),
 });
@@ -168,7 +176,8 @@ export async function POST(request: Request) {
     if (!pageRowId) return NextResponse.json({ error: "저장에 실패했습니다." }, { status: 500 });
     if (page.violations.length > 0) await admin.from("findings").insert(findingRowsFor(pageRowId));
 
-    // 보고서 요약 재집계 (확장 페이지 포함)
+    await saveReviews(admin, target.id, parsed.data.reviews);
+    // 보고서 요약 재집계 (확장 페이지 + 판정 포함)
     await reaggregate(admin, target.id);
     return NextResponse.json({ id: target.id, merged: true, rootUrl: target.root_url }, { status: 201 });
   }
@@ -212,5 +221,27 @@ export async function POST(request: Request) {
     await admin.from("findings").insert(findingRowsFor(pageRow.id));
   }
 
+  await saveReviews(admin, scan.id, parsed.data.reviews);
+  // 판정이 있으면 summary.scores 갱신을 위해 재집계
+  if (parsed.data.reviews && parsed.data.reviews.length > 0) await reaggregate(admin, scan.id);
+
   return NextResponse.json({ id: scan.id, merged: false }, { status: 201 });
+}
+
+/** 확장 전문가 판정을 scan_reviews에 upsert (best-effort) */
+async function saveReviews(
+  admin: ReturnType<typeof createAdminClient>,
+  scanId: string,
+  reviews?: z.infer<typeof ReviewSchema>[],
+): Promise<void> {
+  if (!reviews || reviews.length === 0) return;
+  const rows = reviews.map((r) => ({
+    scan_id: scanId,
+    standard: r.standard,
+    item_id: r.itemId,
+    outcome: r.outcome,
+    note: r.note,
+    updated_at: new Date().toISOString(),
+  }));
+  await admin.from("scan_reviews").upsert(rows, { onConflict: "scan_id,standard,item_id" });
 }

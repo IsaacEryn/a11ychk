@@ -338,3 +338,119 @@ h2 {
   text-decoration: underline;
   text-underline-offset: 2px;
 }
+
+/* ─── 시각 점검 도구 ─── */
+.tools {
+  display: flex;
+  gap: 6px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.btn-tool {
+  border: 1.5px solid var(--seal);
+  background: var(--seal);
+  color: #fff;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.btn-tool[aria-pressed="true"] {
+  background: var(--seal-deep, #084c43);
+}
+.btn-tool.ghost {
+  background: transparent;
+  color: var(--seal);
+}
+.viz {
+  margin-top: 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.viz h2 {
+  font-size: 14px;
+  margin: 0 0 8px;
+}
+.viz-group {
+  margin-bottom: 12px;
+}
+.viz-group h3 {
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 0 0 5px;
+  font-weight: 700;
+}
+.chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.chip {
+  border: 1.5px solid var(--line);
+  background: var(--paper, #fff);
+  color: var(--ink, #1a1a1a);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 11px;
+  cursor: pointer;
+}
+.chip[aria-pressed="true"] {
+  border-color: var(--seal);
+  background: var(--seal-tint, #e6f4f1);
+  color: var(--seal);
+}
+
+/* ─── 전문가 판정 ─── */
+.review-item {
+  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+  display: block;
+}
+.ri-head {
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 5px;
+}
+.verdicts {
+  display: inline-flex;
+  gap: 4px;
+}
+.verdict {
+  border: 1.5px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 3px 12px;
+  cursor: pointer;
+}
+.verdict.v-passed[aria-pressed="true"] {
+  border-color: var(--seal);
+  background: var(--seal);
+  color: #fff;
+}
+.verdict.v-failed[aria-pressed="true"] {
+  border-color: var(--crit);
+  background: var(--crit);
+  color: #fff;
+}
+.verdict.v-cannotTell[aria-pressed="true"] {
+  border-color: var(--ink-faint);
+  background: var(--ink-faint);
+  color: #fff;
+}
+.ri-note {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 12px;
+  resize: vertical;
+  box-sizing: border-box;
+}

@@ -28,9 +28,14 @@ packages/core     @a11ychk/core — 검사 엔진 (오픈소스의 심장)
   src/report/       보고서 집계 (준수율, KWCAG 매트릭스)
   src/security/     SSRF 가드 (사설 IP·redirect 차단), robots.txt 파서
 apps/web          Next.js 16 서비스 앱 (a11ychk.com)
+apps/extension    크롬 확장 (MV3 Side Panel) — 페이지 위 시각 점검·전문가 판정·계정 연동
 supabase          DB 마이그레이션 + RLS 정책
 docs              아키텍처 · 로드맵
 ```
+
+## 크롬 확장
+
+사이드 패널에서 현재 페이지를 axe + 자체 규칙으로 검사하고, **페이지 위에 직접** 위반 표시·구조 시각화(제목·랜드마크·초점·읽기 순서)·장애 시뮬레이션·명도대비 스포이드를 제공한다. 수동 항목은 통과/실패/보류로 판정하고, 로그인 시 결과·판정이 웹 보고서로 취합된다. 빌드: `npm run build -w @a11ychk/extension` → `apps/extension/dist`를 `chrome://extensions`에서 압축해제 로드.
 
 ## 기술 스택
 

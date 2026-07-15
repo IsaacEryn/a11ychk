@@ -19,15 +19,17 @@ const AXE_VERSION = require(join(dirname(axeMinPath), "package.json")).version;
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
-// TypeScript 엔트리 번들 (팝업 · 콘텐츠 스크립트)
+// TypeScript 엔트리 번들 (사이드 패널 · 콘텐츠 스크립트 · 서비스 워커)
+// target chrome114: Side Panel API 요구 버전
 await build({
   entryPoints: {
-    popup: join(src, "popup.ts"),
+    sidepanel: join(src, "sidepanel.ts"),
     "content-connect": join(src, "content-connect.ts"),
+    background: join(src, "background.ts"),
   },
   bundle: true,
   format: "iife",
-  target: "chrome110",
+  target: "chrome114",
   outdir: dist,
   define: {
     "process.env.A11YCHK_SITE_ORIGIN": JSON.stringify(SITE_ORIGIN),
@@ -36,8 +38,8 @@ await build({
   loader: { ".css": "text" },
 });
 
-// 정적 파일 복사 (manifest, 팝업 HTML/CSS, 아이콘) + axe (node_modules에서 — 벤더 드리프트 방지)
-for (const f of ["manifest.json", "popup.html", "popup.css"]) {
+// 정적 파일 복사 (manifest, 패널 HTML/CSS, 아이콘) + axe (node_modules에서 — 벤더 드리프트 방지)
+for (const f of ["manifest.json", "sidepanel.html", "sidepanel.css"]) {
   await cp(join(src, f), join(dist, f));
 }
 await mkdir(join(dist, "vendor"), { recursive: true });

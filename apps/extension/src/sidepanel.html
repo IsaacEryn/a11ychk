@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A11Y Check</title>
+    <link rel="stylesheet" href="sidepanel.css" />
+  </head>
+  <body>
+    <header class="hd">
+      <span class="logo" aria-hidden="true"></span>
+      <h1>A11Y Check</h1>
+      <span id="conn" class="conn" role="status"></span>
+    </header>
+
+    <main id="main">
+      <p class="target" id="target"></p>
+
+      <button id="scan" class="btn btn-primary" type="button">이 페이지 검사</button>
+      <p id="usage" class="usage" role="status" aria-live="polite"></p>
+
+      <section id="result" hidden aria-live="polite">
+        <div class="score-row">
+          <div class="score">
+            <span id="rate" class="rate">–</span><span class="pct">%</span>
+            <span class="score-label">자동 검사 준수율</span>
+          </div>
+          <ul class="impact" id="impact"></ul>
+        </div>
+
+        <div class="tools" role="group" aria-label="페이지 위 시각 표시">
+          <button id="toggleIssues" class="btn btn-tool" type="button" aria-pressed="false">
+            페이지에 위반 표시
+          </button>
+          <button id="clearOverlay" class="btn btn-tool ghost" type="button">모두 지우기</button>
+        </div>
+
+        <label id="procWrap" class="proc" hidden>
+          <input type="checkbox" id="isProcess" />
+          이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)
+        </label>
+        <button id="save" class="btn btn-save" type="button" hidden>결과를 내 계정에 저장</button>
+        <p id="saveMsg" class="save-msg" role="status"></p>
+        <h2>위반 상세</h2>
+        <ul id="violations" class="violations"></ul>
+      </section>
+
+      <!-- 시각 점검 도구 (검사 없이도 사용 가능) -->
+      <section class="viz">
+        <h2>시각 점검 도구</h2>
+
+        <div class="viz-group">
+          <h3>구조 보기</h3>
+          <div class="chip-row" role="group" aria-label="구조 시각화">
+            <button class="chip" type="button" data-struct="headings" aria-pressed="false">제목 개요</button>
+            <button class="chip" type="button" data-struct="landmarks" aria-pressed="false">랜드마크</button>
+            <button class="chip" type="button" data-struct="focus" aria-pressed="false">초점 순서</button>
+            <button class="chip" type="button" data-struct="linearize" aria-pressed="false">읽기 순서(선형화)</button>
+          </div>
+        </div>
+
+        <div class="viz-group">
+          <h3>장애 시뮬레이션</h3>
+          <div class="chip-row" role="group" aria-label="장애 시뮬레이션">
+            <button class="chip" type="button" data-sim="protanopia" aria-pressed="false">적색맹</button>
+            <button class="chip" type="button" data-sim="deuteranopia" aria-pressed="false">녹색맹</button>
+            <button class="chip" type="button" data-sim="tritanopia" aria-pressed="false">청색맹</button>
+            <button class="chip" type="button" data-sim="blur" aria-pressed="false">저시력(흐림)</button>
+            <button class="chip" type="button" data-sim="grayscale" aria-pressed="false">흑백</button>
+          </div>
+        </div>
+
+        <div class="viz-group">
+          <h3>명도대비 검사</h3>
+          <button id="contrast" class="btn btn-tool" type="button">스포이드로 두 색 찍기</button>
+          <p id="contrastHint" class="hint"></p>
+        </div>
+      </section>
+
+      <section class="manual">
+        <h2>수동 점검 · 전문가 판정</h2>
+        <p class="hint">자동으로 판정할 수 없는 항목입니다. 직접 확인해 통과/실패/보류로 판정하고 메모를 남기세요. 로그인 후 저장하면 웹 보고서 판정에 반영됩니다. (현재 페이지 기준)</p>
+        <ul id="manual" class="manual-list"></ul>
+      </section>
+    </main>
+
+    <footer class="ft">
+      <a id="connectLink" href="#" target="_blank" rel="noopener">웹 서비스에 연결</a>
+      <a id="siteLink" href="#" target="_blank" rel="noopener">a11ychk.com</a>
+    </footer>
+
+    <script src="sidepanel.js"></script>
+  </body>
+</html>

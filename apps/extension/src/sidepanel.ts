@@ -238,6 +238,193 @@ function highlightInPage(selector: string): boolean {
   return true;
 }
 
+// ─── 페이지 주입 시각 도구 (모두 자기 완결 — chrome.scripting이 소스를 직렬화) ───
+
+/** 오버레이 컨테이너·시뮬레이션·선형화 스타일을 모두 제거 */
+function clearOverlayInPage(): void {
+  document.getElementById("a11ychk-overlay")?.remove();
+  document.getElementById("a11ychk-sim-style")?.remove();
+  document.getElementById("a11ychk-sim-svg")?.remove();
+  document.getElementById("a11ychk-linearize")?.remove();
+}
+
+/** 위반/구조 마커를 그린다. 기존 오버레이는 지우고 새로 그림 */
+function overlayMarkersInPage(markers: { selector: string; color: string; label: string }[]): number {
+  document.getElementById("a11ychk-overlay")?.remove();
+  const c = document.createElement("div");
+  c.id = "a11ychk-overlay";
+  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  let drawn = 0;
+  for (const m of markers) {
+    let el: Element | null = null;
+    try {
+      el = document.querySelector(m.selector);
+    } catch {
+      el = null;
+    }
+    if (!el) continue;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) continue;
+    drawn++;
+    const box = document.createElement("div");
+    box.style.cssText =
+      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
+      `border:2px solid ${m.color};` +
+      `left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
+      `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
+    const tag = document.createElement("span");
+    tag.textContent = m.label;
+    tag.style.cssText =
+      "all:initial;position:absolute;left:0;top:-16px;font:700 11px/16px sans-serif;" +
+      `background:${m.color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
+    box.appendChild(tag);
+    c.appendChild(box);
+  }
+  document.body.appendChild(c);
+  return drawn;
+}
+
+/** 구조 시각화 (headings/landmarks/focus)를 페이지에서 계산해 마커 배열 반환 → 그리기 */
+function overlayStructureInPage(kind: "headings" | "landmarks" | "focus"): number {
+  document.getElementById("a11ychk-overlay")?.remove();
+  const markers: { rect: DOMRect; color: string; label: string }[] = [];
+  if (kind === "headings") {
+    const hs = document.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading]");
+    let prev = 0;
+    hs.forEach((h) => {
+      const lvl = h.getAttribute("aria-level") || (/H([1-6])/.exec(h.tagName)?.[1] ?? "?");
+      const n = Number(lvl);
+      const skip = prev > 0 && n > prev + 1;
+      markers.push({
+        rect: h.getBoundingClientRect(),
+        color: skip ? "#e0533d" : "#0b6b5e",
+        label: `H${lvl}${skip ? " ⚠건너뜀" : ""}`,
+      });
+      if (!Number.isNaN(n)) prev = n;
+    });
+  } else if (kind === "landmarks") {
+    const sel = "header,nav,main,aside,footer,form,[role=banner],[role=navigation],[role=main],[role=complementary],[role=contentinfo],[role=search],[role=region]";
+    document.querySelectorAll(sel).forEach((el) => {
+      const role = el.getAttribute("role") || el.tagName.toLowerCase();
+      const name = el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || "";
+      markers.push({ rect: el.getBoundingClientRect(), color: "#7a5cff", label: name ? `${role}: ${name}` : role });
+    });
+  } else {
+    const focusables = document.querySelectorAll<HTMLElement>(
+      'a[href],button:not([disabled]),input:not([type=hidden]):not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex^="-"])',
+    );
+    let i = 0;
+    focusables.forEach((f) => {
+      const r = f.getBoundingClientRect();
+      if (r.width <= 0 && r.height <= 0) return;
+      i++;
+      markers.push({ rect: r, color: "#c9761b", label: String(i) });
+    });
+  }
+  const c = document.createElement("div");
+  c.id = "a11ychk-overlay";
+  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  for (const m of markers) {
+    const r = m.rect;
+    const box = document.createElement("div");
+    box.style.cssText =
+      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
+      `border:2px solid ${m.color};left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
+      `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
+    const tag = document.createElement("span");
+    tag.textContent = m.label;
+    tag.style.cssText =
+      "all:initial;position:absolute;left:0;top:-16px;font:700 11px/16px sans-serif;" +
+      `background:${m.color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
+    box.appendChild(tag);
+    c.appendChild(box);
+  }
+  document.body.appendChild(c);
+  return markers.length;
+}
+
+/** 장애 시뮬레이션 CSS 필터 적용 (none이면 해제) */
+function applySimulationInPage(mode: string): void {
+  document.getElementById("a11ychk-sim-style")?.remove();
+  document.getElementById("a11ychk-sim-svg")?.remove();
+  if (mode === "none") return;
+  const MATRIX: Record<string, string> = {
+    protanopia: "0.567 0.433 0 0 0  0.558 0.442 0 0 0  0 0.242 0.758 0 0  0 0 0 1 0",
+    deuteranopia: "0.625 0.375 0 0 0  0.7 0.3 0 0 0  0 0.3 0.7 0 0  0 0 0 1 0",
+    tritanopia: "0.95 0.05 0 0 0  0 0.433 0.567 0 0  0 0.475 0.525 0 0  0 0 0 1 0",
+  };
+  let filterValue: string;
+  if (mode === "blur") filterValue = "blur(2.5px)";
+  else if (mode === "grayscale") filterValue = "grayscale(1)";
+  else if (MATRIX[mode]) {
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.id = "a11ychk-sim-svg";
+    svg.setAttribute("style", "position:absolute;width:0;height:0;");
+    svg.innerHTML = `<defs><filter id="a11ychk-cb"><feColorMatrix type="matrix" values="${MATRIX[mode]}"/></filter></defs>`;
+    document.body.appendChild(svg);
+    filterValue = "url(#a11ychk-cb)";
+  } else return;
+  const style = document.createElement("style");
+  style.id = "a11ychk-sim-style";
+  style.textContent = `html{filter:${filterValue} !important;}`;
+  document.documentElement.appendChild(style);
+}
+
+/** CSS 선형화 — DOM 읽기 순서 그대로 표시 (해제 시 스타일 제거) */
+function linearizeInPage(on: boolean): void {
+  document.getElementById("a11ychk-linearize")?.remove();
+  if (!on) return;
+  const style = document.createElement("style");
+  style.id = "a11ychk-linearize";
+  style.textContent =
+    "*:not(html):not(head):not(script):not(style){float:none !important;position:static !important;" +
+    "display:block !important;width:auto !important;max-width:100% !important;margin-left:0 !important;" +
+    "margin-right:0 !important;left:auto !important;right:auto !important;transform:none !important;}";
+  document.documentElement.appendChild(style);
+}
+
+/** 스포이드로 두 색을 찍어 WCAG 대비율 계산 → 페이지 내 토스트로 결과 표시 */
+async function pickContrastInPage(): Promise<string> {
+  const w = window as unknown as { EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> } };
+  if (!w.EyeDropper) return "unsupported";
+  function lum(hex: string): number {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m || !m[1]) return 0;
+    const v = parseInt(m[1], 16);
+    const ch = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((c) => {
+      const s = c / 255;
+      return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * (ch[0] ?? 0) + 0.7152 * (ch[1] ?? 0) + 0.0722 * (ch[2] ?? 0);
+  }
+  try {
+    const a = await new w.EyeDropper().open();
+    const b = await new w.EyeDropper().open();
+    const l1 = lum(a.sRGBHex);
+    const l2 = lum(b.sRGBHex);
+    const ratio = (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    const r = Math.round(ratio * 100) / 100;
+    const aa = ratio >= 4.5;
+    const aaLarge = ratio >= 3;
+    const aaa = ratio >= 7;
+    const toast = document.createElement("div");
+    toast.style.cssText =
+      "all:initial;position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:2147483647;" +
+      "background:#1a1a1a;color:#fff;font:600 14px/1.5 sans-serif;padding:12px 18px;border-radius:8px;" +
+      "box-shadow:0 4px 16px rgba(0,0,0,.3);text-align:center;";
+    toast.innerHTML =
+      `<div style="all:initial;color:#fff;font:700 16px sans-serif">대비율 ${r} : 1</div>` +
+      `<div style="all:initial;color:#fff;font:400 13px sans-serif;margin-top:4px">` +
+      `${a.sRGBHex} / ${b.sRGBHex}<br>` +
+      `일반 텍스트 AA ${aa ? "✓" : "✗"} · 큰 텍스트 AA ${aaLarge ? "✓" : "✗"} · AAA ${aaa ? "✓" : "✗"}</div>`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 6000);
+    return `${r}`;
+  } catch {
+    return "cancelled";
+  }
+}
+
 async function scan() {
   const tab = await getActiveTab();
   if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) {
@@ -461,7 +648,13 @@ async function saveToAccount() {
   saveBtn.disabled = true;
   msg.textContent = "저장 중…";
   try {
-    const manual = await getManualState(lastPage.url);
+    const reviewMap = await getReviewState(lastPage.url);
+    const reviews = Object.entries(reviewMap).map(([itemId, v]) => ({
+      standard: "kwcag" as const,
+      itemId,
+      outcome: v.outcome,
+      note: v.note ?? "",
+    }));
     const isProcess = ($("isProcess") as HTMLInputElement).checked;
     const res = await fetch(`${SITE_ORIGIN}/api/extension/scan`, {
       method: "POST",
@@ -469,7 +662,7 @@ async function saveToAccount() {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
       },
-      body: JSON.stringify({ page: lastPage, manual, sampleType: isProcess ? "process" : "structured" }),
+      body: JSON.stringify({ page: lastPage, reviews, sampleType: isProcess ? "process" : "structured" }),
     });
     const data = (await res.json()) as { id?: string; error?: string; merged?: boolean; rootUrl?: string };
     if (!res.ok || !data.id) {
@@ -496,44 +689,222 @@ async function saveToAccount() {
   }
 }
 
-// ─── 수동 체크리스트 ───
-async function getManualState(url: string): Promise<string[]> {
-  const key = `manual:${url}`;
+// ─── 수동 점검 · 전문가 판정 ───
+type Verdict = "passed" | "failed" | "cannotTell";
+interface ReviewEntry {
+  outcome: Verdict;
+  note: string;
+}
+type ReviewMap = Record<string, ReviewEntry>;
+
+const VERDICTS: { value: Verdict; label: string }[] = [
+  { value: "passed", label: "통과" },
+  { value: "failed", label: "실패" },
+  { value: "cannotTell", label: "보류" },
+];
+
+async function getReviewState(url: string): Promise<ReviewMap> {
+  const key = `review:${url}`;
   const stored = await chrome.storage.local.get(key);
-  return (stored[key] as string[] | undefined) ?? [];
+  return (stored[key] as ReviewMap | undefined) ?? {};
+}
+
+async function setReview(url: string, itemId: string, patch: Partial<ReviewEntry>) {
+  const cur = await getReviewState(url);
+  const prev = cur[itemId] ?? { outcome: "cannotTell", note: "" };
+  cur[itemId] = { ...prev, ...patch };
+  await chrome.storage.local.set({ [`review:${url}`]: cur });
 }
 
 async function renderManual(url: string) {
   const items = getManualCheckItems();
-  const checked = new Set(await getManualState(url));
+  const reviews = await getReviewState(url);
   const list = $("manual");
   list.innerHTML = "";
   for (const item of items) {
     const li = document.createElement("li");
-    const label = document.createElement("label");
-    const cb = document.createElement("input");
-    cb.type = "checkbox";
-    cb.checked = checked.has(item.id);
-    cb.addEventListener("change", async () => {
-      const cur = new Set(await getManualState(url));
-      if (cb.checked) cur.add(item.id);
-      else cur.delete(item.id);
-      await chrome.storage.local.set({ [`manual:${url}`]: [...cur] });
-    });
-    const text = document.createElement("span");
+    li.className = "review-item";
+
+    const head = document.createElement("p");
+    head.className = "ri-head";
     const mid = document.createElement("span");
     mid.className = "mid";
     mid.textContent = item.id;
-    text.append(mid, document.createTextNode(item.name.ko));
-    label.append(cb, text);
-    li.appendChild(label);
+    head.append(mid, document.createTextNode(item.name.ko));
+    li.appendChild(head);
+
+    // 통과/실패/보류 라디오 버튼 그룹
+    const group = document.createElement("div");
+    group.className = "verdicts";
+    group.setAttribute("role", "group");
+    group.setAttribute("aria-label", `${item.name.ko} 판정`);
+    for (const v of VERDICTS) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = `verdict v-${v.value}`;
+      btn.textContent = v.label;
+      btn.setAttribute("aria-pressed", String(reviews[item.id]?.outcome === v.value));
+      btn.addEventListener("click", async () => {
+        const already = btn.getAttribute("aria-pressed") === "true";
+        const next = already ? undefined : v.value;
+        if (next) await setReview(url, item.id, { outcome: next });
+        else {
+          const cur = await getReviewState(url);
+          delete cur[item.id];
+          await chrome.storage.local.set({ [`review:${url}`]: cur });
+        }
+        group.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
+        if (next) btn.setAttribute("aria-pressed", "true");
+      });
+      group.appendChild(btn);
+    }
+    li.appendChild(group);
+
+    // 메모
+    const note = document.createElement("textarea");
+    note.className = "ri-note";
+    note.rows = 1;
+    note.placeholder = "관찰 메모 (선택)";
+    note.value = reviews[item.id]?.note ?? "";
+    note.addEventListener("change", () => setReview(url, item.id, { note: note.value.slice(0, 2000) }));
+    li.appendChild(note);
+
     list.appendChild(li);
   }
+}
+
+// ─── 시각 도구 컨트롤러 (패널 측 상태 + 주입 실행) ───
+
+type OverlayView = "none" | "issues" | "headings" | "landmarks" | "focus";
+let currentView: OverlayView = "none";
+let currentSim = "none";
+let linearizeOn = false;
+
+/** 활성 탭에 주입 함수 실행 */
+async function runInPage<Args extends unknown[], R>(
+  func: (...args: Args) => R,
+  ...args: Args
+): Promise<Awaited<R> | undefined> {
+  if (!currentTabId) return undefined;
+  try {
+    // chrome.scripting은 주입 함수가 Promise를 반환하면 값을 resolve해 전달한다
+    const r = await chrome.scripting.executeScript({ target: { tabId: currentTabId }, func, args });
+    return r[0]?.result as Awaited<R> | undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+const MARKER_COLOR: Record<Impact, string> = {
+  critical: "#e0533d",
+  serious: "#e0533d",
+  moderate: "#8a8a8a",
+  minor: "#8a8a8a",
+};
+
+/** 위반 표시 토글 (검사 결과 필요) */
+async function setIssuesView(on: boolean) {
+  if (on && lastPage) {
+    const markers = lastPage.violations.flatMap((v) =>
+      v.nodes.map((n) => ({
+        selector: n.selector,
+        color: MARKER_COLOR[v.impact],
+        label: IMPACT_LABEL[v.impact],
+      })),
+    );
+    await runInPage(overlayMarkersInPage, markers);
+    currentView = "issues";
+  } else {
+    await runInPage(clearOverlayInPage);
+    currentView = "none";
+    // 시뮬레이션·선형화는 clearOverlay가 함께 지우므로 복원
+    if (currentSim !== "none") await runInPage(applySimulationInPage, currentSim);
+    if (linearizeOn) await runInPage(linearizeInPage, true);
+  }
+  syncToolButtons();
+}
+
+/** 구조 오버레이 토글 */
+async function setStructView(kind: "headings" | "landmarks" | "focus", on: boolean) {
+  if (on) {
+    await runInPage(overlayStructureInPage, kind);
+    currentView = kind;
+  } else {
+    await runInPage(clearOverlayInPage);
+    currentView = "none";
+    if (currentSim !== "none") await runInPage(applySimulationInPage, currentSim);
+    if (linearizeOn) await runInPage(linearizeInPage, true);
+  }
+  syncToolButtons();
+}
+
+/** 오버레이 전체 지우기 + 상태 초기화 */
+async function clearAll() {
+  await runInPage(clearOverlayInPage);
+  currentView = "none";
+  currentSim = "none";
+  linearizeOn = false;
+  syncToolButtons();
+}
+
+/** 버튼 aria-pressed 상태 동기화 */
+function syncToolButtons() {
+  const issuesBtn = document.getElementById("toggleIssues");
+  if (issuesBtn) issuesBtn.setAttribute("aria-pressed", String(currentView === "issues"));
+  document.querySelectorAll<HTMLButtonElement>("[data-struct]").forEach((b) => {
+    const k = b.dataset.struct!;
+    const active = k === "linearize" ? linearizeOn : currentView === k;
+    b.setAttribute("aria-pressed", String(active));
+  });
+  document.querySelectorAll<HTMLButtonElement>("[data-sim]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(currentSim === b.dataset.sim));
+  });
+}
+
+function wireVisualTools() {
+  $("toggleIssues").addEventListener("click", () => setIssuesView(currentView !== "issues"));
+  $("clearOverlay").addEventListener("click", clearAll);
+
+  document.querySelectorAll<HTMLButtonElement>("[data-struct]").forEach((btn) => {
+    const kind = btn.dataset.struct!;
+    btn.addEventListener("click", async () => {
+      if (kind === "linearize") {
+        linearizeOn = !linearizeOn;
+        await runInPage(linearizeInPage, linearizeOn);
+        syncToolButtons();
+      } else {
+        await setStructView(kind as "headings" | "landmarks" | "focus", currentView !== kind);
+      }
+    });
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-sim]").forEach((btn) => {
+    const mode = btn.dataset.sim!;
+    btn.addEventListener("click", async () => {
+      currentSim = currentSim === mode ? "none" : mode;
+      await runInPage(applySimulationInPage, currentSim);
+      syncToolButtons();
+    });
+  });
+
+  const contrastBtn = $<HTMLButtonElement>("contrast");
+  contrastBtn.addEventListener("click", async () => {
+    contrastBtn.disabled = true;
+    const prev = contrastBtn.textContent;
+    contrastBtn.textContent = "스포이드 활성화 — 색을 두 번 찍으세요";
+    const r = await runInPage(pickContrastInPage);
+    if (r === "unsupported") $("contrastHint").textContent = "이 브라우저는 스포이드(EyeDropper)를 지원하지 않습니다.";
+    else if (r === "cancelled" || r === undefined) $("contrastHint").textContent = "취소되었습니다.";
+    else $("contrastHint").textContent = `대비율 ${r} : 1 — 결과는 페이지 하단에 표시됩니다.`;
+    contrastBtn.textContent = prev;
+    contrastBtn.disabled = false;
+  });
 }
 
 async function init() {
   const tab = await getActiveTab();
   const url = tab?.url ?? "";
+  currentTabId = tab?.id ?? null;
   $("target").textContent = url;
 
   const session = await getSession();
@@ -552,6 +923,7 @@ async function init() {
 
   $("scan").addEventListener("click", scan);
   $("save").addEventListener("click", saveToAccount);
+  wireVisualTools();
 }
 
 void init();

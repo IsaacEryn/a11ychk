@@ -3,17 +3,22 @@
   "name": "A11Y Check — 웹 접근성 점검",
   "version": "0.1.0",
   "default_locale": "ko",
-  "description": "현재 페이지를 WCAG 2.2 · KWCAG 2.2 기준으로 검사하고, 수동 점검 체크리스트를 지원합니다. 로그인 필요 페이지도 검사할 수 있습니다.",
-  "permissions": ["activeTab", "scripting", "storage"],
+  "description": "WCAG 2.2·KWCAG 2.2 기준 검사 + 페이지 위 시각 점검(위반 표시·구조·시뮬레이션·명도대비) + 전문가 판정. 로그인 필요 페이지도 검사합니다.",
+  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
   "host_permissions": ["https://www.a11ychk.com/*", "https://a11ychk.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
   "action": {
-    "default_popup": "popup.html",
-    "default_title": "A11Y Check",
+    "default_title": "A11Y Check — 사이드 패널 열기",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",
       "128": "icons/icon-128.png"
     }
+  },
+  "side_panel": {
+    "default_path": "sidepanel.html"
   },
   "icons": {
     "16": "icons/icon-16.png",
