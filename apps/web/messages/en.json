@@ -484,7 +484,8 @@
       "pageLabel": "Page",
       "selectorLabel": "Selector",
       "axeHelp": "axe-core rule docs",
-      "affectedPages": "{count} affected page(s)"
+      "affectedPages": "{count} affected page(s)",
+      "diagLabel": "Automated diagnosis (axe)"
     },
     "manual": {
       "title": "Checkpoints requiring manual testing",
@@ -554,7 +555,14 @@
       "working": "Working…",
       "onDesc": "Anyone with the link can view this report (read-only).",
       "failed": "Something went wrong."
-    }
+    },
+    "priority": {
+      "title": "Top fixes",
+      "desc": "Highest-impact violations by severity and scale. Fixing them in this order yields the biggest improvement.",
+      "stats": "{nodes} elements · {pages} pages affected"
+    },
+    "downloadAiFix": "AI fix request (.md)",
+    "downloadAiFixJson": ".json"
   },
   "mypage": {
     "title": "My Page",

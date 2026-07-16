@@ -484,7 +484,8 @@
       "pageLabel": "페이지",
       "selectorLabel": "선택자",
       "axeHelp": "axe-core 규칙 문서",
-      "affectedPages": "영향받은 페이지 {count}곳"
+      "affectedPages": "영향받은 페이지 {count}곳",
+      "diagLabel": "자동 진단(axe, 영문)"
     },
     "manual": {
       "title": "수동 검사 필요 항목",
@@ -554,7 +555,14 @@
       "working": "처리 중…",
       "onDesc": "링크가 있는 누구나 이 보고서를 볼 수 있습니다 (읽기 전용).",
       "failed": "처리에 실패했습니다."
-    }
+    },
+    "priority": {
+      "title": "우선 수정 권고",
+      "desc": "심각도와 발생 규모 기준 상위 위반입니다. 이 순서대로 수정하면 개선 효과가 가장 큽니다.",
+      "stats": "위반 요소 {nodes}개 · 영향 페이지 {pages}곳"
+    },
+    "downloadAiFix": "AI 수정 요청(.md)",
+    "downloadAiFixJson": ".json"
   },
   "mypage": {
     "title": "마이페이지",

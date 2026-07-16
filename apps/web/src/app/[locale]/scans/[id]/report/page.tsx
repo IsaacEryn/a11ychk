@@ -100,6 +100,18 @@ export default async function ReportPage({
           {t("downloadReportTool")}
         </a>
         <a
+          href={`/api/scans/${scan.id}/ai-fix?lang=${locale}`}
+          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
+        >
+          {t("downloadAiFix")}
+        </a>
+        <a
+          href={`/api/scans/${scan.id}/ai-fix?format=json&lang=${locale}`}
+          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-2 text-sm font-semibold text-[var(--color-ink-soft)] hover:bg-[var(--color-paper-warm)]"
+        >
+          {t("downloadAiFixJson")}
+        </a>
+        <a
           href={`/api/scans/${scan.id}/pdf`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
         >
@@ -644,6 +656,51 @@ export default async function ReportPage({
       </section>
 
       {/* ─── 위반 상세 ─── */}
+      {/* ─── 우선 수정 권고 — 심각도·규모 기준 상위 규칙 액션 플랜 ─── */}
+      {ruleGroups.length > 0 && (
+        <section aria-labelledby="priority-heading" className="print-avoid-break mt-12">
+          <h2 id="priority-heading" className="font-display text-2xl font-bold">
+            {t("priority.title")}
+          </h2>
+          <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("priority.desc")}</p>
+          <ol className="mt-4 space-y-3">
+            {ruleGroups.slice(0, 5).map(({ ruleId, rows, entry, impact }, idx) => {
+              const pageCount = new Set(rows.map((r) => r.scan_pages?.url ?? "?")).size;
+              // 가이드 첫 문장 = 핵심 조치 (마크다운 기호 제거)
+              const firstSentence = pick(entry.guide, locale)
+                .split("\n")[0]!
+                .replace(/[`*]/g, "")
+                .slice(0, 160);
+              return (
+                <li key={ruleId} className="doc-card flex flex-wrap items-start gap-3 p-4">
+                  <span className="font-display text-2xl font-extrabold text-[var(--color-ink-faint)]">{idx + 1}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-2">
+                      <span
+                        className={`rounded-sm border-[1.5px] px-2 py-0.5 text-xs font-extrabold ${
+                          impact === "critical" || impact === "serious"
+                            ? "border-[var(--color-crit)] bg-[var(--color-crit-tint)] text-[var(--color-crit)]"
+                            : "border-[var(--color-line)] bg-[var(--color-paper-warm)] text-[var(--color-ink-soft)]"
+                        }`}
+                      >
+                        {t(`impact.${impact}`)}
+                      </span>
+                      <a href={`#rule-${ruleId}`} className="font-bold underline underline-offset-4 hover:text-[var(--color-seal)]">
+                        {pick(entry.title, locale)}
+                      </a>
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
+                      {t("priority.stats", { nodes: rows.length, pages: pageCount })}
+                    </p>
+                    <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{firstSentence}</p>
+                  </div>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+
       <section aria-labelledby="violations-heading" className="print-break-before mt-12">
         <h2 id="violations-heading" className="font-display text-2xl font-bold">
           {t("violations.title")}
@@ -663,7 +720,7 @@ export default async function ReportPage({
               }
               const affected = [...pageCounts.entries()].sort((a, b) => b[1] - a[1]);
               return (
-              <article key={ruleId} className="print-avoid-break doc-card p-6">
+              <article key={ruleId} id={`rule-${ruleId}`} className="print-avoid-break doc-card scroll-mt-4 p-6">
                 <header className="flex flex-wrap items-center gap-2">
                   <span
                     className={`rounded-sm border-[1.5px] px-2 py-0.5 text-xs font-extrabold ${
@@ -723,6 +780,12 @@ export default async function ReportPage({
                       <pre tabIndex={0} className="mt-1.5 overflow-x-auto rounded bg-[var(--color-paper-warm)] p-2.5 text-[0.8rem]">
                         <code>{row.html_snippet}</code>
                       </pre>
+                      {row.failure_summary && (
+                        <p className="mt-1.5 text-xs leading-relaxed text-[var(--color-ink-soft)]">
+                          <span className="font-bold">{t("violations.diagLabel")}:</span>{" "}
+                          <span className="whitespace-pre-wrap">{row.failure_summary}</span>
+                        </p>
+                      )}
                     </li>
                   ))}
                   {rows.length > 5 && (
