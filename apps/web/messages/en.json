@@ -256,7 +256,9 @@
       "badgeAlt": "A11Y Check accessibility compliance rate",
       "autoScanOn": "Scheduled audit on",
       "autoScanEnable": "Enable scheduled audit",
-      "autoScanDisable": "Disable scheduled audit"
+      "autoScanDisable": "Disable scheduled audit",
+      "trendTitle": "Compliance trend",
+      "trendLabel": "Compliance trend for {host}"
     },
     "recent": {
       "title": "Recent audits",

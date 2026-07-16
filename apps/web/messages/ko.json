@@ -256,7 +256,9 @@
       "badgeAlt": "A11Y Check 접근성 점검 준수율",
       "autoScanOn": "정기 검사 켜짐",
       "autoScanEnable": "정기 검사 켜기",
-      "autoScanDisable": "정기 검사 끄기"
+      "autoScanDisable": "정기 검사 끄기",
+      "trendTitle": "준수율 추이",
+      "trendLabel": "{host} 준수율 추이"
     },
     "recent": {
       "title": "최근 검사",

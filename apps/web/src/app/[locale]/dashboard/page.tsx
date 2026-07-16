@@ -7,6 +7,7 @@ import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { addDomain, deleteDomain, toggleAutoScan, verifyDomain } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
+import { TrendChart } from "@/components/TrendChart";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -27,11 +28,37 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/login`);
 
-  const [{ data: profile }, { data: domains }, { data: scans }] = await Promise.all([
+  const [{ data: profile }, { data: domains }, { data: scans }, { data: trendRows }] = await Promise.all([
     supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
     supabase.from("domains").select("*").eq("user_id", user.id).order("created_at"),
     supabase.from("scans").select("id, root_url, status, created_at, summary").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8),
+    // 추이용 — summary 전체 대신 점수만 뽑아 가볍게 (최근 완료 검사 60건)
+    supabase
+      .from("scans")
+      .select("root_url, created_at, combined:summary->scores->combined->>rate, auto:summary->>complianceRate")
+      .eq("user_id", user.id)
+      .eq("status", "done")
+      .order("created_at", { ascending: false })
+      .limit(60),
   ]);
+
+  // 호스트별 준수율 추이 (오래된 → 최신, 도메인당 최근 12회)
+  // 등록 도메인(codeslog.com)과 검사 URL(www.codeslog.com)을 잇도록 www.은 접어서 비교
+  const foldHost = (h: string) => h.replace(/^www\./, "");
+  const trendByHost = new Map<string, { date: string; rate: number }[]>();
+  for (const row of trendRows ?? []) {
+    const rate = Number(row.combined ?? row.auto);
+    if (!Number.isFinite(rate)) continue;
+    try {
+      const host = foldHost(new URL(row.root_url as string).hostname);
+      const list = trendByHost.get(host) ?? [];
+      if (list.length < 12) list.push({ date: row.created_at as string, rate: Math.round(rate * 10) / 10 });
+      trendByHost.set(host, list);
+    } catch {
+      /* root_url 파싱 실패 — 건너뜀 */
+    }
+  }
+  for (const list of trendByHost.values()) list.reverse();
 
   const admin = createAdminClient();
   const plansActive = await getPlansActive(admin);
@@ -170,6 +197,16 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                     </form>
                   </div>
                 </div>
+                {(trendByHost.get(foldHost(d.hostname))?.length ?? 0) >= 2 && (
+                  <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3">
+                    <p className="text-sm font-semibold text-[var(--color-ink-soft)]">{t("domains.trendTitle")}</p>
+                    <TrendChart
+                      points={trendByHost.get(foldHost(d.hostname))!}
+                      label={t("domains.trendLabel", { host: d.hostname })}
+                      locale={locale}
+                    />
+                  </div>
+                )}
                 {!d.verified && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
                     <p className="font-semibold">{t("domains.verifyTitle")}</p>
