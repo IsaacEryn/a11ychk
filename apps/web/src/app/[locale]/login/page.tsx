@@ -52,12 +52,29 @@ export default async function LoginPage({
         <EmailLoginForm
           locale={locale}
           labels={{
+            tabSignIn: t("tabSignIn"),
+            tabSignUp: t("tabSignUp"),
             emailLabel: t("emailLabel"),
             emailPlaceholder: t("emailPlaceholder"),
-            sendLink: t("sendLink"),
-            sending: t("sending"),
-            sent: t("sent"),
-            sendFailed: t("sendFailed"),
+            passwordLabel: t("passwordLabel"),
+            passwordPlaceholder: t("passwordPlaceholder"),
+            passwordConfirmLabel: t("passwordConfirmLabel"),
+            signIn: t("signIn"),
+            signUp: t("signUp"),
+            forgot: t("forgot"),
+            forgotTitle: t("forgotTitle"),
+            forgotDesc: t("forgotDesc"),
+            sendReset: t("sendReset"),
+            backToSignIn: t("backToSignIn"),
+            working: t("working"),
+            signUpSent: t("signUpSent"),
+            resetSent: t("resetSent"),
+            errPasswordMismatch: t("errPasswordMismatch"),
+            errPasswordShort: t("errPasswordShort"),
+            errInvalidCredentials: t("errInvalidCredentials"),
+            errNotConfirmed: t("errNotConfirmed"),
+            errExists: t("errExists"),
+            errGeneric: t("errGeneric"),
           }}
         />
 
