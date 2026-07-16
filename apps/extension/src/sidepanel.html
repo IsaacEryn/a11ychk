@@ -13,42 +13,55 @@
       <span id="conn" class="conn" role="status"></span>
     </header>
 
+    <nav class="tabbar" role="tablist" aria-label="기능">
+      <button class="tab" role="tab" type="button" data-tab="scan" aria-selected="true" aria-controls="tab-scan">검사</button>
+      <button class="tab" role="tab" type="button" data-tab="tools" aria-selected="false" aria-controls="tab-tools">도구 호출</button>
+      <button class="tab" role="tab" type="button" data-tab="settings" aria-selected="false" aria-controls="tab-settings">환경설정</button>
+    </nav>
+
     <main id="main">
-      <div id="account" class="account"></div>
       <p class="target" id="target"></p>
 
-      <button id="scan" class="btn btn-primary" type="button">이 페이지 검사</button>
-      <p id="usage" class="usage" role="status" aria-live="polite"></p>
+      <!-- ─────────── 검사 탭 ─────────── -->
+      <section id="tab-scan" role="tabpanel" aria-label="검사">
+        <button id="scan" class="btn btn-primary" type="button">이 페이지 검사</button>
+        <p id="usage" class="usage" role="status" aria-live="polite"></p>
 
-      <section id="result" hidden aria-live="polite">
-        <div class="score-row">
-          <div class="score">
-            <span id="rate" class="rate">–</span><span class="pct">%</span>
-            <span class="score-label">자동 검사 준수율</span>
+        <section id="result" hidden aria-live="polite">
+          <div class="score-row">
+            <div class="score">
+              <span id="rate" class="rate">–</span><span class="pct">%</span>
+              <span class="score-label">자동 검사 준수율</span>
+            </div>
+            <ul class="impact" id="impact"></ul>
           </div>
-          <ul class="impact" id="impact"></ul>
-        </div>
 
-        <div class="tools" role="group" aria-label="페이지 위 시각 표시">
-          <button id="toggleIssues" class="btn btn-tool" type="button" aria-pressed="false">
-            페이지에 위반 표시
-          </button>
-          <button id="clearOverlay" class="btn btn-tool ghost" type="button">모두 지우기</button>
-        </div>
+          <div class="tools" role="group" aria-label="페이지 위 시각 표시">
+            <button id="toggleIssues" class="btn btn-tool" type="button" aria-pressed="false">페이지에 위반 표시</button>
+            <button id="clearOverlay" class="btn btn-tool ghost" type="button">모두 지우기</button>
+          </div>
 
-        <label id="procWrap" class="proc" hidden>
-          <input type="checkbox" id="isProcess" />
-          이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)
-        </label>
-        <button id="save" class="btn btn-save" type="button" hidden>결과를 내 계정에 저장</button>
-        <p id="saveMsg" class="save-msg" role="status"></p>
-        <h2>위반 상세</h2>
-        <ul id="violations" class="violations"></ul>
+          <label id="procWrap" class="proc" hidden>
+            <input type="checkbox" id="isProcess" />
+            이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)
+          </label>
+          <button id="save" class="btn btn-save" type="button" hidden>결과를 내 계정에 저장</button>
+          <p id="saveMsg" class="save-msg" role="status"></p>
+          <h2>위반 상세</h2>
+          <ul id="violations" class="violations"></ul>
+        </section>
+
+        <section class="manual">
+          <h2>수동 점검 · 전문가 판정</h2>
+          <p class="hint">자동으로 판정할 수 없는 항목입니다. 각 항목의 "강조"로 관련 요소를 페이지에서 확인하고, 통과/실패/보류로 판정·메모하세요. 로그인 후 저장하면 웹 보고서에 반영됩니다.</p>
+          <ul id="manual" class="manual-list"></ul>
+        </section>
       </section>
 
-      <!-- 시각 점검 도구 (검사 없이도 사용 가능) -->
-      <section class="viz">
-        <h2>시각 점검 도구</h2>
+      <!-- ─────────── 도구 호출 탭 ─────────── -->
+      <section id="tab-tools" role="tabpanel" aria-label="도구 호출" hidden>
+        <p class="hint">현재 페이지 위에 표시됩니다. 아래 "모두 지우기"로 정리하세요.</p>
+        <button id="clearOverlay2" class="btn btn-tool ghost" type="button">페이지 표시 모두 지우기</button>
 
         <div class="viz-group">
           <h3>구조 보기</h3>
@@ -58,6 +71,14 @@
             <button class="chip" type="button" data-struct="focus" aria-pressed="false">초점 순서</button>
             <button class="chip" type="button" data-struct="linearize" aria-pressed="false">읽기 순서(선형화)</button>
           </div>
+        </div>
+
+        <div class="viz-group">
+          <h3>크기 점검</h3>
+          <div class="chip-row" role="group" aria-label="크기 점검">
+            <button class="chip" type="button" data-struct="targets" aria-pressed="false">클릭 영역 크기(24px)</button>
+          </div>
+          <p class="hint">버튼·링크의 크기를 표시하고 24×24px 미만은 빨갛게 강조합니다 (WCAG 2.5.8).</p>
         </div>
 
         <div class="viz-group">
@@ -73,15 +94,35 @@
 
         <div class="viz-group">
           <h3>명도대비 검사</h3>
-          <button id="contrast" class="btn btn-tool" type="button">스포이드로 두 색 찍기</button>
-          <p id="contrastHint" class="hint"></p>
+          <p class="hint">스포이드로 배경색과 글자색을 각각 찍으면 대비율과 통과 여부를 알려줍니다.</p>
+          <div class="cc-pick">
+            <button id="pickBg" class="cc-btn" type="button">
+              배경색 선택 <span class="swatch" id="bgSwatch" aria-hidden="true"></span>
+            </button>
+            <button id="pickFg" class="cc-btn" type="button">
+              글자색 선택 <span class="swatch" id="fgSwatch" aria-hidden="true"></span>
+            </button>
+          </div>
+          <div id="ccResult" class="cc-result" role="status" aria-live="polite"></div>
         </div>
       </section>
 
-      <section class="manual">
-        <h2>수동 점검 · 전문가 판정</h2>
-        <p class="hint">자동으로 판정할 수 없는 항목입니다. 직접 확인해 통과/실패/보류로 판정하고 메모를 남기세요. 로그인 후 저장하면 웹 보고서 판정에 반영됩니다. (현재 페이지 기준)</p>
-        <ul id="manual" class="manual-list"></ul>
+      <!-- ─────────── 환경설정 탭 ─────────── -->
+      <section id="tab-settings" role="tabpanel" aria-label="환경설정" hidden>
+        <div class="viz-group">
+          <h3>화면 테마</h3>
+          <div class="chip-row" id="themeRow" role="group" aria-label="화면 테마">
+            <button class="chip" type="button" data-theme="system" aria-pressed="true">시스템</button>
+            <button class="chip" type="button" data-theme="light" aria-pressed="false">라이트</button>
+            <button class="chip" type="button" data-theme="dark" aria-pressed="false">다크</button>
+            <button class="chip" type="button" data-theme="contrast" aria-pressed="false">고대비</button>
+          </div>
+        </div>
+
+        <div class="viz-group">
+          <h3>계정</h3>
+          <div id="account" class="account"></div>
+        </div>
       </section>
     </main>
 

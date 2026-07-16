@@ -435,6 +435,76 @@ function linearizeInPage(on: boolean): void {
   document.documentElement.appendChild(style);
 }
 
+/** 클릭·터치 대상 크기 오버레이 — 각 타깃에 px 크기 표시, 24×24 미만은 빨간색 (WCAG 2.5.8) */
+function overlayTargetSizeInPage(): number {
+  document.getElementById("a11ychk-overlay")?.remove();
+  const c = document.createElement("div");
+  c.id = "a11ychk-overlay";
+  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  const targets = document.querySelectorAll<HTMLElement>(
+    "a[href],button,input:not([type=hidden]),select,textarea,[role=button],[tabindex]:not([tabindex^='-'])",
+  );
+  let n = 0;
+  targets.forEach((el) => {
+    const st = getComputedStyle(el);
+    if (st.display === "inline") return;
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) return;
+    n++;
+    const small = r.width < 24 || r.height < 24;
+    const color = small ? "#e0533d" : "#0b6b5e";
+    const box = document.createElement("div");
+    box.style.cssText =
+      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
+      `border:2px solid ${color};left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
+      `width:${Math.max(r.width, 4)}px;height:${Math.max(r.height, 4)}px;`;
+    const tag = document.createElement("span");
+    tag.textContent = `${Math.round(r.width)}×${Math.round(r.height)}`;
+    tag.style.cssText =
+      "all:initial;position:absolute;left:0;top:-15px;font:700 10px/15px sans-serif;" +
+      `background:${color};color:#fff;padding:0 4px;white-space:nowrap;border-radius:2px;`;
+    box.appendChild(tag);
+    c.appendChild(box);
+  });
+  document.body.appendChild(c);
+  return n;
+}
+
+/** 선택자에 맞는 모든 요소를 강조 (수동 점검 항목별 맞춤 강조용) */
+function overlayQueryInPage(selector: string, label: string): number {
+  document.getElementById("a11ychk-overlay")?.remove();
+  const c = document.createElement("div");
+  c.id = "a11ychk-overlay";
+  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  let els: Element[];
+  try {
+    els = Array.from(document.querySelectorAll(selector));
+  } catch {
+    els = [];
+  }
+  let n = 0;
+  els.forEach((el) => {
+    const r = el.getBoundingClientRect();
+    if (r.width <= 0 && r.height <= 0) return;
+    n++;
+    const box = document.createElement("div");
+    box.style.cssText =
+      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
+      "border:2px solid #c9761b;background:rgba(201,118,27,.12);" +
+      `left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
+      `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
+    c.appendChild(box);
+  });
+  const tag = document.createElement("div");
+  tag.textContent = n > 0 ? `${label} · ${n}개 강조` : `${label} · 해당 요소 없음`;
+  tag.style.cssText =
+    "all:initial;position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#c9761b;color:#fff;" +
+    "font:700 12px sans-serif;padding:5px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);";
+  c.appendChild(tag);
+  document.body.appendChild(c);
+  return n;
+}
+
 /** 스포이드로 두 색을 찍어 WCAG 대비율 계산 → 페이지 내 토스트로 결과 표시 */
 async function pickContrastInPage(): Promise<string> {
   const w = window as unknown as { EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> } };
@@ -768,6 +838,36 @@ async function setReview(url: string, itemId: string, patch: Partial<ReviewEntry
   await chrome.storage.local.set({ [`review:${url}`]: cur });
 }
 
+/** WCAG 성공기준 → 관련 요소 선택자·라벨 (수동 항목 맞춤 강조용) */
+const SC_HIGHLIGHT: Record<string, { selector: string; label: string }> = {
+  "1.1.1": { selector: "img,[role=img],input[type=image],area,svg", label: "이미지/대체텍스트 대상" },
+  "1.2.1": { selector: "video,audio", label: "동영상·음성 미디어" },
+  "1.2.2": { selector: "video,audio", label: "미디어(자막 확인)" },
+  "1.2.3": { selector: "video", label: "동영상(대체수단)" },
+  "1.3.1": { selector: "table,ul,ol,dl,fieldset", label: "구조 요소(표·목록)" },
+  "1.4.2": { selector: "video[autoplay],audio[autoplay]", label: "자동재생 미디어" },
+  "2.1.1": { selector: "a[href],button,input,select,textarea,[onclick],[role=button]", label: "조작 대상" },
+  "2.4.1": { selector: "a[href^='#'],[id]", label: "건너뛰기·앵커 대상" },
+  "2.4.4": { selector: "a[href]", label: "링크" },
+  "2.4.6": { selector: "h1,h2,h3,h4,h5,h6,[role=heading]", label: "제목" },
+  "2.5.8": { selector: "a[href],button,[role=button],input", label: "클릭 대상(크기)" },
+  "3.3.2": { selector: "input:not([type=hidden]),select,textarea,label", label: "폼 입력·레이블" },
+};
+/** KWCAG 항목의 대응 WCAG SC들에서 강조 선택자 조합 */
+function highlightForItem(item: { wcag: string[] }): { selector: string; label: string } | null {
+  const parts: string[] = [];
+  let label = "";
+  for (const sc of item.wcag) {
+    const h = SC_HIGHLIGHT[sc];
+    if (h) {
+      parts.push(h.selector);
+      if (!label) label = h.label;
+    }
+  }
+  if (parts.length === 0) return null;
+  return { selector: [...new Set(parts.join(",").split(","))].join(","), label };
+}
+
 async function renderManual(url: string) {
   const items = getManualCheckItems();
   const reviews = await getReviewState(url);
@@ -784,6 +884,9 @@ async function renderManual(url: string) {
     mid.textContent = item.id;
     head.append(mid, document.createTextNode(item.name.ko));
     li.appendChild(head);
+
+    const actions = document.createElement("div");
+    actions.className = "ri-actions";
 
     // 통과/실패/보류 라디오 버튼 그룹
     const group = document.createElement("div");
@@ -810,7 +913,21 @@ async function renderManual(url: string) {
       });
       group.appendChild(btn);
     }
-    li.appendChild(group);
+    actions.appendChild(group);
+
+    // 항목별 맞춤 강조 토글 (관련 요소가 있을 때만)
+    const hl = highlightForItem(item);
+    if (hl) {
+      const hlBtn = document.createElement("button");
+      hlBtn.type = "button";
+      hlBtn.className = "ri-highlight";
+      hlBtn.textContent = "강조";
+      hlBtn.setAttribute("aria-pressed", "false");
+      hlBtn.setAttribute("aria-label", `${item.name.ko} 관련 요소 강조`);
+      hlBtn.addEventListener("click", () => toggleManualHighlight(hl.selector, hl.label, hlBtn));
+      actions.appendChild(hlBtn);
+    }
+    li.appendChild(actions);
 
     // 메모
     const note = document.createElement("textarea");
@@ -827,10 +944,12 @@ async function renderManual(url: string) {
 
 // ─── 시각 도구 컨트롤러 (패널 측 상태 + 주입 실행) ───
 
-type OverlayView = "none" | "issues" | "headings" | "landmarks" | "focus";
+type StructKind = "headings" | "landmarks" | "focus" | "targets";
+type OverlayView = "none" | "issues" | StructKind | "manual";
 let currentView: OverlayView = "none";
 let currentSim = "none";
 let linearizeOn = false;
+let activeHighlightBtn: HTMLButtonElement | null = null;
 
 /** 활성 탭에 주입 함수 실행 */
 async function runInPage<Args extends unknown[], R>(
@@ -854,6 +973,14 @@ const MARKER_COLOR: Record<Impact, string> = {
   minor: "#8a8a8a",
 };
 
+/** 오버레이만 지우고 시뮬레이션·선형화는 복원 (오버레이는 단일이라 서로 배타적) */
+async function clearOverlayView() {
+  await runInPage(clearOverlayInPage);
+  currentView = "none";
+  if (currentSim !== "none") await runInPage(applySimulationInPage, currentSim);
+  if (linearizeOn) await runInPage(linearizeInPage, true);
+}
+
 /** 위반 표시 토글 (검사 결과 필요) */
 async function setIssuesView(on: boolean) {
   if (on && lastPage) {
@@ -867,35 +994,44 @@ async function setIssuesView(on: boolean) {
     await runInPage(overlayMarkersInPage, markers);
     currentView = "issues";
   } else {
-    await runInPage(clearOverlayInPage);
-    currentView = "none";
-    // 시뮬레이션·선형화는 clearOverlay가 함께 지우므로 복원
-    if (currentSim !== "none") await runInPage(applySimulationInPage, currentSim);
-    if (linearizeOn) await runInPage(linearizeInPage, true);
+    await clearOverlayView();
   }
   syncToolButtons();
 }
 
-/** 구조 오버레이 토글 */
-async function setStructView(kind: "headings" | "landmarks" | "focus", on: boolean) {
+/** 구조·크기 오버레이 토글 */
+async function setStructView(kind: StructKind, on: boolean) {
   if (on) {
-    await runInPage(overlayStructureInPage, kind);
+    if (kind === "targets") await runInPage(overlayTargetSizeInPage);
+    else await runInPage(overlayStructureInPage, kind);
     currentView = kind;
   } else {
-    await runInPage(clearOverlayInPage);
-    currentView = "none";
-    if (currentSim !== "none") await runInPage(applySimulationInPage, currentSim);
-    if (linearizeOn) await runInPage(linearizeInPage, true);
+    await clearOverlayView();
   }
   syncToolButtons();
 }
 
-/** 오버레이 전체 지우기 + 상태 초기화 */
+/** 수동 항목 맞춤 강조 토글 */
+async function toggleManualHighlight(selector: string, label: string, btn: HTMLButtonElement) {
+  const on = btn.getAttribute("aria-pressed") !== "true";
+  if (on) {
+    await runInPage(overlayQueryInPage, selector, label);
+    currentView = "manual";
+    activeHighlightBtn = btn;
+  } else {
+    await clearOverlayView();
+    activeHighlightBtn = null;
+  }
+  syncToolButtons();
+}
+
+/** 오버레이·시뮬·선형화 전체 지우기 + 상태 초기화 */
 async function clearAll() {
   await runInPage(clearOverlayInPage);
   currentView = "none";
   currentSim = "none";
   linearizeOn = false;
+  activeHighlightBtn = null;
   syncToolButtons();
 }
 
@@ -911,11 +1047,17 @@ function syncToolButtons() {
   document.querySelectorAll<HTMLButtonElement>("[data-sim]").forEach((b) => {
     b.setAttribute("aria-pressed", String(currentSim === b.dataset.sim));
   });
+  // 수동 강조 버튼: 현재 뷰가 manual이 아니면 모두 해제
+  if (currentView !== "manual" && activeHighlightBtn) {
+    activeHighlightBtn.setAttribute("aria-pressed", "false");
+    activeHighlightBtn = null;
+  }
 }
 
 function wireVisualTools() {
   $("toggleIssues").addEventListener("click", () => setIssuesView(currentView !== "issues"));
   $("clearOverlay").addEventListener("click", clearAll);
+  $("clearOverlay2").addEventListener("click", clearAll);
 
   document.querySelectorAll<HTMLButtonElement>("[data-struct]").forEach((btn) => {
     const kind = btn.dataset.struct!;
@@ -925,7 +1067,7 @@ function wireVisualTools() {
         await runInPage(linearizeInPage, linearizeOn);
         syncToolButtons();
       } else {
-        await setStructView(kind as "headings" | "landmarks" | "focus", currentView !== kind);
+        await setStructView(kind as StructKind, currentView !== kind);
       }
     });
   });
@@ -939,17 +1081,168 @@ function wireVisualTools() {
     });
   });
 
-  const contrastBtn = $<HTMLButtonElement>("contrast");
-  contrastBtn.addEventListener("click", async () => {
-    contrastBtn.disabled = true;
-    const prev = contrastBtn.textContent;
-    contrastBtn.textContent = "스포이드 활성화 — 색을 두 번 찍으세요";
-    const r = await runInPage(pickContrastInPage);
-    if (r === "unsupported") $("contrastHint").textContent = "이 브라우저는 스포이드(EyeDropper)를 지원하지 않습니다.";
-    else if (r === "cancelled" || r === undefined) $("contrastHint").textContent = "취소되었습니다.";
-    else $("contrastHint").textContent = `대비율 ${r} : 1 — 결과는 페이지 하단에 표시됩니다.`;
-    contrastBtn.textContent = prev;
-    contrastBtn.disabled = false;
+  wireContrastPicker();
+}
+
+// ─── 명도대비 스포이드 (배경색/글자색 각각 선택 + 가이드) ───
+let ccBg: string | null = null;
+let ccFg: string | null = null;
+
+function relLum(hex: string): number {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!m || !m[1]) return 0;
+  const v = parseInt(m[1], 16);
+  const ch = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((c) => {
+    const s = c / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * (ch[0] ?? 0) + 0.7152 * (ch[1] ?? 0) + 0.0722 * (ch[2] ?? 0);
+}
+function ratioOf(a: string, b: string): number {
+  const l1 = relLum(a);
+  const l2 = relLum(b);
+  return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+}
+/** bg에 대해 AA(4.5:1)를 통과하는, fg에 가장 가까운 색 제안 (검정/흰색 방향 혼합) */
+function suggestColor(bg: string, fg: string): string | null {
+  const mix = (hex: string, tgt: number, t: number) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex)![1]!;
+    const v = parseInt(m, 16);
+    const parts = [(v >> 16) & 255, (v >> 8) & 255, v & 255].map((c) => Math.round(c + (tgt - c) * t));
+    return "#" + parts.map((c) => c.toString(16).padStart(2, "0")).join("");
+  };
+  for (let t = 0.05; t <= 1; t += 0.05) {
+    for (const tgt of [0, 255]) {
+      const cand = mix(fg, tgt, t);
+      if (ratioOf(bg, cand) >= 4.5) return cand;
+    }
+  }
+  return null;
+}
+
+async function pickScreenColor(): Promise<string | null> {
+  const w = window as unknown as { EyeDropper?: new () => { open: () => Promise<{ sRGBHex: string }> } };
+  if (!w.EyeDropper) return "unsupported";
+  try {
+    const r = await new w.EyeDropper().open();
+    return r.sRGBHex;
+  } catch {
+    return null;
+  }
+}
+
+function renderContrast() {
+  const out = $("ccResult");
+  ($("bgSwatch") as HTMLElement).style.background = ccBg ?? "";
+  ($("fgSwatch") as HTMLElement).style.background = ccFg ?? "";
+  if (!ccBg || !ccFg) {
+    out.textContent = ccBg || ccFg ? "나머지 색도 선택하세요." : "";
+    return;
+  }
+  const ratio = Math.round(ratioOf(ccBg, ccFg) * 100) / 100;
+  const aa = ratio >= 4.5;
+  const aaLarge = ratio >= 3;
+  const aaa = ratio >= 7;
+  out.innerHTML = "";
+
+  const preview = document.createElement("div");
+  preview.className = "cc-preview";
+  preview.style.background = ccBg;
+  preview.style.color = ccFg;
+  preview.textContent = "본문 예시 Aa 가나다 123";
+  out.appendChild(preview);
+
+  const ratioEl = document.createElement("div");
+  ratioEl.innerHTML = `대비율 <span class="cc-ratio">${ratio}</span> : 1 <span style="color:var(--ink-faint)">(${ccBg} / ${ccFg})</span>`;
+  out.appendChild(ratioEl);
+
+  const badges = document.createElement("div");
+  badges.className = "cc-badges";
+  const mk = (label: string, ok: boolean) => {
+    const s = document.createElement("span");
+    s.className = `cc-badge ${ok ? "pass" : "fail"}`;
+    s.textContent = `${label} ${ok ? "✓" : "✗"}`;
+    return s;
+  };
+  badges.append(mk("일반 텍스트 AA", aa), mk("큰 텍스트 AA", aaLarge), mk("AAA", aaa));
+  out.appendChild(badges);
+
+  if (!aa) {
+    const guide = document.createElement("div");
+    guide.className = "cc-guide";
+    const suggestion = suggestColor(ccBg, ccFg);
+    let html =
+      "일반 텍스트 기준(4.5:1)에 미달합니다. 글자색을 더 진하게 하거나 배경과의 명도 차이를 키우세요.";
+    if (suggestion) {
+      html += `<br>제안 글자색: <b style="color:${suggestion}">${suggestion}</b> `;
+      html += `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${suggestion};border:1px solid var(--line);vertical-align:middle"></span>`;
+      html += ` (대비율 ${Math.round(ratioOf(ccBg, suggestion) * 100) / 100}:1)`;
+    }
+    guide.innerHTML = html;
+    out.appendChild(guide);
+  }
+}
+
+function wireContrastPicker() {
+  const bgBtn = $<HTMLButtonElement>("pickBg");
+  const fgBtn = $<HTMLButtonElement>("pickFg");
+  const pick = async (which: "bg" | "fg", btn: HTMLButtonElement) => {
+    const label = btn.childNodes[0];
+    const prev = label?.textContent ?? "";
+    if (label) label.textContent = which === "bg" ? "배경색 찍는 중… " : "글자색 찍는 중… ";
+    const c = await pickScreenColor();
+    if (label) label.textContent = prev;
+    if (c === "unsupported") {
+      $("ccResult").textContent = "이 브라우저는 스포이드(EyeDropper)를 지원하지 않습니다.";
+      return;
+    }
+    if (!c) return;
+    if (which === "bg") ccBg = c;
+    else ccFg = c;
+    renderContrast();
+  };
+  bgBtn.addEventListener("click", () => pick("bg", bgBtn));
+  fgBtn.addEventListener("click", () => pick("fg", fgBtn));
+}
+
+// ─── 상단 탭 전환 ───
+function wireTabs() {
+  const tabs = [...document.querySelectorAll<HTMLButtonElement>(".tab")];
+  const panels: Record<string, HTMLElement> = {
+    scan: $("tab-scan"),
+    tools: $("tab-tools"),
+    settings: $("tab-settings"),
+  };
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      const name = tab.dataset.tab!;
+      for (const t of tabs) t.setAttribute("aria-selected", String(t === tab));
+      for (const [k, el] of Object.entries(panels)) el.hidden = k !== name;
+      // 대상 URL은 검사·도구 탭에서만 의미 있음
+      $("target").style.display = name === "settings" ? "none" : "";
+    });
+  }
+}
+
+// ─── 테마 (라이트/다크/고대비/시스템) ───
+type ThemeMode = "system" | "light" | "dark" | "contrast";
+function applyTheme(mode: ThemeMode) {
+  if (mode === "system") delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = mode;
+  document.querySelectorAll<HTMLButtonElement>("[data-theme]").forEach((b) => {
+    b.setAttribute("aria-pressed", String(b.dataset.theme === mode));
+  });
+}
+async function wireTheme() {
+  const { a11ychk_theme } = await chrome.storage.local.get("a11ychk_theme");
+  const saved = (a11ychk_theme as ThemeMode | undefined) ?? "system";
+  applyTheme(saved);
+  document.querySelectorAll<HTMLButtonElement>("[data-theme]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.dataset.theme as ThemeMode;
+      applyTheme(mode);
+      void chrome.storage.local.set({ a11ychk_theme: mode });
+    });
   });
 }
 
@@ -966,6 +1259,8 @@ async function init() {
   $("scan").addEventListener("click", scan);
   $("save").addEventListener("click", saveToAccount);
   wireVisualTools();
+  wireTabs();
+  await wireTheme();
 
   await refreshActiveTab();
   // 사이드 패널은 탭을 바꿔도 떠 있으므로, 활성 탭 변경·주소 변경 시 갱신
