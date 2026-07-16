@@ -2,10 +2,9 @@
   "manifest_version": 3,
   "name": "A11Y Check — 웹 접근성 점검",
   "version": "0.1.0",
-  "default_locale": "ko",
   "description": "WCAG 2.2·KWCAG 2.2 기준 검사 + 페이지 위 시각 점검(위반 표시·구조·시뮬레이션·명도대비) + 전문가 판정. 로그인 필요 페이지도 검사합니다.",
   "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
-  "host_permissions": ["https://www.a11ychk.com/*", "https://a11ychk.com/*"],
+  "host_permissions": ["http://*/*", "https://*/*"],
   "background": {
     "service_worker": "background.js"
   },

@@ -29,11 +29,14 @@
 * {
   box-sizing: border-box;
 }
+html,
 body {
-  width: 380px;
-  max-height: 580px;
-  overflow-y: auto;
+  width: 100%;
   margin: 0;
+  overflow-x: hidden;
+}
+body {
+  min-width: 0;
   font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
   background: var(--paper);
   color: var(--ink);
@@ -348,8 +351,8 @@ h2 {
 }
 .btn-tool {
   border: 1.5px solid var(--seal);
-  background: var(--seal);
-  color: #fff;
+  background: transparent;
+  color: var(--seal);
   border-radius: 5px;
   font-size: 13px;
   font-weight: 700;
@@ -357,11 +360,16 @@ h2 {
   cursor: pointer;
 }
 .btn-tool[aria-pressed="true"] {
-  background: var(--seal-deep, #084c43);
+  background: var(--seal);
+  color: #fff;
+  box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3.5px var(--seal);
+}
+.btn-tool[aria-pressed="true"]::before {
+  content: "✓ ";
 }
 .btn-tool.ghost {
-  background: transparent;
-  color: var(--seal);
+  color: var(--ink-soft);
+  border-color: var(--line);
 }
 .viz {
   margin-top: 14px;
@@ -396,10 +404,17 @@ h2 {
   padding: 4px 11px;
   cursor: pointer;
 }
+.chip:hover {
+  border-color: var(--seal);
+}
 .chip[aria-pressed="true"] {
   border-color: var(--seal);
-  background: var(--seal-tint, #e6f4f1);
-  color: var(--seal);
+  background: var(--seal);
+  color: #fff;
+  font-weight: 700;
+}
+.chip[aria-pressed="true"]::before {
+  content: "✓ ";
 }
 
 /* ─── 전문가 판정 ─── */
@@ -453,4 +468,72 @@ h2 {
   font-size: 12px;
   resize: vertical;
   box-sizing: border-box;
+}
+
+/* ─── 계정(로그인/로그아웃) ─── */
+.account {
+  margin-bottom: 12px;
+}
+.account.disconnected {
+  border: 1.5px solid var(--seal);
+  background: var(--seal-tint);
+  border-radius: 6px;
+  padding: 10px 12px;
+}
+.account.disconnected p {
+  margin: 0 0 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+}
+.account.disconnected button {
+  display: block;
+  width: 100%;
+  border: 1.5px solid var(--seal);
+  background: var(--seal);
+  color: #fff;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px;
+  cursor: pointer;
+}
+.account.connected {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 7px 10px;
+}
+.account.connected .who {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--ink-soft);
+}
+.account.connected .who b {
+  color: var(--seal);
+}
+.account .logout {
+  flex-shrink: 0;
+  border: 1.5px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+.account .logout:hover {
+  border-color: var(--crit);
+  color: var(--crit);
+}
+
+/* 판정 버튼에도 체크 표시 */
+.verdict[aria-pressed="true"]::before {
+  content: "✓ ";
 }

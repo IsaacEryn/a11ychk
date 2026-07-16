@@ -35,6 +35,58 @@ async function getSession(): Promise<StoredSession | null> {
   return null;
 }
 
+/** 연결(로그인) 페이지 열기 */
+function openConnect() {
+  void chrome.tabs.create({ url: `${SITE_ORIGIN}/ko/extension/connect` });
+}
+
+/** 확장 연결 해제 — 저장된 세션 삭제 */
+async function logout() {
+  await chrome.storage.local.remove("a11ychk_session");
+  await renderAccount();
+}
+
+/** 계정 영역(로그인/로그아웃) + 헤더 연결 배지 렌더 */
+async function renderAccount() {
+  const session = await getSession();
+  const conn = $("conn");
+  const box = $("account");
+  box.innerHTML = "";
+
+  if (session) {
+    conn.textContent = "연결됨";
+    conn.classList.add("on");
+    box.className = "account connected";
+    const who = document.createElement("span");
+    who.className = "who";
+    who.append("연결됨 · ");
+    const b = document.createElement("b");
+    b.textContent = session.email ?? "내 계정";
+    who.appendChild(b);
+    const out = document.createElement("button");
+    out.type = "button";
+    out.className = "logout";
+    out.textContent = "로그아웃";
+    out.addEventListener("click", logout);
+    box.append(who, out);
+    // 저장 버튼·프로세스 태그는 검사 결과가 있을 때만 별도 노출
+  } else {
+    conn.textContent = "미연결";
+    conn.classList.remove("on");
+    box.className = "account disconnected";
+    const p = document.createElement("p");
+    p.textContent = "로그인하면 검사 결과·전문가 판정을 계정에 저장하고 사이트 보고서로 관리할 수 있습니다.";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.textContent = "웹 서비스 로그인 · 연결";
+    btn.addEventListener("click", openConnect);
+    box.append(p, btn);
+    // 로그아웃 시 저장 UI 숨김
+    $("save").hidden = true;
+    $("procWrap").hidden = true;
+  }
+}
+
 /** 비로그인 일일 무료 검사 횟수 (로컬 집계 — 가입 유도) */
 const ANON_DAILY_LIMIT = 3;
 
@@ -902,28 +954,37 @@ function wireVisualTools() {
 }
 
 async function init() {
-  const tab = await getActiveTab();
-  const url = tab?.url ?? "";
-  currentTabId = tab?.id ?? null;
-  $("target").textContent = url;
+  await renderAccount();
+  // 웹 연결 페이지에서 로그인하면 저장소가 바뀌므로 패널을 자동 갱신
+  chrome.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && changes.a11ychk_session) void renderAccount();
+  });
 
-  const session = await getSession();
-  const conn = $("conn");
-  if (session) {
-    conn.textContent = "연결됨";
-    conn.classList.add("on");
-  } else {
-    conn.textContent = "미연결";
-  }
-
-  $("connectLink").setAttribute("href", `${SITE_ORIGIN}/ko/extension/connect`);
+  $("guideLink").setAttribute("href", `${SITE_ORIGIN}/ko/guide`);
   $("siteLink").setAttribute("href", `${SITE_ORIGIN}/ko`);
-
-  if (/^https?:/.test(url)) await renderManual(url);
 
   $("scan").addEventListener("click", scan);
   $("save").addEventListener("click", saveToAccount);
   wireVisualTools();
+
+  await refreshActiveTab();
+  // 사이드 패널은 탭을 바꿔도 떠 있으므로, 활성 탭 변경·주소 변경 시 갱신
+  chrome.tabs.onActivated.addListener(() => void refreshActiveTab());
+  chrome.tabs.onUpdated.addListener((_id, info, tab) => {
+    if (tab.active && info.url) void refreshActiveTab();
+  });
+}
+
+/** 현재 활성 탭을 다시 읽어 대상 URL·수동 체크리스트를 갱신 */
+async function refreshActiveTab() {
+  const tab = await getActiveTab();
+  const url = tab?.url ?? "";
+  currentTabId = tab?.id ?? null;
+  const scannable = /^https?:/.test(url);
+  $("target").textContent = scannable ? url : url ? "이 페이지는 검사할 수 없습니다 (브라우저 내부 페이지)." : "탭 정보를 읽을 수 없습니다.";
+  $<HTMLButtonElement>("scan").disabled = !scannable;
+  if (scannable) await renderManual(url);
+  else $("manual").innerHTML = "";
 }
 
 void init();
