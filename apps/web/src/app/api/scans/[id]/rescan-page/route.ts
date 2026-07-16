@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { requireScanOwner } from "@/lib/apiAuth";
 import { rescanPage } from "@/lib/scan/runScan";
 
 export const maxDuration = 300;
@@ -23,9 +24,9 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
-  // 소유자 확인 (RLS)
-  const { data: scan } = await supabase.from("scans").select("id, user_id").eq("id", id).maybeSingle();
-  if (!scan || scan.user_id !== user.id) {
+  // 소유자 확인 (RLS + 명시 재확인)
+  const scan = await requireScanOwner(supabase, id, user.id);
+  if (!scan) {
     return NextResponse.json({ error: "검사를 찾을 수 없습니다." }, { status: 404 });
   }
 

@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl, type EvaluationScope } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { requireScanOwner } from "@/lib/apiAuth";
 import { createScanForUser } from "@/lib/scan/createScan";
 import { runScan } from "@/lib/scan/runScan";
 
@@ -26,12 +27,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
   if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
 
   // RLS로 본인 스캔만 조회됨 + 소유자 명시 확인 (관리자가 남의 스캔을 재실행해 한도를 쓰는 것 방지)
-  const { data: original } = await supabase
-    .from("scans")
-    .select("id, user_id, root_url, scope")
-    .eq("id", id)
-    .maybeSingle();
-  if (!original || original.user_id !== user.id) {
+  const original = await requireScanOwner<{ id: string; user_id: string; root_url: string; scope: unknown }>(
+    supabase, id, user.id, "id, user_id, root_url, scope",
+  );
+  if (!original) {
     return NextResponse.json({ error: "검사를 찾을 수 없습니다." }, { status: 404 });
   }
 

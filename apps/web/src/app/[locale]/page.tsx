@@ -43,7 +43,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
             <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[24deg] select-none font-display text-6xl font-extrabold tracking-[0.2em] text-[var(--color-ink)] opacity-[0.07]">
               SAMPLE
             </span>
-            <span className="absolute right-3 top-3 rounded-sm bg-[var(--color-mark)] px-2 py-0.5 text-xs font-extrabold text-[#1c2422]">
+            <span className="absolute right-3 top-3 rounded-sm bg-[var(--color-mark)] px-2 py-0.5 text-xs font-extrabold text-[var(--color-ink-on-mark)]">
               {t("demo.sampleBadge")}
             </span>
           <div className="flex items-center justify-between border-b-[1.5px] border-[var(--color-ink)] pb-3 pr-14">

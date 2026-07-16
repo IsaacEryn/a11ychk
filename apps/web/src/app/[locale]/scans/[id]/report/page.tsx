@@ -1,29 +1,21 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { notFound, redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   KWCAG_BY_ID,
   KWCAG_PRINCIPLE_LABEL,
   WCAG_BY_ID,
   getManualCheckItems,
   getRuleEntry,
-  type EvaluationScope,
   type Impact,
   type PageCategory,
   type PageSignature,
-  type ReportMeta,
   type SampleType,
-  type ScanSummary,
   type WcagOutcome,
 } from "@a11ychk/core/catalog";
-import { createClient } from "@/lib/supabase/server";
-import { createAdminClient } from "@/lib/supabase/admin";
 import { classifyScanError } from "@/lib/scanError";
-import { verifyReportToken } from "@/lib/reportToken";
-import { fetchAllRows } from "@/lib/scan/fetchAll";
+import { loadReport } from "./loadReport";
 import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
-import { ReviewCell, type ReviewValue } from "./ReviewCell";
+import { ReviewCell } from "./ReviewCell";
 import { ReportMetaForm } from "./ReportMetaForm";
 import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
@@ -32,17 +24,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "report" });
   return { title: t("docTitle"), robots: { index: false } };
-}
-
-interface FindingRow {
-  rule_id: string;
-  impact: Impact;
-  tags: string[];
-  help_url: string | null;
-  selector: string;
-  html_snippet: string;
-  failure_summary: string;
-  scan_pages: { url: string } | null;
 }
 
 const IMPACT_ORDER: Impact[] = ["critical", "serious", "moderate", "minor"];
@@ -64,113 +45,8 @@ export default async function ReportPage({
   const t = await getTranslations("report");
   const format = await getFormatter();
 
-  // 접근 제어: PDF 생성용 단기 토큰(스캔 1건 한정) 또는 로그인 사용자(RLS)
-  let db: SupabaseClient;
-  let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
-  let isAdmin = false; // 관리자 전용 미리보기 기능(전후 비교) 게이트
-  if (token && verifyReportToken(id, token)) {
-    db = createAdminClient();
-  } else {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) redirect(`/${locale}/login`);
-    db = supabase as unknown as SupabaseClient;
-    canEdit = true; // RLS 통과 = 소유자 또는 관리자
-    const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    isAdmin = me?.role === "admin";
-  }
-
-  // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
-  const { data: scan } = await db.from("scans").select("*").eq("id", id).maybeSingle();
-  if (!scan || scan.status !== "done" || !scan.summary) notFound();
-
-  const summary = scan.summary as ScanSummary;
-  const scope = (scan.scope ?? null) as EvaluationScope | null;
-  const meta = (scan.report_meta ?? null) as ReportMeta | null;
-
-  // 점검자 판정 (migration 0004 전에는 테이블이 없어 실패 → 빈 목록으로 진행)
-  // pages 컬럼(0010) 미적용이어도 깨지지 않게 별도 시도
-  let reviewRows: { standard: string; item_id: string; outcome: string; note: string; pages?: unknown }[] | null = null;
-  {
-    const withPages = await db.from("scan_reviews").select("standard, item_id, outcome, note, pages").eq("scan_id", id);
-    if (withPages.error) {
-      const basic = await db.from("scan_reviews").select("standard, item_id, outcome, note").eq("scan_id", id);
-      reviewRows = basic.data;
-    } else {
-      reviewRows = withPages.data;
-    }
-  }
-  const wcagReviews = new Map<string, ReviewValue>();
-  const kwcagReviews = new Map<string, ReviewValue>();
-  for (const r of reviewRows ?? []) {
-    const target = r.standard === "wcag" ? wcagReviews : kwcagReviews;
-    const pages = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
-    target.set(r.item_id, { outcome: r.outcome, note: r.note, pages });
-  }
-
-  const { data: pages } = await db.from("scan_pages").select("*").eq("scan_id", id).order("url");
-  // 이미 로드한 pages의 id 재사용 + 페이지네이션 전량 조회 (절단 방지)
-  const findings = await fetchAllRows((from, to) =>
-    db
-      .from("findings")
-      .select("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)")
-      .in("scan_page_id", (pages ?? []).map((p) => p.id))
-      .order("id")
-      .range(from, to),
-  );
-
-  // 규칙별 그룹화
-  const byRule = new Map<string, FindingRow[]>();
-  for (const f of (findings ?? []) as unknown as FindingRow[]) {
-    const list = byRule.get(f.rule_id) ?? [];
-    list.push(f);
-    byRule.set(f.rule_id, list);
-  }
-  const ruleGroups = [...byRule.entries()]
-    .map(([ruleId, rows]) => ({
-      ruleId,
-      rows,
-      entry: getRuleEntry(ruleId, rows[0]?.tags ?? []),
-      impact: rows[0]?.impact ?? "moderate",
-    }))
-    .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
-
-  // ── 전후 비교 (관리자 우선 공개): 같은 사용자·같은 대상의 직전 완료 검사와 비교 ──
-  interface CompareData {
-    prevDate: string;
-    rateDelta: number; // 통합(없으면 자동) 준수율 변화 %p
-    nodesDelta: number; // 위반 요소 수 변화
-    resolvedRules: string[]; // 이전엔 위반, 지금은 아님
-    newRules: string[]; // 이번에 새로 위반
-  }
-  let compare: CompareData | null = null;
-  if (isAdmin) {
-    const { data: prev } = await db
-      .from("scans")
-      .select("summary, created_at")
-      .eq("user_id", scan.user_id)
-      .eq("root_url", scan.root_url)
-      .eq("status", "done")
-      .lt("created_at", scan.created_at)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    const prevSummary = (prev?.summary ?? null) as ScanSummary | null;
-    if (prev && prevSummary) {
-      const rateOf = (s: ScanSummary) => s.scores?.combined.rate ?? s.complianceRate;
-      const prevRules = Object.keys(prevSummary.byRule ?? {});
-      const curRules = Object.keys(summary.byRule ?? {});
-      compare = {
-        prevDate: prev.created_at,
-        rateDelta: Math.round((rateOf(summary) - rateOf(prevSummary)) * 10) / 10,
-        nodesDelta: summary.totalViolationNodes - prevSummary.totalViolationNodes,
-        resolvedRules: prevRules.filter((r) => !curRules.includes(r)),
-        newRules: curRules.filter((r) => !prevRules.includes(r)),
-      };
-    }
-  }
+  const { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, canEdit } =
+    await loadReport(locale, id, token);
 
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
   const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
@@ -414,7 +290,7 @@ export default async function ReportPage({
                             <span className="mr-2 font-bold text-[var(--color-crit)]">{t("pages.statusFailed")}</span>
                             {canEdit && <RescanPageButton scanId={scan.id} pageId={p.id} />}
                             <p className="mt-0.5 text-xs leading-relaxed text-[var(--color-ink-soft)]">
-                              {t(`failedPages.reasons.${classifyScanError(p.error)}`)}
+                              {t(`failedPages.reasons.${classifyScanError(p.error as string | null)}`)}
                             </p>
                           </>
                         ) : (
@@ -650,7 +526,7 @@ export default async function ReportPage({
                           {t(`wcag.outcome.${effective}`)}
                         </span>
                         {review && (
-                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[#1c2422]">
+                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
                             {t("review.badge")}
                           </span>
                         )}
@@ -739,7 +615,7 @@ export default async function ReportPage({
                           >
                             {t(`wcag.outcome.${review.outcome as WcagOutcome}`)}
                           </span>
-                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[#1c2422]">
+                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
                             {t("review.badge")}
                           </span>
                         </>

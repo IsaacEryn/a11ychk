@@ -9,14 +9,23 @@ import { computeScores, type ScanSummary, type WcagMatrixRow, type WcagOutcome }
 import { guardedFetch } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireScanOwner } from "@/lib/apiAuth";
 import { isImpersonatingNickname } from "@/lib/nickname";
 import { MAX_PAGES_PER_SCAN, PLAN_IDS } from "@/lib/quota";
 import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction } from "@/lib/logs";
 
-/** 모든 로케일 경로 캐시 무효화 (단순화를 위해 layout 단위) */
+/** 전 경로 캐시 무효화 — 인증 상태처럼 모든 페이지에 영향이 있을 때만 사용 */
 function revalidateAll() {
   revalidatePath("/", "layout");
+}
+
+/** 영향받은 경로만 무효화 (양 로케일). 예: revalidateLocalized("/dashboard") */
+function revalidateLocalized(...paths: string[]) {
+  for (const path of paths) {
+    revalidatePath(`/ko${path}`);
+    revalidatePath(`/en${path}`);
+  }
 }
 
 async function requireUser() {
@@ -59,7 +68,7 @@ export async function addDomain(formData: FormData): Promise<void> {
   const parsed = HostnameSchema.safeParse(raw);
   if (!parsed.success) return;
   await supabase.from("domains").insert({ user_id: user.id, hostname: parsed.data });
-  revalidateAll();
+  revalidateLocalized("/dashboard");
 }
 
 export async function deleteDomain(formData: FormData): Promise<void> {
@@ -67,7 +76,7 @@ export async function deleteDomain(formData: FormData): Promise<void> {
   const id = z.string().uuid().safeParse(formData.get("id"));
   if (!id.success) return;
   await supabase.from("domains").delete().eq("id", id.data).eq("user_id", user.id);
-  revalidateAll();
+  revalidateLocalized("/dashboard");
 }
 
 /** 도메인 정기 자동 스캔 켜기/끄기 */
@@ -77,7 +86,7 @@ export async function toggleAutoScan(formData: FormData): Promise<void> {
   const enabled = formData.get("enabled") === "true";
   if (!id.success) return;
   await supabase.from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
-  revalidateAll();
+  revalidateLocalized("/dashboard");
 }
 
 /** DNS TXT(_a11ychk.호스트) 또는 홈페이지 메타태그로 소유 확인 */
@@ -133,7 +142,7 @@ export async function verifyDomain(formData: FormData): Promise<void> {
     const admin = createAdminClient();
     await admin.from("domains").update({ verified: true, verify_method: method }).eq("id", domain.id);
   }
-  revalidateAll();
+  revalidateLocalized("/dashboard", "/scan");
 }
 
 // ─────────────── 프로필 ───────────────
@@ -157,7 +166,7 @@ export async function updateNickname(_prev: NicknameState, formData: FormData): 
 
   const { error } = await supabase.from("profiles").update({ nickname: parsed.data }).eq("id", user.id);
   if (error) return { error: "failed" };
-  revalidateAll();
+  revalidateLocalized("/mypage");
   return { ok: true };
 }
 
@@ -177,7 +186,7 @@ export async function createInquiry(formData: FormData): Promise<void> {
   });
   if (!parsed.success) return;
   await supabase.from("inquiries").insert({ user_id: user.id, ...parsed.data });
-  revalidateAll();
+  revalidateLocalized("/contact", "/admin/inquiries");
 }
 
 // ─────────────── 보고서 워크벤치 (점검자 판정·메타) ───────────────
@@ -233,8 +242,8 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
   const scanId = z.string().uuid().safeParse(formData.get("scanId"));
   if (!scanId.success) return { error: "invalid" };
   // 소유자 검증 (RLS로도 막히지만 명시적으로)
-  const { data: scan } = await supabase.from("scans").select("id, user_id").eq("id", scanId.data).maybeSingle();
-  if (!scan || scan.user_id !== user.id) return { error: "forbidden" };
+  const scan = await requireScanOwner(supabase, scanId.data, user.id);
+  if (!scan) return { error: "forbidden" };
 
   // 판정 해제 (자동 판정으로 되돌리기)
   if (formData.get("outcome") === "") {
@@ -249,7 +258,7 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
       .eq("item_id", itemId.data);
     if (error) return { error: "failed" };
     await refreshScores(supabase, scanId.data);
-    revalidateAll();
+    revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
     return { ok: true };
   }
 
@@ -281,7 +290,7 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
   }
   if (error) return { error: "failed" };
   await refreshScores(supabase, parsed.data.scanId);
-  revalidateAll();
+  revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
   return { ok: true };
 }
 
@@ -299,8 +308,8 @@ export async function saveReportMeta(_prev: SaveState, formData: FormData): Prom
 
   const scanId = z.string().uuid().safeParse(formData.get("scanId"));
   if (!scanId.success) return { error: "invalid" };
-  const { data: scan } = await supabase.from("scans").select("id, user_id").eq("id", scanId.data).maybeSingle();
-  if (!scan || scan.user_id !== user.id) return { error: "forbidden" };
+  const scan = await requireScanOwner(supabase, scanId.data, user.id);
+  if (!scan) return { error: "forbidden" };
 
   const parsed = ReportMetaSchema.safeParse({
     siteName: str(formData.get("siteName")),
@@ -315,7 +324,7 @@ export async function saveReportMeta(_prev: SaveState, formData: FormData): Prom
   const admin = createAdminClient();
   const { error } = await admin.from("scans").update({ report_meta: parsed.data }).eq("id", scanId.data);
   if (error) return { error: "failed" };
-  revalidateAll();
+  revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
   return { ok: true };
 }
 
@@ -333,7 +342,7 @@ export async function toggleBlockUser(formData: FormData): Promise<void> {
   const admin = createAdminClient();
   await admin.from("profiles").update({ blocked: !blocked }).eq("id", id.data);
   await logAdminAction(admin, actor.id, blocked ? "user.unblock" : "user.block", id.data);
-  revalidateAll();
+  revalidateLocalized("/admin", "/admin/users");
 }
 
 async function readOverride(admin: SupabaseClient, userId: string): Promise<Record<string, unknown>> {
@@ -368,7 +377,7 @@ export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Pr
     const { error } = await admin.from("extension_usage").delete().eq("user_id", id.data);
     if (error) return { error: "failed" };
     await logAdminAction(admin, actor.id, "user.reset_quota", id.data, { scope: "extension" });
-    revalidateAll();
+    revalidateLocalized("/admin/users", "/dashboard");
     return { ok: true, resetScope: scope.data };
   }
 
@@ -384,7 +393,7 @@ export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Pr
     .eq("id", id.data);
   if (error) return { error: "failed" };
   await logAdminAction(admin, actor.id, "user.reset_quota", id.data, { scope: scope.data });
-  revalidateAll();
+  revalidateLocalized("/admin/users", "/dashboard");
   return { ok: true, resetScope: scope.data };
 }
 
@@ -443,7 +452,7 @@ export async function setUserLimits(formData: FormData): Promise<void> {
         .map((k) => [k, next[k]]),
     ),
   });
-  revalidateAll();
+  revalidateLocalized("/admin/users", "/dashboard");
 }
 
 /** 요금제 시행 시작/중지 — app_settings.plans.active 토글 */
@@ -453,7 +462,7 @@ export async function togglePlansActive(formData: FormData): Promise<void> {
   const admin = createAdminClient();
   await setPlansActive(admin, !active);
   await logAdminAction(admin, actor.id, "plans.toggle", undefined, { active: !active });
-  revalidateAll();
+  revalidateLocalized("/admin", "/admin/settings", "/dashboard");
 }
 
 /** 요금제(그룹) 일괄 배정 — 전체 사용자를 지정 요금제로. 개별 한도 override(횟수·페이지)는 제거 */
@@ -480,7 +489,7 @@ export async function bulkSetPlan(formData: FormData): Promise<void> {
     plan: plan.data,
     count: users?.length ?? 0,
   });
-  revalidateAll();
+  revalidateLocalized("/admin/users");
 }
 
 /** 페이지 한도 일괄 설정 — 전체 사용자의 scan_limit_override.pages를 지정/해제 (다른 키는 보존) */
@@ -511,7 +520,7 @@ export async function bulkSetPages(formData: FormData): Promise<void> {
     pages,
     count: users?.length ?? 0,
   });
-  revalidateAll();
+  revalidateLocalized("/admin/users");
 }
 
 export async function replyInquiry(formData: FormData): Promise<void> {
@@ -525,5 +534,5 @@ export async function replyInquiry(formData: FormData): Promise<void> {
     .update({ admin_reply: reply.data, status: "answered", replied_at: new Date().toISOString() })
     .eq("id", id.data);
   await logAdminAction(admin, actor.id, "inquiry.reply", id.data);
-  revalidateAll();
+  revalidateLocalized("/contact", "/admin/inquiries");
 }

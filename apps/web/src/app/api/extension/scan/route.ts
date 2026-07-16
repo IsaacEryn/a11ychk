@@ -2,8 +2,18 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, type PageScanResult } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireExtensionUser } from "@/lib/apiAuth";
 import { consumeExtUsage, getExtDailyLimit } from "@/lib/quota";
 import { reaggregate } from "@/lib/scan/runScan";
+
+// via 컬럼(migration 0009) 존재 여부 — 모듈 스코프 캐시로 요청당 프로브 쿼리 제거
+let viaColumnCache: boolean | null = null;
+async function hasViaColumn(admin: ReturnType<typeof createAdminClient>): Promise<boolean> {
+  if (viaColumnCache !== null) return viaColumnCache;
+  const { error } = await admin.from("scan_pages").select("via").limit(1);
+  viaColumnCache = !error;
+  return viaColumnCache;
+}
 
 export const maxDuration = 60;
 
@@ -51,17 +61,10 @@ const BodySchema = z.object({
 
 /** 크롬 확장에서 이미 실행한 단일 페이지 검사 결과를 사용자 계정에 저장 */
 export async function POST(request: Request) {
-  // 1) Bearer 토큰(확장이 보낸 Supabase 액세스 토큰) 검증
-  const authz = request.headers.get("authorization") ?? "";
-  const token = authz.startsWith("Bearer ") ? authz.slice(7) : "";
-  if (!token) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-
-  const admin = createAdminClient();
-  const { data: userData, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userData.user) {
-    return NextResponse.json({ error: "세션이 만료되었습니다. 웹에서 다시 연결해 주세요." }, { status: 401 });
-  }
-  const user = userData.user;
+  // 1) 인증 + 계정 상태 (공통 헬퍼)
+  const auth = await requireExtensionUser(request);
+  if (auth instanceof NextResponse) return auth;
+  const { admin, user, profile } = auth;
 
   // 2) 입력 검증
   let body: unknown;
@@ -80,17 +83,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "검사 대상 URL이 올바르지 않습니다." }, { status: 400 });
   }
 
-  // 3) 계정 상태·확장 한도 — 웹 검사 한도와 분리된 확장 전용 한도.
+  // 3) 확장 한도 — 웹 검사 한도와 분리된 확장 전용 한도.
   //    저장이 서버 자원을 소비하는 지점이므로 여기서 원자적으로 소비한다
   //    (클라이언트가 별도 소비 호출을 생략해도 한도를 우회할 수 없음).
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("blocked, scan_limit_override")
-    .eq("id", user.id)
-    .single();
-  if (!profile || profile.blocked) {
-    return NextResponse.json({ error: "검사를 실행할 수 없는 계정입니다." }, { status: 403 });
-  }
   const extLimit = getExtDailyLimit(profile.scan_limit_override);
   const usage = await consumeExtUsage(admin, user.id, extLimit);
   if (usage.error) {
@@ -106,8 +101,7 @@ export async function POST(request: Request) {
   const nowIso = new Date().toISOString();
 
   // via 컬럼(migration 0009) 미적용 환경에서도 저장이 깨지지 않도록 조건부 사용
-  const { error: viaProbe } = await admin.from("scan_pages").select("via").limit(1);
-  const viaField = viaProbe ? {} : { via: "extension" };
+  const viaField = (await hasViaColumn(admin)) ? { via: "extension" } : {};
 
   const findingRowsFor = (pageRowId: string) =>
     page.violations.flatMap((v) =>
@@ -262,15 +256,9 @@ export async function POST(request: Request) {
 
 /** 저장 위치 선택용 — 로그인 사용자의 최근 보고서 목록(같은 호스트 우선) */
 export async function GET(request: Request) {
-  const authz = request.headers.get("authorization") ?? "";
-  const token = authz.startsWith("Bearer ") ? authz.slice(7) : "";
-  if (!token) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
-
-  const admin = createAdminClient();
-  const { data: userData, error: userErr } = await admin.auth.getUser(token);
-  if (userErr || !userData.user) {
-    return NextResponse.json({ error: "세션이 만료되었습니다." }, { status: 401 });
-  }
+  const auth = await requireExtensionUser(request);
+  if (auth instanceof NextResponse) return auth;
+  const { admin, user } = auth;
 
   // 현재 페이지 호스트(있으면) — 같은 사이트 보고서를 상단에 노출하기 위해 전달
   const host = new URL(request.url).searchParams.get("host") ?? "";
@@ -278,7 +266,7 @@ export async function GET(request: Request) {
   const { data: scans } = await admin
     .from("scans")
     .select("id, root_url, created_at, scan_pages(count)")
-    .eq("user_id", userData.user.id)
+    .eq("user_id", user.id)
     .eq("status", "done")
     .order("created_at", { ascending: false })
     .limit(30);

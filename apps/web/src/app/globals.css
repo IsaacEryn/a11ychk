@@ -14,6 +14,7 @@
   --color-seal-deep: #084a43;
   --color-seal-tint: #e3efe9;
   --color-mark: #f5d76e; /* 형광펜 — 어두운 텍스트 전용 배경 */
+  --color-ink-on-mark: #1c2422; /* mark 배경 위 텍스트 (대비 9.9:1) */
   --color-crit: #a4243b; /* paper 대비 6.9:1 */
   --color-crit-tint: #f8e8e8;
   --color-warn-tint: #f7efd8;
@@ -41,6 +42,7 @@
     --color-seal-deep: #7ad4c4;
     --color-seal-tint: #1b332e;
     --color-mark: #a98a1f;
+    --color-ink-on-mark: #14201d; /* 다크 mark(#a98a1f) 위 최대 대비 */
     --color-crit: #f0899b;
     --color-crit-tint: #3a2027;
     --color-warn-tint: #33301c;
@@ -61,6 +63,7 @@
   --color-seal-deep: #084a43;
   --color-seal-tint: #e3efe9;
   --color-mark: #f5d76e;
+  --color-ink-on-mark: #1c2422;
   --color-crit: #a4243b;
   --color-crit-tint: #f8e8e8;
   --color-warn-tint: #f7efd8;
@@ -80,6 +83,7 @@
   --color-seal-deep: #7ad4c4;
   --color-seal-tint: #1b332e;
   --color-mark: #a98a1f;
+  --color-ink-on-mark: #14201d;
   --color-crit: #f0899b;
   --color-crit-tint: #3a2027;
   --color-warn-tint: #33301c;
@@ -100,6 +104,7 @@
   --color-seal-deep: #8affee;
   --color-seal-tint: #06201c;
   --color-mark: #ffe600; /* 형광펜 (그 위 텍스트는 검정) */
+  --color-ink-on-mark: #000000;
   --color-crit: #ff9aa9; /* 밝은 경고색 */
   --color-crit-tint: #2a0d12;
   --color-warn-tint: #2a2600;
