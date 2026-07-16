@@ -70,11 +70,15 @@
 html,
 body {
   width: 100%;
+  height: 100%;
   margin: 0;
-  overflow-x: hidden;
 }
 body {
   min-width: 0;
+  /* 헤더·탭바는 고정, #main만 스크롤되도록 세로 플렉스 컬럼 구성 */
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   font-family: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
   background: var(--paper);
   color: var(--ink);
@@ -87,6 +91,7 @@ body {
   border-radius: 2px;
 }
 .hd {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   gap: 8px;
@@ -119,6 +124,9 @@ body {
   color: var(--seal);
 }
 #main {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 14px;
 }
 .target {
@@ -305,6 +313,7 @@ h2 {
   accent-color: var(--seal);
 }
 .ft {
+  flex: 0 0 auto;
   display: flex;
   justify-content: space-between;
   padding: 10px 14px;
@@ -611,11 +620,10 @@ h2 {
   content: "✓ ";
 }
 
-/* ─── 상단 탭 바 ─── */
+/* ─── 상단 탭 바 (항상 고정) ─── */
 .tabbar {
+  flex: 0 0 auto;
   display: flex;
-  position: sticky;
-  top: 0;
   z-index: 5;
   background: var(--paper);
   border-bottom: 1.5px solid var(--ink);
