@@ -4,7 +4,17 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { QUOTA_WINDOWS, checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 
-export type CreateScanResult = { ok: true; id: string } | { ok: false; status: number; error: string };
+export type CreateScanResult =
+  | { ok: true; id: string }
+  | {
+      ok: false;
+      status: number;
+      /** 사용자 노출용 한국어 폴백 (구버전 클라이언트 호환) */
+      error: string;
+      /** i18n 코드 — 클라이언트가 로케일에 맞게 번역 */
+      code: string;
+      params?: Record<string, string | number>;
+    };
 
 interface CreateScanOptions {
   /** true면 직접 입력 표본이 한도를 초과할 때 잘라내지 않고 오류를 반환 (신규 검사) */
@@ -31,7 +41,7 @@ export async function createScanForUser(
     .eq("id", userId)
     .single();
   if (!profile || profile.blocked) {
-    return { ok: false, status: 403, error: "검사를 실행할 수 없는 계정입니다." };
+    return { ok: false, status: 403, error: "검사를 실행할 수 없는 계정입니다.", code: "blocked" };
   }
 
   const plansActive = await getPlansActive(admin);
@@ -47,6 +57,8 @@ export async function createScanForUser(
       ok: false,
       status: 429,
       error: `${windowLabel} 검사 한도(${quota.limits[quota.exceeded!]}회)를 모두 사용했습니다.`,
+      code: `quota_${quota.exceeded!}`,
+      params: { limit: quota.limits[quota.exceeded!] },
     };
   }
 
@@ -58,7 +70,7 @@ export async function createScanForUser(
     .eq("user_id", userId)
     .in("status", ["queued", "running"]);
   if ((runningCount ?? 0) > 0) {
-    return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요." };
+    return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요.", code: "concurrent" };
   }
 
   // 도메인 연결 + 요금제·소유확인 기반 표본 크기
@@ -84,6 +96,8 @@ export async function createScanForUser(
       ok: false,
       status: 400,
       error: `직접 입력한 페이지가 ${scope.manualPages.length}개인데, 이 도메인의 검사 한도는 ${pageLimit}페이지입니다.${verifyHint}`,
+      code: domain?.verified ? "manualOverLimit" : "manualOverLimitVerify",
+      params: { count: scope.manualPages.length, limit: pageLimit },
     };
   }
 
@@ -107,9 +121,9 @@ export async function createScanForUser(
   if (insertError || !scan) {
     // 23505 = 유니크 위반 — 동시 요청이 사전 검사를 함께 통과한 경우(TOCTOU)
     if (insertError?.code === "23505") {
-      return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요." };
+      return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요.", code: "concurrent" };
     }
-    return { ok: false, status: 500, error: "검사 생성에 실패했습니다." };
+    return { ok: false, status: 500, error: "검사 생성에 실패했습니다.", code: "createFailed" };
   }
 
   // 한도 이중 검증 — 동시 삽입으로 한도를 넘었으면 이번 행을 회수 (TOCTOU 보정).
@@ -128,6 +142,8 @@ export async function createScanForUser(
         ok: false,
         status: 429,
         error: `${windowLabel} 검사 한도(${recheck.limits[key]}회)를 모두 사용했습니다.`,
+        code: `quota_${key}`,
+        params: { limit: recheck.limits[key] },
       };
     }
   }

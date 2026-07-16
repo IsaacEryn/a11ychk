@@ -79,6 +79,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
             manualOverLimit: t.raw("manualOverLimit"),
             manualVerifyHint: t.raw("manualVerifyHint"),
             manualHostMismatch: t.raw("manualHostMismatch"),
+            errors: t.raw("apiErrors") as Record<string, string>,
           }}
         />
         <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{tDash("scanForm.hint")}</p>

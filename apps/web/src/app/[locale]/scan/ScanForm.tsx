@@ -25,6 +25,8 @@ export interface ScanFormLabels {
   manualOverLimit: string; // "{max}"
   manualVerifyHint: string; // "{verified}"
   manualHostMismatch: string; // "{host}"
+  /** 서버 에러 코드 → 번역 템플릿 ({limit} {count} {url} 플레이스홀더) */
+  errors: Record<string, string>;
 }
 
 /** 메시지 템플릿의 {key} 플레이스홀더를 모두 치환 (replace는 첫 항목만 바꿔 버그가 됐었음) */
@@ -102,15 +104,22 @@ export function ScanForm({
           scope: { conformanceTarget: target, notes: notes.trim() || undefined },
         }),
       });
-      const data = (await res.json()) as { id?: string; error?: string };
+      const data = (await res.json()) as {
+        id?: string;
+        error?: string;
+        code?: string;
+        params?: Record<string, string | number>;
+      };
       if (!res.ok || !data.id) {
-        setError(data.error ?? "요청에 실패했습니다.");
+        // 코드가 있으면 로케일 번역 템플릿 사용, 없으면 서버 문자열 폴백
+        const template = data.code ? labels.errors[data.code] : undefined;
+        setError(template ? fill(template, data.params ?? {}) : (data.error ?? labels.errors.generic));
         setSubmitting(false);
         return;
       }
       router.push(`/scans/${data.id}`);
     } catch {
-      setError("네트워크 오류가 발생했습니다.");
+      setError(labels.errors.network);
       setSubmitting(false);
     }
   }

@@ -46,7 +46,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ id: st
 
   const result = await createScanForUser(user.id, url, scope);
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json({ error: result.error, code: result.code, params: result.params }, { status: result.status });
   }
 
   after(() => runScan(result.id));

@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    return NextResponse.json({ error: "로그인이 필요합니다.", code: "loginRequired" }, { status: 401 });
   }
 
   // 2) 입력 검증
@@ -47,11 +47,11 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청 형식입니다." }, { status: 400 });
+    return NextResponse.json({ error: "잘못된 요청 형식입니다.", code: "invalidInput" }, { status: 400 });
   }
   const parsed = CreateScanSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "검사할 URL을 입력해 주세요." }, { status: 400 });
+    return NextResponse.json({ error: "검사할 URL을 입력해 주세요.", code: "invalidInput" }, { status: 400 });
   }
 
   // 3) SSRF 가드 (형식 + DNS 검증)
@@ -60,7 +60,9 @@ export async function POST(request: Request) {
     url = await assertPublicHttpUrl(parsed.data.url);
   } catch (e) {
     const message = e instanceof UrlGuardError ? e.message : "URL을 확인할 수 없습니다.";
-    return NextResponse.json({ error: message }, { status: 400 });
+    // UrlGuardError.code → i18n 코드 (invalid-url → url_invalid_url)
+    const code = e instanceof UrlGuardError ? `url_${e.code.replaceAll("-", "_")}` : "urlUnknown";
+    return NextResponse.json({ error: message, code }, { status: 400 });
   }
 
   // 4) 점검자 직접 입력 표본 검증: 정규화 → 같은 origin만 → 중복 제거
@@ -71,7 +73,11 @@ export async function POST(request: Request) {
       const normalized = normalizeUrl(raw);
       if (!normalized || !isSameOrigin(normalized, url.origin)) {
         return NextResponse.json(
-          { error: `검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: ${raw}` },
+          {
+            error: `검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: ${raw}`,
+            code: "pageOtherDomain",
+            params: { url: raw },
+          },
           { status: 400 },
         );
       }
@@ -79,7 +85,7 @@ export async function POST(request: Request) {
     }
     manualPages = [...seen];
     if (manualPages.length === 0) {
-      return NextResponse.json({ error: "검사할 페이지를 1개 이상 입력해 주세요." }, { status: 400 });
+      return NextResponse.json({ error: "검사할 페이지를 1개 이상 입력해 주세요.", code: "pagesEmpty" }, { status: 400 });
     }
   }
 
@@ -97,7 +103,7 @@ export async function POST(request: Request) {
 
   const result = await createScanForUser(user.id, url, scope, { strictManualLimit: true });
   if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
+    return NextResponse.json({ error: result.error, code: result.code, params: result.params }, { status: result.status });
   }
 
   // 6) 응답 반환 후 백그라운드에서 스캔 실행

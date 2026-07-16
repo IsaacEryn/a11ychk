@@ -134,7 +134,29 @@
     "accessCheckLink": "Does the site block bots? Check auditability →",
     "manualOverLimit": "You entered more pages than this domain's limit ({max}). Please reduce to {max} or fewer.",
     "manualVerifyHint": "Verifying domain ownership raises the limit to {verified} pages.",
-    "manualHostMismatch": "These pages are on a different host than the audit URL ({host}) and cannot be scanned. Remove or fix these lines."
+    "manualHostMismatch": "These pages are on a different host than the audit URL ({host}) and cannot be scanned. Remove or fix these lines.",
+    "apiErrors": {
+      "blocked": "This account cannot run scans.",
+      "quota_daily": "You have used all of your daily scan quota ({limit}).",
+      "quota_weekly": "You have used all of your weekly scan quota ({limit}).",
+      "quota_monthly": "You have used all of your monthly scan quota ({limit}).",
+      "concurrent": "A scan is already in progress. Please try again after it finishes.",
+      "manualOverLimit": "You entered {count} pages, but this domain's limit is {limit} pages.",
+      "manualOverLimitVerify": "You entered {count} pages, but this domain's limit is {limit} pages. Verify domain ownership to scan more pages.",
+      "createFailed": "Failed to create the scan. Please try again shortly.",
+      "loginRequired": "Please sign in.",
+      "invalidInput": "Please check the URL to scan.",
+      "url_invalid_url": "That doesn't look like a valid URL.",
+      "url_bad_scheme": "Only http/https addresses can be scanned.",
+      "url_private_address": "Private/internal network addresses cannot be scanned.",
+      "url_resolve_failed": "Host not found. Please check the address.",
+      "url_fetch_failed": "Could not reach the target. Please try again shortly.",
+      "urlUnknown": "Could not verify the URL.",
+      "pageOtherDomain": "A page is on a different domain or invalid: {url}",
+      "pagesEmpty": "Please enter at least one page to scan.",
+      "network": "A network error occurred.",
+      "generic": "The request failed."
+    }
   },
   "accessCheck": {
     "title": "Bot-block checker",

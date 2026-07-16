@@ -134,7 +134,29 @@
     "accessCheckLink": "사이트가 봇을 차단하나요? 검사 가능 여부 진단 →",
     "manualOverLimit": "입력한 페이지가 이 도메인의 검사 한도({max}페이지)를 초과했습니다. {max}페이지 이하로 줄여 주세요.",
     "manualVerifyHint": "도메인 소유를 확인하면 최대 {verified}페이지까지 가능합니다.",
-    "manualHostMismatch": "다음 페이지는 검사 주소의 도메인({host})과 달라 검사할 수 없습니다. 해당 줄을 삭제하거나 수정해 주세요."
+    "manualHostMismatch": "다음 페이지는 검사 주소의 도메인({host})과 달라 검사할 수 없습니다. 해당 줄을 삭제하거나 수정해 주세요.",
+    "apiErrors": {
+      "blocked": "검사를 실행할 수 없는 계정입니다.",
+      "quota_daily": "일간 검사 한도({limit}회)를 모두 사용했습니다.",
+      "quota_weekly": "주간 검사 한도({limit}회)를 모두 사용했습니다.",
+      "quota_monthly": "월간 검사 한도({limit}회)를 모두 사용했습니다.",
+      "concurrent": "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요.",
+      "manualOverLimit": "직접 입력한 페이지가 {count}개인데, 이 도메인의 검사 한도는 {limit}페이지입니다.",
+      "manualOverLimitVerify": "직접 입력한 페이지가 {count}개인데, 이 도메인의 검사 한도는 {limit}페이지입니다. 도메인 소유를 확인하면 더 많은 페이지를 검사할 수 있습니다.",
+      "createFailed": "검사 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      "loginRequired": "로그인이 필요합니다.",
+      "invalidInput": "검사할 URL을 확인해 주세요.",
+      "url_invalid_url": "올바른 URL 형식이 아닙니다.",
+      "url_bad_scheme": "http/https 주소만 검사할 수 있습니다.",
+      "url_private_address": "사설/내부 네트워크 주소는 검사할 수 없습니다.",
+      "url_resolve_failed": "호스트를 찾을 수 없습니다. 주소를 확인해 주세요.",
+      "url_fetch_failed": "대상에 접속할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      "urlUnknown": "URL을 확인할 수 없습니다.",
+      "pageOtherDomain": "검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: {url}",
+      "pagesEmpty": "검사할 페이지를 1개 이상 입력해 주세요.",
+      "network": "네트워크 오류가 발생했습니다.",
+      "generic": "요청에 실패했습니다."
+    }
   },
   "accessCheck": {
     "title": "봇 차단 검증",
