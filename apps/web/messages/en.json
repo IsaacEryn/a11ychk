@@ -258,7 +258,9 @@
       "autoScanEnable": "Enable scheduled audit",
       "autoScanDisable": "Disable scheduled audit",
       "trendTitle": "Compliance trend",
-      "trendLabel": "Compliance trend for {host}"
+      "trendLabel": "Compliance trend for {host}",
+      "notifyDisable": "Turn off alerts",
+      "notifyEnable": "Turn on alerts"
     },
     "recent": {
       "title": "Recent audits",

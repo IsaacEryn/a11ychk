@@ -258,7 +258,9 @@
       "autoScanEnable": "정기 검사 켜기",
       "autoScanDisable": "정기 검사 끄기",
       "trendTitle": "준수율 추이",
-      "trendLabel": "{host} 준수율 추이"
+      "trendLabel": "{host} 준수율 추이",
+      "notifyDisable": "알림 끄기",
+      "notifyEnable": "알림 켜기"
     },
     "recent": {
       "title": "최근 검사",

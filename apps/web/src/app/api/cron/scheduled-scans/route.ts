@@ -1,9 +1,11 @@
 import { NextResponse } from "next/server";
 import { assertPublicHttpUrl } from "@a11ychk/core";
+import { getRuleEntry, type ScanSummary } from "@a11ychk/core/catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { runScan } from "@/lib/scan/runScan";
+import { sendScanAlert } from "@/lib/notify";
 
 export const maxDuration = 300;
 
@@ -28,9 +30,10 @@ export async function GET(request: Request) {
   const plansActive = await getPlansActive(admin);
   const cutoff = new Date(Date.now() - MIN_INTERVAL_HOURS * 3600_000).toISOString();
 
+  // select * — notify 컬럼(0013) 미적용 환경에서도 조회가 깨지지 않게
   const { data: domains } = await admin
     .from("domains")
-    .select("id, user_id, hostname, verified, last_auto_scan_at")
+    .select("*")
     .eq("auto_scan", true)
     .or(`last_auto_scan_at.is.null,last_auto_scan_at.lt.${cutoff}`)
     .order("last_auto_scan_at", { ascending: true, nullsFirst: true })
@@ -90,7 +93,63 @@ export async function GET(request: Request) {
     // 순차 실행 (배치가 작아 함수 시간 내 처리)
     await runScan(scan.id);
     results.push({ hostname: d.hostname, status: "scanned" });
+
+    // 회귀 알림 — 직전 완료 검사 대비 준수율 하락 또는 새 위반 발견 시 (best-effort)
+    if (d.notify !== false) {
+      try {
+        await maybeSendAlert(admin, scan.id, d.user_id as string, d.hostname as string, rootUrl);
+      } catch {
+        // 알림 실패는 스캔 성공에 영향 없음
+      }
+    }
   }
 
   return NextResponse.json({ processed: results.length, results });
+}
+
+/** 새 검사가 직전 검사보다 나빠졌으면 소유자에게 이메일 알림 */
+async function maybeSendAlert(
+  admin: ReturnType<typeof createAdminClient>,
+  scanId: string,
+  userId: string,
+  hostname: string,
+  rootUrl: string,
+): Promise<void> {
+  const { data: cur } = await admin.from("scans").select("status, summary, created_at").eq("id", scanId).single();
+  const curSummary = (cur?.summary ?? null) as ScanSummary | null;
+  if (cur?.status !== "done" || !curSummary) return;
+
+  const { data: prev } = await admin
+    .from("scans")
+    .select("summary")
+    .eq("user_id", userId)
+    .eq("root_url", rootUrl)
+    .eq("status", "done")
+    .lt("created_at", cur.created_at)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const prevSummary = (prev?.summary ?? null) as ScanSummary | null;
+  if (!prevSummary) return; // 첫 검사 — 비교 대상 없음
+
+  const rateOf = (s: ScanSummary) => s.scores?.combined.rate ?? s.complianceRate;
+  const prevRate = rateOf(prevSummary);
+  const newRate = rateOf(curSummary);
+  const newRuleIds = Object.keys(curSummary.byRule ?? {}).filter((r) => !(prevSummary.byRule ?? {})[r]);
+  const regressed = newRate < prevRate - 0.5 || newRuleIds.length > 0;
+  if (!regressed) return;
+
+  const { data: userData } = await admin.auth.admin.getUserById(userId);
+  const email = userData?.user?.email;
+  if (!email) return;
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
+  await sendScanAlert({
+    to: email,
+    hostname,
+    prevRate,
+    newRate,
+    newRules: newRuleIds.map((r) => getRuleEntry(r, []).title.ko),
+    reportUrl: `${siteUrl}/ko/scans/${scanId}/report`,
+  });
 }

@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
-import { addDomain, deleteDomain, toggleAutoScan, verifyDomain } from "@/lib/actions";
+import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, verifyDomain } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
 
@@ -181,6 +181,19 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         {d.auto_scan ? t("domains.autoScanDisable") : t("domains.autoScanEnable")}
                       </button>
                     </form>
+                    {d.auto_scan && (
+                      <form action={toggleNotify}>
+                        <input type="hidden" name="id" value={d.id} />
+                        <input type="hidden" name="enabled" value={String(d.notify !== false)} />
+                        <button
+                          type="submit"
+                          aria-pressed={d.notify !== false}
+                          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                        >
+                          {d.notify !== false ? t("domains.notifyDisable") : t("domains.notifyEnable")}
+                        </button>
+                      </form>
+                    )}
                     {!d.verified && (
                       <form action={verifyDomain}>
                         <input type="hidden" name="id" value={d.id} />

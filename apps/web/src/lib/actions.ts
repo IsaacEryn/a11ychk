@@ -90,6 +90,16 @@ export async function toggleAutoScan(formData: FormData): Promise<void> {
   revalidateLocalized("/dashboard");
 }
 
+/** 정기 스캔 회귀 알림 이메일 켜기/끄기 (domains.notify — migration 0013) */
+export async function toggleNotify(formData: FormData): Promise<void> {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  const enabled = formData.get("enabled") === "true";
+  if (!id.success) return;
+  await supabase.from("domains").update({ notify: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  revalidateLocalized("/dashboard");
+}
+
 /** DNS TXT(_a11ychk.호스트) 또는 홈페이지 메타태그로 소유 확인 */
 export async function verifyDomain(formData: FormData): Promise<void> {
   const { supabase, user } = await requireUser();
