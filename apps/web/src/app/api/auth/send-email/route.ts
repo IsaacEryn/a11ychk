@@ -189,6 +189,6 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
 
-  // 성공 시 200 + 빈 본문 (Supabase가 자체 발송을 건너뜀)
-  return new NextResponse(null, { status: 200 });
+  // 성공 시 200 + JSON 본문 (Supabase 훅은 application/json 응답을 요구 — 빈 본문/헤더 누락 시 거부)
+  return NextResponse.json({}, { status: 200 });
 }
