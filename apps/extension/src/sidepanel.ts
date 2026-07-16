@@ -12,6 +12,7 @@ import {
 import {
   applySimulationInPage,
   clearOverlayInPage,
+  configureAxeLocaleInPage,
   collectPageSignals,
   highlightInPage,
   linearizeInPage,
@@ -23,6 +24,8 @@ import {
 } from "./injected";
 import { wireTabs, wireTheme } from "./ui";
 import { isEnglish, localizeHtml, msg, pick } from "./i18n";
+// axe 공식 한국어 로케일 — UI가 한국어일 때 진단 메시지를 한국어로
+import axeKoLocale from "axe-core/locales/ko.json";
 
 // 빌드 시 esbuild define으로 치환됨
 declare const process: { env: { A11YCHK_SITE_ORIGIN: string; A11YCHK_AXE_VERSION: string } };
@@ -197,6 +200,14 @@ async function scan() {
       world: "MAIN",
       files: ["vendor/axe.min.js"],
     });
+    if (!isEnglish()) {
+      await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: "MAIN",
+        args: [axeKoLocale],
+        func: configureAxeLocaleInPage,
+      });
+    }
     // 2) axe 실행
     const results = await chrome.scripting.executeScript({
       target: { tabId: tab.id },

@@ -3,6 +3,7 @@
  * 브라우저 실행(launch)은 환경마다 다르므로 이 모듈은 Playwright Page를 받아
  * axe를 주입·실행하고, 정규화는 공유 모듈(normalize)에 위임한다.
  */
+import { createRequire } from "node:module";
 import type { Frame, Page } from "playwright-core";
 import axe from "axe-core";
 import type { PageScanResult } from "../types";
@@ -17,11 +18,19 @@ const AXE_OPTIONS = JSON.stringify({
   resultTypes: ["violations", "passes", "incomplete"],
 });
 
+// axe 공식 한국어 로케일 — failureSummary·진단 메시지를 한국어로 저장한다.
+// 서비스가 한국어 우선이므로 서버 스캔은 ko 고정 (JSON은 런타임 require —
+// serverExternalPackages(axe-core) 환경에서 번들 JSON import보다 안전).
+const requireModule = createRequire(import.meta.url);
+const AXE_KO_LOCALE = JSON.stringify(requireModule("axe-core/locales/ko.json"));
+
 /** 한 프레임에 axe를 주입·실행. cross-origin·detached 프레임은 null 반환 */
 async function runAxeInFrame(frame: Frame): Promise<AxeRunResults | null> {
   try {
     await frame.evaluate(axe.source);
     // 문자열 평가 — 번들러 변환에 영향받지 않음 (프로덕션 minify ReferenceError 회피)
+    // 로케일 적용 실패는 무시하고 영어 원문으로 진행 (best-effort)
+    await frame.evaluate(`try { window.axe.configure({ locale: ${AXE_KO_LOCALE} }) } catch (e) {}`);
     return (await frame.evaluate(`window.axe.run(document, ${AXE_OPTIONS})`)) as AxeRunResults;
   } catch {
     return null; // cross-origin frame(접근 불가) 또는 실행 중 detach — 건너뜀

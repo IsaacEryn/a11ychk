@@ -485,7 +485,7 @@
       "selectorLabel": "선택자",
       "axeHelp": "axe-core 규칙 문서",
       "affectedPages": "영향받은 페이지 {count}곳",
-      "diagLabel": "자동 진단(axe, 영문)"
+      "diagLabel": "자동 진단(axe)"
     },
     "manual": {
       "title": "수동 검사 필요 항목",

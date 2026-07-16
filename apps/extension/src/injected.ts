@@ -6,6 +6,16 @@
  */
 import type { AxeRunResults, PageCheckSignals } from "@a11ychk/core/catalog";
 
+/** axe 로케일 설정 (MAIN world) — 실패해도 검사는 영어로 진행 */
+export function configureAxeLocaleInPage(locale: unknown): void {
+  try {
+    // @ts-expect-error axe는 vendor 스크립트로 주입됨
+    window.axe.configure({ locale });
+  } catch {
+    /* 로케일 불일치 등 — 무시 */
+  }
+}
+
 export function runAxeInPage(tags: string[]): Promise<AxeRunResults> {
   // @ts-expect-error axe는 vendor 스크립트로 주입됨
   return window.axe.run(document, {
