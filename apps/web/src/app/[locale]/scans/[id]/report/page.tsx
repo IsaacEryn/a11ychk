@@ -20,6 +20,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { classifyScanError } from "@/lib/scanError";
 import { verifyReportToken } from "@/lib/reportToken";
+import { fetchAllRows } from "@/lib/scan/fetchAll";
 import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
 import { ReviewCell, type ReviewValue } from "./ReviewCell";
@@ -109,14 +110,16 @@ export default async function ReportPage({
     target.set(r.item_id, { outcome: r.outcome, note: r.note, pages });
   }
 
-  const [{ data: pages }, { data: findings }] = await Promise.all([
-    db.from("scan_pages").select("*").eq("scan_id", id).order("url"),
+  const { data: pages } = await db.from("scan_pages").select("*").eq("scan_id", id).order("url");
+  // 이미 로드한 pages의 id 재사용 + 페이지네이션 전량 조회 (절단 방지)
+  const findings = await fetchAllRows((from, to) =>
     db
       .from("findings")
       .select("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)")
-      .in("scan_page_id", (await db.from("scan_pages").select("id").eq("scan_id", id)).data?.map((p) => p.id) ?? [])
-      .limit(2000),
-  ]);
+      .in("scan_page_id", (pages ?? []).map((p) => p.id))
+      .order("id")
+      .range(from, to),
+  );
 
   // 규칙별 그룹화
   const byRule = new Map<string, FindingRow[]>();

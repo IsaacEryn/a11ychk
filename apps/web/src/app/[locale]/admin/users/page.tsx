@@ -1,5 +1,6 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getPlansActive } from "@/lib/appSettings";
 import { setUserLimits, toggleBlockUser } from "@/lib/actions";
 import {
   EXT_DAILY_DEFAULT,
@@ -37,6 +38,8 @@ export default async function AdminUsersPage({
   const format = await getFormatter();
 
   const admin = createAdminClient();
+  // 요금제 시행 여부에 따라 유효 한도가 달라진다 — 실제 적용값을 표시
+  const plansActive = await getPlansActive(admin);
   let query = admin
     .from("profiles")
     .select("id, nickname, role, blocked, created_at, scan_limit_override")
@@ -77,7 +80,7 @@ export default async function AdminUsersPage({
       <ul className="mt-5 space-y-4">
         {(allUsers ?? []).map((u) => {
           const plan = getPlan(u.scan_limit_override);
-          const limits = resolveLimits(u.scan_limit_override);
+          const limits = resolveLimits(u.scan_limit_override, plansActive);
           return (
             <li key={u.id} className="doc-card p-5">
               <div className="flex flex-wrap items-center gap-2">

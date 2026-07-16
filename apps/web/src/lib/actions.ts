@@ -112,11 +112,16 @@ export async function verifyDomain(formData: FormData): Promise<void> {
       const res = await guardedFetch(`https://${domain.hostname}/`);
       if (res.ok) {
         const html = (await res.text()).slice(0, 500_000);
-        const re = new RegExp(
-          `<meta[^>]+name=["']a11ychk-verify["'][^>]+content=["']${domain.verify_token}["']|<meta[^>]+content=["']${domain.verify_token}["'][^>]+name=["']a11ychk-verify["']`,
-          "i",
-        );
-        if (re.test(html)) method = "meta_tag";
+        // 토큰을 RegExp에 보간하지 않는다(정규식 주입·ReDoS 방지) —
+        // 메타태그 패턴만 정규식으로 찾고 토큰은 문자열 비교로 확인
+        const metaRe = /<meta\b[^>]*>/gi;
+        for (const m of html.match(metaRe) ?? []) {
+          const tag = m.toLowerCase();
+          if (tag.includes("a11ychk-verify") && m.includes(domain.verify_token)) {
+            method = "meta_tag";
+            break;
+          }
+        }
       }
     } catch {
       // 접속 실패 — 미확인 유지
@@ -211,7 +216,15 @@ async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<
   }
 
   const scores = computeScores(summary.wcagMatrix as WcagMatrixRow[], wcagReviews);
-  await supabase.from("scans").update({ summary: { ...summary, scores } }).eq("id", scanId);
+  // scores 키만 원자 갱신(jsonb_set RPC — migration 0011) — 동시 재집계와의
+  // read-merge-write 덮어쓰기 방지. RPC 미적용 시 기존 전체 갱신으로 폴백.
+  const { error: rpcErr } = await supabase.rpc("update_scan_summary_scores", {
+    p_scan_id: scanId,
+    p_scores: scores,
+  });
+  if (rpcErr) {
+    await supabase.from("scans").update({ summary: { ...summary, scores } }).eq("id", scanId);
+  }
 }
 
 export async function saveReview(_prev: SaveState, formData: FormData): Promise<SaveState> {

@@ -916,8 +916,28 @@ const VERDICTS: { value: Verdict; label: string }[] = [
   { value: "cannotTell", label: "보류" },
 ];
 
+/**
+ * 판정 저장 키용 URL 정규화 — 해시·쿼리 순서 변형·기본 포트·트레일링 슬래시로
+ * 같은 페이지의 판정이 갈라지는 것을 방지한다.
+ */
+function normalizeReviewUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    u.hash = "";
+    if ((u.protocol === "http:" && u.port === "80") || (u.protocol === "https:" && u.port === "443")) u.port = "";
+    u.searchParams.sort();
+    let s = u.toString();
+    if (u.pathname === "/" && !u.search && s.endsWith("/")) s = s.slice(0, -1);
+    return s;
+  } catch {
+    return raw;
+  }
+}
+
+const reviewKey = (url: string) => `review:${normalizeReviewUrl(url)}`;
+
 async function getReviewState(url: string): Promise<ReviewMap> {
-  const key = `review:${url}`;
+  const key = reviewKey(url);
   const stored = await chrome.storage.local.get(key);
   return (stored[key] as ReviewMap | undefined) ?? {};
 }
@@ -926,7 +946,7 @@ async function setReview(url: string, itemId: string, patch: Partial<ReviewEntry
   const cur = await getReviewState(url);
   const prev = cur[itemId] ?? { outcome: "cannotTell", note: "" };
   cur[itemId] = { ...prev, ...patch };
-  await chrome.storage.local.set({ [`review:${url}`]: cur });
+  await chrome.storage.local.set({ [reviewKey(url)]: cur });
 }
 
 /** WCAG 성공기준 → 관련 요소 선택자·라벨 (수동 항목 맞춤 강조용) */
@@ -997,7 +1017,7 @@ async function renderManual(url: string) {
         else {
           const cur = await getReviewState(url);
           delete cur[item.id];
-          await chrome.storage.local.set({ [`review:${url}`]: cur });
+          await chrome.storage.local.set({ [reviewKey(url)]: cur });
         }
         group.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
         if (next) btn.setAttribute("aria-pressed", "true");
@@ -1365,7 +1385,25 @@ async function init() {
 async function refreshActiveTab() {
   const tab = await getActiveTab();
   const url = tab?.url ?? "";
+  const prevTabId = currentTabId;
   currentTabId = tab?.id ?? null;
+
+  // 탭이 바뀌었거나 다른 페이지로 이동 → 이전 탭의 결과·오버레이 상태는 무효
+  const pageChanged = prevTabId !== currentTabId || (lastPage !== null && lastPage.url !== url);
+  if (pageChanged && lastPage) {
+    lastPage = null;
+    $("result").hidden = true; // 결과 섹션(점수·위반 목록)은 lastPage 기준이므로 숨김
+  }
+  if (pageChanged) {
+    // 오버레이는 이전 페이지에만 존재 — 패널 측 토글 상태를 리셋해 불일치 방지
+    currentView = "none";
+    currentSim = "none";
+    linearizeOn = false;
+    activeHighlightBtn?.setAttribute("aria-pressed", "false");
+    activeHighlightBtn = null;
+    syncToolButtons();
+  }
+
   const scannable = /^https?:/.test(url);
   $("target").textContent = scannable ? url : url ? "이 페이지는 검사할 수 없습니다 (브라우저 내부 페이지)." : "탭 정보를 읽을 수 없습니다.";
   $<HTMLButtonElement>("scan").disabled = !scannable;

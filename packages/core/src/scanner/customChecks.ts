@@ -155,6 +155,7 @@ export async function runCustomChecks(page: Page): Promise<CustomResult> {
   const { violations, passes, incomplete } = customFindingsFromSignals(base);
 
   // 1.4.10 리플로우 — 320px 폭에서 가로 스크롤 발생 여부 (뷰포트 변경 필요 — 서버 전용)
+  const originalViewport = page.viewportSize();
   try {
     await page.setViewportSize({ width: 320, height: 800 });
     const overflow = (await page.evaluate(
@@ -175,6 +176,11 @@ export async function runCustomChecks(page: Page): Promise<CustomResult> {
     }
   } catch {
     // 뷰포트 변경/평가 실패 — 리플로우 검사 생략
+  } finally {
+    // 이후 단계(시그니처 추출·페이지 재사용)가 320px에서 실행되지 않도록 복원
+    if (originalViewport) {
+      await page.setViewportSize(originalViewport).catch(() => {});
+    }
   }
 
   return { violations, passes, incomplete };

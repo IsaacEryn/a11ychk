@@ -27,6 +27,7 @@ import {
   type WcagOutcome,
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { fetchAllRows } from "@/lib/scan/fetchAll";
 
 const PAGE_LOAD_TIMEOUT_MS = 20_000;
 
@@ -328,11 +329,15 @@ async function reconstructResults(
     if (s.signature) sigById.set(s.id as string, s.signature as PageSignature);
   }
 
-  const { data: findings } = await db
-    .from("findings")
-    .select("scan_page_id, rule_id, impact, tags, help_url, selector, html_snippet, failure_summary")
-    .in("scan_page_id", donePages.map((p) => p.id))
-    .limit(5000);
+  // 페이지네이션 전량 조회 — 절단된 findings로 재집계하면 점수가 왜곡된다
+  const findings = await fetchAllRows((from, to) =>
+    db
+      .from("findings")
+      .select("scan_page_id, rule_id, impact, tags, help_url, selector, html_snippet, failure_summary")
+      .in("scan_page_id", donePages.map((p) => p.id))
+      .order("id")
+      .range(from, to),
+  );
 
   const byPage = new Map<string, Map<string, Finding>>();
   for (const f of findings ?? []) {
