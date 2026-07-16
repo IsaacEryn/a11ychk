@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { CAPTCHA_ENABLED, Turnstile, resetTurnstile } from "@/components/Turnstile";
 
 export interface EmailAuthLabels {
   tabSignIn: string;
@@ -28,6 +29,7 @@ export interface EmailAuthLabels {
   errNotConfirmed: string;
   errExists: string;
   errGeneric: string;
+  errCaptcha: string;
 }
 
 type Mode = "signin" | "signup" | "forgot";
@@ -38,13 +40,19 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [busy, setBusy] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState("");
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   const origin = typeof window !== "undefined" ? window.location.origin : "";
+  const captcha = () => (CAPTCHA_ENABLED ? { captchaToken } : {});
 
   async function handleSignIn() {
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+      options: captcha(),
+    });
     if (error) {
       const m = /confirm/i.test(error.message)
         ? labels.errNotConfirmed
@@ -68,6 +76,7 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
       options: {
         emailRedirectTo: `${origin}/auth/confirm?next=/${locale}/dashboard`,
         data: { locale },
+        ...captcha(),
       },
     });
     if (error) {
@@ -86,6 +95,7 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
     const supabase = createClient();
     const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
       redirectTo: `${origin}/${locale}/auth/reset`,
+      ...captcha(),
     });
     // 계정 존재 여부 노출 방지 — 오류여도 동일 안내
     setMsg({ kind: "ok", text: labels.resetSent });
@@ -94,6 +104,11 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    // 보안 확인(CAPTCHA)이 켜져 있으면 토큰 필수
+    if (CAPTCHA_ENABLED && !captchaToken) {
+      setMsg({ kind: "err", text: labels.errCaptcha });
+      return;
+    }
     setBusy(true);
     setMsg(null);
     try {
@@ -104,6 +119,11 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
       setMsg({ kind: "err", text: labels.errGeneric });
     } finally {
       setBusy(false);
+      // 토큰은 1회용 — 사용 후 새로 발급받도록 리셋
+      if (CAPTCHA_ENABLED) {
+        setCaptchaToken("");
+        resetTurnstile();
+      }
     }
   }
 
@@ -128,6 +148,7 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
           placeholder={labels.emailPlaceholder}
           className={inputCls}
         />
+        <Turnstile onVerify={setCaptchaToken} onExpire={() => setCaptchaToken("")} />
         <button
           type="submit"
           disabled={busy}
@@ -217,6 +238,8 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
             />
           </div>
         )}
+
+        <Turnstile onVerify={setCaptchaToken} onExpire={() => setCaptchaToken("")} />
 
         <button
           type="submit"

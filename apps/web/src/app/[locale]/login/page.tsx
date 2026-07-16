@@ -75,6 +75,7 @@ export default async function LoginPage({
             errNotConfirmed: t("errNotConfirmed"),
             errExists: t("errExists"),
             errGeneric: t("errGeneric"),
+            errCaptcha: t("errCaptcha"),
           }}
         />
 

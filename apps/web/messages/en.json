@@ -115,7 +115,8 @@
     "errInvalidCredentials": "Incorrect email or password.",
     "errNotConfirmed": "Your email isn't confirmed yet. Click the link in your inbox first.",
     "errExists": "This email is already registered. Sign in or reset your password.",
-    "errGeneric": "Something went wrong. Please try again shortly."
+    "errGeneric": "Something went wrong. Please try again shortly.",
+    "errCaptcha": "Please complete the security check."
   },
   "scanPage": {
     "title": "Run Audit",
