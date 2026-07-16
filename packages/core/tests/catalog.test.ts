@@ -74,3 +74,38 @@ describe("wcagFromTags", () => {
     expect(wcagFromTags(["wcag2a", "wcag111", "best-practice", "wcag1412"])).toEqual(["1.1.1", "1.4.12"]);
   });
 });
+
+// ─── 참조 무결성: 규칙·KWCAG의 WCAG SC 참조가 SC 카탈로그에 실재하는지 ───
+import { WCAG_BY_ID } from "../src/catalog/wcag";
+
+/**
+ * SC 카탈로그는 WCAG 2.2의 목표 수준(AA)까지만 담는다.
+ * 그 밖의 참조는 여기 명시된 것만 허용:
+ * - AAA: 1.4.6(color-contrast-enhanced), 2.5.5(KWCAG 6.1.3 조작 가능의 상향 대응)
+ * - 2.2에서 삭제: 4.1.1 Parsing (axe duplicate-id 계열의 역사적 매핑)
+ */
+const KNOWN_EXTRA_SCS = new Set(["1.4.6", "2.5.5", "4.1.1"]);
+
+describe("카탈로그 참조 무결성", () => {
+  it("규칙의 wcag 참조는 SC 카탈로그(또는 허용된 AAA)에 존재", () => {
+    for (const rule of RULE_CATALOG) {
+      for (const sc of rule.wcag) {
+        expect(
+          WCAG_BY_ID.has(sc) || KNOWN_EXTRA_SCS.has(sc),
+          `${rule.ruleId} → ${sc} (카탈로그에 없는 SC — 의도된 참조면 KNOWN_EXTRA_SCS에 추가)`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("KWCAG 항목의 wcag 대응은 SC 카탈로그(또는 허용 목록)에 존재", () => {
+    for (const item of KWCAG_ITEMS) {
+      for (const sc of item.wcag) {
+        expect(
+          WCAG_BY_ID.has(sc) || KNOWN_EXTRA_SCS.has(sc),
+          `KWCAG ${item.id} → WCAG ${sc} (의도된 참조면 KNOWN_EXTRA_SCS에 추가)`,
+        ).toBe(true);
+      }
+    }
+  });
+});

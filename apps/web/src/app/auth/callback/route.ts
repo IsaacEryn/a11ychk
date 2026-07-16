@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { sanitizeNextPath } from "@/lib/safeRedirect";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logLogin } from "@/lib/logs";
@@ -8,7 +9,7 @@ export async function GET(request: Request) {
   const code = searchParams.get("code");
   // open redirect 방지 — 내부 경로만 허용
   const nextParam = searchParams.get("next") ?? "/ko/dashboard";
-  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/ko/dashboard";
+  const next = sanitizeNextPath(nextParam);
 
   if (code) {
     const supabase = await createClient();

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import type { EmailOtpType } from "@supabase/supabase-js";
+import { sanitizeNextPath } from "@/lib/safeRedirect";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logLogin } from "@/lib/logs";
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   const type = searchParams.get("type") as EmailOtpType | null;
   // open redirect 방지 — 내부 경로만 허용
   const nextParam = searchParams.get("next") ?? "/ko/dashboard";
-  const next = nextParam.startsWith("/") && !nextParam.startsWith("//") ? nextParam : "/ko/dashboard";
+  const next = sanitizeNextPath(nextParam);
 
   if (tokenHash && type) {
     const supabase = await createClient();

@@ -16,7 +16,8 @@ export type { CustomResult } from "./pageChecks";
  * ⚠️ 반환 형태는 PageCheckSignals 계약 — 크롬 확장의 collectPageSignals(popup.ts)와
  * 동기 유지할 것. 판정 로직은 pageChecks.customFindingsFromSignals에서 공용.
  */
-const BASE_SCRIPT = `(function(){
+/** 신호 수집 스크립트 — 확장 collectPageSignals와 동일한 PageCheckSignals를 계산해야 한다 (패리티 테스트 대상) */
+export const BASE_SCRIPT = `(function(){
   var res = { inlineClickNonInteractive: [], focusSampled: 0, focusNoOutline: 0, focusExamples: [],
     hasMedia: false, altSampled: 0, altFilename: [], altGeneric: [], autoplay: [], genericLinks: 0,
     smallTargets: [], targetSampled: 0, hasNav: false, skipLinkPresent: false, videoNoTrack: 0, blankNoNotice: 0 };

@@ -19,3 +19,10 @@ jobs:
       - run: npm run test
       - run: npm run lint
       - run: npm run build -w @a11ychk/extension
+      # 웹 프로덕션 빌드 검증 — typecheck가 못 잡는 빌드 단계 오류(RSC 경계 등) 포착
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          NEXT_PUBLIC_SITE_URL: https://www.a11ychk.com
