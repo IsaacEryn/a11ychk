@@ -55,6 +55,18 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
               {t("ctaSecondary")}
             </Link>
           </div>
+          {/* 실제 예시 보고서 — 공유 링크가 설정된 경우에만 노출.
+              자사 사이트(a11ychk.com) 자체 검사 결과 = 접근성 선언문의 자체 점검 실증 */}
+          {process.env.NEXT_PUBLIC_DEMO_REPORT_URL && (
+            <p className="rise rise-4 mt-4">
+              <a
+                href={process.env.NEXT_PUBLIC_DEMO_REPORT_URL}
+                className="text-base font-semibold text-[var(--color-seal)] underline underline-offset-4 hover:text-[var(--color-seal-deep)]"
+              >
+                {t("ctaDemoReport")} →
+              </a>
+            </p>
+          )}
         </div>
 
         {/* 보고서 미리보기 (예시임을 명확히 표시) */}

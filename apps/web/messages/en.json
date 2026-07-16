@@ -78,7 +78,8 @@
       "manual": "Manual checks",
       "sampleBadge": "SAMPLE",
       "sampleCaption": "The card above is an illustrative sample. Running an audit produces a real report in this format."
-    }
+    },
+    "ctaDemoReport": "See a real sample report (our own audit)"
   },
   "login": {
     "title": "Sign in",

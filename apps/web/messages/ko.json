@@ -78,7 +78,8 @@
       "manual": "수동 검사",
       "sampleBadge": "예시",
       "sampleCaption": "위 화면은 이해를 돕기 위한 보고서 예시입니다. 검사를 실행하면 이런 형태의 실제 보고서를 받게 됩니다."
-    }
+    },
+    "ctaDemoReport": "실제 예시 보고서 보기 (a11ychk.com 자체 검사)"
   },
   "login": {
     "title": "로그인",
