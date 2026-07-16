@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 270 64" width="270" height="64" role="img" aria-label="A11y Check">
+  <rect width="64" height="64" rx="14" fill="#0f1c2e"></rect>
+  <circle cx="10" cy="54" r="4.2" fill="#4d8dff"></circle>
+    <circle cx="20" cy="54" r="3.2" fill="#4d8dff"></circle>
+    <circle cx="30" cy="54" r="2.2" fill="#4d8dff" opacity="0.7"></circle>
+    <circle cx="40" cy="54" r="1.4" fill="#4d8dff" opacity="0.45"></circle>
+    <circle cx="10" cy="44" r="3.2" fill="#4d8dff"></circle>
+    <circle cx="20" cy="44" r="2.2" fill="#4d8dff" opacity="0.7"></circle>
+    <circle cx="30" cy="44" r="1.4" fill="#4d8dff" opacity="0.45"></circle>
+    <circle cx="10" cy="34" r="2.2" fill="#4d8dff" opacity="0.7"></circle>
+    <circle cx="20" cy="34" r="1.4" fill="#4d8dff" opacity="0.45"></circle>
+    <circle cx="10" cy="24" r="1.4" fill="#4d8dff" opacity="0.45"></circle>
+  <path d="M22 32 L31 41.5 L52 14" fill="none" stroke="#ffffff" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"></path>
+  <text x="82" y="43" font-family="&#39;IBM Plex Sans&#39;,&#39;Segoe UI&#39;,system-ui,sans-serif" font-size="33" font-weight="700" letter-spacing="-0.5" fill="#ffffff">A11y Check</text>
+</svg>

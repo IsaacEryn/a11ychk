@@ -25,3 +25,6 @@ npm-debug.log*
 # test artifacts
 coverage/
 playwright-report/
+
+# 디자인 원본·참고 자료 (비공개)
+_ref/

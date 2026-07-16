@@ -26,11 +26,20 @@ export async function Header() {
     <header className="border-b-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)]">
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
         <Link href="/" className="flex items-center gap-2 rounded">
-          {/* 로고 — 포커스 링 안의 체크마크. 테마 토큰으로 색이 자동 전환된다 */}
+          {/* 브랜드 마크 (brand/a11y-check-mark.svg) — 자체 배경색을 가져 테마 무관 */}
           <svg aria-hidden="true" viewBox="0 0 64 64" className="h-6 w-6 shrink-0">
-            <rect x="3" y="3" width="58" height="58" rx="15" fill="none" stroke="var(--color-seal)" strokeWidth="5" />
-            <rect x="13.5" y="13.5" width="37" height="37" rx="8" fill="var(--color-seal)" />
-            <path d="M22.5 33.5 L29.5 40.5 L42 25.5" fill="none" stroke="var(--color-paper)" strokeWidth="5.5" strokeLinecap="round" strokeLinejoin="round" />
+            <rect width="64" height="64" rx="14" fill="#0f1c2e" />
+            <circle cx="10" cy="54" r="4.2" fill="#4d8dff" />
+            <circle cx="20" cy="54" r="3.2" fill="#4d8dff" />
+            <circle cx="30" cy="54" r="2.2" fill="#4d8dff" opacity="0.7" />
+            <circle cx="40" cy="54" r="1.4" fill="#4d8dff" opacity="0.45" />
+            <circle cx="10" cy="44" r="3.2" fill="#4d8dff" />
+            <circle cx="20" cy="44" r="2.2" fill="#4d8dff" opacity="0.7" />
+            <circle cx="30" cy="44" r="1.4" fill="#4d8dff" opacity="0.45" />
+            <circle cx="10" cy="34" r="2.2" fill="#4d8dff" opacity="0.7" />
+            <circle cx="20" cy="34" r="1.4" fill="#4d8dff" opacity="0.45" />
+            <circle cx="10" cy="24" r="1.4" fill="#4d8dff" opacity="0.45" />
+            <path d="M22 32 L31 41.5 L52 14" fill="none" stroke="#ffffff" strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           <span className="font-display text-xl font-bold tracking-tight">{t("appName")}</span>
         </Link>
