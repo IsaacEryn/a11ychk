@@ -44,3 +44,17 @@
   JSX 본문(~800줄)의 섹션별 컴포넌트화 + Suspense 스트리밍은 후속
 - **EARL 내보내기의 판정 반영** — earl은 자동 판정만, report-tool은 전문가
   판정을 반영해 서로 다른 결과가 나올 수 있음. EARL 페이로드에 명시 또는 통일
+
+## 보고서 고도화 백로그 (2026-07)
+
+- **위반 요소 스크린샷 자동 캡처** (실현 가능 확인됨, 설계 노트):
+  - 삽입 지점: `apps/web/src/lib/scan/runScan.ts` `scanSinglePage`의
+    `runAxeOnPage` 반환 직후 · `context.close()` 전 — 이 시점에 page가
+    살아있고 노드 selector가 확보돼 있음
+  - 요구사항: ① 현재 이미지 리소스 차단(메모리 절약) 완화 필요 —
+    서버리스 메모리 트레이드오프 ② Supabase Storage 버킷 신규 도입
+    ③ `findings.screenshot_path` 마이그레이션 ④ 치명적·심각만
+    페이지당 ~10장, 노드당 1–2초 타임아웃, best-effort 권장
+- **axe 노드 checks(any/all) 구조화 데이터 보존** — normalize에서 현재
+  폐기. 명도 대비의 실제 색상값 등 구조화 진단을 저장하면 AI 수정
+  요청의 정밀도 향상 (텍스트로는 failure_summary에 이미 포함)
