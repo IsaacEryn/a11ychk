@@ -105,11 +105,9 @@ body {
   flex: 1;
 }
 .logo {
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  outline: 3px solid var(--seal);
-  outline-offset: 2px;
+  width: 18px;
+  height: 18px;
+  display: block;
 }
 .conn {
   font-size: 11px;

@@ -20,13 +20,30 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "common" });
+  const title = `${t("appName")} — 웹 접근성 점검`;
   return {
     title: {
-      default: `${t("appName")} — 웹 접근성 점검`,
+      default: title,
       template: `%s — ${t("appName")}`,
     },
     description: t("footer.tagline"),
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    // 아이콘은 파일 컨벤션(app/icon.svg, apple-icon.png)이 자동 주입.
+    // OG 이미지는 루트 세그먼트 파일이 [locale] 하위에 전파되지 않아 명시 지정.
+    openGraph: {
+      type: "website",
+      siteName: t("appName"),
+      title,
+      description: t("footer.tagline"),
+      locale: locale === "ko" ? "ko_KR" : "en_US",
+      images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: title }],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description: t("footer.tagline"),
+      images: ["/opengraph-image.png"],
+    },
   };
 }
 

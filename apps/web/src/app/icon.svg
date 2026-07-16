@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <!-- A11Y Check 로고 — 포커스 링(접근성의 상징) 안의 체크마크 -->
+  <rect x="3" y="3" width="58" height="58" rx="15" fill="none" stroke="#0b5d54" stroke-width="3.5"/>
+  <rect x="11.5" y="11.5" width="41" height="41" rx="9" fill="#0b5d54"/>
+  <path d="M22 33.5 L29.5 41 L43 24.5" fill="none" stroke="#ffffff" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
