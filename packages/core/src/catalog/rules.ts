@@ -1112,6 +1112,39 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
       en: "Interactive targets need ≥24×24 CSS px (WCAG 2.2), unless spacing or inline-text exceptions apply — verify flagged elements manually.",
     },
   },
+  {
+    ruleId: "a11ychk:skip-link",
+    wcag: ["2.4.1"],
+    kwcag: ["6.4.1"],
+    level: "A",
+    title: { ko: "반복 영역을 건너뛰는 링크가 없습니다", en: "No skip-to-content link found" },
+    guide: {
+      ko: "메뉴 등 여러 페이지에서 반복되는 영역을 건너뛰고 본문으로 바로 이동하는 링크가 필요합니다. 키보드·스크린 리더 사용자가 매 페이지에서 메뉴를 모두 지나치지 않도록 합니다. 페이지 최상단에 본문(main)으로 가는 링크를 두세요.\n\n```html\n<body>\n  <a href=\"#main\" class=\"skip-link\">본문 바로가기</a>\n  <nav>…</nav>\n  <main id=\"main\">…</main>\n```\n\n```css\n/* 평소 숨겼다가 초점 시 표시 */\n.skip-link { position:absolute; left:-9999px; }\n.skip-link:focus { left:8px; top:8px; }\n```\n\n건너뛰기 링크가 있는데 감지되지 않았을 수 있으니 직접 확인하세요.",
+      en: "Provide a link at the top of the page to skip repeated navigation and jump to main content, shown on focus. Verify manually if one exists but wasn't detected.",
+    },
+  },
+  {
+    ruleId: "a11ychk:captions-track",
+    wcag: ["1.2.2"],
+    kwcag: ["5.2.1"],
+    level: "A",
+    title: { ko: "동영상에 자막 트랙이 없습니다", en: "Video has no captions track" },
+    guide: {
+      ko: "소리가 있는 동영상에는 청각장애 사용자를 위한 자막이 필요합니다. `<video>`에 `<track kind=\"captions\">`를 추가하세요. 이미 별도(하드/외부) 자막이 있다면 통과이므로 직접 확인하세요.\n\n```html\n<video controls>\n  <source src=\"intro.mp4\" type=\"video/mp4\">\n  <track kind=\"captions\" src=\"intro.ko.vtt\" srclang=\"ko\" label=\"한국어\" default>\n</video>\n```",
+      en: "Video with audio needs captions. Add <track kind=\"captions\">, or verify manually if captions are provided another way.",
+    },
+  },
+  {
+    ruleId: "a11ychk:new-window",
+    wcag: ["3.2.2"],
+    kwcag: ["7.2.1"],
+    level: "A",
+    title: { ko: "새 창으로 열리는 링크에 안내가 없습니다", en: "Link opens a new window without notice" },
+    guide: {
+      ko: "`target=\"_blank\"`로 새 창(탭)이 열리는 링크는 사용자가 예측할 수 있도록 미리 알려야 합니다. 갑작스러운 새 창은 스크린 리더 사용자에게 특히 혼란을 줍니다. 링크 텍스트나 숨김 텍스트로 \"새 창 열림\"을 알리고, `rel=\"noopener\"`도 함께 지정하세요.\n\n```html\n<a href=\"…\" target=\"_blank\" rel=\"noopener\">\n  자료실<span class=\"sr-only\"> (새 창 열림)</span>\n</a>\n```",
+      en: "Links opening a new window (target=_blank) should warn users in advance (e.g., hidden \"(opens in new window)\" text) and use rel=noopener.",
+    },
+  },
 ];
 
 export const RULE_BY_ID: ReadonlyMap<string, RuleCatalogEntry> = new Map(RULE_CATALOG.map((r) => [r.ruleId, r]));

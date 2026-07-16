@@ -152,7 +152,7 @@ function collectPageSignals(): PageCheckSignals {
   const res: PageCheckSignals = {
     inlineClickNonInteractive: [], focusSampled: 0, focusNoOutline: 0, focusExamples: [],
     hasMedia: false, altSampled: 0, altFilename: [], altGeneric: [], autoplay: [], genericLinks: 0,
-    smallTargets: [], targetSampled: 0,
+    smallTargets: [], targetSampled: 0, hasNav: false, skipLinkPresent: false, videoNoTrack: 0, blankNoNotice: 0,
   };
   function cssPath(el: Element): string {
     try {
@@ -270,6 +270,37 @@ function collectPageSignals(): PageCheckSignals {
       }
     }
     try { (prevFocus ?? document.body)?.focus?.({ preventScroll: true }); } catch { /* 무시 */ }
+  } catch { /* 무시 */ }
+  try {
+    // 2.4.1 건너뛰기 링크 — 반복 내비게이션 유무 + 상단 앵커 링크
+    res.hasNav = !!document.querySelector("nav, [role=navigation]");
+    const links0 = document.querySelectorAll("a[href]");
+    const SKIP = /건너뛰|본문\s*바로|바로\s*가기|skip|main content/i;
+    for (let sk = 0; sk < links0.length && sk < 8; sk++) {
+      const a0 = links0[sk];
+      if (!a0) continue;
+      const h0 = a0.getAttribute("href") || "";
+      const t0 = (a0.textContent || "").trim();
+      if ((h0.charAt(0) === "#" && h0.length > 1) || SKIP.test(t0)) {
+        res.skipLinkPresent = true;
+        break;
+      }
+    }
+  } catch { /* 무시 */ }
+  try {
+    // 1.2.2 자막 track 없는 video
+    document.querySelectorAll("video").forEach((v) => {
+      if (!v.querySelector("track[kind=captions],track[kind=subtitles]")) res.videoNoTrack++;
+    });
+  } catch { /* 무시 */ }
+  try {
+    // 3.2.2 새 창 고지 없는 target=_blank
+    const NOTICE = /새\s*창|새\s*탭|팝업|new\s*window|opens?\s*in/i;
+    document.querySelectorAll("a[target=_blank]").forEach((el0) => {
+      const txt0 =
+        (el0.textContent || "") + " " + (el0.getAttribute("aria-label") || "") + " " + (el0.getAttribute("title") || "");
+      if (!NOTICE.test(txt0)) res.blankNoNotice++;
+    });
   } catch { /* 무시 */ }
   return res;
 }

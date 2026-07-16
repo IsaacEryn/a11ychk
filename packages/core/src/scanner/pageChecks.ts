@@ -31,6 +31,13 @@ export interface PageCheckSignals {
   genericLinks: number;
   smallTargets: { selector: string; html: string; size: string }[];
   targetSampled: number;
+  /** 반복 내비게이션이 있는데 건너뛰기 링크가 없음 (2.4.1) */
+  hasNav: boolean;
+  skipLinkPresent: boolean;
+  /** 자막 track이 없는 video 수 (1.2.2) */
+  videoNoTrack: number;
+  /** 새 창 열림 고지가 없는 target=_blank 링크 수 (3.2.2) */
+  blankNoNotice: number;
 }
 
 function finding(ruleId: string, impact: Finding["impact"], nodes: Finding["nodes"]): Finding {
@@ -113,6 +120,18 @@ export function customFindingsFromSignals(base: PageCheckSignals): CustomResult 
     if (base.smallTargets.length > 0) incomplete.push("a11ychk:target-size");
     else passes.push("a11ychk:target-size");
   }
+
+  // 2.4.1 건너뛰기 링크 — 반복 내비게이션이 있는데 건너뛰기 링크가 없으면 확인 필요
+  if (base.hasNav) {
+    if (base.skipLinkPresent) passes.push("a11ychk:skip-link");
+    else incomplete.push("a11ychk:skip-link");
+  }
+
+  // 1.2.2 자막 — 자막 track이 없는 video는 확인 필요
+  if (base.videoNoTrack > 0) incomplete.push("a11ychk:captions-track");
+
+  // 3.2.2 새 창 열림 고지 — target=_blank인데 고지가 없는 링크는 확인 필요
+  if (base.blankNoNotice > 0) incomplete.push("a11ychk:new-window");
 
   return { violations, passes, incomplete };
 }

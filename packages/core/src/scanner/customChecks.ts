@@ -19,8 +19,36 @@ export type { CustomResult } from "./pageChecks";
 const BASE_SCRIPT = `(function(){
   var res = { inlineClickNonInteractive: [], focusSampled: 0, focusNoOutline: 0, focusExamples: [],
     hasMedia: false, altSampled: 0, altFilename: [], altGeneric: [], autoplay: [], genericLinks: 0,
-    smallTargets: [], targetSampled: 0 };
+    smallTargets: [], targetSampled: 0, hasNav: false, skipLinkPresent: false, videoNoTrack: 0, blankNoNotice: 0 };
   try { res.hasMedia = !!document.querySelector('video, audio'); } catch(e){}
+  try {
+    // 2.4.1 건너뛰기 링크 — 반복 내비게이션 유무 + 상단 앵커 링크
+    res.hasNav = !!document.querySelector('nav, [role=navigation]');
+    var links0 = document.querySelectorAll('a[href]');
+    var SKIP = /건너뛰|본문\\s*바로|바로\\s*가기|skip|main content/i;
+    for (var sk=0; sk<links0.length && sk<8; sk++){
+      var h0 = (links0[sk].getAttribute('href')||'');
+      var t0 = (links0[sk].textContent||'').trim();
+      if ((h0.charAt(0)==='#' && h0.length>1) || SKIP.test(t0)) { res.skipLinkPresent = true; break; }
+    }
+  } catch(e){}
+  try {
+    // 1.2.2 자막 track 없는 video
+    var vids = document.querySelectorAll('video');
+    for (var vi=0; vi<vids.length; vi++){
+      if (!vids[vi].querySelector('track[kind=captions],track[kind=subtitles]')) res.videoNoTrack++;
+    }
+  } catch(e){}
+  try {
+    // 3.2.2 새 창 고지 없는 target=_blank
+    var blanks = document.querySelectorAll('a[target=_blank]');
+    var NOTICE = /새\\s*창|새\\s*탭|팝업|new\\s*window|opens?\\s*in/i;
+    for (var bl=0; bl<blanks.length; bl++){
+      var el0 = blanks[bl];
+      var txt0 = ((el0.textContent||'') + ' ' + (el0.getAttribute('aria-label')||'') + ' ' + (el0.getAttribute('title')||''));
+      if (!NOTICE.test(txt0)) res.blankNoNotice++;
+    }
+  } catch(e){}
   try {
     // 1.1.1 — alt가 파일명(F30) 또는 의미 없는 일반어인 이미지
     var FILE=/\\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)\\s*$/i;
