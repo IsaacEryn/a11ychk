@@ -6,8 +6,29 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   setRequestLocale(locale);
   const t = await getTranslations("landing");
 
+  // 검색엔진 구조화 데이터 — 정적 값만 사용(사용자 입력 없음)
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "A11Y Check",
+    url: "https://www.a11ychk.com",
+    applicationCategory: "DeveloperApplication",
+    operatingSystem: "Web",
+    description:
+      locale === "en"
+        ? "Automated web accessibility audit reports based on WCAG 2.2 and KWCAG 2.2"
+        : "WCAG 2.2 + KWCAG 2.2 기준 웹 접근성 자동 점검 보고서·개선 가이드",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "KRW" },
+    inLanguage: ["ko", "en"],
+  };
+
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
+      <script
+        type="application/ld+json"
+        // 정적 JSON-LD (표준 패턴) — 사용자 입력이 섞이지 않는 리터럴만 직렬화
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
       {/* ─── Hero ─── */}
       <section className="grid gap-10 py-16 md:grid-cols-[1.2fr_1fr] md:items-center md:py-24">
         <div>

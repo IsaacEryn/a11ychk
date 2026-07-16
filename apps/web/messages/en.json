@@ -27,7 +27,8 @@
       "newWindow": "opens in a new window",
       "terms": "Terms of Service",
       "privacy": "Privacy Policy",
-      "impact": "Impact"
+      "impact": "Impact",
+      "accessibility": "Accessibility"
     },
     "localeSwitcher": "Select language",
     "theme": {

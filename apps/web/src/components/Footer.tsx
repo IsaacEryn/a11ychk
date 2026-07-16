@@ -26,6 +26,11 @@ export async function Footer() {
                 {t("footer.impact")}
               </Link>
             </li>
+            <li>
+              <Link href="/accessibility" className={legalLinkCls}>
+                {t("footer.accessibility")}
+              </Link>
+            </li>
           </ul>
         </div>
         <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">

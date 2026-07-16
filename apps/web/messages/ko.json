@@ -27,7 +27,8 @@
       "newWindow": "새 창 열림",
       "terms": "이용약관",
       "privacy": "개인정보 처리방침",
-      "impact": "투명성 지표"
+      "impact": "투명성 지표",
+      "accessibility": "접근성 선언문"
     },
     "localeSwitcher": "언어 선택",
     "theme": {
