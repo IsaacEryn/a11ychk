@@ -127,7 +127,7 @@ function renderHtml(c: MailContent, link: string): string {
   return `<!doctype html><html><body style="margin:0;background:#f5f3ee;padding:32px 0;font-family:-apple-system,Segoe UI,Roboto,'Apple SD Gothic Neo',sans-serif;color:#1a1a1a">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
     <table role="presentation" width="480" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;overflow:hidden;border:1px solid #e5e1d8">
-      <tr><td style="padding:28px 32px 8px"><span style="font-weight:800;font-size:18px;color:#0b5d54">A11Y Check</span></td></tr>
+      <tr><td style="padding:28px 32px 8px"><img src="https://www.a11ychk.com/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
       <tr><td style="padding:8px 32px 4px"><h1 style="margin:0;font-size:20px">${c.heading}</h1></td></tr>
       <tr><td style="padding:8px 32px 20px;font-size:14px;line-height:1.6;color:#444">${c.body}</td></tr>
       <tr><td style="padding:0 32px 28px"><a href="${link}" style="display:inline-block;background:#0b5d54;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">${c.button}</a></td></tr>

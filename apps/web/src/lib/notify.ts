@@ -33,7 +33,7 @@ export async function sendScanAlert(alert: ScanAlert): Promise<boolean> {
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:24px 0">
   <tr><td align="center">
     <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422">
-      <tr><td style="padding:28px 32px 8px"><span style="font-weight:800;font-size:18px;color:#0b5d54">A11Y Check</span></td></tr>
+      <tr><td style="padding:28px 32px 8px"><img src="https://www.a11ychk.com/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
       <tr><td style="padding:8px 32px">
         <p style="margin:0;font-size:16px;font-weight:700">${escapeHtml(alert.hostname)} 정기 검사 결과에 변화가 있습니다</p>
         <p style="margin:12px 0 0;font-size:14px;line-height:1.6">

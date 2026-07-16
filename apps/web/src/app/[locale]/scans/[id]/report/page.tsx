@@ -125,7 +125,17 @@ export default async function ReportPage({
 
       {/* ─── 표지/메타 ─── */}
       <header className="doc-card p-8">
-        <p className="text-sm font-bold tracking-widest text-[var(--color-seal)]">A11Y CHECK · a11ychk.com</p>
+        <p className="flex items-center gap-2 text-sm font-bold tracking-widest text-[var(--color-seal)]">
+          {/* 브랜드 마크 (brand/a11y-check-mark.svg) — 인쇄물 표지에도 포함 */}
+          <svg aria-hidden="true" viewBox="0 0 64 64" className="h-5 w-5 shrink-0">
+            <rect width="64" height="64" rx="14" fill="#0f1c2e" />
+            <circle cx="11" cy="53" r="5" fill="#4d8dff" />
+            <circle cx="24" cy="53" r="3.5" fill="#4d8dff" opacity="0.8" />
+            <circle cx="11" cy="40" r="3.5" fill="#4d8dff" opacity="0.8" />
+            <path d="M20 34 L30 44 L52 15" fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          A11Y CHECK · a11ychk.com
+        </p>
         <h1 className="font-display mt-2 text-3xl font-extrabold sm:text-4xl">{meta?.title || t("docTitle")}</h1>
         <dl className="mt-6 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
           {meta?.siteName && (
