@@ -24,6 +24,10 @@ interface ImpactStats {
   github: { stars: number; forks: number } | null;
   /** 저장소 누적 트래픽 (repo_stats 크론 축적분 — migration 0007 전엔 null) */
   traffic: { views: number; uniqueViews: number; clones: number; since: string } | null;
+  /** 공유 링크가 켜진 보고서 수 (migration 0012 전엔 0) */
+  sharedReports: number;
+  /** AI 수정 요청 다운로드 수 (usage_counters — migration 0014 전엔 0) */
+  aiFixDownloads: number;
   computedAt: string;
 }
 
@@ -116,6 +120,19 @@ const getImpactStats = unstable_cache(
       // GitHub API 실패 — 생략
     }
 
+    // 활용 지표 (컬럼/테이블 미적용 시 0으로 폴백)
+    const { count: sharedCount } = await admin
+      .from("scans")
+      .select("id", { count: "exact", head: true })
+      .not("share_token", "is", null)
+      .then((r) => r, () => ({ count: 0 }));
+    const { data: counterRow } = await admin
+      .from("usage_counters")
+      .select("count")
+      .eq("key", "ai_fix_download")
+      .maybeSingle()
+      .then((r) => r, () => ({ data: null }));
+
     return {
       scans: scans.count ?? 0,
       pages: pages.count ?? 0,
@@ -127,6 +144,8 @@ const getImpactStats = unstable_cache(
       avgRateGain: improvedSites === 0 ? 0 : Math.round((rateGainSum / improvedSites) * 10) / 10,
       github,
       traffic,
+      sharedReports: sharedCount ?? 0,
+      aiFixDownloads: Number(counterRow?.count ?? 0),
       computedAt: new Date().toISOString(),
     };
   },
@@ -191,6 +210,26 @@ export default async function ImpactPage({ params }: { params: Promise<{ locale:
           </div>
         </dl>
       </section>
+
+      {/* 활용 — 보고서가 실제 개선 작업으로 이어지는 지표 */}
+      {(stats.sharedReports > 0 || stats.aiFixDownloads > 0) && (
+        <section aria-labelledby="usage-heading" className="doc-card mt-6 p-6">
+          <h2 id="usage-heading" className="font-display text-xl font-bold">
+            {t("usage.title")}
+          </h2>
+          <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("usage.desc")}</p>
+          <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="border-l-[3px] border-[var(--color-seal)] pl-3">
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t("usage.shared")}</dt>
+              <dd className="font-display text-3xl font-extrabold tabular-nums">{n(stats.sharedReports)}</dd>
+            </div>
+            <div className="border-l-[3px] border-[var(--color-seal)] pl-3">
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t("usage.aiFix")}</dt>
+              <dd className="font-display text-3xl font-extrabold tabular-nums">{n(stats.aiFixDownloads)}</dd>
+            </div>
+          </dl>
+        </section>
+      )}
 
       {/* 최근 30일 + 오픈소스 */}
       <div className="mt-6 grid gap-6 sm:grid-cols-2">

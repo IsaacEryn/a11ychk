@@ -852,7 +852,13 @@
       "traffic": "Since {since}: {views} repository views ({visitors} visitors) · {clones} clones"
     },
     "note": "Metrics refresh hourly (last computed: {date}). Compliance rates cover the automated scope only — automated tools find part of all accessibility issues.",
-    "cta": "Audit your site"
+    "cta": "Audit your site",
+    "usage": {
+      "title": "Report usage",
+      "desc": "Signals that reports are turning into real remediation work.",
+      "shared": "Shared reports",
+      "aiFix": "AI fix request downloads"
+    }
   },
   "reset": {
     "title": "Set a new password",

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { KWCAG_BY_ID, getRuleEntry, type Impact, type ScanSummary } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
 
 /**
@@ -55,6 +56,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     return NextResponse.json({ error: "완료된 보고서를 찾을 수 없습니다." }, { status: 404 });
   }
   const summary = scan.summary as ScanSummary;
+
+  // 활용 지표 — AI 수정 요청 다운로드 수 (0014 미적용/실패 시 무시, best-effort)
+  void createAdminClient()
+    .rpc("increment_usage_counter", { p_key: "ai_fix_download" })
+    .then(() => undefined, () => undefined);
 
   // 페이지 + findings 전량 (절단 방지 페이지네이션 — loadReport와 동일 패턴)
   const { data: pages } = await supabase.from("scan_pages").select("id").eq("scan_id", id);
