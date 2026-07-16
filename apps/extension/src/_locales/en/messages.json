@@ -1,0 +1,472 @@
+{
+  "extName": {
+    "message": "A11Y Check — Web Accessibility Audit"
+  },
+  "extDesc": {
+    "message": "WCAG 2.2 & KWCAG 2.2 audits + on-page visual tools (violation markers, structure, simulations, contrast) + expert review. Works on login-required pages too."
+  },
+  "actionTitle": {
+    "message": "A11Y Check — Open side panel"
+  },
+  "tabScan": {
+    "message": "Audit"
+  },
+  "tabTools": {
+    "message": "Tools"
+  },
+  "tabSettings": {
+    "message": "Settings"
+  },
+  "scanBtn": {
+    "message": "Scan this page"
+  },
+  "rescan": {
+    "message": "Scan again"
+  },
+  "scanning": {
+    "message": "Scanning…"
+  },
+  "autoScoreLabel": {
+    "message": "Automated compliance"
+  },
+  "toggleIssues": {
+    "message": "Show violations on page"
+  },
+  "clearOverlay": {
+    "message": "Clear all"
+  },
+  "procLabel": {
+    "message": "Mark this page as a step in a multi-step process (WCAG-EM)"
+  },
+  "saveDestLabel": {
+    "message": "Save to"
+  },
+  "saveDestNew": {
+    "message": "Save as a new report"
+  },
+  "saveBtn": {
+    "message": "Save results to my account"
+  },
+  "violationsTitle": {
+    "message": "Violation details"
+  },
+  "noViolations": {
+    "message": "No violations found by automated checks. Continue with manual review."
+  },
+  "errFetchResults": {
+    "message": "Couldn't retrieve scan results."
+  },
+  "errScanFailed": {
+    "message": "Scan failed: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "errUnscannable": {
+    "message": "This page can't be scanned (use an http/https page)."
+  },
+  "errInternalPage": {
+    "message": "This page can't be scanned (browser internal page)."
+  },
+  "errNoTab": {
+    "message": "Couldn't read tab info."
+  },
+  "errNetwork": {
+    "message": "A network error occurred."
+  },
+  "impactCritical": {
+    "message": "Critical"
+  },
+  "impactSerious": {
+    "message": "Serious"
+  },
+  "impactModerate": {
+    "message": "Moderate"
+  },
+  "impactMinor": {
+    "message": "Minor"
+  },
+  "nodeCount": {
+    "message": "$1 elements",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "moreNodes": {
+    "message": "+$1 more elements",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "show": {
+    "message": "Show"
+  },
+  "shown": {
+    "message": "Shown ✓"
+  },
+  "notFound": {
+    "message": "Not found"
+  },
+  "failedShort": {
+    "message": "Failed"
+  },
+  "showAria": {
+    "message": "Show $1 on the page",
+    "placeholders": {
+      "selector": {
+        "content": "$1"
+      }
+    }
+  },
+  "guide": {
+    "message": "How to fix"
+  },
+  "usageStatus": {
+    "message": "Extension scans today: $1/$2",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "usageLimitReached": {
+    "message": "You've used today's extension scan limit."
+  },
+  "anonUsage": {
+    "message": "Free scans today: $1/$2 · Sign up for 30/day plus saved reports and site-level tracking.",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "anonLimitReached": {
+    "message": "You've used all $1 free scans today. Sign up for 30 scans per day plus saved reports.",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "saving": {
+    "message": "Saving…"
+  },
+  "saved": {
+    "message": "Saved. "
+  },
+  "saveFailed": {
+    "message": "Save failed."
+  },
+  "savedMerged": {
+    "message": "Added this page to the existing site report ($1). ",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "viewReport": {
+    "message": "View report →"
+  },
+  "connOn": {
+    "message": "Connected"
+  },
+  "connOff": {
+    "message": "Not connected"
+  },
+  "accountTitle": {
+    "message": "My account"
+  },
+  "logout": {
+    "message": "Sign out"
+  },
+  "loginPitch": {
+    "message": "Sign in to save scan results and expert reviews to your account and manage site-level reports."
+  },
+  "loginCta": {
+    "message": "Sign in on the web · Connect"
+  },
+  "signupCta": {
+    "message": "Sign up free →"
+  },
+  "manualTitle": {
+    "message": "Manual review · Expert verdicts"
+  },
+  "manualDesc": {
+    "message": "These items can't be judged automatically. Use \"Highlight\" to inspect related elements on the page, record Pass/Fail/Hold with notes, and save to reflect them in your web report."
+  },
+  "verdictPass": {
+    "message": "Pass"
+  },
+  "verdictFail": {
+    "message": "Fail"
+  },
+  "verdictHold": {
+    "message": "Hold"
+  },
+  "verdictGroupAria": {
+    "message": "$1 verdict",
+    "placeholders": {
+      "item": {
+        "content": "$1"
+      }
+    }
+  },
+  "highlight": {
+    "message": "Highlight"
+  },
+  "highlightAria": {
+    "message": "Highlight elements for $1",
+    "placeholders": {
+      "item": {
+        "content": "$1"
+      }
+    }
+  },
+  "notePlaceholder": {
+    "message": "Observation note (optional)"
+  },
+  "hlImages": {
+    "message": "Images & alt-text targets"
+  },
+  "hlMedia": {
+    "message": "Video & audio media"
+  },
+  "hlMediaCaptions": {
+    "message": "Media (check captions)"
+  },
+  "hlVideoAlt": {
+    "message": "Video (alternatives)"
+  },
+  "hlStructure": {
+    "message": "Structure (tables & lists)"
+  },
+  "hlAutoplay": {
+    "message": "Autoplaying media"
+  },
+  "hlOperable": {
+    "message": "Interactive targets"
+  },
+  "hlSkip": {
+    "message": "Skip links & anchors"
+  },
+  "hlLinks": {
+    "message": "Links"
+  },
+  "hlHeadings": {
+    "message": "Headings"
+  },
+  "hlTargetSize": {
+    "message": "Click targets (size)"
+  },
+  "hlForms": {
+    "message": "Form inputs & labels"
+  },
+  "toolsStructTitle": {
+    "message": "Structure visualization"
+  },
+  "toolsStructHeadings": {
+    "message": "Headings"
+  },
+  "toolsStructLandmarks": {
+    "message": "Landmarks"
+  },
+  "toolsStructFocus": {
+    "message": "Focus order"
+  },
+  "toolsStructTargets": {
+    "message": "Target size"
+  },
+  "toolsLinearize": {
+    "message": "Linearize CSS"
+  },
+  "toolsSimTitle": {
+    "message": "Disability simulation"
+  },
+  "simNone": {
+    "message": "Off"
+  },
+  "simProtanopia": {
+    "message": "Protanopia"
+  },
+  "simDeuteranopia": {
+    "message": "Deuteranopia"
+  },
+  "simTritanopia": {
+    "message": "Tritanopia"
+  },
+  "simBlur": {
+    "message": "Low vision (blur)"
+  },
+  "simGray": {
+    "message": "Grayscale"
+  },
+  "toolsContrastTitle": {
+    "message": "Contrast checker"
+  },
+  "ccPickBg": {
+    "message": "Pick background"
+  },
+  "ccPickFg": {
+    "message": "Pick text color"
+  },
+  "ccPickingBg": {
+    "message": "Picking background… "
+  },
+  "ccPickingFg": {
+    "message": "Picking text color… "
+  },
+  "ccPickOther": {
+    "message": "Pick the other color too."
+  },
+  "ccSample": {
+    "message": "Sample text Aa Abc 123"
+  },
+  "ccRatioLabel": {
+    "message": "Contrast ratio"
+  },
+  "ccAaNormal": {
+    "message": "Normal text AA"
+  },
+  "ccAaLarge": {
+    "message": "Large text AA"
+  },
+  "ccGuideFail": {
+    "message": "Below the normal-text threshold (4.5:1). Darken the text color or increase its contrast with the background."
+  },
+  "ccSuggestion": {
+    "message": "Suggested text color:"
+  },
+  "ccRatioSuffix": {
+    "message": " (ratio $1:1)",
+    "placeholders": {
+      "ratio": {
+        "content": "$1"
+      }
+    }
+  },
+  "ccNoEyedropper": {
+    "message": "This browser doesn't support the EyeDropper API."
+  },
+  "clearPageMarks": {
+    "message": "Clear all page marks"
+  },
+  "settingsThemeTitle": {
+    "message": "Theme"
+  },
+  "themeSystem": {
+    "message": "System"
+  },
+  "themeLight": {
+    "message": "Light"
+  },
+  "themeDark": {
+    "message": "Dark"
+  },
+  "themeContrast": {
+    "message": "High contrast"
+  },
+  "settingsAccountTitle": {
+    "message": "Account"
+  },
+  "footGuide": {
+    "message": "User guide"
+  },
+  "skippedLabel": {
+    "message": " ⚠skipped"
+  },
+  "overlayCountSome": {
+    "message": "$1 · $2 highlighted",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "n": {
+        "content": "$2"
+      }
+    }
+  },
+  "overlayCountNone": {
+    "message": "$1 · no matching elements",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "navAria": {
+    "message": "Features"
+  },
+  "tabScanAria": {
+    "message": "Audit"
+  },
+  "tabToolsAria": {
+    "message": "Tools"
+  },
+  "tabSettingsAria": {
+    "message": "Settings"
+  },
+  "vizToolsAria": {
+    "message": "On-page visual marks"
+  },
+  "toolsHint": {
+    "message": "Marks are drawn on the current page. Use \"Clear all\" below to remove them."
+  },
+  "structTitle": {
+    "message": "Structure"
+  },
+  "structAria": {
+    "message": "Structure visualization"
+  },
+  "structHeadings": {
+    "message": "Heading outline"
+  },
+  "structLandmarks": {
+    "message": "Landmarks"
+  },
+  "structFocus": {
+    "message": "Focus order"
+  },
+  "structLinearize": {
+    "message": "Reading order (linearize)"
+  },
+  "sizeTitle": {
+    "message": "Size check"
+  },
+  "sizeAria": {
+    "message": "Size check"
+  },
+  "sizeTargets": {
+    "message": "Click target size (24px)"
+  },
+  "sizeHint": {
+    "message": "Shows button/link sizes and flags anything under 24×24px in red (WCAG 2.5.8)."
+  },
+  "simTitle": {
+    "message": "Disability simulation"
+  },
+  "simAria": {
+    "message": "Disability simulation"
+  },
+  "simGrayscale": {
+    "message": "Grayscale"
+  },
+  "ccTitle": {
+    "message": "Contrast check"
+  },
+  "ccHint": {
+    "message": "Pick the background and text colors with the eyedropper to get the contrast ratio and pass/fail."
+  }
+}

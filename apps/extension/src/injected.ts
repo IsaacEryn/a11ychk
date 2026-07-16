@@ -240,7 +240,7 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
 }
 
 /** 구조 시각화 (headings/landmarks/focus)를 페이지에서 계산해 마커 배열 반환 → 그리기 */
-export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus"): number {
+export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus", skippedLabel: string): number {
   document.getElementById("a11ychk-overlay")?.remove();
   const markers: { rect: DOMRect; color: string; label: string }[] = [];
   if (kind === "headings") {
@@ -253,7 +253,7 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus")
       markers.push({
         rect: h.getBoundingClientRect(),
         color: skip ? "#e0533d" : "#0b6b5e",
-        label: `H${lvl}${skip ? " ⚠건너뜀" : ""}`,
+        label: `H${lvl}${skip ? skippedLabel : ""}`,
       });
       if (!Number.isNaN(n)) prev = n;
     });
@@ -374,7 +374,7 @@ export function overlayTargetSizeInPage(): number {
 }
 
 /** 선택자에 맞는 모든 요소를 강조 (수동 점검 항목별 맞춤 강조용) */
-export function overlayQueryInPage(selector: string, label: string): number {
+export function overlayQueryInPage(selector: string, tagSome: string, tagNone: string): number {
   document.getElementById("a11ychk-overlay")?.remove();
   const c = document.createElement("div");
   c.id = "a11ychk-overlay";
@@ -399,7 +399,8 @@ export function overlayQueryInPage(selector: string, label: string): number {
     c.appendChild(box);
   });
   const tag = document.createElement("div");
-  tag.textContent = n > 0 ? `${label} · ${n}개 강조` : `${label} · 해당 요소 없음`;
+  // tagSome은 "{n}" 자리에 개수를 치환하는 로컬라이즈된 템플릿 (페이지 컨텍스트라 chrome.i18n 미사용)
+  tag.textContent = n > 0 ? tagSome.replace("{n}", String(n)) : tagNone;
   tag.style.cssText =
     "all:initial;position:fixed;left:8px;bottom:8px;z-index:2147483647;background:#c9761b;color:#fff;" +
     "font:700 12px sans-serif;padding:5px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);";

@@ -1,15 +1,23 @@
 {
   "manifest_version": 3,
-  "name": "A11Y Check — 웹 접근성 점검",
+  "name": "__MSG_extName__",
   "version": "0.1.0",
-  "description": "WCAG 2.2·KWCAG 2.2 기준 검사 + 페이지 위 시각 점검(위반 표시·구조·시뮬레이션·명도대비) + 전문가 판정. 로그인 필요 페이지도 검사합니다.",
-  "permissions": ["activeTab", "scripting", "storage", "sidePanel"],
-  "host_permissions": ["http://*/*", "https://*/*"],
+  "description": "__MSG_extDesc__",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage",
+    "sidePanel"
+  ],
+  "host_permissions": [
+    "http://*/*",
+    "https://*/*"
+  ],
   "background": {
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "A11Y Check — 사이드 패널 열기",
+    "default_title": "__MSG_actionTitle__",
     "default_icon": {
       "16": "icons/icon-16.png",
       "48": "icons/icon-48.png",
@@ -26,15 +34,25 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.a11ychk.com/*/extension/connect*", "https://a11ychk.com/*/extension/connect*"],
-      "js": ["content-connect.js"],
+      "matches": [
+        "https://www.a11ychk.com/*/extension/connect*",
+        "https://a11ychk.com/*/extension/connect*"
+      ],
+      "js": [
+        "content-connect.js"
+      ],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["vendor/axe.min.js"],
-      "matches": ["<all_urls>"]
+      "resources": [
+        "vendor/axe.min.js"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
     }
-  ]
+  ],
+  "default_locale": "ko"
 }

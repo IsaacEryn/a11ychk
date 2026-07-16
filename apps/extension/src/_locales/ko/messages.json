@@ -1,0 +1,472 @@
+{
+  "extName": {
+    "message": "A11Y Check — 웹 접근성 점검"
+  },
+  "extDesc": {
+    "message": "WCAG 2.2·KWCAG 2.2 기준 검사 + 페이지 위 시각 점검(위반 표시·구조·시뮬레이션·명도대비) + 전문가 판정. 로그인 필요 페이지도 검사합니다."
+  },
+  "actionTitle": {
+    "message": "A11Y Check — 사이드 패널 열기"
+  },
+  "tabScan": {
+    "message": "검사"
+  },
+  "tabTools": {
+    "message": "도구 호출"
+  },
+  "tabSettings": {
+    "message": "환경설정"
+  },
+  "scanBtn": {
+    "message": "이 페이지 검사"
+  },
+  "rescan": {
+    "message": "다시 검사"
+  },
+  "scanning": {
+    "message": "검사 중…"
+  },
+  "autoScoreLabel": {
+    "message": "자동 검사 준수율"
+  },
+  "toggleIssues": {
+    "message": "페이지에 위반 표시"
+  },
+  "clearOverlay": {
+    "message": "모두 지우기"
+  },
+  "procLabel": {
+    "message": "이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)"
+  },
+  "saveDestLabel": {
+    "message": "저장 위치"
+  },
+  "saveDestNew": {
+    "message": "새 보고서로 저장"
+  },
+  "saveBtn": {
+    "message": "결과를 내 계정에 저장"
+  },
+  "violationsTitle": {
+    "message": "위반 상세"
+  },
+  "noViolations": {
+    "message": "자동 검사에서 위반이 발견되지 않았습니다. 수동 점검을 진행하세요."
+  },
+  "errFetchResults": {
+    "message": "검사 결과를 가져오지 못했습니다."
+  },
+  "errScanFailed": {
+    "message": "검사에 실패했습니다: $1",
+    "placeholders": {
+      "reason": {
+        "content": "$1"
+      }
+    }
+  },
+  "errUnscannable": {
+    "message": "이 페이지는 검사할 수 없습니다 (http/https 페이지에서 실행하세요)."
+  },
+  "errInternalPage": {
+    "message": "이 페이지는 검사할 수 없습니다 (브라우저 내부 페이지)."
+  },
+  "errNoTab": {
+    "message": "탭 정보를 읽을 수 없습니다."
+  },
+  "errNetwork": {
+    "message": "네트워크 오류가 발생했습니다."
+  },
+  "impactCritical": {
+    "message": "치명적"
+  },
+  "impactSerious": {
+    "message": "심각"
+  },
+  "impactModerate": {
+    "message": "보통"
+  },
+  "impactMinor": {
+    "message": "경미"
+  },
+  "nodeCount": {
+    "message": "$1개 요소",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "moreNodes": {
+    "message": "외 $1개 요소",
+    "placeholders": {
+      "n": {
+        "content": "$1"
+      }
+    }
+  },
+  "show": {
+    "message": "표시"
+  },
+  "shown": {
+    "message": "표시됨 ✓"
+  },
+  "notFound": {
+    "message": "못 찾음"
+  },
+  "failedShort": {
+    "message": "실패"
+  },
+  "showAria": {
+    "message": "$1 요소를 페이지에서 표시",
+    "placeholders": {
+      "selector": {
+        "content": "$1"
+      }
+    }
+  },
+  "guide": {
+    "message": "개선 가이드"
+  },
+  "usageStatus": {
+    "message": "오늘 확장 검사 $1/$2회 사용",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "usageLimitReached": {
+    "message": "오늘의 확장 검사 한도를 모두 사용했습니다."
+  },
+  "anonUsage": {
+    "message": "오늘 무료 검사 $1/$2회 사용 · 가입하면 하루 30회 + 보고서 저장·사이트 단위 관리.",
+    "placeholders": {
+      "used": {
+        "content": "$1"
+      },
+      "limit": {
+        "content": "$2"
+      }
+    }
+  },
+  "anonLimitReached": {
+    "message": "오늘 무료 검사 $1회를 모두 사용했습니다. 가입하면 하루 30회 검사와 보고서 저장·관리가 가능합니다.",
+    "placeholders": {
+      "limit": {
+        "content": "$1"
+      }
+    }
+  },
+  "saving": {
+    "message": "저장 중…"
+  },
+  "saved": {
+    "message": "저장되었습니다. "
+  },
+  "saveFailed": {
+    "message": "저장에 실패했습니다."
+  },
+  "savedMerged": {
+    "message": "기존 사이트 보고서($1)에 이 페이지를 추가했습니다. ",
+    "placeholders": {
+      "site": {
+        "content": "$1"
+      }
+    }
+  },
+  "viewReport": {
+    "message": "보고서 보기 →"
+  },
+  "connOn": {
+    "message": "연결됨"
+  },
+  "connOff": {
+    "message": "미연결"
+  },
+  "accountTitle": {
+    "message": "내 계정"
+  },
+  "logout": {
+    "message": "로그아웃"
+  },
+  "loginPitch": {
+    "message": "로그인하면 검사 결과·전문가 판정을 계정에 저장하고 사이트 보고서로 관리할 수 있습니다."
+  },
+  "loginCta": {
+    "message": "웹 서비스 로그인 · 연결"
+  },
+  "signupCta": {
+    "message": "무료 가입하기 →"
+  },
+  "manualTitle": {
+    "message": "수동 점검 · 전문가 판정"
+  },
+  "manualDesc": {
+    "message": "자동으로 판정할 수 없는 항목입니다. 각 항목의 \"강조\"로 관련 요소를 페이지에서 확인하고, 통과/실패/보류로 판정·메모하세요. 로그인 후 저장하면 웹 보고서에 반영됩니다."
+  },
+  "verdictPass": {
+    "message": "통과"
+  },
+  "verdictFail": {
+    "message": "실패"
+  },
+  "verdictHold": {
+    "message": "보류"
+  },
+  "verdictGroupAria": {
+    "message": "$1 판정",
+    "placeholders": {
+      "item": {
+        "content": "$1"
+      }
+    }
+  },
+  "highlight": {
+    "message": "강조"
+  },
+  "highlightAria": {
+    "message": "$1 관련 요소 강조",
+    "placeholders": {
+      "item": {
+        "content": "$1"
+      }
+    }
+  },
+  "notePlaceholder": {
+    "message": "관찰 메모 (선택)"
+  },
+  "hlImages": {
+    "message": "이미지/대체텍스트 대상"
+  },
+  "hlMedia": {
+    "message": "동영상·음성 미디어"
+  },
+  "hlMediaCaptions": {
+    "message": "미디어(자막 확인)"
+  },
+  "hlVideoAlt": {
+    "message": "동영상(대체수단)"
+  },
+  "hlStructure": {
+    "message": "구조 요소(표·목록)"
+  },
+  "hlAutoplay": {
+    "message": "자동재생 미디어"
+  },
+  "hlOperable": {
+    "message": "조작 대상"
+  },
+  "hlSkip": {
+    "message": "건너뛰기·앵커 대상"
+  },
+  "hlLinks": {
+    "message": "링크"
+  },
+  "hlHeadings": {
+    "message": "제목"
+  },
+  "hlTargetSize": {
+    "message": "클릭 대상(크기)"
+  },
+  "hlForms": {
+    "message": "폼 입력·레이블"
+  },
+  "toolsStructTitle": {
+    "message": "구조 시각화"
+  },
+  "toolsStructHeadings": {
+    "message": "제목 구조"
+  },
+  "toolsStructLandmarks": {
+    "message": "랜드마크"
+  },
+  "toolsStructFocus": {
+    "message": "초점 순서"
+  },
+  "toolsStructTargets": {
+    "message": "타깃 크기"
+  },
+  "toolsLinearize": {
+    "message": "CSS 선형화"
+  },
+  "toolsSimTitle": {
+    "message": "장애 시뮬레이션"
+  },
+  "simNone": {
+    "message": "끄기"
+  },
+  "simProtanopia": {
+    "message": "적색맹"
+  },
+  "simDeuteranopia": {
+    "message": "녹색맹"
+  },
+  "simTritanopia": {
+    "message": "청색맹"
+  },
+  "simBlur": {
+    "message": "저시력(흐림)"
+  },
+  "simGray": {
+    "message": "무채색"
+  },
+  "toolsContrastTitle": {
+    "message": "명도 대비 검사"
+  },
+  "ccPickBg": {
+    "message": "배경색 선택"
+  },
+  "ccPickFg": {
+    "message": "글자색 선택"
+  },
+  "ccPickingBg": {
+    "message": "배경색 찍는 중… "
+  },
+  "ccPickingFg": {
+    "message": "글자색 찍는 중… "
+  },
+  "ccPickOther": {
+    "message": "나머지 색도 선택하세요."
+  },
+  "ccSample": {
+    "message": "본문 예시 Aa 가나다 123"
+  },
+  "ccRatioLabel": {
+    "message": "대비율"
+  },
+  "ccAaNormal": {
+    "message": "일반 텍스트 AA"
+  },
+  "ccAaLarge": {
+    "message": "큰 텍스트 AA"
+  },
+  "ccGuideFail": {
+    "message": "일반 텍스트 기준(4.5:1)에 미달합니다. 글자색을 더 진하게 하거나 배경과의 명도 차이를 키우세요."
+  },
+  "ccSuggestion": {
+    "message": "제안 글자색:"
+  },
+  "ccRatioSuffix": {
+    "message": " (대비율 $1:1)",
+    "placeholders": {
+      "ratio": {
+        "content": "$1"
+      }
+    }
+  },
+  "ccNoEyedropper": {
+    "message": "이 브라우저는 스포이드(EyeDropper)를 지원하지 않습니다."
+  },
+  "clearPageMarks": {
+    "message": "페이지 표시 모두 지우기"
+  },
+  "settingsThemeTitle": {
+    "message": "화면 테마"
+  },
+  "themeSystem": {
+    "message": "시스템"
+  },
+  "themeLight": {
+    "message": "라이트"
+  },
+  "themeDark": {
+    "message": "다크"
+  },
+  "themeContrast": {
+    "message": "고대비"
+  },
+  "settingsAccountTitle": {
+    "message": "계정"
+  },
+  "footGuide": {
+    "message": "사용 가이드"
+  },
+  "skippedLabel": {
+    "message": " ⚠건너뜀"
+  },
+  "overlayCountSome": {
+    "message": "$1 · $2개 강조",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      },
+      "n": {
+        "content": "$2"
+      }
+    }
+  },
+  "overlayCountNone": {
+    "message": "$1 · 해당 요소 없음",
+    "placeholders": {
+      "label": {
+        "content": "$1"
+      }
+    }
+  },
+  "navAria": {
+    "message": "기능"
+  },
+  "tabScanAria": {
+    "message": "검사"
+  },
+  "tabToolsAria": {
+    "message": "도구 호출"
+  },
+  "tabSettingsAria": {
+    "message": "환경설정"
+  },
+  "vizToolsAria": {
+    "message": "페이지 위 시각 표시"
+  },
+  "toolsHint": {
+    "message": "현재 페이지 위에 표시됩니다. 아래 \"모두 지우기\"로 정리하세요."
+  },
+  "structTitle": {
+    "message": "구조 보기"
+  },
+  "structAria": {
+    "message": "구조 시각화"
+  },
+  "structHeadings": {
+    "message": "제목 개요"
+  },
+  "structLandmarks": {
+    "message": "랜드마크"
+  },
+  "structFocus": {
+    "message": "초점 순서"
+  },
+  "structLinearize": {
+    "message": "읽기 순서(선형화)"
+  },
+  "sizeTitle": {
+    "message": "크기 점검"
+  },
+  "sizeAria": {
+    "message": "크기 점검"
+  },
+  "sizeTargets": {
+    "message": "클릭 영역 크기(24px)"
+  },
+  "sizeHint": {
+    "message": "버튼·링크의 크기를 표시하고 24×24px 미만은 빨갛게 강조합니다 (WCAG 2.5.8)."
+  },
+  "simTitle": {
+    "message": "장애 시뮬레이션"
+  },
+  "simAria": {
+    "message": "장애 시뮬레이션"
+  },
+  "simGrayscale": {
+    "message": "흑백"
+  },
+  "ccTitle": {
+    "message": "명도대비 검사"
+  },
+  "ccHint": {
+    "message": "스포이드로 배경색과 글자색을 각각 찍으면 대비율과 통과 여부를 알려줍니다."
+  }
+}

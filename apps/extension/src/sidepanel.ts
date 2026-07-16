@@ -22,6 +22,7 @@ import {
   runAxeInPage,
 } from "./injected";
 import { wireTabs, wireTheme } from "./ui";
+import { isEnglish, localizeHtml, msg, pick } from "./i18n";
 
 // 빌드 시 esbuild define으로 치환됨
 declare const process: { env: { A11YCHK_SITE_ORIGIN: string; A11YCHK_AXE_VERSION: string } };
@@ -50,7 +51,7 @@ async function getSession(): Promise<StoredSession | null> {
 
 /** 연결(로그인) 페이지 열기 */
 function openConnect() {
-  void chrome.tabs.create({ url: `${SITE_ORIGIN}/ko/extension/connect` });
+  void chrome.tabs.create({ url: `${SITE_ORIGIN}/${isEnglish() ? "en" : "ko"}/extension/connect` });
 }
 
 /** 확장 연결 해제 — 저장된 세션 삭제 */
@@ -67,31 +68,31 @@ async function renderAccount() {
   box.innerHTML = "";
 
   if (session) {
-    conn.textContent = "연결됨";
+    conn.textContent = msg("connOn");
     conn.classList.add("on");
     box.className = "account connected";
     const who = document.createElement("span");
     who.className = "who";
-    who.append("연결됨 · ");
+    who.append(`${msg("connOn")} · `);
     const b = document.createElement("b");
-    b.textContent = session.email ?? "내 계정";
+    b.textContent = session.email ?? msg("accountTitle");
     who.appendChild(b);
     const out = document.createElement("button");
     out.type = "button";
     out.className = "logout";
-    out.textContent = "로그아웃";
+    out.textContent = msg("logout");
     out.addEventListener("click", logout);
     box.append(who, out);
     // 저장 버튼·프로세스 태그는 검사 결과가 있을 때만 별도 노출
   } else {
-    conn.textContent = "미연결";
+    conn.textContent = msg("connOff");
     conn.classList.remove("on");
     box.className = "account disconnected";
     const p = document.createElement("p");
-    p.textContent = "로그인하면 검사 결과·전문가 판정을 계정에 저장하고 사이트 보고서로 관리할 수 있습니다.";
+    p.textContent = msg("loginPitch");
     const btn = document.createElement("button");
     btn.type = "button";
-    btn.textContent = "웹 서비스 로그인 · 연결";
+    btn.textContent = msg("loginCta");
     btn.addEventListener("click", openConnect);
     box.append(p, btn);
     // 로그아웃 시 저장 UI 숨김
@@ -130,27 +131,27 @@ function setUsageNote(html: { text: string; cta?: boolean; err?: boolean }) {
   if (html.cta) {
     el.appendChild(document.createTextNode(" "));
     const a = document.createElement("a");
-    a.href = `${SITE_ORIGIN}/ko/login`;
+    a.href = `${SITE_ORIGIN}/${isEnglish() ? "en" : "ko"}/login`;
     a.target = "_blank";
     a.rel = "noopener";
-    a.textContent = "무료 가입하기 →";
+    a.textContent = msg("signupCta");
     el.appendChild(a);
   }
 }
 
 const IMPACTS: Impact[] = ["critical", "serious", "moderate", "minor"];
 const IMPACT_LABEL: Record<Impact, string> = {
-  critical: "치명적",
-  serious: "심각",
-  moderate: "보통",
-  minor: "경미",
+  critical: msg("impactCritical"),
+  serious: msg("impactSerious"),
+  moderate: msg("impactModerate"),
+  minor: msg("impactMinor"),
 };
 
 /** MAIN world에서 axe 실행 — 단순 표현식이라 번들러 헬퍼 오염 위험 없음 */
 async function scan() {
   const tab = await getActiveTab();
   if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) {
-    $("target").innerHTML = '<span class="err">이 페이지는 검사할 수 없습니다 (http/https 페이지에서 실행하세요).</span>';
+    $("target").innerHTML = `<span class="err">${msg("errUnscannable")}</span>`;
     return;
   }
   currentTabId = tab.id;
@@ -166,11 +167,11 @@ async function scan() {
       });
       const data = (await res.json()) as { ok?: boolean; used?: number; limit?: number; error?: string };
       if (res.status === 429) {
-        setUsageNote({ text: data.error ?? "오늘의 확장 검사 한도를 모두 사용했습니다.", err: true });
+        setUsageNote({ text: data.error ?? msg("usageLimitReached"), err: true });
         return;
       }
       if (res.ok && data.used != null && data.limit != null) {
-        setUsageNote({ text: `오늘 확장 검사 ${data.used}/${data.limit}회 사용` });
+        setUsageNote({ text: msg("usageStatus", [data.used, data.limit]) });
       }
     } catch {
       // 네트워크 오류 — 검사는 로컬 실행이므로 차단하지 않음
@@ -179,7 +180,7 @@ async function scan() {
     const used = await getAnonUsage();
     if (used >= ANON_DAILY_LIMIT) {
       setUsageNote({
-        text: `오늘 무료 검사 ${ANON_DAILY_LIMIT}회를 모두 사용했습니다. 가입하면 하루 30회 검사와 보고서 저장·관리가 가능합니다.`,
+        text: msg("anonLimitReached", [ANON_DAILY_LIMIT]),
         cta: true,
         err: true,
       });
@@ -188,7 +189,7 @@ async function scan() {
   }
 
   scanBtn.disabled = true;
-  scanBtn.textContent = "검사 중…";
+  scanBtn.textContent = msg("scanning");
   try {
     // 1) axe 라이브러리 주입 (MAIN world)
     await chrome.scripting.executeScript({
@@ -204,7 +205,7 @@ async function scan() {
       func: runAxeInPage,
     });
     const raw = results[0]?.result as AxeRunResults | undefined;
-    if (!raw) throw new Error("검사 결과를 가져오지 못했습니다.");
+    if (!raw) throw new Error(msg("errFetchResults"));
     const page = normalizeAxeResults(tab.url, raw);
 
     // 3) 자체 커스텀 검사 (서버 스캐너와 동일 규칙 — 리플로우 제외)
@@ -231,7 +232,7 @@ async function scan() {
     if (!session) {
       const used = await bumpAnonUsage();
       setUsageNote({
-        text: `오늘 무료 검사 ${used}/${ANON_DAILY_LIMIT}회 사용 · 가입하면 하루 30회 + 보고서 저장·사이트 단위 관리.`,
+        text: msg("anonUsage", [used, ANON_DAILY_LIMIT]),
         cta: true,
       });
     }
@@ -241,11 +242,11 @@ async function scan() {
     target.textContent = "";
     const err = document.createElement("span");
     err.className = "err";
-    err.textContent = `검사에 실패했습니다: ${(e as Error).message}`;
+    err.textContent = msg("errScanFailed", [(e as Error).message]);
     target.appendChild(err);
   } finally {
     scanBtn.disabled = false;
-    scanBtn.textContent = "다시 검사";
+    scanBtn.textContent = msg("rescan");
   }
 }
 
@@ -282,7 +283,7 @@ function renderResult(
   );
   if (sorted.length === 0) {
     const li = document.createElement("li");
-    li.textContent = "자동 검사에서 위반이 발견되지 않았습니다. 수동 점검을 진행하세요.";
+    li.textContent = msg("noViolations");
     li.style.borderColor = "var(--seal)";
     list.appendChild(li);
   }
@@ -295,16 +296,16 @@ function renderResult(
     const badge = document.createElement("span");
     badge.className = "badge";
     badge.textContent = IMPACT_LABEL[v.impact];
-    title.append(badge, document.createTextNode(entry.title.ko));
+    title.append(badge, document.createTextNode(pick(entry.title)));
     const meta = document.createElement("p");
     meta.className = "vmeta";
     meta.textContent =
-      `${v.nodes.length}개 요소` +
+      msg("nodeCount", [v.nodes.length]) +
       (entry.wcag.length ? ` · WCAG ${entry.wcag.join(", ")}` : "") +
       (entry.kwcag.length ? ` · KWCAG ${entry.kwcag.join(", ")}` : "");
     li.append(title, meta);
 
-    // 위반 요소 목록 (최대 3) — "표시" 버튼으로 페이지에서 강조
+    // 위반 요소 목록 (최대 3) — msg("show") 버튼으로 페이지에서 강조
     const nodesUl = document.createElement("ul");
     nodesUl.className = "vnodes";
     for (const node of v.nodes.slice(0, 3)) {
@@ -317,8 +318,8 @@ function renderResult(
         const btn = document.createElement("button");
         btn.type = "button";
         btn.className = "locate";
-        btn.textContent = "표시";
-        btn.setAttribute("aria-label", `${node.selector} 요소를 페이지에서 표시`);
+        btn.textContent = msg("show");
+        btn.setAttribute("aria-label", msg("showAria", [node.selector]));
         btn.addEventListener("click", async () => {
           try {
             const r = await chrome.scripting.executeScript({
@@ -326,11 +327,11 @@ function renderResult(
               args: [node.selector],
               func: highlightInPage,
             });
-            btn.textContent = r[0]?.result ? "표시됨 ✓" : "못 찾음";
+            btn.textContent = r[0]?.result ? msg("shown") : msg("notFound");
           } catch {
-            btn.textContent = "실패";
+            btn.textContent = msg("failedShort");
           }
-          setTimeout(() => (btn.textContent = "표시"), 2500);
+          setTimeout(() => (btn.textContent = msg("show")), 2500);
         });
         nli.appendChild(btn);
       }
@@ -339,18 +340,18 @@ function renderResult(
     if (v.nodes.length > 3) {
       const more = document.createElement("li");
       more.className = "vmore";
-      more.textContent = `외 ${v.nodes.length - 3}개 요소`;
+      more.textContent = msg("moreNodes", [v.nodes.length - 3]);
       nodesUl.appendChild(more);
     }
     li.appendChild(nodesUl);
 
     // 개선 가이드 (첫 단락) — 접기형
-    const guideFirst = entry.guide.ko.split("\n\n")[0]?.trim();
+    const guideFirst = pick(entry.guide).split("\n\n")[0]?.trim();
     if (guideFirst) {
       const details = document.createElement("details");
       details.className = "vguide";
       const summaryEl = document.createElement("summary");
-      summaryEl.textContent = "개선 가이드";
+      summaryEl.textContent = msg("guide");
       const p = document.createElement("p");
       p.textContent = guideFirst;
       details.append(summaryEl, p);
@@ -416,9 +417,9 @@ async function saveToAccount() {
   const session = await getSession();
   if (!session || !lastPage) return;
   const saveBtn = $<HTMLButtonElement>("save");
-  const msg = $("saveMsg");
+  const msgEl = $("saveMsg");
   saveBtn.disabled = true;
-  msg.textContent = "저장 중…";
+  msgEl.textContent = msg("saving");
   try {
     const reviewMap = await getReviewState(lastPage.url);
     const reviews = Object.entries(reviewMap).map(([itemId, v]) => ({
@@ -446,26 +447,26 @@ async function saveToAccount() {
     });
     const data = (await res.json()) as { id?: string; error?: string; merged?: boolean; rootUrl?: string };
     if (!res.ok || !data.id) {
-      msg.textContent = "";
+      msgEl.textContent = "";
       const err = document.createElement("span");
       err.className = "err";
-      err.textContent = data.error ?? "저장에 실패했습니다.";
-      msg.appendChild(err);
+      err.textContent = data.error ?? msg("saveFailed");
+      msgEl.appendChild(err);
     } else {
-      msg.textContent = data.merged
-        ? `기존 사이트 보고서(${data.rootUrl ?? ""})에 이 페이지를 추가했습니다. `
-        : "저장되었습니다. ";
+      msgEl.textContent = data.merged
+        ? msg("savedMerged", [data.rootUrl ?? ""])
+        : msg("saved");
       const link = document.createElement("a");
-      link.href = `${SITE_ORIGIN}/ko/scans/${data.id}`;
+      link.href = `${SITE_ORIGIN}/${isEnglish() ? "en" : "ko"}/scans/${data.id}`;
       link.target = "_blank";
       link.rel = "noopener";
-      link.textContent = "보고서 보기 →";
-      msg.appendChild(link);
+      link.textContent = msg("viewReport");
+      msgEl.appendChild(link);
       // 새로 만든/갱신된 보고서가 다음 저장 시 선택지에 나타나도록 목록 갱신
       void populateSaveTargets(session.accessToken, lastPage.url);
     }
   } catch {
-    msg.innerHTML = '<span class="err">네트워크 오류가 발생했습니다.</span>';
+    msgEl.innerHTML = `<span class="err">${msg("errNetwork")}</span>`;
   } finally {
     saveBtn.disabled = false;
   }
@@ -480,9 +481,9 @@ interface ReviewEntry {
 type ReviewMap = Record<string, ReviewEntry>;
 
 const VERDICTS: { value: Verdict; label: string }[] = [
-  { value: "passed", label: "통과" },
-  { value: "failed", label: "실패" },
-  { value: "cannotTell", label: "보류" },
+  { value: "passed", label: msg("verdictPass") },
+  { value: "failed", label: msg("verdictFail") },
+  { value: "cannotTell", label: msg("verdictHold") },
 ];
 
 /**
@@ -520,18 +521,18 @@ async function setReview(url: string, itemId: string, patch: Partial<ReviewEntry
 
 /** WCAG 성공기준 → 관련 요소 선택자·라벨 (수동 항목 맞춤 강조용) */
 const SC_HIGHLIGHT: Record<string, { selector: string; label: string }> = {
-  "1.1.1": { selector: "img,[role=img],input[type=image],area,svg", label: "이미지/대체텍스트 대상" },
-  "1.2.1": { selector: "video,audio", label: "동영상·음성 미디어" },
-  "1.2.2": { selector: "video,audio", label: "미디어(자막 확인)" },
-  "1.2.3": { selector: "video", label: "동영상(대체수단)" },
-  "1.3.1": { selector: "table,ul,ol,dl,fieldset", label: "구조 요소(표·목록)" },
-  "1.4.2": { selector: "video[autoplay],audio[autoplay]", label: "자동재생 미디어" },
-  "2.1.1": { selector: "a[href],button,input,select,textarea,[onclick],[role=button]", label: "조작 대상" },
-  "2.4.1": { selector: "a[href^='#'],[id]", label: "건너뛰기·앵커 대상" },
-  "2.4.4": { selector: "a[href]", label: "링크" },
-  "2.4.6": { selector: "h1,h2,h3,h4,h5,h6,[role=heading]", label: "제목" },
-  "2.5.8": { selector: "a[href],button,[role=button],input", label: "클릭 대상(크기)" },
-  "3.3.2": { selector: "input:not([type=hidden]),select,textarea,label", label: "폼 입력·레이블" },
+  "1.1.1": { selector: "img,[role=img],input[type=image],area,svg", label: msg("hlImages") },
+  "1.2.1": { selector: "video,audio", label: msg("hlMedia") },
+  "1.2.2": { selector: "video,audio", label: msg("hlMediaCaptions") },
+  "1.2.3": { selector: "video", label: msg("hlVideoAlt") },
+  "1.3.1": { selector: "table,ul,ol,dl,fieldset", label: msg("hlStructure") },
+  "1.4.2": { selector: "video[autoplay],audio[autoplay]", label: msg("hlAutoplay") },
+  "2.1.1": { selector: "a[href],button,input,select,textarea,[onclick],[role=button]", label: msg("hlOperable") },
+  "2.4.1": { selector: "a[href^='#'],[id]", label: msg("hlSkip") },
+  "2.4.4": { selector: "a[href]", label: msg("hlLinks") },
+  "2.4.6": { selector: "h1,h2,h3,h4,h5,h6,[role=heading]", label: msg("hlHeadings") },
+  "2.5.8": { selector: "a[href],button,[role=button],input", label: msg("hlTargetSize") },
+  "3.3.2": { selector: "input:not([type=hidden]),select,textarea,label", label: msg("hlForms") },
 };
 /** KWCAG 항목의 대응 WCAG SC들에서 강조 선택자 조합 */
 function highlightForItem(item: { wcag: string[] }): { selector: string; label: string } | null {
@@ -562,7 +563,7 @@ async function renderManual(url: string) {
     const mid = document.createElement("span");
     mid.className = "mid";
     mid.textContent = item.id;
-    head.append(mid, document.createTextNode(item.name.ko));
+    head.append(mid, document.createTextNode(pick(item.name)));
     li.appendChild(head);
 
     const actions = document.createElement("div");
@@ -572,7 +573,7 @@ async function renderManual(url: string) {
     const group = document.createElement("div");
     group.className = "verdicts";
     group.setAttribute("role", "group");
-    group.setAttribute("aria-label", `${item.name.ko} 판정`);
+    group.setAttribute("aria-label", msg("verdictGroupAria", [pick(item.name)]));
     for (const v of VERDICTS) {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -601,9 +602,9 @@ async function renderManual(url: string) {
       const hlBtn = document.createElement("button");
       hlBtn.type = "button";
       hlBtn.className = "ri-highlight";
-      hlBtn.textContent = "강조";
+      hlBtn.textContent = msg("highlight");
       hlBtn.setAttribute("aria-pressed", "false");
-      hlBtn.setAttribute("aria-label", `${item.name.ko} 관련 요소 강조`);
+      hlBtn.setAttribute("aria-label", msg("highlightAria", [pick(item.name)]));
       hlBtn.addEventListener("click", () => toggleManualHighlight(hl.selector, hl.label, hlBtn));
       actions.appendChild(hlBtn);
     }
@@ -613,7 +614,7 @@ async function renderManual(url: string) {
     const note = document.createElement("textarea");
     note.className = "ri-note";
     note.rows = 1;
-    note.placeholder = "관찰 메모 (선택)";
+    note.placeholder = msg("notePlaceholder");
     note.value = reviews[item.id]?.note ?? "";
     note.addEventListener("change", () => setReview(url, item.id, { note: note.value.slice(0, 2000) }));
     li.appendChild(note);
@@ -683,7 +684,7 @@ async function setIssuesView(on: boolean) {
 async function setStructView(kind: StructKind, on: boolean) {
   if (on) {
     if (kind === "targets") await runInPage(overlayTargetSizeInPage);
-    else await runInPage(overlayStructureInPage, kind);
+    else await runInPage(overlayStructureInPage, kind, msg("skippedLabel"));
     currentView = kind;
   } else {
     await clearOverlayView();
@@ -695,7 +696,12 @@ async function setStructView(kind: StructKind, on: boolean) {
 async function toggleManualHighlight(selector: string, label: string, btn: HTMLButtonElement) {
   const on = btn.getAttribute("aria-pressed") !== "true";
   if (on) {
-    await runInPage(overlayQueryInPage, selector, label);
+    await runInPage(
+    overlayQueryInPage,
+    selector,
+    msg("overlayCountSome", [label, "{n}"]),
+    msg("overlayCountNone", [label]),
+  );
     currentView = "manual";
     activeHighlightBtn = btn;
   } else {
@@ -816,7 +822,7 @@ function renderContrast() {
   ($("bgSwatch") as HTMLElement).style.background = ccBg ?? "";
   ($("fgSwatch") as HTMLElement).style.background = ccFg ?? "";
   if (!ccBg || !ccFg) {
-    out.textContent = ccBg || ccFg ? "나머지 색도 선택하세요." : "";
+    out.textContent = ccBg || ccFg ? msg("ccPickOther") : "";
     return;
   }
   const ratio = Math.round(ratioOf(ccBg, ccFg) * 100) / 100;
@@ -829,11 +835,11 @@ function renderContrast() {
   preview.className = "cc-preview";
   preview.style.background = ccBg;
   preview.style.color = ccFg;
-  preview.textContent = "본문 예시 Aa 가나다 123";
+  preview.textContent = msg("ccSample");
   out.appendChild(preview);
 
   const ratioEl = document.createElement("div");
-  ratioEl.innerHTML = `대비율 <span class="cc-ratio">${ratio}</span> : 1 <span style="color:var(--ink-faint)">(${ccBg} / ${ccFg})</span>`;
+  ratioEl.innerHTML = `${msg("ccRatioLabel")} <span class="cc-ratio">${ratio}</span> : 1 <span style="color:var(--ink-faint)">(${ccBg} / ${ccFg})</span>`;
   out.appendChild(ratioEl);
 
   const badges = document.createElement("div");
@@ -844,7 +850,7 @@ function renderContrast() {
     s.textContent = `${label} ${ok ? "✓" : "✗"}`;
     return s;
   };
-  badges.append(mk("일반 텍스트 AA", aa), mk("큰 텍스트 AA", aaLarge), mk("AAA", aaa));
+  badges.append(mk(msg("ccAaNormal"), aa), mk(msg("ccAaLarge"), aaLarge), mk("AAA", aaa));
   out.appendChild(badges);
 
   if (!aa) {
@@ -852,11 +858,11 @@ function renderContrast() {
     guide.className = "cc-guide";
     const suggestion = suggestColor(ccBg, ccFg);
     let html =
-      "일반 텍스트 기준(4.5:1)에 미달합니다. 글자색을 더 진하게 하거나 배경과의 명도 차이를 키우세요.";
+      msg("ccGuideFail");
     if (suggestion) {
-      html += `<br>제안 글자색: <b style="color:${suggestion}">${suggestion}</b> `;
+      html += `<br>${msg("ccSuggestion")} <b style="color:${suggestion}">${suggestion}</b> `;
       html += `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${suggestion};border:1px solid var(--line);vertical-align:middle"></span>`;
-      html += ` (대비율 ${Math.round(ratioOf(ccBg, suggestion) * 100) / 100}:1)`;
+      html += msg("ccRatioSuffix", [Math.round(ratioOf(ccBg, suggestion) * 100) / 100]);
     }
     guide.innerHTML = html;
     out.appendChild(guide);
@@ -869,11 +875,11 @@ function wireContrastPicker() {
   const pick = async (which: "bg" | "fg", btn: HTMLButtonElement) => {
     const label = btn.childNodes[0];
     const prev = label?.textContent ?? "";
-    if (label) label.textContent = which === "bg" ? "배경색 찍는 중… " : "글자색 찍는 중… ";
+    if (label) label.textContent = which === "bg" ? msg("ccPickingBg") : msg("ccPickingFg");
     const c = await pickScreenColor();
     if (label) label.textContent = prev;
     if (c === "unsupported") {
-      $("ccResult").textContent = "이 브라우저는 스포이드(EyeDropper)를 지원하지 않습니다.";
+      $("ccResult").textContent = msg("ccNoEyedropper");
       return;
     }
     if (!c) return;
@@ -886,14 +892,19 @@ function wireContrastPicker() {
 }
 
 async function init() {
+  // 정적 HTML 로컬라이즈 + 문서 언어 반영 (default_locale ko, en 지원)
+  localizeHtml();
+  document.documentElement.lang = isEnglish() ? "en" : "ko";
+
   await renderAccount();
   // 웹 연결 페이지에서 로그인하면 저장소가 바뀌므로 패널을 자동 갱신
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area === "local" && changes.a11ychk_session) void renderAccount();
   });
 
-  $("guideLink").setAttribute("href", `${SITE_ORIGIN}/ko/guide`);
-  $("siteLink").setAttribute("href", `${SITE_ORIGIN}/ko`);
+  const webLocale = isEnglish() ? "en" : "ko";
+  $("guideLink").setAttribute("href", `${SITE_ORIGIN}/${webLocale}/guide`);
+  $("siteLink").setAttribute("href", `${SITE_ORIGIN}/${webLocale}`);
 
   $("scan").addEventListener("click", scan);
   $("save").addEventListener("click", saveToAccount);
@@ -933,7 +944,7 @@ async function refreshActiveTab() {
   }
 
   const scannable = /^https?:/.test(url);
-  $("target").textContent = scannable ? url : url ? "이 페이지는 검사할 수 없습니다 (브라우저 내부 페이지)." : "탭 정보를 읽을 수 없습니다.";
+  $("target").textContent = scannable ? url : url ? msg("errInternalPage") : msg("errNoTab");
   $<HTMLButtonElement>("scan").disabled = !scannable;
   if (scannable) await renderManual(url);
   else $("manual").innerHTML = "";

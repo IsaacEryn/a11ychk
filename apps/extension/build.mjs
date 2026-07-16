@@ -45,5 +45,6 @@ for (const f of ["manifest.json", "sidepanel.html", "sidepanel.css"]) {
 await mkdir(join(dist, "vendor"), { recursive: true });
 await cp(axeMinPath, join(dist, "vendor", "axe.min.js"));
 await cp(join(src, "icons"), join(dist, "icons"), { recursive: true });
+await cp(join(src, "_locales"), join(dist, "_locales"), { recursive: true });
 
 console.log(`✓ 확장 빌드 완료 → apps/extension/dist (site: ${SITE_ORIGIN}, axe: v${AXE_VERSION})`);
