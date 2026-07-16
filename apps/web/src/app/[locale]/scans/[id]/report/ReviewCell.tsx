@@ -7,6 +7,7 @@ import { saveReview, type SaveState } from "@/lib/actions";
 export interface ReviewValue {
   outcome: string;
   note: string;
+  pages?: string[];
 }
 
 /**
@@ -19,11 +20,14 @@ export function ReviewCell({
   standard,
   itemId,
   current,
+  pageUrls = [],
 }: {
   scanId: string;
   standard: "wcag" | "kwcag";
   itemId: string;
   current: ReviewValue | null;
+  /** 이 스캔의 검사된 페이지 URL 목록 (판정을 페이지에 귀속) */
+  pageUrls?: string[];
 }) {
   const t = useTranslations("report.review");
   const [state, formAction, pending] = useActionState<SaveState, FormData>(saveReview, {});
@@ -68,6 +72,25 @@ export function ReviewCell({
             className="w-full rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1 text-xs"
           />
         </div>
+        {pageUrls.length > 0 && (
+          <fieldset className="border-0 p-0">
+            <legend className="mb-1 text-xs font-semibold">{t("relatedPages")}</legend>
+            <div className="max-h-28 space-y-1 overflow-y-auto">
+              {pageUrls.map((url) => (
+                <label key={url} className="flex items-start gap-1.5 text-xs">
+                  <input
+                    type="checkbox"
+                    name="pages"
+                    value={url}
+                    defaultChecked={current?.pages?.includes(url) ?? false}
+                    className="mt-0.5 h-3.5 w-3.5 accent-[var(--color-seal)]"
+                  />
+                  <span className="break-all">{url}</span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+        )}
         <div className="flex items-center gap-2">
           <button
             type="submit"

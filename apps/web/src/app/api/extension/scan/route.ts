@@ -31,6 +31,7 @@ const ReviewSchema = z.object({
   itemId: z.string().min(1).max(20),
   outcome: z.enum(["passed", "failed", "cannotTell", "notPresent", "notChecked"]),
   note: z.string().max(2000).default(""),
+  pages: z.array(z.string().max(2000)).max(50).optional(),
 });
 const BodySchema = z.object({
   page: PageSchema,
@@ -241,7 +242,17 @@ async function saveReviews(
     item_id: r.itemId,
     outcome: r.outcome,
     note: r.note,
+    pages: r.pages && r.pages.length > 0 ? r.pages : null,
     updated_at: new Date().toISOString(),
   }));
-  await admin.from("scan_reviews").upsert(rows, { onConflict: "scan_id,standard,item_id" });
+  const { error } = await admin.from("scan_reviews").upsert(rows, { onConflict: "scan_id,standard,item_id" });
+  if (error && /pages/.test(error.message)) {
+    // pages 컬럼 미적용(0010 전) — 컬럼 없이 재시도
+    const bare = rows.map((r) => {
+      const { pages, ...rest } = r;
+      void pages;
+      return rest;
+    });
+    await admin.from("scan_reviews").upsert(bare, { onConflict: "scan_id,standard,item_id" });
+  }
 }

@@ -90,15 +90,23 @@ export default async function ReportPage({
   const meta = (scan.report_meta ?? null) as ReportMeta | null;
 
   // 점검자 판정 (migration 0004 전에는 테이블이 없어 실패 → 빈 목록으로 진행)
-  const { data: reviewRows } = await db
-    .from("scan_reviews")
-    .select("standard, item_id, outcome, note")
-    .eq("scan_id", id);
+  // pages 컬럼(0010) 미적용이어도 깨지지 않게 별도 시도
+  let reviewRows: { standard: string; item_id: string; outcome: string; note: string; pages?: unknown }[] | null = null;
+  {
+    const withPages = await db.from("scan_reviews").select("standard, item_id, outcome, note, pages").eq("scan_id", id);
+    if (withPages.error) {
+      const basic = await db.from("scan_reviews").select("standard, item_id, outcome, note").eq("scan_id", id);
+      reviewRows = basic.data;
+    } else {
+      reviewRows = withPages.data;
+    }
+  }
   const wcagReviews = new Map<string, ReviewValue>();
   const kwcagReviews = new Map<string, ReviewValue>();
   for (const r of reviewRows ?? []) {
     const target = r.standard === "wcag" ? wcagReviews : kwcagReviews;
-    target.set(r.item_id, { outcome: r.outcome, note: r.note });
+    const pages = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
+    target.set(r.item_id, { outcome: r.outcome, note: r.note, pages });
   }
 
   const [{ data: pages }, { data: findings }] = await Promise.all([
@@ -162,6 +170,7 @@ export default async function ReportPage({
   }
 
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
+  const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
   const manualItems = getManualCheckItems();
 
   // 확인용 수집 자료 (signature.review) — 값이 하나라도 있는 페이지만
@@ -357,6 +366,7 @@ export default async function ReportPage({
                   <th scope="col" className="py-2 pr-3 font-bold">{t("pages.colUrl")}</th>
                   <th scope="col" className="w-24 py-2 pr-3 font-bold">{t("pages.colCategory")}</th>
                   <th scope="col" className="w-20 py-2 pr-3 font-bold">{t("pages.colSample")}</th>
+                  <th scope="col" className="w-24 py-2 pr-3 text-right font-bold">{t("pages.colViolations")}</th>
                   <th scope="col" className="w-40 py-2 font-bold">{t("pages.colStatus")}</th>
                 </tr>
               </thead>
@@ -365,6 +375,9 @@ export default async function ReportPage({
                   const category = (p.category ?? "content") as PageCategory;
                   const sampleType = (p.sample_type ?? "structured") as SampleType;
                   const viaExtension = p.via === "extension";
+                  const vc = (p.violation_counts ?? {}) as Record<string, number>;
+                  const critSer = (vc.critical ?? 0) + (vc.serious ?? 0);
+                  const totalV = critSer + (vc.moderate ?? 0) + (vc.minor ?? 0);
                   return (
                     <tr key={p.id} className="border-b border-[var(--color-line)] align-top">
                       <td className="break-all py-2 pr-3">
@@ -377,6 +390,19 @@ export default async function ReportPage({
                       </td>
                       <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.category.${category}`)}</td>
                       <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.sample.${sampleType}`)}</td>
+                      <td className="py-2 pr-3 text-right tabular-nums">
+                        {p.status === "done" ? (
+                          totalV === 0 ? (
+                            <span className="text-[var(--color-pass)]">0</span>
+                          ) : (
+                            <span className={critSer > 0 ? "font-bold text-[var(--color-crit)]" : "text-[var(--color-ink-soft)]"}>
+                              {totalV}
+                            </span>
+                          )
+                        ) : (
+                          <span className="text-[var(--color-ink-faint)]">–</span>
+                        )}
+                      </td>
                       <td className="py-2">
                         {p.status === "done" ? (
                           <span className="font-bold text-[var(--color-pass)]">{t("pages.statusDone")}</span>
@@ -599,6 +625,11 @@ export default async function ReportPage({
                             <strong>{t("review.noteLabel")}:</strong> {review.note}
                           </p>
                         )}
+                        {review?.pages && review.pages.length > 0 && (
+                          <p className="mt-1 break-all text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
+                            <strong>{t("review.relatedPages")}:</strong> {review.pages.join(" · ")}
+                          </p>
+                        )}
                         {/* 스크롤 없이 그 자리에서: 위반→개선 방법 / 확인 필요→확인 방법 / 수동→검사 방법 */}
                         {row.outcome === "failed" && row.ruleIds.length > 0 && (
                           <MatrixDetail kind="fix" ruleIds={row.ruleIds} scId={row.scId} locale={locale} />
@@ -626,7 +657,7 @@ export default async function ReportPage({
                       </td>
                       {canEdit && (
                         <td className="no-print py-2">
-                          <ReviewCell scanId={scan.id} standard="wcag" itemId={row.scId} current={review} />
+                          <ReviewCell scanId={scan.id} standard="wcag" itemId={row.scId} current={review} pageUrls={donePageUrls} />
                         </td>
                       )}
                     </tr>
@@ -718,7 +749,7 @@ export default async function ReportPage({
                     <td className="py-2 pr-3 text-right font-bold tabular-nums">{row.violationCount > 0 ? row.violationCount : "—"}</td>
                     {canEdit && (
                       <td className="no-print py-2">
-                        <ReviewCell scanId={scan.id} standard="kwcag" itemId={row.itemId} current={review} />
+                        <ReviewCell scanId={scan.id} standard="kwcag" itemId={row.itemId} current={review} pageUrls={donePageUrls} />
                       </td>
                     )}
                   </tr>
@@ -740,7 +771,15 @@ export default async function ReportPage({
           </p>
         ) : (
           <div className="mt-5 space-y-8">
-            {ruleGroups.map(({ ruleId, rows, entry, impact }) => (
+            {ruleGroups.map(({ ruleId, rows, entry, impact }) => {
+              // 규칙별 영향 페이지 → 위반 요소 수
+              const pageCounts = new Map<string, number>();
+              for (const row of rows) {
+                const u = row.scan_pages?.url ?? "?";
+                pageCounts.set(u, (pageCounts.get(u) ?? 0) + 1);
+              }
+              const affected = [...pageCounts.entries()].sort((a, b) => b[1] - a[1]);
+              return (
               <article key={ruleId} className="print-avoid-break doc-card p-6">
                 <header className="flex flex-wrap items-center gap-2">
                   <span
@@ -766,6 +805,24 @@ export default async function ReportPage({
                   {entry.kwcag.length > 0 && <span>{t("violations.kwcag")} {entry.kwcag.join(", ")}</span>}
                   <span className="font-mono">{ruleId}</span>
                 </p>
+
+                {affected.length > 0 && (
+                  <div className="mt-3 border-l-[3px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] py-2 pl-3">
+                    <p className="text-sm font-bold">
+                      {t("violations.affectedPages", { count: affected.length })}
+                    </p>
+                    <ul className="mt-1 space-y-0.5 text-xs text-[var(--color-ink-soft)]">
+                      {affected.map(([url, count]) => (
+                        <li key={url} className="flex flex-wrap gap-x-2">
+                          <span className="break-all">{url}</span>
+                          <span className="whitespace-nowrap font-bold tabular-nums">
+                            {t("violations.nodes", { count })}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
 
                 <h4 className="mt-4 text-sm font-bold">{t("violations.guideTitle")}</h4>
                 <div className="mt-2">
@@ -800,7 +857,8 @@ export default async function ReportPage({
                   </a>
                 )}
               </article>
-            ))}
+              );
+            })}
           </div>
         )}
       </section>

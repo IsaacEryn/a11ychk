@@ -807,6 +807,8 @@ async function saveToAccount() {
       itemId,
       outcome: v.outcome,
       note: v.note ?? "",
+      // 확장은 현재 페이지 단위이므로 판정을 그 페이지에 귀속
+      pages: [lastPage!.url],
     }));
     const isProcess = ($("isProcess") as HTMLInputElement).checked;
     const res = await fetch(`${SITE_ORIGIN}/api/extension/scan`, {

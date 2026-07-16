@@ -249,17 +249,23 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
   });
   if (!parsed.success) return { error: "invalid" };
 
-  const { error } = await supabase.from("scan_reviews").upsert(
-    {
-      scan_id: parsed.data.scanId,
-      standard: parsed.data.standard,
-      item_id: parsed.data.itemId,
-      outcome: parsed.data.outcome,
-      note: parsed.data.note,
-      updated_at: new Date().toISOString(),
-    },
-    { onConflict: "scan_id,standard,item_id" },
-  );
+  // 관련 페이지(선택) — 어떤 페이지에서 확인된 사항인지 기록 (migration 0010)
+  const pages = formData.getAll("pages").filter((p): p is string => typeof p === "string" && p.length > 0);
+  const row: Record<string, unknown> = {
+    scan_id: parsed.data.scanId,
+    standard: parsed.data.standard,
+    item_id: parsed.data.itemId,
+    outcome: parsed.data.outcome,
+    note: parsed.data.note,
+    pages: pages.length > 0 ? pages.slice(0, 50) : null,
+    updated_at: new Date().toISOString(),
+  };
+  let { error } = await supabase.from("scan_reviews").upsert(row, { onConflict: "scan_id,standard,item_id" });
+  if (error && /pages/.test(error.message)) {
+    // pages 컬럼 미적용(migration 0010 전) — 컬럼 없이 재시도
+    delete row.pages;
+    ({ error } = await supabase.from("scan_reviews").upsert(row, { onConflict: "scan_id,standard,item_id" }));
+  }
   if (error) return { error: "failed" };
   await refreshScores(supabase, parsed.data.scanId);
   revalidateAll();

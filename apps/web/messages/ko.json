@@ -363,7 +363,8 @@
         "invalid": "입력값 오류",
         "forbidden": "권한 없음",
         "failed": "저장 실패"
-      }
+      },
+      "relatedPages": "관련 페이지"
     },
     "pages": {
       "title": "표본 페이지 상세",
@@ -391,7 +392,8 @@
         "random": "무작위",
         "process": "프로세스"
       },
-      "viaExtension": "확장 검사"
+      "viaExtension": "확장 검사",
+      "colViolations": "위반"
     },
     "em": {
       "scopeTitle": "평가 범위 (WCAG-EM Step 1)",
@@ -454,7 +456,8 @@
       "exampleTitle": "위반 위치",
       "pageLabel": "페이지",
       "selectorLabel": "선택자",
-      "axeHelp": "axe-core 규칙 문서"
+      "axeHelp": "axe-core 규칙 문서",
+      "affectedPages": "영향받은 페이지 {count}곳"
     },
     "manual": {
       "title": "수동 검사 필요 항목",

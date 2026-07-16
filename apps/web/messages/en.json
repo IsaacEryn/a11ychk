@@ -363,7 +363,8 @@
         "invalid": "Invalid input",
         "forbidden": "Not allowed",
         "failed": "Save failed"
-      }
+      },
+      "relatedPages": "Related pages"
     },
     "pages": {
       "title": "Sample pages",
@@ -391,7 +392,8 @@
         "random": "Random",
         "process": "Process"
       },
-      "viaExtension": "Extension"
+      "viaExtension": "Extension",
+      "colViolations": "Violations"
     },
     "em": {
       "scopeTitle": "Evaluation scope (WCAG-EM Step 1)",
@@ -454,7 +456,8 @@
       "exampleTitle": "Where it occurs",
       "pageLabel": "Page",
       "selectorLabel": "Selector",
-      "axeHelp": "axe-core rule docs"
+      "axeHelp": "axe-core rule docs",
+      "affectedPages": "{count} affected page(s)"
     },
     "manual": {
       "title": "Checkpoints requiring manual testing",
