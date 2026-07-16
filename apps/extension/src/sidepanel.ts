@@ -667,7 +667,13 @@ async function scan() {
       });
     }
   } catch (e) {
-    $("target").innerHTML = `<span class="err">검사에 실패했습니다: ${(e as Error).message}</span>`;
+    // 에러 메시지는 페이지 컨텍스트에서 올 수 있으므로 textContent로만 렌더 (XSS 방지)
+    const target = $("target");
+    target.textContent = "";
+    const err = document.createElement("span");
+    err.className = "err";
+    err.textContent = `검사에 실패했습니다: ${(e as Error).message}`;
+    target.appendChild(err);
   } finally {
     scanBtn.disabled = false;
     scanBtn.textContent = "다시 검사";

@@ -113,16 +113,17 @@ const BASE_SCRIPT = `(function(){
     var limit = Math.min(focusables.length, 20);
     for (var j=0;j<limit;j++){
       var f = focusables[j];
+      // getComputedStyle은 live 객체이므로 focus 전 값을 문자열로 스냅샷해야 한다
       var b = getComputedStyle(f);
-      var boBefore = b.boxShadow, olwBefore = b.outlineWidth, olsBefore = b.outlineStyle, brBefore = b.borderColor;
-      try { f.focus(); } catch(e){ continue; }
+      var boBefore = String(b.boxShadow), brBefore = String(b.borderColor), bgBefore = String(b.backgroundColor);
+      try { f.focus({ preventScroll: true }); } catch(e){ continue; }
       if (document.activeElement !== f) continue;
       res.focusSampled++;
       var a = getComputedStyle(f);
       var outlineVisible = (a.outlineStyle !== 'none' && a.outlineWidth !== '0px');
       var boxShadowChanged = (a.boxShadow !== boBefore && a.boxShadow !== 'none');
       var borderChanged = (a.borderColor !== brBefore);
-      var bgChanged = (a.backgroundColor !== b.backgroundColor);
+      var bgChanged = (a.backgroundColor !== bgBefore);
       if (!outlineVisible && !boxShadowChanged && !borderChanged && !bgChanged) {
         res.focusNoOutline++;
         if (res.focusExamples.length < 5) res.focusExamples.push({ selector: cssPath(f), html: f.outerHTML.slice(0,200) });

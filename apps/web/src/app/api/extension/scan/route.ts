@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, type PageScanResult } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkExtUsage, getExtDailyLimit } from "@/lib/quota";
+import { consumeExtUsage, getExtDailyLimit } from "@/lib/quota";
 import { reaggregate } from "@/lib/scan/runScan";
 
 export const maxDuration = 60;
@@ -80,8 +80,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "검사 대상 URL이 올바르지 않습니다." }, { status: 400 });
   }
 
-  // 3) 계정 상태·확장 한도 확인 — 웹 검사 한도와 분리된 확장 전용 한도.
-  //    사용량은 검사 시점(/api/extension/usage)에 소비하므로 여기서는 초과 여부만 검증.
+  // 3) 계정 상태·확장 한도 — 웹 검사 한도와 분리된 확장 전용 한도.
+  //    저장이 서버 자원을 소비하는 지점이므로 여기서 원자적으로 소비한다
+  //    (클라이언트가 별도 소비 호출을 생략해도 한도를 우회할 수 없음).
   const { data: profile } = await admin
     .from("profiles")
     .select("blocked, scan_limit_override")
@@ -91,7 +92,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "검사를 실행할 수 없는 계정입니다." }, { status: 403 });
   }
   const extLimit = getExtDailyLimit(profile.scan_limit_override);
-  const usage = await checkExtUsage(admin, user.id, extLimit, false);
+  const usage = await consumeExtUsage(admin, user.id, extLimit);
+  if (usage.error) {
+    return NextResponse.json({ error: "사용량 처리에 실패했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+  }
   if (!usage.ok) {
     return NextResponse.json({ error: `오늘의 확장 검사 한도(${usage.limit}회)를 모두 사용했습니다.` }, { status: 429 });
   }

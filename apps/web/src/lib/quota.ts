@@ -53,40 +53,79 @@ export function getExtDailyLimit(override: unknown): number {
   return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : EXT_DAILY_DEFAULT;
 }
 
-/**
- * 확장 검사 사용량 소비/확인 (extension_usage — migration 0009).
- * consume=true면 1 증가시켜 기록. 테이블 미적용 시 허용으로 폴백.
- */
-export async function checkExtUsage(
-  admin: SupabaseClient,
-  userId: string,
-  limit: number,
-  consume: boolean,
-): Promise<{ ok: boolean; used: number; limit: number }> {
-  const day = new Date().toISOString().slice(0, 10);
+export interface ExtUsageResult {
+  ok: boolean;
+  used: number;
+  limit: number;
+  /** 인프라 오류 — 호출자는 429가 아닌 500으로 응답할 것 (fail-closed) */
+  error?: boolean;
+}
+
+const extDay = () => new Date().toISOString().slice(0, 10);
+
+/** 확장 검사 사용량 조회 전용 (extension_usage — migration 0009). 테이블 미적용 시 0으로 폴백 */
+export async function getExtUsage(admin: SupabaseClient, userId: string, limit: number): Promise<ExtUsageResult> {
   try {
     const { data, error } = await admin
       .from("extension_usage")
       .select("count")
       .eq("user_id", userId)
-      .eq("day", day)
+      .eq("day", extDay())
       .maybeSingle();
     if (error) return { ok: true, used: 0, limit }; // 마이그레이션 미적용 — 차단하지 않음
     const used = data?.count ?? 0;
-    if (used >= limit) return { ok: false, used, limit };
-    if (consume) {
-      await admin
-        .from("extension_usage")
-        .upsert(
-          { user_id: userId, day, count: used + 1, updated_at: new Date().toISOString() },
-          { onConflict: "user_id,day" },
-        );
-      return { ok: true, used: used + 1, limit };
-    }
-    return { ok: true, used, limit };
+    return { ok: used < limit, used, limit };
   } catch {
     return { ok: true, used: 0, limit };
   }
+}
+
+/**
+ * 확장 검사 사용량 원자 소비 — increment_ext_usage RPC(migration 0011)로
+ * 한도 검사와 증가를 한 문장에서 처리한다 (read-then-write 레이스 없음).
+ * RPC 미적용(0011 전)이면 기존 비원자 경로로 폴백, 그 외 오류는 fail-closed.
+ */
+export async function consumeExtUsage(admin: SupabaseClient, userId: string, limit: number): Promise<ExtUsageResult> {
+  try {
+    const { data, error } = await admin.rpc("increment_ext_usage", {
+      p_user_id: userId,
+      p_day: extDay(),
+      p_limit: limit,
+    });
+    if (error) {
+      // 함수 미존재(마이그레이션 미적용) → 레거시 경로로 폴백
+      if (/increment_ext_usage|function|schema cache/i.test(error.message)) {
+        return legacyConsume(admin, userId, limit);
+      }
+      return { ok: false, used: 0, limit, error: true };
+    }
+    const result = typeof data === "number" ? data : -1;
+    if (result < 0) return { ok: false, used: limit, limit };
+    return { ok: true, used: result, limit };
+  } catch {
+    return { ok: false, used: 0, limit, error: true };
+  }
+}
+
+/** 0011 미적용 환경용 비원자 소비 (기존 동작 유지 — 테이블 자체가 없으면 허용) */
+async function legacyConsume(admin: SupabaseClient, userId: string, limit: number): Promise<ExtUsageResult> {
+  const day = extDay();
+  const { data, error } = await admin
+    .from("extension_usage")
+    .select("count")
+    .eq("user_id", userId)
+    .eq("day", day)
+    .maybeSingle();
+  if (error) return { ok: true, used: 0, limit }; // 테이블 미적용(0009 전)
+  const used = data?.count ?? 0;
+  if (used >= limit) return { ok: false, used, limit };
+  await admin
+    .from("extension_usage")
+    .upsert(
+      { user_id: userId, day, count: used + 1, updated_at: new Date().toISOString() },
+      { onConflict: "user_id,day" },
+    );
+  return { ok: true, used: used + 1, limit };
 }
 
 /** 관리자가 지정한 사용자별 기본 페이지 한도 (scan_limit_override.pages). 없으면 undefined */

@@ -1,7 +1,7 @@
 import "server-only";
 import type { EvaluationScope } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
+import { QUOTA_WINDOWS, checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 
 export type CreateScanResult = { ok: true; id: string } | { ok: false; status: number; error: string };
@@ -50,7 +50,8 @@ export async function createScanForUser(
     };
   }
 
-  // 동시 실행 제한 — 사용자당 1건
+  // 동시 실행 제한 — 사용자당 1건 (빠른 사전 검사; 원자적 보장은 아래
+  // 부분 유니크 인덱스 scans_one_active_per_user가 담당 — migration 0011)
   const { count: runningCount } = await admin
     .from("scans")
     .select("id", { count: "exact", head: true })
@@ -104,7 +105,31 @@ export async function createScanForUser(
     .select("id")
     .single();
   if (insertError || !scan) {
+    // 23505 = 유니크 위반 — 동시 요청이 사전 검사를 함께 통과한 경우(TOCTOU)
+    if (insertError?.code === "23505") {
+      return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요." };
+    }
     return { ok: false, status: 500, error: "검사 생성에 실패했습니다." };
+  }
+
+  // 한도 이중 검증 — 동시 삽입으로 한도를 넘었으면 이번 행을 회수 (TOCTOU 보정).
+  // 카운트는 삽입 후 기준이므로 '초과'는 limit을 넘어선 경우다.
+  const recheck = await checkQuota(
+    admin,
+    userId,
+    resolveLimits(profile.scan_limit_override, plansActive),
+    getResets(profile.scan_limit_override),
+  );
+  for (const key of QUOTA_WINDOWS) {
+    if (recheck.used[key] > recheck.limits[key]) {
+      await admin.from("scans").delete().eq("id", scan.id);
+      const windowLabel = { daily: "일간", weekly: "주간", monthly: "월간" }[key];
+      return {
+        ok: false,
+        status: 429,
+        error: `${windowLabel} 검사 한도(${recheck.limits[key]}회)를 모두 사용했습니다.`,
+      };
+    }
   }
   return { ok: true, id: scan.id };
 }
