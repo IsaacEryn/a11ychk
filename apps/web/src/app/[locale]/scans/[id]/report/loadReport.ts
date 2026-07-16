@@ -45,16 +45,31 @@ export type PageRow = Record<string, unknown> & { id: string; url: string; statu
 
 const IMPACT_ORDER: Impact[] = ["critical", "serious", "moderate", "minor"];
 
+/** 공유 토큰 일치 확인 (0012 미적용이면 컬럼 부재 → false) */
+async function matchesShareToken(scanId: string, token: string): Promise<boolean> {
+  // 공유 토큰은 64자 hex — HMAC 토큰(exp.sig)과 형식이 달라 오인 없음
+  if (!/^[0-9a-f]{64}$/.test(token)) return false;
+  const admin = createAdminClient();
+  const { data, error } = await admin.from("scans").select("share_token").eq("id", scanId).maybeSingle();
+  if (error || !data?.share_token) return false;
+  return data.share_token === token;
+}
+
 /**
  * 보고서 데이터 로더 — 접근 제어(토큰/세션)와 모든 조회·그룹화를 담당한다.
  * page.tsx는 이 결과를 렌더만 한다.
  */
 export async function loadReport(locale: string, id: string, token: string | undefined) {
-  // 접근 제어: PDF 생성용 단기 토큰(스캔 1건 한정) 또는 로그인 사용자(RLS)
+  // 접근 제어 — 3경로:
+  //   1) PDF 생성용 단기 HMAC 토큰 (스캔 1건, 10분)
+  //   2) 공유 토큰 (소유자가 켠 읽기 전용 링크 — scans.share_token, migration 0012)
+  //   3) 로그인 사용자 (RLS — 소유자/관리자, 편집 가능)
   let db: SupabaseClient;
   let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
   let isAdmin = false; // 관리자 전용 미리보기 기능(전후 비교) 게이트
   if (token && verifyReportToken(id, token)) {
+    db = createAdminClient();
+  } else if (token && (await matchesShareToken(id, token))) {
     db = createAdminClient();
   } else {
     const supabase = await createClient();

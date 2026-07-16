@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import crypto from "node:crypto";
 import { resolveTxt } from "node:dns/promises";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -326,6 +327,41 @@ export async function saveReportMeta(_prev: SaveState, formData: FormData): Prom
   if (error) return { error: "failed" };
   revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
   return { ok: true };
+}
+
+/** 공유 링크 토글 결과 — token이 있으면 공유 중 */
+export interface ShareState {
+  ok?: boolean;
+  token?: string | null;
+  /** "invalid" | "forbidden" | "failed" */
+  error?: string;
+}
+
+/**
+ * 보고서 읽기 전용 공유 링크 켜기/끄기 (scans.share_token — migration 0012).
+ * 켜면 64자 hex 토큰 발급, 끄면 null — 기존 링크는 즉시 무효.
+ */
+export async function toggleShareLink(_prev: ShareState, formData: FormData): Promise<ShareState> {
+  const { supabase, user } = await requireUser();
+
+  const scanId = z.string().uuid().safeParse(formData.get("scanId"));
+  if (!scanId.success) return { error: "invalid" };
+  const scan = await requireScanOwner(supabase, scanId.data, user.id);
+  if (!scan) return { error: "forbidden" };
+
+  const admin = createAdminClient();
+  // share_token 조회는 별도 best-effort — 0012 미적용이면 아래 update에서 failed로 귀결
+  const { data: cur } = await admin
+    .from("scans")
+    .select("share_token")
+    .eq("id", scanId.data)
+    .maybeSingle()
+    .then((r) => r, () => ({ data: null }));
+  const next = cur?.share_token ? null : crypto.randomBytes(32).toString("hex");
+  const { error } = await admin.from("scans").update({ share_token: next }).eq("id", scanId.data);
+  if (error) return { error: "failed" }; // 0012 미적용 포함
+  revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
+  return { ok: true, token: next };
 }
 
 function str(v: FormDataEntryValue | null): string | undefined {

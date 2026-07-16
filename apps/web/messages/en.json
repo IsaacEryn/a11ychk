@@ -519,6 +519,15 @@
       "new": "New violations",
       "resolvedList": "Resolved",
       "newList": "Newly found"
+    },
+    "share": {
+      "enable": "Create share link",
+      "disable": "Stop sharing",
+      "copy": "Copy link",
+      "copied": "Copied ✓",
+      "working": "Working…",
+      "onDesc": "Anyone with the link can view this report (read-only).",
+      "failed": "Something went wrong."
     }
   },
   "mypage": {

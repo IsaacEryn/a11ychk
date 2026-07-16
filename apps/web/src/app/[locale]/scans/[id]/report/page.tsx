@@ -19,6 +19,7 @@ import { ReviewCell } from "./ReviewCell";
 import { ReportMetaForm } from "./ReportMetaForm";
 import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
+import { ShareLinkButton } from "./ShareLinkButton";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
@@ -81,7 +82,9 @@ export default async function ReportPage({
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       {/* 액션 바 */}
-      <div className="no-print mb-8 flex flex-wrap items-center justify-end gap-2">
+      <div className="no-print mb-8 flex flex-wrap items-center justify-between gap-2">
+        <div>{canEdit && <ShareLinkButton scanId={scan.id} initialToken={(scan.share_token as string | null) ?? null} />}</div>
+        <div className="flex flex-wrap items-center justify-end gap-2">
         {canEdit && <RerunScanButton scanId={scan.id} />}
         <PrintButton label={t("print")} />
         <a
@@ -102,6 +105,7 @@ export default async function ReportPage({
         >
           {t("downloadPdf")}
         </a>
+        </div>
       </div>
 
       {/* ─── 보고서 정보 입력 (점검자, 화면 전용) ─── */}
