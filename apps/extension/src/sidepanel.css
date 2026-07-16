@@ -11,6 +11,7 @@
   --crit: #a4243b;
   --crit-tint: #f8e8e8;
   --mark: #f5d76e;
+  --amber: #8a5200;
 }
 /* 시스템 설정이 다크일 때 (수동 지정이 없을 때만) */
 @media (prefers-color-scheme: dark) {
@@ -25,6 +26,7 @@
     --seal-tint: #1b332e;
     --crit: #f0899b;
     --crit-tint: #3a2027;
+    --amber: #e0a94d;
   }
 }
 /* 수동 다크 */
@@ -39,6 +41,7 @@
   --seal-tint: #1b332e;
   --crit: #f0899b;
   --crit-tint: #3a2027;
+  --amber: #e0a94d;
 }
 /* 고대비 — 검정 배경·흰 글자·굵은 테두리·밝은 강조 */
 :root[data-theme="contrast"] {
@@ -53,6 +56,7 @@
   --crit: #ff9aa8;
   --crit-tint: #3a0010;
   --mark: #ffe14d;
+  --amber: #ffd24d;
 }
 :root[data-theme="contrast"] .btn,
 :root[data-theme="contrast"] .chip,
@@ -170,6 +174,28 @@ body {
   width: 15px;
   height: 15px;
   accent-color: var(--seal);
+}
+.save-dest {
+  margin-top: 12px;
+}
+.save-dest label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  margin-bottom: 4px;
+}
+.save-dest select {
+  width: 100%;
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  padding: 6px 8px;
+  box-sizing: border-box;
+  cursor: pointer;
 }
 .score-row {
   display: flex;
@@ -476,6 +502,19 @@ h2 {
   padding: 3px 12px;
   cursor: pointer;
 }
+/* 미선택 상태에서도 종류별 색으로 구분 */
+.verdict.v-passed {
+  border-color: var(--seal);
+  color: var(--seal);
+}
+.verdict.v-failed {
+  border-color: var(--crit);
+  color: var(--crit);
+}
+.verdict.v-cannotTell {
+  border-color: var(--ink-faint);
+  color: var(--ink-faint);
+}
 .verdict.v-passed[aria-pressed="true"] {
   border-color: var(--seal);
   background: var(--seal);
@@ -678,16 +717,15 @@ h2 {
   color: var(--ink-soft);
 }
 
-/* 수동 항목 강조 토글 */
+/* 수동 항목 강조 토글 — 판정 버튼과 동일 크기, 앰버 색으로 구분 */
 .ri-highlight {
-  margin-top: 5px;
-  border: 1.5px solid var(--line);
+  border: 1.5px solid var(--amber);
   background: transparent;
-  color: var(--ink-soft);
+  color: var(--amber);
   border-radius: 5px;
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 700;
-  padding: 2px 9px;
+  padding: 3px 12px;
   cursor: pointer;
 }
 .ri-highlight[aria-pressed="true"] {

@@ -40,6 +40,13 @@ const BodySchema = z.object({
   reviews: z.array(ReviewSchema).max(60).optional(),
   /** WCAG-EM: 이 페이지가 다단계 프로세스의 한 단계인지 표시 */
   sampleType: z.enum(["structured", "random", "process"]).optional(),
+  /**
+   * 저장 위치 지정:
+   * - "new": 무조건 새 보고서 생성
+   * - 스캔 ID: 해당 기존 보고서에 이 페이지를 추가
+   * - 생략: 같은 호스트 최근 보고서에 자동 병합(기존 동작, 하위호환)
+   */
+  target: z.string().max(60).optional(),
 });
 
 /** 크롬 확장에서 이미 실행한 단일 페이지 검사 결과를 사용자 계정에 저장 */
@@ -112,22 +119,42 @@ export async function POST(request: Request) {
       })),
     );
 
-  // 4-a) 같은 사이트(호스트)의 기존 완료 보고서가 있으면 그 보고서에 페이지를 취합
-  const { data: candidates } = await admin
-    .from("scans")
-    .select("id, root_url, created_at")
-    .eq("user_id", user.id)
-    .eq("status", "done")
-    .gte("created_at", new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(20);
-  const target = (candidates ?? []).find((s) => {
-    try {
-      return new URL(s.root_url).hostname === url.hostname;
-    } catch {
-      return false;
+  // 4-a) 저장 위치 결정
+  //   - target === "new"     → 병합하지 않고 새 보고서 생성(아래 4-b)
+  //   - target === 스캔 ID    → 소유·존재 확인 후 그 보고서에 추가
+  //   - target 생략           → 같은 호스트 최근 보고서에 자동 병합(하위호환)
+  const requested = parsed.data.target;
+  let target: { id: string; root_url: string; created_at: string } | null = null;
+
+  if (requested && requested !== "new") {
+    const { data: chosen } = await admin
+      .from("scans")
+      .select("id, root_url, created_at")
+      .eq("id", requested)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!chosen) {
+      return NextResponse.json({ error: "선택한 보고서를 찾을 수 없습니다." }, { status: 404 });
     }
-  });
+    target = chosen;
+  } else if (!requested) {
+    const { data: candidates } = await admin
+      .from("scans")
+      .select("id, root_url, created_at")
+      .eq("user_id", user.id)
+      .eq("status", "done")
+      .gte("created_at", new Date(Date.now() - 30 * 24 * 3600_000).toISOString())
+      .order("created_at", { ascending: false })
+      .limit(20);
+    target =
+      (candidates ?? []).find((s) => {
+        try {
+          return new URL(s.root_url).hostname === url.hostname;
+        } catch {
+          return false;
+        }
+      }) ?? null;
+  }
 
   if (target) {
     // 같은 URL 페이지가 이미 있으면 결과 교체, 없으면 새 페이지 추가
@@ -227,6 +254,45 @@ export async function POST(request: Request) {
   if (parsed.data.reviews && parsed.data.reviews.length > 0) await reaggregate(admin, scan.id);
 
   return NextResponse.json({ id: scan.id, merged: false }, { status: 201 });
+}
+
+/** 저장 위치 선택용 — 로그인 사용자의 최근 보고서 목록(같은 호스트 우선) */
+export async function GET(request: Request) {
+  const authz = request.headers.get("authorization") ?? "";
+  const token = authz.startsWith("Bearer ") ? authz.slice(7) : "";
+  if (!token) return NextResponse.json({ error: "인증이 필요합니다." }, { status: 401 });
+
+  const admin = createAdminClient();
+  const { data: userData, error: userErr } = await admin.auth.getUser(token);
+  if (userErr || !userData.user) {
+    return NextResponse.json({ error: "세션이 만료되었습니다." }, { status: 401 });
+  }
+
+  // 현재 페이지 호스트(있으면) — 같은 사이트 보고서를 상단에 노출하기 위해 전달
+  const host = new URL(request.url).searchParams.get("host") ?? "";
+
+  const { data: scans } = await admin
+    .from("scans")
+    .select("id, root_url, created_at, scan_pages(count)")
+    .eq("user_id", userData.user.id)
+    .eq("status", "done")
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  const reports = (scans ?? []).map((s) => {
+    let sameHost = false;
+    try {
+      sameHost = host !== "" && new URL(s.root_url).hostname === host;
+    } catch {
+      sameHost = false;
+    }
+    const pageCount = Array.isArray(s.scan_pages) ? (s.scan_pages[0]?.count ?? 0) : 0;
+    return { id: s.id, rootUrl: s.root_url, createdAt: s.created_at, pageCount, sameHost };
+  });
+  // 같은 호스트를 우선 정렬(그 외는 최신순 유지)
+  reports.sort((a, b) => (a.sameHost === b.sameHost ? 0 : a.sameHost ? -1 : 1));
+
+  return NextResponse.json({ reports });
 }
 
 /** 확장 전문가 판정을 scan_reviews에 upsert (best-effort) */

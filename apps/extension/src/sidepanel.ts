@@ -785,12 +785,56 @@ function renderResult(
     list.appendChild(li);
   }
 
-  // 연결돼 있으면 저장 버튼·프로세스 태그 노출
+  // 연결돼 있으면 저장 버튼·프로세스 태그·저장 위치 선택 노출
   getSession().then((s) => {
     $("save").hidden = !s;
     $("procWrap").hidden = !s;
+    $("saveDest").hidden = !s;
+    if (s) void populateSaveTargets(s.accessToken, url);
   });
   void url;
+}
+
+/** 저장 위치 셀렉트 채우기 — 새 보고서 + 사용자의 기존 보고서(같은 사이트 우선) */
+async function populateSaveTargets(accessToken: string, pageUrl: string) {
+  const sel = $<HTMLSelectElement>("saveTarget");
+  let host = "";
+  try {
+    host = new URL(pageUrl).hostname;
+  } catch {
+    host = "";
+  }
+  try {
+    const res = await fetch(`${SITE_ORIGIN}/api/extension/scan?host=${encodeURIComponent(host)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (!res.ok) return;
+    const data = (await res.json()) as {
+      reports?: { id: string; rootUrl: string; pageCount: number; createdAt: string; sameHost: boolean }[];
+    };
+    const reports = data.reports ?? [];
+    // "새 보고서" 옵션은 유지하고 그 뒤로 기존 보고서를 채운다
+    sel.length = 1;
+    let firstSameHostId = "";
+    for (const r of reports) {
+      const opt = document.createElement("option");
+      opt.value = r.id;
+      let hostLabel = r.rootUrl;
+      try {
+        hostLabel = new URL(r.rootUrl).hostname;
+      } catch {
+        /* rootUrl 그대로 사용 */
+      }
+      const date = new Date(r.createdAt).toLocaleDateString("ko-KR", { month: "numeric", day: "numeric" });
+      opt.textContent = `${r.sameHost ? "＊ " : ""}${hostLabel} · ${r.pageCount}p · ${date}`;
+      sel.appendChild(opt);
+      if (r.sameHost && !firstSameHostId) firstSameHostId = r.id;
+    }
+    // 같은 사이트 보고서가 있으면 기본 선택(페이지 추가가 자연스러움), 없으면 새 보고서
+    sel.value = firstSameHostId || "new";
+  } catch {
+    // 목록 조회 실패 시 "새 보고서로 저장"만 사용 가능 — 저장 자체는 동작
+  }
 }
 
 async function saveToAccount() {
@@ -811,13 +855,19 @@ async function saveToAccount() {
       pages: [lastPage!.url],
     }));
     const isProcess = ($("isProcess") as HTMLInputElement).checked;
+    const target = $<HTMLSelectElement>("saveTarget").value || "new";
     const res = await fetch(`${SITE_ORIGIN}/api/extension/scan`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${session.accessToken}`,
       },
-      body: JSON.stringify({ page: lastPage, reviews, sampleType: isProcess ? "process" : "structured" }),
+      body: JSON.stringify({
+        page: lastPage,
+        reviews,
+        sampleType: isProcess ? "process" : "structured",
+        target,
+      }),
     });
     const data = (await res.json()) as { id?: string; error?: string; merged?: boolean; rootUrl?: string };
     if (!res.ok || !data.id) {
@@ -836,6 +886,8 @@ async function saveToAccount() {
       link.rel = "noopener";
       link.textContent = "보고서 보기 →";
       msg.appendChild(link);
+      // 새로 만든/갱신된 보고서가 다음 저장 시 선택지에 나타나도록 목록 갱신
+      void populateSaveTargets(session.accessToken, lastPage.url);
     }
   } catch {
     msg.innerHTML = '<span class="err">네트워크 오류가 발생했습니다.</span>';

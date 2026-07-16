@@ -45,6 +45,12 @@
             <input type="checkbox" id="isProcess" />
             이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)
           </label>
+          <div id="saveDest" class="save-dest" hidden>
+            <label for="saveTarget">저장 위치</label>
+            <select id="saveTarget">
+              <option value="new">새 보고서로 저장</option>
+            </select>
+          </div>
           <button id="save" class="btn btn-save" type="button" hidden>결과를 내 계정에 저장</button>
           <p id="saveMsg" class="save-msg" role="status"></p>
           <h2>위반 상세</h2>
