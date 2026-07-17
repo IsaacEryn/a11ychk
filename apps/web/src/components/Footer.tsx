@@ -12,6 +12,11 @@ export async function Footer() {
           <p className="mt-1">{t("footer.tagline")}</p>
           <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
             <li>
+              <Link href="/sitemap" className={legalLinkCls}>
+                {t("footer.sitemap")}
+              </Link>
+            </li>
+            <li>
               <Link href="/terms" className={legalLinkCls}>
                 {t("footer.terms")}
               </Link>

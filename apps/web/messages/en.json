@@ -28,7 +28,8 @@
       "terms": "Terms of Service",
       "privacy": "Privacy Policy",
       "impact": "Impact",
-      "accessibility": "Accessibility"
+      "accessibility": "Accessibility",
+      "sitemap": "Sitemap"
     },
     "localeSwitcher": "Select language",
     "theme": {
@@ -925,5 +926,27 @@
     "errShort": "Password must be at least 8 characters.",
     "errMismatch": "Passwords do not match.",
     "errGeneric": "Failed to change. Please try again."
+  },
+  "sitemap": {
+    "title": "Sitemap",
+    "desc": "All pages of A11Y Check at a glance — another way to find pages besides the top navigation.",
+    "groupService": "Service",
+    "groupMy": "My work",
+    "groupInfo": "Information",
+    "groupLegal": "Legal",
+    "home": "Home",
+    "scan": "Run a scan",
+    "accessCheck": "Bot-block check",
+    "extension": "Chrome extension",
+    "dashboard": "Dashboard",
+    "mypage": "My page",
+    "inquiries": "Contact",
+    "login": "Sign in",
+    "about": "About",
+    "guide": "Guide",
+    "impact": "Impact",
+    "accessibility": "Accessibility statement",
+    "terms": "Terms of service",
+    "privacy": "Privacy policy"
   }
 }

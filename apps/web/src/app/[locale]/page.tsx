@@ -72,10 +72,26 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         {/* 보고서 미리보기 (예시임을 명확히 표시) */}
         <div className="hidden md:block">
           <div aria-hidden="true" className="rise rise-4 doc-card relative rotate-1 overflow-hidden p-6">
-            {/* 대각선 SAMPLE 워터마크 */}
-            <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[24deg] select-none font-display text-6xl font-extrabold tracking-[0.2em] text-[var(--color-ink)] opacity-[0.07]">
-              SAMPLE
-            </span>
+            {/* 대각선 SAMPLE 워터마크 — 순수 장식이라 SVG로 렌더 (HTML 텍스트로 두면
+                의도적 저대비가 명도 대비 검사에 걸린다. 보이는 안내는 배지·캡션이 담당) */}
+            <svg
+              aria-hidden="true"
+              className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-[24deg] select-none text-[var(--color-ink)] opacity-[0.07]"
+              width="380"
+              height="80"
+              viewBox="0 0 380 80"
+            >
+              <text
+                x="50%"
+                y="50%"
+                textAnchor="middle"
+                dominantBaseline="central"
+                fill="currentColor"
+                style={{ font: "800 60px var(--font-display)", letterSpacing: "0.2em" }}
+              >
+                SAMPLE
+              </text>
+            </svg>
             <span className="absolute right-3 top-3 rounded-sm bg-[var(--color-mark)] px-2 py-0.5 text-xs font-extrabold text-[var(--color-ink-on-mark)]">
               {t("demo.sampleBadge")}
             </span>
