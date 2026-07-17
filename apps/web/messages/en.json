@@ -850,7 +850,11 @@
       "part2Title": "첵 (chek)",
       "part2Desc": "Check: audit against the standards and tick issues off one by one, like the checkmark in our logo.",
       "slogan": "알리첵 — we make accessibility issues known, and check them off."
-    }
+    },
+    "makerTitle": "Who's behind it",
+    "makerDesc1": "This service is built and run by the web manager at Daegu Cyber University.",
+    "makerDesc2": "Daegu Cyber University was founded on the spirit of \"Love, Light, and Freedom\" and has specialized in special education, rehabilitation, and welfare. When you run the web for a university whose mission is widening the door of learning for students with disabilities, accessibility stops being a compliance item and becomes the obvious thing to do. Allycheck is a tool that makes that obvious thing easy for other organizations and developers too.",
+    "makerLink": "About Daegu Cyber University"
   },
   "impact": {
     "eyebrow": "Transparency metrics",

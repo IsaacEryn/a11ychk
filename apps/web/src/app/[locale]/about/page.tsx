@@ -65,6 +65,23 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         <p className="mt-3 max-w-2xl leading-relaxed text-[var(--color-ink-soft)]">{t("whyDesc")}</p>
       </section>
 
+      {/* 만든 사람 — 대학 소개 포함 */}
+      <section aria-labelledby="maker-heading" className="mt-12 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] p-6 sm:p-8">
+        <h2 id="maker-heading" className="font-display text-2xl font-bold">
+          {t("makerTitle")}
+        </h2>
+        <p className="mt-3 max-w-2xl leading-relaxed">{t("makerDesc1")}</p>
+        <p className="mt-3 max-w-2xl leading-relaxed text-[var(--color-ink-soft)]">{t("makerDesc2")}</p>
+        <a
+          href="https://www.dcu.ac.kr"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-4 inline-block font-bold text-[var(--color-seal)] underline underline-offset-4"
+        >
+          {t("makerLink")} ↗
+        </a>
+      </section>
+
       {/* 이런 분들께 */}
       <section aria-labelledby="who-heading" className="mt-12">
         <h2 id="who-heading" className="font-display text-2xl font-bold">
