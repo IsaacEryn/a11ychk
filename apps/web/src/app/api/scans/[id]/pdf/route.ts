@@ -13,7 +13,7 @@ const IdSchema = z.string().uuid();
  * 소유자 확인 후, 단기 서명 토큰을 붙인 보고서 URL을 헤드리스 크로미엄으로 열어
  * A4 PDF로 렌더링해 내려준다.
  */
-export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   if (!IdSchema.safeParse(id).success) {
     return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
@@ -37,7 +37,11 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const token = signReportToken(id);
-  const reportUrl = `${siteUrl}/ko/scans/${id}/report?token=${encodeURIComponent(token)}`;
+  // 출력 범위(view)·로케일을 보고서 렌더 URL로 패스스루 — 웹 화면과 동일한 필터로 PDF 생성
+  const sp = new URL(request.url).searchParams;
+  const view = sp.get("view") === "done" || sp.get("view") === "issues" ? sp.get("view") : null;
+  const lang = sp.get("lang") === "en" ? "en" : "ko";
+  const reportUrl = `${siteUrl}/${lang}/scans/${id}/report?token=${encodeURIComponent(token)}${view ? `&view=${view}` : ""}`;
 
   let browser;
   try {

@@ -563,7 +563,17 @@
       "stats": "{nodes} elements · {pages} pages affected"
     },
     "downloadAiFix": "AI fix request (.md)",
-    "downloadAiFixJson": ".json"
+    "downloadAiFixJson": ".json",
+    "view": {
+      "legend": "Output scope",
+      "all": "Everything",
+      "done": "Judged only",
+      "issues": "Issues only",
+      "notice": {
+        "done": "This report is filtered to items with a verdict. See the 'Everything' view for the full results including manual-check guidance.",
+        "issues": "This report is filtered to failing items only. See the 'Everything' view for full results including passes and manual checks."
+      }
+    }
   },
   "mypage": {
     "title": "My Page",

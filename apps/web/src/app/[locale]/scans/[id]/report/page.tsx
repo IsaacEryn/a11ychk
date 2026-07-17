@@ -20,6 +20,7 @@ import { ReportMetaForm } from "./ReportMetaForm";
 import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
 import { ShareLinkButton } from "./ShareLinkButton";
+import { ViewToggle } from "./ViewToggle";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
@@ -38,11 +39,13 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; view?: string }>;
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
-  const { token } = await searchParams;
+  const { token, view: viewParam } = await searchParams;
+  // 출력 범위: all(전체, 기본) | done(판정 완료 항목만) | issues(오류 항목만)
+  const view = viewParam === "done" || viewParam === "issues" ? viewParam : "all";
   const t = await getTranslations("report");
   const format = await getFormatter();
 
@@ -62,6 +65,21 @@ export default async function ReportPage({
         !!p.review && (p.review.alts.length > 0 || p.review.labels.length > 0 || p.review.genericLinks.length > 0),
     );
   const maxImpact = Math.max(1, ...IMPACT_ORDER.map((k) => summary.byImpact[k]));
+
+  // 출력 범위 필터 — 점검자 판정이 있으면 그것을 우선한다 (매트릭스 표시 규칙과 동일)
+  const wcagRowVisible = (outcome: WcagOutcome, review: { outcome: string } | null): boolean => {
+    if (view === "all") return true;
+    const effective = (review?.outcome as WcagOutcome | undefined) ?? outcome;
+    if (view === "issues") return effective === "failed";
+    // done: 점검자가 판정했거나 자동으로 확정 판정된 항목
+    return review !== null || effective === "passed" || effective === "failed" || effective === "cannotTell";
+  };
+  const kwcagRowVisible = (status: string, review: { outcome: string } | null): boolean => {
+    if (view === "all") return true;
+    if (review) return view === "issues" ? review.outcome === "failed" : true;
+    if (view === "issues") return status === "fail";
+    return status === "pass" || status === "fail" || status === "review";
+  };
 
   const statusStyle: Record<string, string> = {
     pass: "bg-[var(--color-seal-tint)] text-[var(--color-pass)] border-[var(--color-seal)]",
@@ -112,13 +130,24 @@ export default async function ReportPage({
           {t("downloadAiFixJson")}
         </a>
         <a
-          href={`/api/scans/${scan.id}/pdf`}
+          href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
         >
           {t("downloadPdf")}
         </a>
         </div>
       </div>
+
+      {/* ─── 출력 범위 (화면 전용 토글 + 인쇄 포함 안내문) ─── */}
+      <ViewToggle view={view} labels={{ legend: t("view.legend"), all: t("view.all"), done: t("view.done"), issues: t("view.issues") }} />
+      {view !== "all" && (
+        <p
+          role="note"
+          className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
+        >
+          {t(`view.notice.${view}`)}
+        </p>
+      )}
 
       {/* ─── 보고서 정보 입력 (점검자, 화면 전용) ─── */}
       {canEdit && <ReportMetaForm scanId={scan.id} meta={meta} />}
@@ -519,6 +548,7 @@ export default async function ReportPage({
                   const c = WCAG_BY_ID.get(row.scId);
                   if (!c) return null;
                   const review = wcagReviews.get(row.scId) ?? null;
+                  if (!wcagRowVisible(row.outcome, review)) return null;
                   const effective = (review?.outcome as WcagOutcome | undefined) ?? row.outcome;
                   return (
                     <tr key={row.scId} className="border-b border-[var(--color-line)] align-top">
@@ -605,6 +635,7 @@ export default async function ReportPage({
                 const item = KWCAG_BY_ID.get(row.itemId);
                 if (!item) return null;
                 const review = kwcagReviews.get(row.itemId) ?? null;
+                if (!kwcagRowVisible(row.status, review)) return null;
                 return (
                   <tr key={row.itemId} className="border-b border-[var(--color-line)] align-top">
                     <th scope="row" className="py-2 pr-3 text-left font-medium">
@@ -820,7 +851,7 @@ export default async function ReportPage({
       </section>
 
       {/* ─── 확인용 수집 자료 — 값은 존재하나 품질은 사람이 확증 (1.1.1·2.4.4·3.3.2 등) ─── */}
-      {reviewPages.length > 0 && (
+      {view === "all" && reviewPages.length > 0 && (
         <section aria-labelledby="review-data-heading" className="print-break-before mt-12">
           <h2 id="review-data-heading" className="font-display text-2xl font-bold">
             {t("reviewData.title")}
@@ -860,7 +891,8 @@ export default async function ReportPage({
         </section>
       )}
 
-      {/* ─── 수동 검사 항목 ─── */}
+      {/* ─── 수동 검사 항목 (출력 범위 all일 때만) ─── */}
+      {view === "all" && (
       <section aria-labelledby="manual-heading" className="print-break-before mt-12">
         <h2 id="manual-heading" className="font-display text-2xl font-bold">
           {t("manual.title")}
@@ -882,6 +914,7 @@ export default async function ReportPage({
           ))}
         </ul>
       </section>
+      )}
 
       {/* ─── WCAG-EM 적합성 진술 (Step 5.c) ─── */}
       <section aria-labelledby="statement-heading" className="print-avoid-break mt-12 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] p-6">
