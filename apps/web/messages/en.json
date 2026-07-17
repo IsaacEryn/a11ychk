@@ -822,7 +822,18 @@
     "openTitle": "Open source",
     "openDesc": "The audit engine, WCAG/KWCAG mapping catalog, and remediation guides are all MIT-licensed. Anyone can verify and contribute.",
     "ctaScan": "Start an audit",
-    "ctaContact": "Contact us"
+    "ctaContact": "Contact us",
+    "name": {
+      "title": "The story behind our name",
+      "korean": "알리첵 (Allycheck)",
+      "english": "A11Y Check",
+      "a11yDesc": "\"a11y\" is the standard numeronym for accessibility — there are 11 letters between the a and the y. Read in Korean, a11y sounds like \"알리\" (alli), and adding \"첵\" (check) gives us our Korean name, 알리첵.",
+      "part1Title": "알리 — a11y, and \"to make known\"",
+      "part1Desc": "It is the Korean reading of a11y, and it also happens to be the Korean verb 알리다 — \"to make known\". We surface accessibility issues that would otherwise stay invisible.",
+      "part2Title": "첵 — check",
+      "part2Desc": "We audit websites against WCAG 2.2 and KWCAG 2.2, ticking issues off one by one — just like the checkmark in our logo.",
+      "slogan": "알리첵 — we make accessibility issues known, and check them off."
+    }
   },
   "impact": {
     "eyebrow": "Transparency metrics",
