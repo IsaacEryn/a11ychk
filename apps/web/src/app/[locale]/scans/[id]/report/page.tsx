@@ -912,6 +912,20 @@ export default async function ReportPage({
                           <span className="whitespace-pre-wrap">{row.failure_summary}</span>
                         </p>
                       )}
+                      {row.screenshot_path && process.env.NEXT_PUBLIC_SUPABASE_URL && (
+                        <figure className="mt-2">
+                          {/* eslint-disable-next-line @next/next/no-img-element -- 외부 스토리지 원본 그대로 (이미 클립·압축됨) */}
+                          <img
+                            src={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/shots/${row.screenshot_path}`}
+                            alt={t("violations.shotAlt", { rule: pick(entry.title, locale) })}
+                            loading="lazy"
+                            className="max-h-48 rounded border-[1.5px] border-[var(--color-line)] bg-white"
+                          />
+                          <figcaption className="mt-1 text-xs text-[var(--color-ink-faint)]">
+                            {t("violations.shotCaption")}
+                          </figcaption>
+                        </figure>
+                      )}
                     </li>
                   ))}
                   {rows.length > 5 && (

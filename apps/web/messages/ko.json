@@ -498,7 +498,9 @@
       "selectorLabel": "선택자",
       "axeHelp": "axe-core 규칙 문서",
       "affectedPages": "영향받은 페이지 {count}곳",
-      "diagLabel": "자동 진단(axe)"
+      "diagLabel": "자동 진단(axe)",
+      "shotAlt": "위반 요소 화면 캡처 — {rule}",
+      "shotCaption": "검사 시점의 요소 캡처입니다. 성능을 위해 이미지 리소스를 로드하지 않아 실제 화면과 다를 수 있습니다."
     },
     "manual": {
       "title": "수동 검사 필요 항목",
@@ -661,7 +663,8 @@
       "scans30d": "최근 30일 검사",
       "running": "진행 중 검사",
       "openInquiries": "미답변 문의",
-      "failedRate": "30일 실패율"
+      "failedRate": "30일 실패율",
+      "shotsStorage": "스크린샷 저장"
     },
     "scans": {
       "title": "검사 로그",
@@ -719,7 +722,9 @@
       "noResults": "일치하는 사용자가 없습니다.",
       "pagesLabel": "페이지 한도",
       "pagesHint": "페이지 한도: 소유 확인 도메인은 2배 적용, 최대 {max}페이지",
-      "extDailyLabel": "확장/일"
+      "extDailyLabel": "확장/일",
+      "retentionHint": "스크린샷 보존: 무료 10일 · 프로 90일 · 엔터프라이즈 365일",
+      "planHint": "등급에 따라 위반 스크린샷 보존 기간이 달라집니다 (무료 10일 · 프로 90일 · 엔터프라이즈 365일)."
     },
     "inquiriesSection": {
       "title": "문의 관리",

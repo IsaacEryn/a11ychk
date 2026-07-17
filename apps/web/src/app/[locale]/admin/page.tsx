@@ -18,7 +18,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   const admin = createAdminClient();
   const thirtyDaysAgo = isoDaysAgo(30);
 
-  const [users, scans30d, failed30d, running, openInquiries, recentScans, openList] = await Promise.all([
+  const [users, scans30d, failed30d, running, openInquiries, recentScans, openList, shotsBytes] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }),
     admin.from("scans").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo),
     admin
@@ -39,11 +39,20 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
       .eq("status", "open")
       .order("created_at", { ascending: false })
       .limit(5),
+    // 스크린샷 저장 용량 (0015 미적용이면 null → 지표 숨김)
+    admin.rpc("shots_total_bytes").then(
+      (r) => r,
+      () => ({ data: null }),
+    ),
   ]);
 
   const total30 = scans30d.count ?? 0;
   const failed30 = failed30d.count ?? 0;
   const failedRate = total30 === 0 ? 0 : Math.round((failed30 / total30) * 1000) / 10;
+
+  // 스크린샷 저장 용량 — 전역 예산 700MB 대비 (0015 미적용이면 지표 생략)
+  const SHOT_BUDGET_MB = 700;
+  const shotsMb = shotsBytes.data != null ? Math.round(Number(shotsBytes.data) / 1024 / 1024) : null;
 
   const stats = [
     { label: t("stats.users"), value: String(users.count ?? 0), href: "/admin/users" },
@@ -51,12 +60,22 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
     { label: t("stats.failedRate"), value: `${failedRate}%`, href: "/admin/scans?status=failed", sub: `${failed30}/${total30}` },
     { label: t("stats.running"), value: String(running.count ?? 0), href: "/admin/scans" },
     { label: t("stats.openInquiries"), value: String(openInquiries.count ?? 0), href: "/admin/inquiries" },
+    ...(shotsMb != null
+      ? [
+          {
+            label: t("stats.shotsStorage"),
+            value: `${shotsMb}MB`,
+            href: "/admin/scans",
+            sub: `/ ${SHOT_BUDGET_MB}MB (${Math.round((shotsMb / SHOT_BUDGET_MB) * 100)}%)`,
+          },
+        ]
+      : []),
   ];
 
   return (
     <>
       {/* 요약 지표 */}
-      <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-5">
+      <dl className="mt-8 grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-6">
         {stats.map((s) => (
           <div key={s.label} className="doc-card p-5">
             <dt className="text-sm font-semibold text-[var(--color-ink-soft)]">{s.label}</dt>

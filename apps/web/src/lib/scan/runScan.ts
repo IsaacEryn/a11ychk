@@ -28,6 +28,7 @@ import {
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
+import { SHOT_MAX_PER_SCAN, uploadPageShots, type CapturedShot } from "@/lib/shots";
 
 const PAGE_LOAD_TIMEOUT_MS = 20_000;
 
@@ -58,10 +59,70 @@ async function disposeBrowser(browser: Browser | null): Promise<void> {
 interface SinglePageOutcome {
   result: PageScanResult;
   signature: PageSignature | null;
+  shots: CapturedShot[];
+}
+
+/** 스캔 전체에 걸친 캡처 예산·중복 방지 상태 (페이지 순차 처리라 동시성 없음) */
+interface ShotCollector {
+  remaining: number;
+  capturedRules: Set<string>;
+}
+
+const SHOT_IMPACT_RANK: Record<string, number> = { critical: 0, serious: 1 };
+// 페이지당 캡처 총 시간 상한 — 렌더·스크롤이 느린 페이지가 검사를 지연시키지 않게
+const SHOT_PAGE_TIME_BUDGET_MS = 8_000;
+
+/**
+ * 대표 위반 요소 캡처 — critical/serious 규칙당 1장, 스캔 전체 예산 내에서만.
+ * 요소 주변 컨텍스트를 포함해 최대 800×600으로 클립, JPEG q60 (~15-40KB).
+ * 어떤 실패도 검사 결과에 영향을 주지 않는다.
+ */
+async function captureShots(
+  page: import("playwright-core").Page,
+  result: PageScanResult,
+  collector: ShotCollector,
+): Promise<CapturedShot[]> {
+  const shots: CapturedShot[] = [];
+  const candidates = result.violations
+    .filter((v) => v.impact in SHOT_IMPACT_RANK && !collector.capturedRules.has(v.ruleId) && v.nodes.length > 0)
+    .sort((a, b) => SHOT_IMPACT_RANK[a.impact] - SHOT_IMPACT_RANK[b.impact]);
+  if (candidates.length === 0 || collector.remaining <= 0) return shots;
+
+  // 검사(리플로우 2차 패스)가 뷰포트를 바꿨을 수 있어 기본 뷰포트로 복원
+  await page.setViewportSize({ width: 1280, height: 800 }).catch(() => undefined);
+  const deadline = Date.now() + SHOT_PAGE_TIME_BUDGET_MS;
+
+  for (const v of candidates) {
+    if (collector.remaining <= 0 || Date.now() > deadline) break;
+    const node = v.nodes[0];
+    try {
+      const loc = page.locator(node.selector).first();
+      await loc.scrollIntoViewIfNeeded({ timeout: 2_000 });
+      const box = await loc.boundingBox();
+      if (!box || box.width < 1 || box.height < 1) continue;
+      // 요소 + 주변 여백, 뷰포트 안에서 최대 800×600으로 클립
+      const pad = 12;
+      const x = Math.max(0, Math.min(box.x - pad, 1280));
+      const y = Math.max(0, Math.min(box.y - pad, 800));
+      const clip = {
+        x,
+        y,
+        width: Math.max(48, Math.min(800, box.width + pad * 2, 1280 - x)),
+        height: Math.max(32, Math.min(600, box.height + pad * 2, 800 - y)),
+      };
+      const bytes = await page.screenshot({ clip, type: "jpeg", quality: 60, timeout: 5_000 });
+      shots.push({ ruleId: v.ruleId, selector: node.selector, bytes });
+      collector.capturedRules.add(v.ruleId);
+      collector.remaining--;
+    } catch {
+      // 셀렉터 소실·타임아웃 등 — 이 규칙은 건너뜀
+    }
+  }
+  return shots;
 }
 
 /** 한 페이지를 스캔해 결과 + 사이트 시그니처를 반환. 컨텍스트는 항상 정리한다. */
-async function scanSinglePage(browser: Browser, url: string): Promise<SinglePageOutcome> {
+async function scanSinglePage(browser: Browser, url: string, collector?: ShotCollector): Promise<SinglePageOutcome> {
   const context = await browser.newContext({
     // 애니메이션 감속 — 페이드인 도중 반투명 상태를 axe가 측정해 생기는
     // 명도 대비 오탐을 방지한다 (모든 검사 대상 공통)
@@ -86,7 +147,8 @@ async function scanSinglePage(browser: Browser, url: string): Promise<SinglePage
     // 시그니처는 뷰포트 변경(리플로우 검사) 전에 추출
     const signature = await extractPageSignature(page).catch(() => null);
     const result = await runAxeOnPage(page);
-    return { result, signature };
+    const shots = collector ? await captureShots(page, result, collector).catch(() => []) : [];
+    return { result, signature, shots };
   } finally {
     await context.close().catch(() => undefined);
   }
@@ -222,6 +284,9 @@ export async function runScan(scanId: string): Promise<void> {
     const signatures: PageSignature[] = [];
     const structuredRules = new Set<string>();
     const randomRules = new Set<string>();
+    // 위반 요소 캡처 — 스캔 전체 예산 (규칙 중복 방지 포함)
+    const shotCollector: ShotCollector = { remaining: SHOT_MAX_PER_SCAN, capturedRules: new Set() };
+    let shotsBytes = 0;
 
     for (const row of pageRows) {
       await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
@@ -235,8 +300,11 @@ export async function runScan(scanId: string): Promise<void> {
           await assertPublicHttpUrl(row.url);
           browser = await launchGuardedBrowser();
           try {
-            const { result, signature } = await scanSinglePage(browser, row.url);
+            const { result, signature, shots } = await scanSinglePage(browser, row.url, shotCollector);
             await persistPageResult(db, row.id, result, signature);
+            if (shots.length > 0) {
+              shotsBytes += await uploadPageShots(db, scanId, row.id, shots);
+            }
             results.push(result);
             if (signature) signatures.push(signature);
 
@@ -291,6 +359,13 @@ export async function runScan(scanId: string): Promise<void> {
       .from("scans")
       .update({ status: "done", summary, finished_at: new Date().toISOString() })
       .eq("id", scanId);
+    if (shotsBytes > 0) {
+      // 캡처 용량 회계 (전역 예산 계산용) — 0015 미적용이면 실패해도 무시
+      await db.from("scans").update({ shots_bytes: shotsBytes }).eq("id", scanId).then(
+        () => undefined,
+        () => undefined,
+      );
+    }
   } catch (error) {
     await db
       .from("scans")

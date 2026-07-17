@@ -22,6 +22,7 @@ export interface FindingRow {
   selector: string;
   html_snippet: string;
   failure_summary: string;
+  screenshot_path?: string | null;
   scan_pages: { url: string } | null;
 }
 
@@ -113,14 +114,24 @@ export async function loadReport(locale: string, id: string, token: string | und
   const pages = (pagesData ?? []) as PageRow[];
 
   // 이미 로드한 pages의 id 재사용 + 페이지네이션 전량 조회 (절단 방지)
-  const findings = (await fetchAllRows((from, to) =>
+  // screenshot_path(0015)는 미적용 환경 폴백을 위해 별도 시도
+  const findingSelect = (cols: string) => (from: number, to: number) =>
     db
       .from("findings")
-      .select("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)")
+      .select(cols)
       .in("scan_page_id", pages.map((p) => p.id))
       .order("id")
-      .range(from, to),
-  )) as unknown as FindingRow[];
+      .range(from, to);
+  let findings: FindingRow[];
+  try {
+    findings = (await fetchAllRows(
+      findingSelect("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, screenshot_path, scan_pages(url)"),
+    )) as unknown as FindingRow[];
+  } catch {
+    findings = (await fetchAllRows(
+      findingSelect("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)"),
+    )) as unknown as FindingRow[];
+  }
 
   // 규칙별 그룹화 (심각도순)
   const byRule = new Map<string, FindingRow[]>();
