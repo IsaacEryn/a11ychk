@@ -105,30 +105,28 @@ export default async function ReportPage({
         <div className="flex flex-wrap items-center justify-end gap-2">
         {canEdit && <RerunScanButton scanId={scan.id} />}
         <PrintButton label={t("print")} />
-        <a
-          href={`/api/scans/${scan.id}/earl`}
-          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
-        >
-          {t("downloadEarl")}
-        </a>
-        <a
-          href={`/api/scans/${scan.id}/report-tool`}
-          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
-        >
-          {t("downloadReportTool")}
-        </a>
-        <a
-          href={`/api/scans/${scan.id}/ai-fix?lang=${locale}`}
-          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
-        >
-          {t("downloadAiFix")}
-        </a>
-        <a
-          href={`/api/scans/${scan.id}/ai-fix?format=json&lang=${locale}`}
-          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-2 text-sm font-semibold text-[var(--color-ink-soft)] hover:bg-[var(--color-paper-warm)]"
-        >
-          {t("downloadAiFixJson")}
-        </a>
+        {/* 내보내기 묶음 — 형식이 많아져 드롭다운으로 정리 (details = JS 없이 동작) */}
+        <details className="relative">
+          <summary className="cursor-pointer list-none rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]">
+            {t("export.menu")} ▾
+          </summary>
+          <ul className="absolute right-0 z-10 mt-1 w-72 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] py-1 shadow-[4px_4px_0_0_var(--color-line)]">
+            {[
+              { href: `/api/scans/${scan.id}/csv?type=findings&lang=${locale}`, label: t("export.csvFindings") },
+              { href: `/api/scans/${scan.id}/csv?type=kwcag&lang=${locale}`, label: t("export.csvKwcag") },
+              { href: `/api/scans/${scan.id}/ai-fix?lang=${locale}`, label: t("downloadAiFix") },
+              { href: `/api/scans/${scan.id}/ai-fix?format=json&lang=${locale}`, label: t("export.aiFixJson") },
+              { href: `/api/scans/${scan.id}/earl`, label: t("downloadEarl") },
+              { href: `/api/scans/${scan.id}/report-tool`, label: t("downloadReportTool") },
+            ].map((item) => (
+              <li key={item.href}>
+                <a href={item.href} className="block px-4 py-2 text-sm font-semibold hover:bg-[var(--color-paper-warm)]">
+                  {item.label}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </details>
         <a
           href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"

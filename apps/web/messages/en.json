@@ -573,6 +573,12 @@
         "done": "This report is filtered to items with a verdict. See the 'Everything' view for the full results including manual-check guidance.",
         "issues": "This report is filtered to failing items only. See the 'Everything' view for full results including passes and manual checks."
       }
+    },
+    "export": {
+      "menu": "Export",
+      "csvFindings": "Violations CSV (Excel)",
+      "csvKwcag": "KWCAG matrix CSV (Excel)",
+      "aiFixJson": "AI fix request (.json)"
     }
   },
   "mypage": {
