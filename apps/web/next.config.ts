@@ -32,15 +32,15 @@ const nextConfig: NextConfig = {
   },
   async headers() {
     // CSP — defense-in-depth. 외부 오리진은 실제 사용하는 것만 허용:
-    // jsDelivr(Pretendard css/woff2), Google Fonts(Hahmlet), Turnstile, Supabase.
+    // Turnstile, Supabase. (폰트는 자체 호스팅 — Pretendard는 /fonts, Hahmlet은 next/font)
     // Next는 인라인 스크립트/스타일을 쓰므로 unsafe-inline 필요(nonce 전환은 후속).
     const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co";
     const isDev = process.env.NODE_ENV === "development";
     const csp = [
       "default-src 'self'",
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
-      "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://fonts.googleapis.com",
-      "font-src 'self' https://cdn.jsdelivr.net https://fonts.gstatic.com",
+      "style-src 'self' 'unsafe-inline'",
+      "font-src 'self'",
       "img-src 'self' data: blob:",
       `connect-src 'self' ${supabase} https://challenges.cloudflare.com`,
       "frame-src https://challenges.cloudflare.com",

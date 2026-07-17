@@ -3,11 +3,23 @@ import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
+import { Hahmlet } from "next/font/google";
 import Script from "next/script";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { themeInitScript } from "@/components/ThemeToggle";
 import "../globals.css";
+// Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
+import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+
+// 제목용 세리프 — next/font가 빌드 시 받아 자체 호스팅한다 (구글 CDN 런타임 요청 없음).
+// 한글 폰트는 preload 대상 서브셋 지정이 불가해 preload: false (unicode-range 지연 로드).
+const hahmlet = Hahmlet({
+  weight: ["500", "700", "800"],
+  display: "swap",
+  preload: false,
+  variable: "--font-hahmlet",
+});
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -64,19 +76,7 @@ export default async function LocaleLayout({
   return (
     // suppressHydrationWarning: 테마 초기화 스크립트가 hydration 전에 data-theme를
     // 설정하므로 html 속성 불일치 경고를 억제한다 (theme attribute 표준 패턴)
-    <html lang={locale} suppressHydrationWarning>
-      <head>
-        <link rel="preconnect" href="https://cdn.jsdelivr.net" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css"
-        />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link
-          rel="stylesheet"
-          href="https://fonts.googleapis.com/css2?family=Hahmlet:wght@500;700;800&display=swap"
-        />
-      </head>
+    <html lang={locale} suppressHydrationWarning className={hahmlet.variable}>
       <body className="flex min-h-svh flex-col">
         {/* 저장된 테마를 렌더 전에 적용해 깜빡임(FOUC) 방지 */}
         <Script id="theme-init" strategy="beforeInteractive">

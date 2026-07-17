@@ -21,7 +21,8 @@
   --color-warn-tint: #f7efd8;
   --color-pass: #0b5d54;
 
-  --font-display: "Hahmlet", "Pretendard Variable", serif;
+  /* Hahmlet은 next/font 자체 호스팅 — 해시된 패밀리명이 --font-hahmlet 변수로 주입된다 */
+  --font-display: var(--font-hahmlet, "Hahmlet"), "Pretendard Variable", serif;
   --font-body: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
 }
 
