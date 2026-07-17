@@ -104,7 +104,20 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ processed: results.length, results });
+  // ── 로그 보존 정책: 90일 지난 로그인 기록(IP 포함)·서버 오류 삭제 (best-effort) ──
+  // 관리자 행위 감사(audit_logs)는 감사 목적상 보존한다.
+  const logCutoff = new Date(Date.now() - 90 * 24 * 3600_000).toISOString();
+  const cleaned: Record<string, number> = {};
+  for (const table of ["login_logs", "app_errors"] as const) {
+    try {
+      const { count } = await admin.from(table).delete({ count: "exact" }).lt("created_at", logCutoff);
+      cleaned[table] = count ?? 0;
+    } catch {
+      // 테이블 미적용(마이그레이션 전) 환경은 건너뜀
+    }
+  }
+
+  return NextResponse.json({ processed: results.length, results, cleaned });
 }
 
 /** 새 검사가 직전 검사보다 나빠졌으면 소유자에게 이메일 알림 */

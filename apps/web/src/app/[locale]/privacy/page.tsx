@@ -33,6 +33,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "개인정보는 회원 탈퇴 시 지체 없이 파기합니다. 검사 결과 등 서비스 데이터는 탈퇴 시 함께 삭제됩니다.",
           "관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 분리 보관 후 파기합니다.",
+          "보안 목적으로 수집하는 로그인 기록(IP 주소 포함)과 서버 오류 로그는 90일간 보관 후 자동 삭제합니다.",
         ],
       },
       {
@@ -79,6 +80,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         heading: "3. Retention & deletion",
         body: [
           "Personal data is deleted without delay upon account deletion, together with service data such as audit results. Data required by law is stored separately for the mandated period, then destroyed.",
+          "Sign-in records collected for security (including IP addresses) and server error logs are kept for 90 days and then deleted automatically.",
         ],
       },
       {
