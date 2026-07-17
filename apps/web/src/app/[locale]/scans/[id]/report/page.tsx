@@ -13,6 +13,7 @@ import {
 } from "@a11ychk/core/catalog";
 import { classifyScanError } from "@/lib/scanError";
 import { loadReport } from "./loadReport";
+import { computeKwcagPageRates } from "./kwcagPageRate";
 import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
 import { ReviewCell } from "./ReviewCell";
@@ -53,6 +54,12 @@ export default async function ReportPage({
     await loadReport(locale, id, token);
 
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
+  // KWCAG 항목별 페이지 준수율 (인증 기준 95% 대비 근사치) — 추가 쿼리 없이 계산
+  const kwcagRates = computeKwcagPageRates(
+    summary.kwcagMatrix ?? [],
+    ruleGroups.flatMap((g) => g.rows),
+    (pages ?? []).filter((p) => p.status === "done").length,
+  );
   const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
   const manualItems = getManualCheckItems();
 
@@ -623,6 +630,9 @@ export default async function ReportPage({
                 <th scope="col" className="w-14 py-2 pr-3 text-right font-bold">
                   {t("kwcag.colCount")}
                 </th>
+                <th scope="col" className="w-24 py-2 pr-3 text-right font-bold">
+                  {t("kwcag.colPageRate")}
+                </th>
                 {canEdit && (
                   <th scope="col" className="no-print w-24 py-2 font-bold">{t("review.col")}</th>
                 )}
@@ -681,6 +691,18 @@ export default async function ReportPage({
                       )}
                     </td>
                     <td className="py-2 pr-3 text-right font-bold tabular-nums">{row.violationCount > 0 ? row.violationCount : "—"}</td>
+                    <td className="py-2 pr-3 text-right tabular-nums">
+                      {(() => {
+                        const applicable = row.status === "pass" || row.status === "fail" || row.status === "review";
+                        const rate = kwcagRates.get(row.itemId)?.rate;
+                        if (!applicable || rate == null) return <span className="text-[var(--color-ink-faint)]">—</span>;
+                        return (
+                          <span className={rate >= 95 ? "font-bold text-[var(--color-pass)]" : "font-bold text-[var(--color-crit)]"}>
+                            {rate}%
+                          </span>
+                        );
+                      })()}
+                    </td>
                     {canEdit && (
                       <td className="no-print py-2">
                         <ReviewCell scanId={scan.id} standard="kwcag" itemId={row.itemId} current={review} pageUrls={donePageUrls} />
@@ -692,6 +714,7 @@ export default async function ReportPage({
             </tbody>
           </table>
         </div>
+        <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("kwcag.certNote")}</p>
       </section>
 
       {/* ─── 위반 상세 ─── */}

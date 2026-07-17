@@ -25,9 +25,17 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/login`);
 
-  const [{ data: profile }, { data: verifiedDomains }] = await Promise.all([
+  const [{ data: profile }, { data: verifiedDomains }, { data: recentScans }] = await Promise.all([
     supabase.from("profiles").select("scan_limit_override").eq("id", user.id).single(),
     supabase.from("domains").select("hostname").eq("user_id", user.id).eq("verified", true),
+    // 최근 검사 URL — 재검사가 잦은 실무 흐름용 자동완성
+    supabase
+      .from("scans")
+      .select("root_url")
+      .eq("user_id", user.id)
+      .eq("status", "done")
+      .order("created_at", { ascending: false })
+      .limit(20),
   ]);
 
   const admin = createAdminClient();
@@ -42,6 +50,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
   const verifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: true, plansActive });
   const unverifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive });
   const verifiedHostnames = (verifiedDomains ?? []).map((d) => d.hostname);
+  const recentUrls = [...new Set((recentScans ?? []).map((r) => r.root_url as string))].slice(0, 5);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -53,6 +62,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
           {tDash("scanForm.legend")}
         </h2>
         <ScanForm
+          recentUrls={recentUrls}
           verifiedSize={verifiedSize}
           unverifiedSize={unverifiedSize}
           verifiedHostnames={verifiedHostnames}

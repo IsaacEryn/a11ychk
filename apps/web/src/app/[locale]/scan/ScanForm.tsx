@@ -35,11 +35,14 @@ function fill(template: string, vars: Record<string, string | number>): string {
 }
 
 export function ScanForm({
+  recentUrls = [],
   verifiedSize,
   unverifiedSize,
   verifiedHostnames,
   labels,
 }: {
+  /** 최근 검사한 URL — 입력 자동완성(datalist) */
+  recentUrls?: string[];
   verifiedSize: number;
   unverifiedSize: number;
   verifiedHostnames: string[];
@@ -140,9 +143,17 @@ export function ScanForm({
           onChange={(e) => setUrl(e.target.value)}
           placeholder={labels.placeholder}
           autoComplete="url"
+          list={recentUrls.length > 0 ? "scan-url-recent" : undefined}
           aria-describedby={error ? "scan-url-error" : undefined}
           className="min-w-60 flex-1 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2.5"
         />
+        {recentUrls.length > 0 && (
+          <datalist id="scan-url-recent">
+            {recentUrls.map((u) => (
+              <option key={u} value={u} />
+            ))}
+          </datalist>
+        )}
         <button
           type="submit"
           disabled={submitting || (mode === "manual" && (manualPages.length === 0 || overLimit || invalidLines.length > 0))}
