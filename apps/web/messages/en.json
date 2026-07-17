@@ -777,61 +777,78 @@
   },
   "about": {
     "title": "About",
-    "intro": "A11Y Check is a web accessibility evaluation tool: automated audits plus an evaluator workbench for manual judgments, producing complete evaluation reports. Start with one URL and get a WCAG-EM structured report with remediation guides.",
-    "methodTitle": "Standards-based methodology",
-    "methodDesc": "Not an ad-hoc checker — we follow the criteria and methodology defined by the W3C and Korean standards.",
+    "intro": "Enter a URL and A11Y Check samples representative pages, audits them against WCAG 2.2 and KWCAG 2.2, and produces a report that shows what to fix and how. Automation is only the start: an evaluator adds manual verdicts on top, so the result is fit for real conformance reviews. It is free, and all of the code is public.",
+    "whyTitle": "Why we built it",
+    "whyDesc": "There are plenty of accessibility checkers. Most cover only the international standard or only the Korean one, and even the good ones leave you writing the actual report from scratch. We wanted a tool that evaluates both standards at once, produces a submission-ready report, and lets anyone inspect the judgment logic in code. So we built it.",
+    "whoTitle": "Who it's for",
+    "who": {
+      "org": {
+        "name": "Web managers at organizations",
+        "desc": "See where your site stands in numbers, and hand the report to management or your vendor as a share link or PDF. Turn on scheduled scans and it watches your site daily."
+      },
+      "dev": {
+        "name": "Developers and agencies",
+        "desc": "Every violation comes with the page URL, CSS selector, offending code, and a fix example. Export an AI fix request file and paste it into Claude or ChatGPT to get corrected code."
+      },
+      "auditor": {
+        "name": "Accessibility evaluators",
+        "desc": "Automation lays the groundwork; anything it can't judge is left as a manual check with testing instructions. Record verdicts and notes to complete a combined automated + manual report."
+      }
+    },
+    "methodTitle": "Standards and methodology",
+    "methodDesc": "We didn't invent our own criteria. We follow what W3C and the Korean national standard define.",
     "method": {
       "wcagem": {
         "name": "WCAG-EM",
-        "desc": "The W3C's official website accessibility evaluation methodology: scope → explore → sample → audit → report, with exports compatible with the official Report Tool."
+        "desc": "W3C's official website evaluation methodology. Scoping, exploration, representative sampling, auditing, and reporting follow this procedure, with export compatible with the W3C Report Tool."
       },
       "wcag": {
         "name": "WCAG 2.2",
-        "desc": "The international Web Content Accessibility Guidelines. Automated outcomes for all 55 A/AA success criteria."
+        "desc": "The international guidelines. Each of the 55 A/AA success criteria is shown as passed, violated, or needs manual review."
       },
       "kwcag": {
         "name": "KWCAG 2.2",
-        "desc": "The Korean Web Content Accessibility Guidelines (KS X OT0003) — a 33-checkpoint matrix aligned with domestic certification criteria."
+        "desc": "The Korean guidelines (KS X OT0003), presented as the same 33-item matrix used in domestic certification audits."
       }
     },
-    "featuresTitle": "Features",
+    "featuresTitle": "What it does",
     "features": {
       "auto": {
         "name": "Automated audits",
-        "desc": "Build a representative sample automatically from sitemaps and links, or specify pages manually; the axe-core engine checks ~90 rules."
+        "desc": "Samples pages from your sitemap and internal links, then runs ~90 axe-core rules: alt text, color contrast, keyboard access — the things a machine can judge with confidence. Pages are re-checked at mobile width, and same-origin iframes are audited too."
       },
       "workbench": {
         "name": "Evaluation workbench",
-        "desc": "Record manual outcomes and observations per success criterion on top of automated results, add report details and an executive summary, and produce print/PDF reports."
+        "desc": "Evaluators record per-criterion verdicts and observations on top of the automated results. Add site details and an executive summary and it becomes the print/PDF report."
       },
       "extension": {
         "name": "Chrome extension",
-        "desc": "Audit pages behind login or bot-blocked sites right in your browser, saving results to your account."
+        "desc": "Admin screens behind login and bot-blocked sites are out of a server's reach, so the extension audits them right in your browser and merges results into your site report. It also ships on-page tools: color-blindness simulation, focus-order overlay, a contrast eyedropper."
       },
       "badge": {
         "name": "Accessibility badge",
-        "desc": "Publish an SVG badge showing the latest compliance rate for your verified domain."
+        "desc": "Verified domains get an SVG badge showing the latest compliance rate, ready to embed."
       },
       "schedule": {
-        "name": "Scheduled audits",
-        "desc": "Enable per-domain daily automated audits to continuously track accessibility."
+        "name": "Scheduled scans and alerts",
+        "desc": "Turn it on and your site is scanned daily. If compliance drops or new violations appear, you get an email; the dashboard shows the trend over time."
       }
     },
     "honestyTitle": "Honest automation",
-    "honestyDesc": "Automated tools find only part of all accessibility issues. A11Y Check states this limit in every report and honestly marks human-required checks as 'manual' with testing guidance. Our automated evaluation alone does not support a conformance claim.",
+    "honestyDesc": "Automated tools can only find a portion of accessibility issues. We state that limit in the report itself, not in fine print, and mark everything requiring human judgment as a manual check with testing instructions. Our automated results alone cannot support a conformance claim — and you should be skeptical of any tool that says otherwise.",
     "openTitle": "Open source",
-    "openDesc": "The audit engine, WCAG/KWCAG mapping catalog, and remediation guides are all MIT-licensed. Anyone can verify and contribute.",
+    "openDesc": "The scan engine, the WCAG/KWCAG mapping, and the Korean remediation guides are all MIT-licensed. If a verdict looks wrong, open the code and check the reasoning — or fix it and send a pull request.",
     "ctaScan": "Start an audit",
-    "ctaContact": "Contact us",
+    "ctaContact": "Contact",
     "name": {
       "title": "The story behind our name",
       "korean": "알리첵 (Allycheck)",
       "english": "A11Y Check",
-      "a11yDesc": "\"a11y\" is the standard numeronym for accessibility — there are 11 letters between the a and the y. Read in Korean, a11y sounds like \"알리\" (alli), and adding \"첵\" (check) gives us our Korean name, 알리첵.",
-      "part1Title": "알리 — a11y, and \"to make known\"",
-      "part1Desc": "It is the Korean reading of a11y, and it also happens to be the Korean verb 알리다 — \"to make known\". We surface accessibility issues that would otherwise stay invisible.",
-      "part2Title": "첵 — check",
-      "part2Desc": "We audit websites against WCAG 2.2 and KWCAG 2.2, ticking issues off one by one — just like the checkmark in our logo.",
+      "a11yDesc": "\"a11y\" is the standard numeronym for accessibility, counting the 11 letters between the a and the y. Read aloud in Korean it becomes \"alli\" (알리), which happens to sound exactly like the Korean verb for \"to make known\". Add \"chek\" (check) and you get our Korean name, 알리첵.",
+      "part1Title": "알리 (alli)",
+      "part1Desc": "The Korean reading of a11y — and the verb 알리다, \"to make known\". We surface issues that would otherwise stay invisible.",
+      "part2Title": "첵 (chek)",
+      "part2Desc": "Check: audit against the standards and tick issues off one by one, like the checkmark in our logo.",
       "slogan": "알리첵 — we make accessibility issues known, and check them off."
     }
   },

@@ -57,6 +57,29 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         <p className="mt-5 border-t border-dashed border-[var(--color-line)] pt-4 font-semibold">{t("name.slogan")}</p>
       </section>
 
+      {/* 왜 만들었나 */}
+      <section aria-labelledby="why-heading" className="mt-12">
+        <h2 id="why-heading" className="font-display text-2xl font-bold">
+          {t("whyTitle")}
+        </h2>
+        <p className="mt-3 max-w-2xl leading-relaxed text-[var(--color-ink-soft)]">{t("whyDesc")}</p>
+      </section>
+
+      {/* 이런 분들께 */}
+      <section aria-labelledby="who-heading" className="mt-12">
+        <h2 id="who-heading" className="font-display text-2xl font-bold">
+          {t("whoTitle")}
+        </h2>
+        <ul className="mt-4 grid gap-3 md:grid-cols-3">
+          {(["org", "dev", "auditor"] as const).map((key) => (
+            <li key={key} className="doc-card p-5">
+              <h3 className="font-bold">{t(`who.${key}.name`)}</h3>
+              <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-soft)]">{t(`who.${key}.desc`)}</p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
       {/* 방법론 */}
       <section aria-labelledby="method-heading" className="mt-12">
         <h2 id="method-heading" className="font-display text-2xl font-bold">
