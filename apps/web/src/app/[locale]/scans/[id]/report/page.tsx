@@ -22,6 +22,7 @@ import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { ViewToggle } from "./ViewToggle";
+import { CompareSelect } from "./CompareSelect";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
@@ -40,19 +41,19 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ token?: string; view?: string }>;
+  searchParams: Promise<{ token?: string; view?: string; compare?: string }>;
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
-  const { token, view: viewParam } = await searchParams;
+  const { token, view: viewParam, compare: compareParam } = await searchParams;
   // 출력 범위: all(전체, 기본) | auto(자동 검사 항목만) | done(판정 완료 항목만) | issues(오류 항목만)
   const view =
     viewParam === "done" || viewParam === "issues" || viewParam === "auto" ? viewParam : "all";
   const t = await getTranslations("report");
   const format = await getFormatter();
 
-  const { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, canEdit } =
-    await loadReport(locale, id, token);
+  const { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, compareOptions, canEdit } =
+    await loadReport(locale, id, token, compareParam);
 
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
   // KWCAG 항목별 페이지 준수율 (인증 기준 95% 대비 근사치) — 추가 쿼리 없이 계산
@@ -63,6 +64,18 @@ export default async function ReportPage({
   );
   const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
   const manualItems = getManualCheckItems();
+
+  // ── 수동 판정 진행률 — 자동 도구가 확정하지 못한 항목 중 점검자 판정이 기입된 비율 ──
+  const wcagManualRows = (summary.wcagMatrix ?? []).filter(
+    (r) => r.outcome === "notChecked" || r.outcome === "cannotTell",
+  );
+  const wcagManualDone = wcagManualRows.filter((r) => wcagReviews.has(r.scId)).length;
+  const kwcagManualRows = (summary.kwcagMatrix ?? []).filter((r) => r.status === "manual" || r.status === "review");
+  const kwcagManualDone = kwcagManualRows.filter((r) => kwcagReviews.has(r.itemId)).length;
+  const manualProgress: { key: string; label: string; done: number; total: number }[] = [
+    { key: "kwcag", label: "KWCAG 2.2", done: kwcagManualDone, total: kwcagManualRows.length },
+    { key: "wcag", label: "WCAG 2.2", done: wcagManualDone, total: wcagManualRows.length },
+  ].filter((x) => x.total > 0);
 
   // 확인용 수집 자료 (signature.review) — 값이 하나라도 있는 페이지만
   const reviewPages = (pages ?? [])
@@ -139,7 +152,7 @@ export default async function ReportPage({
           </ul>
         </details>
         <a
-          href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}`}
+          href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}${compareParam ? `&compare=${compareParam}` : ""}`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
         >
           {t("downloadPdf")}
@@ -474,10 +487,22 @@ export default async function ReportPage({
           aria-labelledby="compare-heading"
           className="print-avoid-break mt-6 border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] p-6"
         >
-          <div className="flex flex-wrap items-baseline gap-x-3">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="compare-heading" className="font-display text-xl font-bold">
               {t("compare.title")}
             </h2>
+            {compareOptions.length > 1 && (
+              <CompareSelect
+                label={t("compare.pickerLabel")}
+                selected={compareOptions.find((o) => o.id === compareParam)?.id ?? compareOptions[0].id}
+                options={compareOptions.map((o, i) => ({
+                  id: o.id,
+                  label:
+                    format.dateTime(new Date(o.created_at), { dateStyle: "medium", timeStyle: "short" }) +
+                    (i === compareOptions.length - 1 ? ` — ${t("compare.pickerFirst")}` : i === 0 ? ` — ${t("compare.pickerPrev")}` : ""),
+                }))}
+              />
+            )}
           </div>
           <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">
             {t("compare.desc", { date: format.dateTime(new Date(compare.prevDate), { dateStyle: "medium" }) })}
@@ -528,6 +553,41 @@ export default async function ReportPage({
               {compare.newRules.map((r) => pick(getRuleEntry(r).title, locale)).join(" · ")}
             </p>
           )}
+        </section>
+      )}
+
+      {/* ─── 수동 판정 진행률 ─── */}
+      {manualProgress.length > 0 && (
+        <section aria-labelledby="manual-progress-heading" className="print-avoid-break mt-6 doc-card p-6">
+          <h2 id="manual-progress-heading" className="font-display text-xl font-bold">
+            {t("manualProgress.title")}
+          </h2>
+          <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("manualProgress.desc")}</p>
+          <dl className="mt-4 space-y-4">
+            {manualProgress.map((x) => {
+              const pct = Math.round((x.done / x.total) * 100);
+              return (
+                <div key={x.key}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <dt className="text-sm font-bold">{x.label}</dt>
+                    <dd className="text-sm tabular-nums text-[var(--color-ink-soft)]">
+                      {t("manualProgress.line", { done: x.done, total: x.total })} ({pct}%)
+                    </dd>
+                  </div>
+                  <div
+                    role="progressbar"
+                    aria-valuenow={x.done}
+                    aria-valuemin={0}
+                    aria-valuemax={x.total}
+                    aria-label={`${x.label} ${t("manualProgress.title")}`}
+                    className="mt-1.5 h-2.5 overflow-hidden rounded-full border border-[var(--color-line)] bg-[var(--color-paper-warm)]"
+                  >
+                    <div className="h-full bg-[var(--color-seal)]" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </dl>
         </section>
       )}
 

@@ -59,7 +59,7 @@ async function matchesShareToken(scanId: string, token: string): Promise<boolean
  * 보고서 데이터 로더 — 접근 제어(토큰/세션)와 모든 조회·그룹화를 담당한다.
  * page.tsx는 이 결과를 렌더만 한다.
  */
-export async function loadReport(locale: string, id: string, token: string | undefined) {
+export async function loadReport(locale: string, id: string, token: string | undefined, compareId?: string) {
   // 접근 제어 — 3경로:
   //   1) PDF 생성용 단기 HMAC 토큰 (스캔 1건, 10분)
   //   2) 공유 토큰 (소유자가 켠 읽기 전용 링크 — scans.share_token, migration 0012)
@@ -138,19 +138,22 @@ export async function loadReport(locale: string, id: string, token: string | und
     }))
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
 
-  // ── 전후 비교: 같은 사용자·같은 대상의 직전 완료 검사와 비교 (전체 공개) ──
+  // ── 전후 비교: 같은 사용자·같은 대상의 이전 완료 검사와 비교 (기본: 직전, ?compare=로 선택) ──
   let compare: CompareData | null = null;
+  let compareOptions: { id: string; created_at: string }[] = [];
   {
-    const { data: prev } = await db
+    // 같은 사용자·대상으로 한정해 조회하므로 compareId로 타인 검사를 지정해도 매칭되지 않는다
+    const { data: prevList } = await db
       .from("scans")
-      .select("summary, created_at")
+      .select("id, summary, created_at")
       .eq("user_id", scan.user_id)
       .eq("root_url", scan.root_url)
       .eq("status", "done")
       .lt("created_at", scan.created_at)
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(12);
+    compareOptions = (prevList ?? []).map((p) => ({ id: p.id as string, created_at: p.created_at as string }));
+    const prev = (prevList ?? []).find((p) => p.id === compareId) ?? (prevList ?? [])[0] ?? null;
     const prevSummary = (prev?.summary ?? null) as ScanSummary | null;
     if (prev && prevSummary) {
       const rateOf = (s: ScanSummary) => s.scores?.combined.rate ?? s.complianceRate;
@@ -166,5 +169,5 @@ export async function loadReport(locale: string, id: string, token: string | und
     }
   }
 
-  return { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, canEdit };
+  return { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, compareOptions, canEdit };
 }

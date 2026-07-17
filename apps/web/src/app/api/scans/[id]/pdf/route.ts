@@ -42,7 +42,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const viewRaw = sp.get("view");
   const view = viewRaw === "done" || viewRaw === "issues" || viewRaw === "auto" ? viewRaw : null;
   const lang = sp.get("lang") === "en" ? "en" : "ko";
-  const reportUrl = `${siteUrl}/${lang}/scans/${id}/report?token=${encodeURIComponent(token)}${view ? `&view=${view}` : ""}`;
+  const compareRaw = sp.get("compare");
+  const compare = compareRaw && IdSchema.safeParse(compareRaw).success ? compareRaw : null;
+  const reportUrl = `${siteUrl}/${lang}/scans/${id}/report?token=${encodeURIComponent(token)}${view ? `&view=${view}` : ""}${compare ? `&compare=${compare}` : ""}`;
 
   let browser;
   try {
