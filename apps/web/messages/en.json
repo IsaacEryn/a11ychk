@@ -541,7 +541,6 @@
     },
     "compare": {
       "title": "Change since previous audit",
-      "adminOnly": "Admin preview",
       "desc": "Compared with the audit on {date}. See the effect of your remediation work.",
       "rate": "Compliance change",
       "nodes": "Violating elements",

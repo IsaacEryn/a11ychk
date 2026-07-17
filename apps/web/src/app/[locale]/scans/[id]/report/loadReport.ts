@@ -66,7 +66,6 @@ export async function loadReport(locale: string, id: string, token: string | und
   //   3) 로그인 사용자 (RLS — 소유자/관리자, 편집 가능)
   let db: SupabaseClient;
   let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
-  let isAdmin = false; // 관리자 전용 미리보기 기능(전후 비교) 게이트
   if (token && verifyReportToken(id, token)) {
     db = createAdminClient();
   } else if (token && (await matchesShareToken(id, token))) {
@@ -79,8 +78,6 @@ export async function loadReport(locale: string, id: string, token: string | und
     if (!user) redirect(`/${locale}/login`);
     db = supabase as unknown as SupabaseClient;
     canEdit = true; // RLS 통과 = 소유자 또는 관리자
-    const { data: me } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    isAdmin = me?.role === "admin";
   }
 
   // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
@@ -141,9 +138,9 @@ export async function loadReport(locale: string, id: string, token: string | und
     }))
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
 
-  // ── 전후 비교 (관리자 우선 공개): 같은 사용자·같은 대상의 직전 완료 검사와 비교 ──
+  // ── 전후 비교: 같은 사용자·같은 대상의 직전 완료 검사와 비교 (전체 공개) ──
   let compare: CompareData | null = null;
-  if (isAdmin) {
+  {
     const { data: prev } = await db
       .from("scans")
       .select("summary, created_at")
@@ -169,5 +166,5 @@ export async function loadReport(locale: string, id: string, token: string | und
     }
   }
 
-  return { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, canEdit, isAdmin };
+  return { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, canEdit };
 }

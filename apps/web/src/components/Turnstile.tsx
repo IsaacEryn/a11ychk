@@ -82,5 +82,6 @@ export function Turnstile({
   }, []);
 
   if (!SITE_KEY) return null;
-  return <div ref={ref} className="mt-3" aria-label="보안 확인" />;
+  // role="group" — 일반 div에는 aria-label을 쓸 수 없음 (aria-prohibited-attr)
+  return <div ref={ref} role="group" className="mt-3" aria-label="보안 확인" />;
 }

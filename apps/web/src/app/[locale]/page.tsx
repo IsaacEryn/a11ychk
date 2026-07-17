@@ -154,7 +154,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         <ol className="mt-8 grid gap-5 md:grid-cols-3">
           {([1, 2, 3] as const).map((n) => (
             <li key={n} className="relative border-l-[3px] border-[var(--color-seal)] pl-5">
-              <span className="font-display text-5xl font-extrabold text-[var(--color-line)]" aria-hidden="true">
+              <span className="font-display text-5xl font-extrabold text-[var(--color-deco)]" aria-hidden="true">
                 {n.toString().padStart(2, "0")}
               </span>
               <h3 className="font-display mt-1 text-lg font-bold">{t(`how${n}Title`)}</h3>

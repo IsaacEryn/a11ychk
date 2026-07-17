@@ -468,7 +468,7 @@ export default async function ReportPage({
         </div>
       </section>
 
-      {/* ─── 전후 비교 (관리자 우선 공개 — 추후 전체 공개 예정) ─── */}
+      {/* ─── 전후 비교 — 같은 대상의 직전 검사와 비교해 개선 효과를 보여준다 ─── */}
       {compare && (
         <section
           aria-labelledby="compare-heading"
@@ -478,9 +478,6 @@ export default async function ReportPage({
             <h2 id="compare-heading" className="font-display text-xl font-bold">
               {t("compare.title")}
             </h2>
-            <span className="no-print rounded-full bg-[var(--color-paper)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
-              {t("compare.adminOnly")}
-            </span>
           </div>
           <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">
             {t("compare.desc", { date: format.dateTime(new Date(compare.prevDate), { dateStyle: "medium" }) })}
