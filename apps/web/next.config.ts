@@ -31,29 +31,12 @@ const nextConfig: NextConfig = {
     ],
   },
   async headers() {
-    // CSP — defense-in-depth. 외부 오리진은 실제 사용하는 것만 허용:
-    // Turnstile, Supabase. (폰트는 자체 호스팅 — Pretendard는 /fonts, Hahmlet은 next/font)
-    // Next는 인라인 스크립트/스타일을 쓰므로 unsafe-inline 필요(nonce 전환은 후속).
-    const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co";
-    const isDev = process.env.NODE_ENV === "development";
-    const csp = [
-      "default-src 'self'",
-      `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""} https://challenges.cloudflare.com`,
-      "style-src 'self' 'unsafe-inline'",
-      "font-src 'self'",
-      "img-src 'self' data: blob:",
-      `connect-src 'self' ${supabase} https://challenges.cloudflare.com`,
-      "frame-src https://challenges.cloudflare.com",
-      "frame-ancestors 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "object-src 'none'",
-    ].join("; ");
+    // CSP는 요청별 nonce가 필요해 미들웨어(src/proxy.ts)에서 부여한다.
+    // 여기서는 나머지 보안 헤더만 전 경로에 적용.
     return [
       {
         source: "/:path*",
         headers: [
-          { key: "Content-Security-Policy", value: csp },
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },

@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -72,6 +73,9 @@ export default async function LocaleLayout({
   }
   setRequestLocale(locale);
   const t = await getTranslations({ locale, namespace: "common" });
+  // CSP nonce — 미들웨어가 요청마다 발급 (headers() 사용으로 전 페이지 동적 렌더가 되지만,
+  // nonce 기반 CSP는 요청별 값이 필수라 정적 프리렌더와 양립할 수 없다)
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     // suppressHydrationWarning: 테마 초기화 스크립트가 hydration 전에 data-theme를
@@ -79,7 +83,7 @@ export default async function LocaleLayout({
     <html lang={locale} suppressHydrationWarning className={hahmlet.variable}>
       <body className="flex min-h-svh flex-col">
         {/* 저장된 테마를 렌더 전에 적용해 깜빡임(FOUC) 방지 */}
-        <Script id="theme-init" strategy="beforeInteractive">
+        <Script id="theme-init" strategy="beforeInteractive" nonce={nonce}>
           {themeInitScript}
         </Script>
         <a href="#main" className="skip-link">
