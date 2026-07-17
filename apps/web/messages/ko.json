@@ -767,7 +767,31 @@
       "errorsEmpty": "기록된 오류가 없습니다. 🎉",
       "errorsNotMigrated": "오류 로그 테이블이 아직 없습니다. Supabase SQL Editor에서 supabase/migrations/0008_app_errors.sql을 적용해 주세요.",
       "colPath": "경로",
-      "colMessage": "메시지"
+      "colMessage": "메시지",
+      "errorKind": {
+        "code": "코드 오류",
+        "network": "네트워크 오류",
+        "timeout": "시간 초과",
+        "db": "데이터베이스 오류",
+        "generic": "처리되지 않은 오류"
+      },
+      "pathKind": {
+        "landing": "랜딩 페이지",
+        "report": "보고서 페이지",
+        "scanDetail": "검사 진행 페이지",
+        "scanForm": "검사 페이지",
+        "dashboard": "대시보드",
+        "admin": "관리자 콘솔",
+        "apiScanCreate": "검사 생성 API",
+        "apiPdf": "PDF 생성 API",
+        "apiCsv": "CSV 내보내기 API",
+        "apiEarl": "EARL 내보내기 API",
+        "apiAiFix": "AI 수정 요청 API",
+        "apiExt": "확장도구 API",
+        "apiCron": "정기 작업",
+        "apiBadge": "배지 위젯 API",
+        "other": "기타"
+      }
     }
   },
   "guide": {

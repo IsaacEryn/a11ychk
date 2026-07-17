@@ -767,7 +767,31 @@
       "errorsEmpty": "No errors recorded. 🎉",
       "errorsNotMigrated": "Error log table does not exist yet. Apply supabase/migrations/0008_app_errors.sql in the Supabase SQL Editor.",
       "colPath": "Path",
-      "colMessage": "Message"
+      "colMessage": "Message",
+      "errorKind": {
+        "code": "Code error",
+        "network": "Network error",
+        "timeout": "Timeout",
+        "db": "Database error",
+        "generic": "Unhandled error"
+      },
+      "pathKind": {
+        "landing": "Landing page",
+        "report": "Report page",
+        "scanDetail": "Scan progress page",
+        "scanForm": "Scan page",
+        "dashboard": "Dashboard",
+        "admin": "Admin console",
+        "apiScanCreate": "Scan create API",
+        "apiPdf": "PDF API",
+        "apiCsv": "CSV export API",
+        "apiEarl": "EARL export API",
+        "apiAiFix": "AI fix-request API",
+        "apiExt": "Extension API",
+        "apiCron": "Scheduled job",
+        "apiBadge": "Badge widget API",
+        "other": "Other"
+      }
     }
   },
   "guide": {

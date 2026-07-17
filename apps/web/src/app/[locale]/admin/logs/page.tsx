@@ -19,6 +19,7 @@ interface LoginLogRow {
 
 interface AuditLogRow {
   id: string;
+  actor_id: string | null;
   action: string;
   target: string | null;
   detail: Record<string, unknown> | null;
@@ -56,7 +57,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
       ),
     admin
       .from("audit_logs")
-      .select("id, action, target, detail, created_at, profiles(nickname)")
+      .select("id, actor_id, action, target, detail, created_at, profiles(nickname)")
       .order("created_at", { ascending: false })
       .limit(50)
       .then(
@@ -80,17 +81,36 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
   const appErrors = (errorRes.data ?? []) as unknown as AppErrorRow[];
   const errorsMigrated = errorRes.error == null;
 
-  // ── 인간 친화 표시: 대상 UUID → 닉네임/문의 제목 ──
+  // ── 인간 친화 표시: 대상 UUID → 닉네임/문의 제목, 사용자에는 이메일 병기 ──
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const targetIds = [...new Set(auditLogs.map((l) => l.target).filter((x): x is string => !!x && UUID.test(x)))];
   const targetNames = new Map<string, string>();
+  const userIds = new Set<string>(auditLogs.map((l) => l.actor_id).filter((x): x is string => !!x));
   if (targetIds.length > 0) {
     const [profRes, inqRes] = await Promise.all([
       admin.from("profiles").select("id, nickname").in("id", targetIds),
       admin.from("inquiries").select("id, title").in("id", targetIds),
     ]);
-    for (const p of profRes.data ?? []) targetNames.set(p.id, p.nickname as string);
+    for (const p of profRes.data ?? []) {
+      targetNames.set(p.id, p.nickname as string);
+      userIds.add(p.id as string);
+    }
     for (const q of inqRes.data ?? []) targetNames.set(q.id, `"${q.title}"`);
+  }
+
+  // 이메일은 auth.users에만 있어 admin API로 조회 (수행자·사용자 대상 한정, 소량)
+  const emails = new Map<string, string>();
+  await Promise.all(
+    [...userIds].map(async (id) => {
+      const { data } = await admin.auth.admin.getUserById(id).catch(() => ({ data: null }));
+      if (data?.user?.email) emails.set(id, data.user.email);
+    }),
+  );
+
+  /** "닉네임 (이메일)" — 이메일을 못 찾으면 닉네임만 */
+  function nameWithEmail(nickname: string, id: string | null): string {
+    const email = id ? emails.get(id) : undefined;
+    return email ? `${nickname} (${email})` : nickname;
   }
 
   const planNames: Record<string, string> = {
@@ -103,7 +123,41 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
     daily: t("users.resetScope.daily"),
     weekly: t("users.resetScope.weekly"),
     monthly: t("users.resetScope.monthly"),
+    extension: t("users.resetScope.extension"),
   };
+
+  /** 오류 메시지 → 분류 라벨 (원문은 함께 표시) */
+  function errorKind(message: string): string {
+    if (/is not defined|is not a function|Cannot read|undefined is not|ReferenceError|TypeError/i.test(message))
+      return t("logs.errorKind.code");
+    if (/timeout|timed out/i.test(message)) return t("logs.errorKind.timeout");
+    if (/fetch failed|ECONN|ENOTFOUND|EAI_AGAIN|network|socket hang up/i.test(message))
+      return t("logs.errorKind.network");
+    if (/postgres|supabase|PGRST|relation .+ does not exist|duplicate key|violates/i.test(message))
+      return t("logs.errorKind.db");
+    return t("logs.errorKind.generic");
+  }
+
+  /** 오류 경로 → 페이지/API 이름 (전체 경로는 함께 표시) */
+  function pathKind(path: string | null): string {
+    if (!path) return t("logs.pathKind.other");
+    const p = path.replace(/^\/(ko|en)(?=\/|$)/, "");
+    if (p === "" || p === "/") return t("logs.pathKind.landing");
+    if (/^\/scans\/[^/]+\/report/.test(p)) return t("logs.pathKind.report");
+    if (/^\/scans\/[^/]+/.test(p)) return t("logs.pathKind.scanDetail");
+    if (p.startsWith("/scan")) return t("logs.pathKind.scanForm");
+    if (p.startsWith("/dashboard")) return t("logs.pathKind.dashboard");
+    if (p.startsWith("/admin")) return t("logs.pathKind.admin");
+    if (/^\/api\/scans\/[^/]+\/pdf/.test(p)) return t("logs.pathKind.apiPdf");
+    if (/^\/api\/scans\/[^/]+\/csv/.test(p)) return t("logs.pathKind.apiCsv");
+    if (/^\/api\/scans\/[^/]+\/earl/.test(p)) return t("logs.pathKind.apiEarl");
+    if (/^\/api\/scans\/[^/]+\/ai-fix/.test(p)) return t("logs.pathKind.apiAiFix");
+    if (p.startsWith("/api/scans")) return t("logs.pathKind.apiScanCreate");
+    if (p.startsWith("/api/ext")) return t("logs.pathKind.apiExt");
+    if (p.startsWith("/api/cron")) return t("logs.pathKind.apiCron");
+    if (p.startsWith("/api/badge")) return t("logs.pathKind.apiBadge");
+    return t("logs.pathKind.other");
+  }
 
   /** 행위 코드 → 한국어 문장 라벨 */
   function actionLabel(action: string): string {
@@ -211,10 +265,20 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
             <tbody>
               {auditLogs.map((l) => (
                 <tr key={l.id} className="border-b border-[var(--color-line)]">
-                  <td className="whitespace-nowrap py-2 pr-3">{l.profiles?.nickname ?? "—"}</td>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    {l.profiles ? nameWithEmail(l.profiles.nickname, l.actor_id) : "—"}
+                  </td>
                   <td className="py-2 pr-3 font-semibold">{actionLabel(l.action)}</td>
-                  <td className="max-w-44 truncate py-2 pr-3">
-                    {l.target ? (targetNames.get(l.target) ?? <code className="font-mono text-xs">{l.target.slice(0, 8)}…</code>) : "—"}
+                  <td className="max-w-64 truncate py-2 pr-3">
+                    {l.target ? (
+                      targetNames.has(l.target) ? (
+                        nameWithEmail(targetNames.get(l.target)!, l.target)
+                      ) : (
+                        <code className="font-mono text-xs">{l.target.slice(0, 8)}…</code>
+                      )
+                    ) : (
+                      "—"
+                    )}
                   </td>
                   <td className="max-w-64 py-2 pr-3 text-[var(--color-ink-soft)]">{detailLabel(l) || "—"}</td>
                   <td className="whitespace-nowrap py-2 tabular-nums text-[var(--color-ink-faint)]">
@@ -258,11 +322,17 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
               <tbody>
                 {appErrors.map((e) => (
                   <tr key={e.id} className="border-b border-[var(--color-line)] align-top">
-                    <td className="max-w-44 truncate py-2 pr-3 font-mono text-xs">
-                      {e.method} {e.path}
+                    <td className="max-w-56 py-2 pr-3">
+                      <span className="font-semibold">{pathKind(e.path)}</span>
+                      <span className="mt-0.5 block break-all font-mono text-xs text-[var(--color-ink-faint)]">
+                        {e.method} {e.path}
+                      </span>
                     </td>
-                    <td className="max-w-96 py-2 pr-3 text-[var(--color-crit)]">
-                      <span className="line-clamp-2">{e.message}</span>
+                    <td className="max-w-96 py-2 pr-3">
+                      <span className="font-semibold text-[var(--color-crit)]">{errorKind(e.message)}</span>
+                      <span className="mt-0.5 line-clamp-2 block break-all font-mono text-xs text-[var(--color-ink-soft)]">
+                        {e.message}
+                      </span>
                     </td>
                     <td className="whitespace-nowrap py-2 tabular-nums text-[var(--color-ink-faint)]">
                       {format.dateTime(new Date(e.created_at), { dateStyle: "short", timeStyle: "short" })}
