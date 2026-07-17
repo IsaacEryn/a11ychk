@@ -35,7 +35,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     // 추이용 — summary 전체 대신 점수만 뽑아 가볍게 (최근 완료 검사 60건)
     supabase
       .from("scans")
-      .select("root_url, created_at, combined:summary->scores->combined->>rate, auto:summary->>complianceRate")
+      .select("id, root_url, created_at, combined:summary->scores->combined->>rate, auto:summary->>complianceRate, nodes:summary->>totalViolationNodes")
       .eq("user_id", user.id)
       .eq("status", "done")
       .order("created_at", { ascending: false })
@@ -59,6 +59,34 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     }
   }
   for (const list of trendByHost.values()) list.reverse();
+
+  // ── 도메인 총괄 — 호스트별 최신 완료 검사 요약 (trendRows 재사용, 추가 쿼리 없음) ──
+  const latestByHost = new Map<
+    string,
+    { host: string; scanId: string; date: string; rate: number; nodes: number }
+  >();
+  for (const row of trendRows ?? []) {
+    const rate = Number(row.combined ?? row.auto);
+    if (!Number.isFinite(rate)) continue;
+    try {
+      const host = foldHost(new URL(row.root_url as string).hostname);
+      if (!latestByHost.has(host)) {
+        latestByHost.set(host, {
+          host,
+          scanId: row.id as string,
+          date: row.created_at as string,
+          rate: Math.round(rate * 10) / 10,
+          nodes: Number(row.nodes) || 0,
+        });
+      }
+    } catch {
+      /* 건너뜀 */
+    }
+  }
+  const overview = [...latestByHost.values()].sort((a, b) => a.host.localeCompare(b.host));
+  const autoScanHosts = new Set(
+    (domains ?? []).filter((d) => d.auto_scan).map((d) => foldHost((d.hostname as string).toLowerCase())),
+  );
 
   const admin = createAdminClient();
   const plansActive = await getPlansActive(admin);
@@ -116,6 +144,50 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
           </dl>
         </section>
       </div>
+
+      {/* 도메인 총괄 — 호스트별 최신 준수율 한눈에 */}
+      {overview.length > 0 && (
+        <section aria-labelledby="overview-heading" className="mt-10">
+          <h2 id="overview-heading" className="font-display text-2xl font-bold">
+            {t("overview.title")}
+          </h2>
+          <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("overview.desc")}</p>
+          <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {overview.map((o) => (
+              <li key={o.host} className="doc-card p-5">
+                <div className="flex items-start justify-between gap-2">
+                  <span className="break-all font-bold">{o.host}</span>
+                  {autoScanHosts.has(o.host) && (
+                    <span className="whitespace-nowrap rounded-full border-[1.5px] border-[var(--color-seal)] px-2 py-0.5 text-xs font-bold text-[var(--color-seal)]">
+                      {t("overview.autoOn")}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 flex items-end gap-2">
+                  <span
+                    className={`font-display text-4xl font-extrabold tabular-nums ${
+                      o.rate >= 95 ? "text-[var(--color-seal)]" : o.rate >= 80 ? "" : "text-[var(--color-crit)]"
+                    }`}
+                  >
+                    {o.rate}
+                  </span>
+                  <span className="pb-1 text-sm text-[var(--color-ink-faint)]">% {t("overview.rate")}</span>
+                </div>
+                <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{t("overview.nodes", { n: o.nodes })}</p>
+                <p className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
+                  {t("overview.lastScan", { date: format.dateTime(new Date(o.date), { dateStyle: "medium" }) })}
+                </p>
+                <Link
+                  href={`/scans/${o.scanId}/report`}
+                  className="mt-3 inline-block text-sm font-bold text-[var(--color-seal)] underline underline-offset-4 hover:text-[var(--color-seal-deep)]"
+                >
+                  {t("overview.report")} →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 도메인 */}
       <section aria-labelledby="domains-heading" className="mt-10">

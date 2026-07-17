@@ -297,6 +297,15 @@
       "running": "Running",
       "done": "Done",
       "failed": "Failed"
+    },
+    "overview": {
+      "title": "Domain overview",
+      "desc": "Latest result for each domain you have scanned.",
+      "rate": "Compliance",
+      "nodes": "{n} violating elements",
+      "lastScan": "Last scan {date}",
+      "autoOn": "Scheduled scans on",
+      "report": "View report"
     }
   },
   "scan": {
@@ -548,7 +557,10 @@
       "resolved": "Rules resolved",
       "new": "New violations",
       "resolvedList": "Resolved",
-      "newList": "Newly found"
+      "newList": "Newly found",
+      "pickerLabel": "Compare with",
+      "pickerPrev": "previous scan",
+      "pickerFirst": "first scan"
     },
     "share": {
       "enable": "Create share link",
@@ -583,6 +595,11 @@
       "csvFindings": "Violations CSV (Excel)",
       "csvKwcag": "KWCAG matrix CSV (Excel)",
       "aiFixJson": "AI fix request (.json)"
+    },
+    "manualProgress": {
+      "title": "Manual review progress",
+      "desc": "Share of items the automated tool could not decide that a reviewer has now judged.",
+      "line": "{done} / {total} items reviewed"
     }
   },
   "mypage": {

@@ -297,6 +297,15 @@
       "running": "검사 중",
       "done": "완료",
       "failed": "실패"
+    },
+    "overview": {
+      "title": "도메인 총괄",
+      "desc": "검사한 도메인별 최신 결과입니다.",
+      "rate": "준수율",
+      "nodes": "위반 요소 {n}개",
+      "lastScan": "최근 검사 {date}",
+      "autoOn": "정기 검사 중",
+      "report": "보고서 보기"
     }
   },
   "scan": {
@@ -548,7 +557,10 @@
       "resolved": "해결된 규칙",
       "new": "새 위반 규칙",
       "resolvedList": "해결됨",
-      "newList": "새로 발견"
+      "newList": "새로 발견",
+      "pickerLabel": "비교 대상",
+      "pickerPrev": "직전 검사",
+      "pickerFirst": "첫 검사"
     },
     "share": {
       "enable": "공유 링크 만들기",
@@ -583,6 +595,11 @@
       "csvFindings": "위반 목록 CSV (엑셀)",
       "csvKwcag": "KWCAG 매트릭스 CSV (엑셀)",
       "aiFixJson": "AI 수정 요청 (.json)"
+    },
+    "manualProgress": {
+      "title": "수동 판정 진행률",
+      "desc": "자동 도구가 확정하지 못한 항목 중 점검자가 판정을 기입한 비율입니다.",
+      "line": "{done} / {total} 항목 판정 완료"
     }
   },
   "mypage": {
