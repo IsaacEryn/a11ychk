@@ -573,8 +573,10 @@
       "issues": "Issues only",
       "notice": {
         "done": "This report is filtered to items with a verdict. See the 'Everything' view for the full results including manual-check guidance.",
-        "issues": "This report is filtered to failing items only. See the 'Everything' view for full results including passes and manual checks."
-      }
+        "issues": "This report is filtered to failing items only. See the 'Everything' view for full results including passes and manual checks.",
+        "auto": "This report is filtered to items judged by automated checks. See the 'Everything' view for full results including items that require manual review."
+      },
+      "auto": "Automated only"
     },
     "export": {
       "menu": "Export",

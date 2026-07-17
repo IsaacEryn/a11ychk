@@ -39,7 +39,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const token = signReportToken(id);
   // 출력 범위(view)·로케일을 보고서 렌더 URL로 패스스루 — 웹 화면과 동일한 필터로 PDF 생성
   const sp = new URL(request.url).searchParams;
-  const view = sp.get("view") === "done" || sp.get("view") === "issues" ? sp.get("view") : null;
+  const viewRaw = sp.get("view");
+  const view = viewRaw === "done" || viewRaw === "issues" || viewRaw === "auto" ? viewRaw : null;
   const lang = sp.get("lang") === "en" ? "en" : "ko";
   const reportUrl = `${siteUrl}/${lang}/scans/${id}/report?token=${encodeURIComponent(token)}${view ? `&view=${view}` : ""}`;
 

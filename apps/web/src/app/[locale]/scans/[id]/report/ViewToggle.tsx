@@ -10,14 +10,14 @@ export function ViewToggle({
   view,
   labels,
 }: {
-  view: "all" | "done" | "issues";
-  labels: { legend: string; all: string; done: string; issues: string };
+  view: "all" | "auto" | "done" | "issues";
+  labels: { legend: string; all: string; auto: string; done: string; issues: string };
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const setView = (next: "all" | "done" | "issues") => {
+  const setView = (next: "all" | "auto" | "done" | "issues") => {
     const params = new URLSearchParams(searchParams.toString());
     if (next === "all") params.delete("view");
     else params.set("view", next);
@@ -25,8 +25,9 @@ export function ViewToggle({
     router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
 
-  const options: { value: "all" | "done" | "issues"; label: string }[] = [
+  const options: { value: "all" | "auto" | "done" | "issues"; label: string }[] = [
     { value: "all", label: labels.all },
+    { value: "auto", label: labels.auto },
     { value: "done", label: labels.done },
     { value: "issues", label: labels.issues },
   ];

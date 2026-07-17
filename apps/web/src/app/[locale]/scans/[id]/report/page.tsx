@@ -45,8 +45,9 @@ export default async function ReportPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
   const { token, view: viewParam } = await searchParams;
-  // 출력 범위: all(전체, 기본) | done(판정 완료 항목만) | issues(오류 항목만)
-  const view = viewParam === "done" || viewParam === "issues" ? viewParam : "all";
+  // 출력 범위: all(전체, 기본) | auto(자동 검사 항목만) | done(판정 완료 항목만) | issues(오류 항목만)
+  const view =
+    viewParam === "done" || viewParam === "issues" || viewParam === "auto" ? viewParam : "all";
   const t = await getTranslations("report");
   const format = await getFormatter();
 
@@ -76,6 +77,8 @@ export default async function ReportPage({
   // 출력 범위 필터 — 점검자 판정이 있으면 그것을 우선한다 (매트릭스 표시 규칙과 동일)
   const wcagRowVisible = (outcome: WcagOutcome, review: { outcome: string } | null): boolean => {
     if (view === "all") return true;
+    // auto: 자동 도구가 판정을 낸 항목만 (notChecked = 수동 필요 → 제외). 점검자 판정과 무관
+    if (view === "auto") return outcome !== "notChecked";
     const effective = (review?.outcome as WcagOutcome | undefined) ?? outcome;
     if (view === "issues") return effective === "failed";
     // done: 점검자가 판정했거나 자동으로 확정 판정된 항목
@@ -83,6 +86,7 @@ export default async function ReportPage({
   };
   const kwcagRowVisible = (status: string, review: { outcome: string } | null): boolean => {
     if (view === "all") return true;
+    if (view === "auto") return status !== "manual";
     if (review) return view === "issues" ? review.outcome === "failed" : true;
     if (view === "issues") return status === "fail";
     return status === "pass" || status === "fail" || status === "review";
@@ -144,7 +148,10 @@ export default async function ReportPage({
       </div>
 
       {/* ─── 출력 범위 (화면 전용 토글 + 인쇄 포함 안내문) ─── */}
-      <ViewToggle view={view} labels={{ legend: t("view.legend"), all: t("view.all"), done: t("view.done"), issues: t("view.issues") }} />
+      <ViewToggle
+        view={view}
+        labels={{ legend: t("view.legend"), all: t("view.all"), auto: t("view.auto"), done: t("view.done"), issues: t("view.issues") }}
+      />
       {view !== "all" && (
         <p
           role="note"
