@@ -14,6 +14,7 @@ import {
 import { classifyScanError } from "@/lib/scanError";
 import { loadReport } from "./loadReport";
 import { computeKwcagPageRates } from "./kwcagPageRate";
+import { computeCertReadiness } from "./certReadiness";
 import { GuideText } from "@/components/GuideText";
 import { PrintButton } from "./PrintButton";
 import { ReviewCell } from "./ReviewCell";
@@ -63,6 +64,13 @@ export default async function ReportPage({
     (pages ?? []).filter((p) => p.status === "done").length,
   );
   const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
+  // 인증 준비 요약 — 항목별 페이지 준수율·판정을 평균해 인증 합격선(95%/85%)과 대응
+  const cert = computeCertReadiness(
+    summary.kwcagMatrix ?? [],
+    kwcagRates,
+    kwcagReviews,
+    (pages ?? []).filter((p) => p.status === "done").length,
+  );
   const manualItems = getManualCheckItems();
 
   // ── 수동 판정 진행률 — 자동 도구가 확정하지 못한 항목 중 점검자 판정이 기입된 비율 ──
@@ -671,6 +679,53 @@ export default async function ReportPage({
             </table>
           </div>
           <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("wcag.notCheckedNote")}</p>
+        </section>
+      )}
+
+      {/* ─── 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 ─── */}
+      {cert.averageRate != null && (
+        <section aria-labelledby="cert-heading" className="print-avoid-break mt-10 doc-card p-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 id="cert-heading" className="font-display text-xl font-bold">
+              {t("cert.title")}
+            </h2>
+            <span
+              className={`rounded-full border-[1.5px] px-3 py-1 text-sm font-bold ${
+                cert.band === "pass"
+                  ? "border-[var(--color-seal)] bg-[var(--color-seal-tint)] text-[var(--color-pass)]"
+                  : cert.band === "second"
+                    ? "border-[var(--color-line)] bg-[var(--color-warn-tint)] text-[var(--color-ink)]"
+                    : "border-[var(--color-crit)] bg-[var(--color-crit-tint)] text-[var(--color-crit)]"
+              }`}
+            >
+              {t(`cert.band.${cert.band}`)}
+            </span>
+          </div>
+          <div className="mt-3 flex items-end gap-3">
+            <span className="font-display text-5xl font-extrabold tabular-nums">{cert.averageRate}</span>
+            <span className="pb-1.5 text-sm text-[var(--color-ink-faint)]">
+              % · {t("cert.evaluated", { evaluated: cert.evaluatedCount, total: cert.totalCount })}
+            </span>
+          </div>
+          {cert.belowItems.length > 0 && (
+            <div className="mt-4">
+              <p className="text-sm font-bold">{t("cert.belowTitle", { count: cert.belowItems.length })}</p>
+              <ul className="mt-2 flex flex-wrap gap-2">
+                {cert.belowItems.map((b) => {
+                  const item = KWCAG_BY_ID.get(b.itemId);
+                  return (
+                    <li
+                      key={b.itemId}
+                      className="rounded border-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] px-2 py-1 text-xs font-semibold text-[var(--color-crit)]"
+                    >
+                      {b.itemId} {item ? pick(item.name, locale) : ""} · {b.rate}%
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+          <p className="mt-4 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("cert.note")}</p>
         </section>
       )}
 

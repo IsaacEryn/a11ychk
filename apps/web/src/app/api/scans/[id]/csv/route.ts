@@ -10,6 +10,8 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
 import { computeKwcagPageRates } from "@/app/[locale]/scans/[id]/report/kwcagPageRate";
+import { computeCertReadiness } from "@/app/[locale]/scans/[id]/report/certReadiness";
+import type { ReviewValue } from "@/app/[locale]/scans/[id]/report/ReviewCell";
 
 /**
  * CSV 내보내기 — 국내 실무(엑셀 보고)용.
@@ -114,6 +116,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const statusLabel = lang === "en" ? STATUS_EN : STATUS_KO;
     const matrix = (summary.kwcagMatrix ?? []) as KwcagMatrixRow[];
     const rates = computeKwcagPageRates(matrix, findings, donePageCount);
+    // 점검자 판정 — 인증 준비 요약 평균이 보고서 화면과 일치하도록 동일 입력 사용
+    const kwcagReviews = new Map<string, ReviewValue>();
+    {
+      const { data: reviewRows } = await supabase
+        .from("scan_reviews")
+        .select("standard, item_id, outcome, note, pages")
+        .eq("scan_id", id)
+        .eq("standard", "kwcag");
+      for (const r of reviewRows ?? []) {
+        const p = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
+        kwcagReviews.set(r.item_id, { outcome: r.outcome, note: r.note, pages: p });
+      }
+    }
     rows.push(
       (lang === "en"
         ? ["Item ID", "Item", "Status", "Violation elements", "Affected pages", "Page compliance rate (%)"]
@@ -134,6 +149,17 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           r?.violatedPages ?? 0,
           rateApplicable && r?.rate != null ? r.rate : "",
         ].map(esc).join(","),
+      );
+    }
+    // 인증 준비 요약 — 평가 항목 평균 준수율 (보고서 화면과 동일 계산)
+    const cert = computeCertReadiness(matrix, rates, kwcagReviews, donePageCount);
+    if (cert.averageRate != null) {
+      rows.push("");
+      rows.push(
+        (lang === "en"
+          ? ["Average (certification readiness)", `${cert.evaluatedCount}/${cert.totalCount} checkpoints`, "", "", "", cert.averageRate]
+          : ["평균(인증 준비 요약)", `${cert.evaluatedCount}/${cert.totalCount}개 항목 기준`, "", "", "", cert.averageRate]
+        ).map(esc).join(","),
       );
     }
   }
