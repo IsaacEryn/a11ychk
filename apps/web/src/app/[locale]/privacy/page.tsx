@@ -12,7 +12,7 @@ interface Section {
 const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections: Section[] }> = {
   ko: {
     title: "개인정보 처리방침",
-    effective: "시행일: 2026년 7월 16일",
+    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정, 학술 연구 활용 명시)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
@@ -26,6 +26,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         heading: "2. 개인정보의 처리 목적",
         body: [
           "회원 식별 및 서비스 제공(검사 이력·보고서 관리), 검사 한도 등 자원 관리, 문의 응대, 서비스 개선을 위한 통계(개인 식별 불가 형태)에 이용합니다.",
+          "검사 대상 URL과 검사 결과는 개인·계정을 식별할 수 없는 집계 통계로 가공하여 학술 연구와 정책 제안에 활용될 수 있습니다. 이 경우 도메인 등 식별 요소는 제거되거나 분야 단위로 일반화됩니다.",
         ],
       },
       {
@@ -60,7 +61,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   },
   en: {
     title: "Privacy Policy",
-    effective: "Effective: July 16, 2026",
+    effective: "Effective: July 19, 2026 (enacted July 16, 2026; research use clarified)",
     sections: [
       {
         heading: "1. Data we collect",
@@ -74,6 +75,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         heading: "2. Purposes",
         body: [
           "Identifying members and providing the service (audit history and reports), resource management such as quotas, responding to inquiries, and non-identifying statistics for service improvement.",
+          "Audit target URLs and results may be processed into aggregate statistics that cannot identify any user or account, and used for academic research and policy proposals. Identifying elements such as domains are removed or generalized into categories.",
         ],
       },
       {

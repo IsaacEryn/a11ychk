@@ -12,7 +12,7 @@ interface Section {
 const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections: Section[] }> = {
   ko: {
     title: "서비스 이용약관",
-    effective: "시행일: 2026년 7월 16일",
+    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정, 비식별 데이터 활용 조항 신설)",
     sections: [
       {
         heading: "제1조 (목적)",
@@ -58,13 +58,20 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         ],
       },
       {
-        heading: "제7조 (오픈소스)",
+        heading: "제7조 (비식별 데이터의 활용)",
+        body: [
+          "운영자는 검사 대상 URL과 검사 결과를 개인·계정을 식별할 수 없는 형태로 가공하여 서비스 개선, 통계 작성, 학술 연구 및 정책 제안에 활용할 수 있습니다.",
+          "이 경우 특정 이용자나 특정 웹사이트가 드러나지 않도록 도메인 등 식별 요소를 제거하거나 분야 단위로 분류한 집계 통계만 사용합니다.",
+        ],
+      },
+      {
+        heading: "제8조 (오픈소스)",
         body: [
           "서비스의 검사 엔진과 규칙 카탈로그는 MIT 라이선스로 공개되어 있으며, 라이선스 조건에 따라 자유롭게 이용할 수 있습니다.",
         ],
       },
       {
-        heading: "제8조 (약관의 변경)",
+        heading: "제9조 (약관의 변경)",
         body: [
           "운영자는 필요 시 약관을 변경할 수 있으며, 변경 사항은 서비스 내 공지로 효력이 발생합니다. 변경에 동의하지 않는 이용자는 서비스 이용을 중단하고 탈퇴할 수 있습니다.",
         ],
@@ -73,7 +80,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   },
   en: {
     title: "Terms of Service",
-    effective: "Effective: July 16, 2026",
+    effective: "Effective: July 19, 2026 (enacted July 16, 2026; added de-identified data clause)",
     sections: [
       {
         heading: "1. Purpose",
@@ -109,11 +116,18 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         ],
       },
       {
-        heading: "6. Open source",
+        heading: "6. De-identified data",
+        body: [
+          "The operator may process audit target URLs and audit results into a form that cannot identify any user or account, and use them for service improvement, statistics, academic research, and policy proposals.",
+          "Only aggregate statistics are used in such cases, with identifying elements (such as domains) removed or generalized into categories, so that no specific user or website is exposed.",
+        ],
+      },
+      {
+        heading: "7. Open source",
         body: ["The audit engine and rule catalog are published under the MIT license."],
       },
       {
-        heading: "7. Changes",
+        heading: "8. Changes",
         body: [
           "The operator may amend these terms; changes take effect upon notice within the Service. Users who do not agree may discontinue use and delete their account.",
         ],
