@@ -12,7 +12,7 @@ interface Section {
 const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections: Section[] }> = {
   ko: {
     title: "개인정보 처리방침",
-    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정 — 학술 연구 활용, 수탁사·보존 기간 구체화)",
+    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정 — 학술 연구 활용, 수탁사 구체화)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
@@ -36,7 +36,6 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "개인정보는 회원 탈퇴 시 지체 없이 파기합니다. 검사 결과 등 서비스 데이터는 탈퇴 시 함께 삭제됩니다.",
           "관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 분리 보관 후 파기합니다.",
           "보안 목적으로 수집하는 로그인 기록(IP 주소 포함)과 서버 오류 로그는 90일간 보관 후 자동 삭제합니다.",
-          "검사 보고서에 첨부되는 위반 요소 화면 캡처 이미지는 요금제에 따라 10일~365일 보관 후 자동 삭제합니다(무료 10일).",
         ],
       },
       {
@@ -86,7 +85,6 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "Personal data is deleted without delay upon account deletion, together with service data such as audit results. Data required by law is stored separately for the mandated period, then destroyed.",
           "Sign-in records collected for security (including IP addresses) and server error logs are kept for 90 days and then deleted automatically.",
-          "Screenshots of violating elements attached to reports are kept for 10 to 365 days depending on the plan (10 days on the free plan), then deleted automatically.",
         ],
       },
       {

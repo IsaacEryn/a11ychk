@@ -6,7 +6,6 @@ import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota
 import { getPlansActive } from "@/lib/appSettings";
 import { runScan } from "@/lib/scan/runScan";
 import { sendScanAlert } from "@/lib/notify";
-import { cleanupShots } from "@/lib/shots";
 
 export const maxDuration = 300;
 
@@ -51,14 +50,6 @@ export async function GET(request: Request) {
     } catch {
       // 테이블 미적용(마이그레이션 전) 환경은 건너뜀
     }
-  }
-
-  // 스크린샷 보존(플랜별)·전역 예산 집행 (best-effort)
-  let shots: { purged: number; totalBytes: number } | null = null;
-  try {
-    shots = await cleanupShots(admin);
-  } catch {
-    // 0015 미적용 등 — 건너뜀
   }
 
   const results: { hostname: string; status: string }[] = [];
@@ -126,7 +117,7 @@ export async function GET(request: Request) {
     }
   }
 
-  return NextResponse.json({ processed: results.length, results, cleaned, shots });
+  return NextResponse.json({ processed: results.length, results, cleaned });
 }
 
 /** 새 검사가 직전 검사보다 나빠졌으면 소유자에게 이메일 알림 */

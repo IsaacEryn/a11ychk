@@ -32,7 +32,6 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "서비스는 이용자가 입력한 공개 웹페이지를 자동 도구(axe-core)로 검사하고 WCAG 2.2·KWCAG 2.2 기준의 보고서를 생성합니다.",
           "서비스는 robots.txt 등 대상 사이트의 크롤링 정책을 존중하며, 정책상 차단된 페이지는 검사하지 않습니다.",
-          "검사 과정에서 위반 요소의 화면 캡처가 생성되어 보고서에 첨부될 수 있으며, 캡처 이미지는 일정 기간 후 자동 삭제됩니다.",
           "이용자가 소유 확인한 도메인에 대해 정기 자동 검사와 결과 알림을 제공할 수 있습니다.",
           "이용자가 보고서 공유 링크를 생성하면 링크를 아는 누구나 해당 보고서를 열람할 수 있습니다. 공유 링크의 전달·해제 관리 책임은 이용자에게 있습니다.",
           "무료 서비스의 검사 횟수·표본 크기는 운영 사정에 따라 제한될 수 있습니다.",
@@ -96,7 +95,6 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "The Service audits publicly accessible web pages submitted by the user with automated tooling (axe-core) and produces reports based on WCAG 2.2 and KWCAG 2.2.",
           "The Service respects target sites' crawling policies (robots.txt); pages disallowed by policy are not audited.",
-          "Screenshots of violating elements may be captured during audits and attached to reports; captured images are deleted automatically after a set period.",
           "Scheduled automatic audits and result notifications may be provided for domains the user has verified.",
           "If the user creates a report share link, anyone with the link can view that report. Managing and revoking share links is the user's responsibility.",
           "Audit quotas and sample sizes of the free service may be limited at the operator's discretion.",

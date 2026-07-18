@@ -51,25 +51,6 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     browser = await launchBrowser();
     const page = await browser.newPage();
     await page.goto(reportUrl, { waitUntil: "networkidle", timeout: 60_000 });
-    // lazy 이미지(위반 스크린샷)가 인쇄에 빠지지 않게 끝까지 스크롤해 로드를 유도
-    await page.evaluate(
-      () =>
-        new Promise<void>((resolve) => {
-          let y = 0;
-          const step = () => {
-            y += 800;
-            window.scrollTo(0, y);
-            if (y >= document.body.scrollHeight) {
-              window.scrollTo(0, 0);
-              resolve();
-            } else {
-              setTimeout(step, 80);
-            }
-          };
-          step();
-        }),
-    );
-    await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => undefined);
     const pdf = await page.pdf({
       format: "A4",
       printBackground: true,

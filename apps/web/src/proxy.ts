@@ -22,7 +22,7 @@ function buildCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    `img-src 'self' data: blob: ${supabase}`,
+    "img-src 'self' data: blob:",
     `connect-src 'self' ${supabase} https://challenges.cloudflare.com`,
     "frame-src https://challenges.cloudflare.com",
     "frame-ancestors 'none'",

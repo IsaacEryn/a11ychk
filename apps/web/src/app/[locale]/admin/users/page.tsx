@@ -131,7 +131,6 @@ export default async function AdminUsersPage({
                   save: t("users.saveLimits"),
                   customHint: t("users.customHint"),
                   effective: t("users.effective"),
-                  planHint: t("users.planHint"),
                 }}
               />
 

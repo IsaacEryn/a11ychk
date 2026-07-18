@@ -498,9 +498,7 @@
       "selectorLabel": "Selector",
       "axeHelp": "axe-core rule docs",
       "affectedPages": "{count} affected page(s)",
-      "diagLabel": "Automated diagnosis (axe)",
-      "shotAlt": "Screenshot of violating element — {rule}",
-      "shotCaption": "Captured at scan time. Image resources are not loaded for performance, so it may differ from the live page."
+      "diagLabel": "Automated diagnosis (axe)"
     },
     "manual": {
       "title": "Checkpoints requiring manual testing",
@@ -675,8 +673,7 @@
       "scans30d": "Audits (30 days)",
       "running": "Running audits",
       "openInquiries": "Open inquiries",
-      "failedRate": "30-day failure rate",
-      "shotsStorage": "Screenshot storage"
+      "failedRate": "30-day failure rate"
     },
     "scans": {
       "title": "Audit log",
@@ -734,9 +731,7 @@
       "noResults": "No matching users.",
       "pagesLabel": "Page limit",
       "pagesHint": "Page limit: doubled for verified domains, max {max} pages",
-      "extDailyLabel": "Ext/day",
-      "retentionHint": "Screenshot retention: Free 10d · Pro 90d · Enterprise 365d",
-      "planHint": "Plan sets how long violation screenshots are kept (Free 10d · Pro 90d · Enterprise 365d)."
+      "extDailyLabel": "Ext/day"
     },
     "inquiriesSection": {
       "title": "Inquiry management",

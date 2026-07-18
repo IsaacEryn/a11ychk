@@ -54,7 +54,6 @@ export function UserLimitsForm({
     save: string;
     customHint: string;
     effective: string;
-    planHint: string;
   };
 }) {
   const [plan, setPlan] = useState<PlanId>(currentPlan);
@@ -154,7 +153,6 @@ export function UserLimitsForm({
       <p id={`pages-hint-${userId}`} className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
         {labels.customHint} · {labels.effective}: {effective.daily}/{effective.weekly}/{effective.monthly} · {labels.pagesHint}
       </p>
-      <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{labels.planHint}</p>
     </form>
   );
 }
