@@ -12,20 +12,21 @@ interface Section {
 const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections: Section[] }> = {
   ko: {
     title: "개인정보 처리방침",
-    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정, 학술 연구 활용 명시)",
+    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정 — 학술 연구 활용, 수탁사·보존 기간 구체화)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
         body: [
-          "회원 가입(소셜 로그인) 시: 이름(닉네임), 이메일 주소 — Google 또는 GitHub 계정으로부터 제공받습니다.",
+          "회원 가입 시: 이름(닉네임), 이메일 주소 — Google·GitHub 계정으로부터 제공받거나 이메일 가입 시 직접 수집합니다.",
           "서비스 이용 시: 검사 대상 URL과 검사 결과, 점검자 판정·메모, 보고서 정보(사이트 이름·평가자 등), 문의 내용.",
+          "서비스 보호 목적: 로그인 기록(IP 주소 포함)과 서버 오류 로그를 수집합니다.",
           "쿠키: 로그인 세션 유지 목적의 인증 쿠키만 사용하며, 광고·추적 쿠키는 사용하지 않습니다.",
         ],
       },
       {
         heading: "2. 개인정보의 처리 목적",
         body: [
-          "회원 식별 및 서비스 제공(검사 이력·보고서 관리), 검사 한도 등 자원 관리, 문의 응대, 서비스 개선을 위한 통계(개인 식별 불가 형태)에 이용합니다.",
+          "회원 식별 및 서비스 제공(검사 이력·보고서 관리), 검사 한도 등 자원 관리, 문의 응대, 정기 검사 결과 등 서비스 알림 이메일 발송(도메인별로 수신 거부 가능), 서비스 개선을 위한 통계(개인 식별 불가 형태)에 이용합니다.",
           "검사 대상 URL과 검사 결과는 개인·계정을 식별할 수 없는 집계 통계로 가공하여 학술 연구와 정책 제안에 활용될 수 있습니다. 이 경우 도메인 등 식별 요소는 제거되거나 분야 단위로 일반화됩니다.",
         ],
       },
@@ -35,12 +36,13 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "개인정보는 회원 탈퇴 시 지체 없이 파기합니다. 검사 결과 등 서비스 데이터는 탈퇴 시 함께 삭제됩니다.",
           "관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 분리 보관 후 파기합니다.",
           "보안 목적으로 수집하는 로그인 기록(IP 주소 포함)과 서버 오류 로그는 90일간 보관 후 자동 삭제합니다.",
+          "검사 보고서에 첨부되는 위반 요소 화면 캡처 이미지는 요금제에 따라 10일~365일 보관 후 자동 삭제합니다(무료 10일).",
         ],
       },
       {
         heading: "4. 처리 위탁",
         body: [
-          "서비스 운영을 위해 다음 업체에 데이터 처리를 위탁합니다: Supabase(데이터베이스·인증, 데이터 보관), Vercel(웹 호스팅·검사 실행). 위탁 업체는 각사의 보안 기준에 따라 데이터를 처리합니다.",
+          "서비스 운영을 위해 다음 업체에 데이터 처리를 위탁합니다: Supabase(데이터베이스·인증·파일 보관), Vercel(웹 호스팅·검사 실행), Cloudflare(가입·로그인 남용 방지를 위한 보안 확인), Resend(알림 이메일 발송). 위탁 업체는 각사의 보안 기준에 따라 데이터를 처리하며, 서버가 국외에 위치할 수 있습니다.",
         ],
       },
       {
@@ -61,20 +63,21 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   },
   en: {
     title: "Privacy Policy",
-    effective: "Effective: July 19, 2026 (enacted July 16, 2026; research use clarified)",
+    effective: "Effective: July 19, 2026 (enacted July 16, 2026; research use, processors and retention clarified)",
     sections: [
       {
         heading: "1. Data we collect",
         body: [
-          "On sign-in (social login): name (nickname) and email address, provided by your Google or GitHub account.",
+          "On sign-up: name (nickname) and email address — provided by your Google/GitHub account, or collected directly for email sign-up.",
           "During use: audited URLs and results, evaluator judgments/notes, report details (site name, evaluator, etc.), and inquiry contents.",
+          "For service protection: sign-in records (including IP address) and server error logs.",
           "Cookies: authentication cookies for session management only — no advertising or tracking cookies.",
         ],
       },
       {
         heading: "2. Purposes",
         body: [
-          "Identifying members and providing the service (audit history and reports), resource management such as quotas, responding to inquiries, and non-identifying statistics for service improvement.",
+          "Identifying members and providing the service (audit history and reports), resource management such as quotas, responding to inquiries, sending service notification emails such as scheduled audit results (opt-out per domain), and non-identifying statistics for service improvement.",
           "Audit target URLs and results may be processed into aggregate statistics that cannot identify any user or account, and used for academic research and policy proposals. Identifying elements such as domains are removed or generalized into categories.",
         ],
       },
@@ -83,12 +86,13 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "Personal data is deleted without delay upon account deletion, together with service data such as audit results. Data required by law is stored separately for the mandated period, then destroyed.",
           "Sign-in records collected for security (including IP addresses) and server error logs are kept for 90 days and then deleted automatically.",
+          "Screenshots of violating elements attached to reports are kept for 10 to 365 days depending on the plan (10 days on the free plan), then deleted automatically.",
         ],
       },
       {
         heading: "4. Processors",
         body: [
-          "We entrust processing to: Supabase (database, authentication, storage) and Vercel (hosting, audit execution), each under their own security standards.",
+          "We entrust processing to: Supabase (database, authentication, file storage), Vercel (hosting, audit execution), Cloudflare (abuse-prevention checks at sign-up/sign-in), and Resend (notification emails), each under their own security standards. Their servers may be located outside Korea.",
         ],
       },
       {
