@@ -571,16 +571,16 @@ export default async function ReportPage({
             {t("manualProgress.title")}
           </h2>
           <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("manualProgress.desc")}</p>
-          <dl className="mt-4 space-y-4">
+          <div className="mt-4 space-y-4">
             {manualProgress.map((x) => {
               const pct = Math.round((x.done / x.total) * 100);
               return (
                 <div key={x.key}>
                   <div className="flex items-baseline justify-between gap-3">
-                    <dt className="text-sm font-bold">{x.label}</dt>
-                    <dd className="text-sm tabular-nums text-[var(--color-ink-soft)]">
+                    <span className="text-sm font-bold">{x.label}</span>
+                    <span className="text-sm tabular-nums text-[var(--color-ink-soft)]">
                       {t("manualProgress.line", { done: x.done, total: x.total })} ({pct}%)
-                    </dd>
+                    </span>
                   </div>
                   <div
                     role="progressbar"
@@ -595,7 +595,7 @@ export default async function ReportPage({
                 </div>
               );
             })}
-          </dl>
+          </div>
         </section>
       )}
 

@@ -14,6 +14,9 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
 
     const err = error as { message?: string; stack?: string; digest?: string };
     const message = String(err.message ?? error).slice(0, 2000);
+    // 새 오류 판정은 insert '전'에 조회 — insert 후 조회하면 동시 발생한 두 건이
+    // 서로를 보고 양쪽 다 알림을 억제하는 경합이 생긴다 (드물게 중복 발송은 허용)
+    const isFirstIn24h = await checkFirstIn24h(url, key, message);
     // supabase-js 클라이언트 생성 없이 REST로 직접 insert (인스트루먼테이션 경량 유지)
     await fetch(`${url}/rest/v1/app_errors`, {
       method: "POST",
@@ -32,37 +35,38 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
       }),
     });
 
-    await maybeAlertAdmin(url, key, message, request.method, request.path);
+    if (isFirstIn24h) {
+      await maybeAlertAdmin(message, request.method, request.path);
+    }
   } catch {
     // 에러 기록 실패 — 무시 (원 요청에 영향 금지)
   }
 };
 
+/** 같은 메시지가 최근 24시간 내에 없으면 true (알림 여부 판정 — insert 전에 호출) */
+async function checkFirstIn24h(supabaseUrl: string, serviceKey: string, message: string): Promise<boolean> {
+  try {
+    const since = new Date(Date.now() - 24 * 3600_000).toISOString();
+    const res = await fetch(
+      `${supabaseUrl}/rest/v1/app_errors?select=id&limit=1&message=eq.${encodeURIComponent(message)}&created_at=gt.${encodeURIComponent(since)}`,
+      { headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` } },
+    );
+    if (!res.ok) return false;
+    return ((await res.json()) as unknown[]).length === 0;
+  } catch {
+    return false;
+  }
+}
+
 /**
- * 새 오류 이메일 알림 — 같은 메시지가 최근 24시간 안에 없었을 때만 발송한다
- * (반복 오류로 인한 메일 폭주 방지). 미설정·실패 시 조용히 건너뜀.
+ * 새 오류 이메일 알림 — 24시간 내 첫 발생일 때만 호출된다 (메일 폭주 방지).
+ * 미설정·실패 시 조용히 건너뜀.
  */
-async function maybeAlertAdmin(
-  supabaseUrl: string,
-  serviceKey: string,
-  message: string,
-  method: string,
-  path: string,
-): Promise<void> {
+async function maybeAlertAdmin(message: string, method: string, path: string): Promise<void> {
   try {
     const to = process.env.ADMIN_ALERT_EMAIL;
     const resendKey = process.env.RESEND_API_KEY;
     if (!to || !resendKey) return;
-
-    // 방금 넣은 행 포함 24시간 내 같은 메시지 수 — 2건 이상이면 이미 알린 오류
-    const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-    const dupRes = await fetch(
-      `${supabaseUrl}/rest/v1/app_errors?select=id&limit=2&message=eq.${encodeURIComponent(message)}&created_at=gt.${encodeURIComponent(since)}`,
-      { headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` } },
-    );
-    if (!dupRes.ok) return;
-    const dup = (await dupRes.json()) as unknown[];
-    if (dup.length > 1) return;
 
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";

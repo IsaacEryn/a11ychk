@@ -35,7 +35,8 @@ function itemRate(
     if (review.outcome === "failed") {
       // 판정에 페이지 귀속이 있으면 그 범위로, 없으면 자동 측정치로 폴백
       if (review.pages && review.pages.length > 0 && donePageCount > 0) {
-        return Math.round(((donePageCount - review.pages.length) / donePageCount) * 1000) / 10;
+        // 과거 데이터에 검증 전 pages가 남아 있을 수 있어 0 미만은 클램프
+        return Math.max(0, Math.round(((donePageCount - review.pages.length) / donePageCount) * 1000) / 10);
       }
       if (pageRate?.rate != null) return pageRate.rate;
       return 0; // 범위 미기입 전면 실패 판정 — 보수적으로 0%

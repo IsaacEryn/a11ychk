@@ -139,6 +139,22 @@ export async function cleanupShots(db: SupabaseClient): Promise<{ purged: number
     }
   }
 
+  // 고아 정리 — 탈퇴 등으로 scans 행이 cascade 삭제되면 회계 기반 정리가 놓친다.
+  // 버킷 최상위 폴더(scanId)를 순회해 대응 행이 없는 prefix를 삭제 (배치 상한).
+  try {
+    const { data: folders } = await db.storage.from(SHOTS_BUCKET).list("", { limit: 50 });
+    for (const f of folders ?? []) {
+      if (!/^[0-9a-f-]{36}$/.test(f.name)) continue;
+      const { data: row } = await db.from("scans").select("id").eq("id", f.name).maybeSingle();
+      if (!row) {
+        await purgeScanShots(db, f.name);
+        purged++;
+      }
+    }
+  } catch {
+    // 고아 정리 실패는 무시 (다음 크론에서 재시도)
+  }
+
   // 80% 도달 알림 (일 1회 크론이라 하루 한 통)
   if (totalBytes > SHOT_BUDGET_BYTES * 0.8) {
     await alertBudget(totalBytes).catch(() => undefined);

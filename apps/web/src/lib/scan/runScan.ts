@@ -83,6 +83,7 @@ async function captureShots(
   collector: ShotCollector,
 ): Promise<CapturedShot[]> {
   const shots: CapturedShot[] = [];
+  const captured = new Set<string>(); // 이 페이지 내 중복 방지 (collector는 조회 전용)
   const candidates = result.violations
     .filter((v) => v.impact in SHOT_IMPACT_RANK && !collector.capturedRules.has(v.ruleId) && v.nodes.length > 0)
     .sort((a, b) => SHOT_IMPACT_RANK[a.impact] - SHOT_IMPACT_RANK[b.impact]);
@@ -93,7 +94,8 @@ async function captureShots(
   const deadline = Date.now() + SHOT_PAGE_TIME_BUDGET_MS;
 
   for (const v of candidates) {
-    if (collector.remaining <= 0 || Date.now() > deadline) break;
+    if (shots.length >= collector.remaining || Date.now() > deadline) break;
+    if (captured.has(v.ruleId)) continue;
     const node = v.nodes[0];
     try {
       const loc = page.locator(node.selector).first();
@@ -112,8 +114,7 @@ async function captureShots(
       };
       const bytes = await page.screenshot({ clip, type: "jpeg", quality: 60, timeout: 5_000 });
       shots.push({ ruleId: v.ruleId, selector: node.selector, bytes });
-      collector.capturedRules.add(v.ruleId);
-      collector.remaining--;
+      captured.add(v.ruleId); // 이 페이지 안에서의 중복 방지 — collector 마킹은 저장 성공 후 호출부에서
     } catch {
       // 셀렉터 소실·타임아웃 등 — 이 규칙은 건너뜀
     }
@@ -303,7 +304,15 @@ export async function runScan(scanId: string): Promise<void> {
             const { result, signature, shots } = await scanSinglePage(browser, row.url, shotCollector);
             await persistPageResult(db, row.id, result, signature);
             if (shots.length > 0) {
+              // 저장 성공이 확정된 뒤에만 캡처 예산·규칙 중복 마킹 (attempt 재시도 시 예산 소실 방지)
+              for (const shot of shots) shotCollector.capturedRules.add(shot.ruleId);
+              shotCollector.remaining -= shots.length;
               shotsBytes += await uploadPageShots(db, scanId, row.id, shots);
+              // 페이지 단위 회계 — 스캔이 완주하지 못해도 지금까지 업로드분이 정리 대상에 잡히게
+              await db.from("scans").update({ shots_bytes: shotsBytes }).eq("id", scanId).then(
+                () => undefined,
+                () => undefined,
+              );
             }
             results.push(result);
             if (signature) signatures.push(signature);

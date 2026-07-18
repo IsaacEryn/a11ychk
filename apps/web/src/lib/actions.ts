@@ -283,7 +283,18 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
   if (!parsed.success) return { error: "invalid" };
 
   // 관련 페이지(선택) — 어떤 페이지에서 확인된 사항인지 기록 (migration 0010)
-  const pages = formData.getAll("pages").filter((p): p is string => typeof p === "string" && p.length > 0);
+  // 폼 조작으로 임의 문자열·실재하지 않는 페이지가 들어오면 준수율 계산이 왜곡되므로
+  // 해당 스캔의 실제 페이지 URL 집합으로 필터하고 중복을 제거한다
+  const rawPages = formData.getAll("pages").filter((p): p is string => typeof p === "string" && p.length > 0);
+  let pages: string[] = [];
+  if (rawPages.length > 0) {
+    const { data: scanPages } = await supabase
+      .from("scan_pages")
+      .select("url")
+      .eq("scan_id", parsed.data.scanId);
+    const valid = new Set((scanPages ?? []).map((r) => r.url as string));
+    pages = [...new Set(rawPages)].filter((u) => valid.has(u));
+  }
   const row: Record<string, unknown> = {
     scan_id: parsed.data.scanId,
     standard: parsed.data.standard,

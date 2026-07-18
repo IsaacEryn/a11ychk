@@ -179,6 +179,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 </p>
                 <Link
                   href={`/scans/${o.scanId}/report`}
+                  aria-label={`${o.host} ${t("overview.report")}`}
                   className="mt-3 inline-block text-sm font-bold text-[var(--color-seal)] underline underline-offset-4 hover:text-[var(--color-seal-deep)]"
                 >
                   {t("overview.report")} →
