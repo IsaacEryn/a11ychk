@@ -76,13 +76,20 @@ async function scanSinglePage(browser: Browser, url: string): Promise<SinglePage
       const req = route.request();
       // 서브리소스의 내부망 접근 차단 (SSRF 심층 방어)
       if (isBlockedHost(new URL(req.url()).hostname)) return route.abort();
-      // 메모리 절약: axe는 DOM·CSS 기반이므로 무거운 리소스는 내려받지 않는다.
+      // 메모리 절약: axe는 DOM·CSS 기반이므로 무거운 리소스(이미지·미디어)는
+      // 내려받지 않는다. 웹폰트는 허용 — 폴백 폰트로 측정하면 글자 크기·두께가
+      // 달라져 명도 대비의 대형 텍스트 임계(3:1 vs 4.5:1) 판정이 왜곡된다.
       const type = req.resourceType();
-      if (type === "image" || type === "media" || type === "font") return route.abort();
+      if (type === "image" || type === "media") return route.abort();
       return route.continue();
     });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
     await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
+    // 실제 폰트가 적용된 상태에서 측정 (로딩이 느린 사이트는 3초까지만 대기)
+    await Promise.race([
+      page.evaluate(() => document.fonts.ready.then(() => undefined)),
+      page.waitForTimeout(3_000),
+    ]).catch(() => undefined);
     // 시그니처는 뷰포트 변경(리플로우 검사) 전에 추출
     const signature = await extractPageSignature(page).catch(() => null);
     const result = await runAxeOnPage(page);
