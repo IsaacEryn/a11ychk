@@ -147,7 +147,7 @@ export interface EvaluationScope {
 
 /** 보고서 메타 정보 (scans.report_meta) — 점검자가 보고서 페이지에서 입력 */
 export interface ReportMeta {
-  /** 사이트 이름 (예: "코드슬로그") */
+  /** 사이트 이름 (예: "입학지원센터") */
   siteName?: string;
   /** 의뢰 기관/조직 (WCAG-EM commissioner) */
   organization?: string;
