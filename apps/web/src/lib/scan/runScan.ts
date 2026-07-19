@@ -1,10 +1,12 @@
 import "server-only";
 import net from "node:net";
+import { lookup } from "node:dns/promises";
 import type { Browser } from "playwright-core";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   AXE_VERSION,
   aggregateScan,
+  assertPublicHost,
   assertPublicHttpUrl,
   buildSample,
   categorizePage,
@@ -31,18 +33,52 @@ import { fetchAllRows } from "@/lib/scan/fetchAll";
 
 const PAGE_LOAD_TIMEOUT_MS = 20_000;
 
-/** 서브리소스 요청 중 명백한 내부망 접근 차단 (SSRF 심층 방어) */
-function isBlockedHost(hostname: string): boolean {
+/**
+ * 서브리소스 요청의 내부망 접근 차단 (SSRF 심층 방어).
+ * 리터럴 IP는 즉시 판정하고, 호스트네임은 DNS로 해석해 사설 대역이면 차단한다.
+ * (호스트네임이 사설 IP로 해석되는 rebinding·내부 참조를 막는다)
+ * 결과는 스캔 컨텍스트별 캐시로 재조회를 줄인다.
+ */
+async function isBlockedHost(hostname: string, cache: Map<string, boolean>): Promise<boolean> {
   const host = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const cached = cache.get(host);
+  if (cached !== undefined) return cached;
+
+  let blocked: boolean;
   if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
-    return true;
+    blocked = true;
+  } else if (net.isIP(host) !== 0) {
+    blocked = isPrivateAddress(host);
+  } else {
+    try {
+      const addrs = await lookup(host, { all: true, verbatim: true });
+      blocked = addrs.length === 0 || addrs.some((a) => isPrivateAddress(a.address));
+    } catch {
+      blocked = true; // 해석 실패 → 안전하게 차단
+    }
   }
-  return net.isIP(host) !== 0 && isPrivateAddress(host);
+  cache.set(host, blocked);
+  return blocked;
 }
 
-async function launchGuardedBrowser(): Promise<Browser> {
-  const { launchBrowser } = await import("./browser");
-  return launchBrowser();
+/** 대상 URL을 검증하고, 검증된 공개 IP를 브라우저 DNS 핀 규칙으로 굳혀 실행 */
+async function launchGuardedBrowser(targetUrl?: string): Promise<Browser> {
+  const { launchBrowser, buildHostResolverRule } = await import("./browser");
+  let rule: string | undefined;
+  if (targetUrl) {
+    try {
+      const url = new URL(targetUrl);
+      const host = url.hostname.replace(/^\[|\]$/g, "");
+      // 리터럴 IP는 rebinding 대상이 아니므로 규칙 불필요
+      if (net.isIP(host) === 0) {
+        const vetted = await assertPublicHost(url);
+        if (vetted[0]) rule = buildHostResolverRule(host, vetted[0].address);
+      }
+    } catch {
+      // 검증 실패는 이후 assertPublicHttpUrl에서 처리 — 여기선 규칙 없이 진행
+    }
+  }
+  return launchBrowser(rule);
 }
 
 /** 브라우저를 확실히 폐기 (크래시 상태여도 예외 없이) */
@@ -70,17 +106,22 @@ async function scanSinglePage(browser: Browser, url: string): Promise<SinglePage
     locale: "ko-KR",
     userAgent: "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)",
   });
+  const hostCache = new Map<string, boolean>();
   try {
     const page = await context.newPage();
-    await page.route("**/*", (route) => {
+    await page.route("**/*", async (route) => {
       const req = route.request();
-      // 서브리소스의 내부망 접근 차단 (SSRF 심층 방어)
-      if (isBlockedHost(new URL(req.url()).hostname)) return route.abort();
       // 메모리 절약: axe는 DOM·CSS 기반이므로 무거운 리소스(이미지·미디어)는
       // 내려받지 않는다. 웹폰트는 허용 — 폴백 폰트로 측정하면 글자 크기·두께가
       // 달라져 명도 대비의 대형 텍스트 임계(3:1 vs 4.5:1) 판정이 왜곡된다.
       const type = req.resourceType();
       if (type === "image" || type === "media") return route.abort();
+      // 서브리소스의 내부망 접근 차단 (SSRF 심층 방어 — 호스트네임 해석 포함)
+      try {
+        if (await isBlockedHost(new URL(req.url()).hostname, hostCache)) return route.abort();
+      } catch {
+        return route.abort();
+      }
       return route.continue();
     });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
@@ -240,7 +281,7 @@ export async function runScan(scanId: string): Promise<void> {
       for (let attempt = 1; attempt <= 2; attempt++) {
         try {
           await assertPublicHttpUrl(row.url);
-          browser = await launchGuardedBrowser();
+          browser = await launchGuardedBrowser(row.url);
           try {
             const { result, signature } = await scanSinglePage(browser, row.url);
             await persistPageResult(db, row.id, result, signature);
@@ -440,7 +481,7 @@ export async function rescanPage(scanId: string, pageId: string): Promise<{ ok: 
   let browser: Browser | null = null;
   try {
     await assertPublicHttpUrl(page.url);
-    browser = await launchGuardedBrowser();
+    browser = await launchGuardedBrowser(page.url);
     const { result, signature } = await scanSinglePage(browser, page.url);
     await persistPageResult(db, pageId, result, signature);
     await reaggregate(db, scanId);

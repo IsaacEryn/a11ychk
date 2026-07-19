@@ -214,6 +214,14 @@ export async function createInquiry(formData: FormData): Promise<void> {
     body: formData.get("body"),
   });
   if (!parsed.success) return;
+  // 레이트리밋 — 사용자당 최근 10분 내 5건 초과 시 무시 (스팸·테이블 팽창 방지)
+  const since = new Date(Date.now() - 10 * 60_000).toISOString();
+  const { count } = await supabase
+    .from("inquiries")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .gte("created_at", since);
+  if ((count ?? 0) >= 5) return;
   await supabase.from("inquiries").insert({ user_id: user.id, ...parsed.data });
   revalidateLocalized("/contact", "/admin/inquiries");
 }

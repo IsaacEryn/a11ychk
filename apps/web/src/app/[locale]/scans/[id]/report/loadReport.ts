@@ -150,9 +150,11 @@ export async function loadReport(locale: string, id: string, token: string | und
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
 
   // ── 전후 비교: 같은 사용자·같은 대상의 이전 완료 검사와 비교 (기본: 직전, ?compare=로 선택) ──
+  // 토큰(공유·PDF) 접근은 읽기 전용이며, 소유자의 다른 시점 검사 이력까지 노출할
+  // 이유가 없으므로 로그인 소유자/관리자(canEdit)에게만 전후 비교를 제공한다.
   let compare: CompareData | null = null;
   let compareOptions: { id: string; created_at: string }[] = [];
-  {
+  if (canEdit) {
     // 같은 사용자·대상으로 한정해 조회하므로 compareId로 타인 검사를 지정해도 매칭되지 않는다
     const { data: prevList } = await db
       .from("scans")

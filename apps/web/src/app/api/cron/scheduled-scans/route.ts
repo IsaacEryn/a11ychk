@@ -6,6 +6,7 @@ import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota
 import { getPlansActive } from "@/lib/appSettings";
 import { runScan } from "@/lib/scan/runScan";
 import { sendScanAlert } from "@/lib/notify";
+import { isAuthorizedCron } from "@/lib/cronAuth";
 
 export const maxDuration = 300;
 
@@ -20,9 +21,7 @@ const MIN_INTERVAL_HOURS = 20;
  * Vercel은 CRON_SECRET 환경변수를 Authorization 헤더로 자동 전송한다.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authz = request.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

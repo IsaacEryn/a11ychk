@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { collectImpactStats } from "@/lib/impactStats";
+import { isAuthorizedCron } from "@/lib/cronAuth";
 
 const REPO = "IsaacEryn/a11ychk";
 
@@ -22,9 +23,7 @@ interface TrafficPoint {
  *   없으면 트래픽은 건너뛰고 스타·포크만 기록한다.
  */
 export async function GET(request: Request) {
-  const secret = process.env.CRON_SECRET;
-  const authz = request.headers.get("authorization");
-  if (!secret || authz !== `Bearer ${secret}`) {
+  if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 

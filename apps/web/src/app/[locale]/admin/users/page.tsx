@@ -46,7 +46,11 @@ export default async function AdminUsersPage({
     .order("created_at", { ascending: false })
     .limit(100);
   const search = (q ?? "").trim();
-  if (search) query = query.ilike("nickname", `%${search.replaceAll("%", "\\%").replaceAll("_", "\\_")}%`);
+  // LIKE 특수문자 이스케이프 — 백슬래시를 먼저 처리해야 %/_ 이스케이프가 깨지지 않는다
+  if (search) {
+    const escaped = search.replaceAll("\\", "\\\\").replaceAll("%", "\\%").replaceAll("_", "\\_");
+    query = query.ilike("nickname", `%${escaped}%`);
+  }
   const { data: allUsers } = await query;
 
   return (
