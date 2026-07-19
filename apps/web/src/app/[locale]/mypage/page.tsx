@@ -33,7 +33,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
     supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
     supabase
       .from("scans")
-      .select("id, root_url, status, created_at, summary")
+      .select("id, root_url, status, created_at, summary, title:report_meta->>title")
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50),
@@ -117,7 +117,16 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
                   const summary = s.summary as ScanSummary | null;
                   return (
                     <tr key={s.id} className="border-b border-[var(--color-line)]">
-                      <td className="max-w-72 truncate py-2.5 pr-3 font-medium">{s.root_url}</td>
+                      <td className="max-w-72 py-2.5 pr-3">
+                        {typeof s.title === "string" && s.title.trim() ? (
+                          <>
+                            <span className="block truncate font-medium">{s.title}</span>
+                            <span className="block truncate text-xs text-[var(--color-ink-faint)]">{s.root_url}</span>
+                          </>
+                        ) : (
+                          <span className="block truncate font-medium">{s.root_url}</span>
+                        )}
+                      </td>
                       <td className="whitespace-nowrap py-2.5 pr-3 tabular-nums text-[var(--color-ink-faint)]">
                         {format.dateTime(new Date(s.created_at), { dateStyle: "short", timeStyle: "short" })}
                       </td>

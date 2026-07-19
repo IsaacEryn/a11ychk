@@ -31,7 +31,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const [{ data: profile }, { data: domains }, { data: scans }, { data: trendRows }] = await Promise.all([
     supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
     supabase.from("domains").select("*").eq("user_id", user.id).order("created_at"),
-    supabase.from("scans").select("id, root_url, status, created_at, summary").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8),
+    supabase.from("scans").select("id, root_url, status, created_at, summary, title:report_meta->>title").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8),
     // 추이용 — summary 전체 대신 점수만 뽑아 가볍게 (최근 완료 검사 60건)
     supabase
       .from("scans")
@@ -342,7 +342,17 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
             {scans.map((s) => (
               <li key={s.id} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-3">
                 <StatusBadge status={s.status} label={t(`status.${s.status as "queued" | "running" | "done" | "failed"}`)} />
-                <span className="min-w-0 flex-1 truncate font-medium">{s.root_url}</span>
+                {/* 보고서 제목을 저장한 검사는 제목 + 주소를 함께 표시 */}
+                <span className="min-w-0 flex-1">
+                  {typeof s.title === "string" && s.title.trim() ? (
+                    <>
+                      <span className="block truncate font-medium">{s.title}</span>
+                      <span className="block truncate text-xs text-[var(--color-ink-faint)]">{s.root_url}</span>
+                    </>
+                  ) : (
+                    <span className="block truncate font-medium">{s.root_url}</span>
+                  )}
+                </span>
                 <time dateTime={s.created_at} className="text-sm tabular-nums text-[var(--color-ink-faint)]">
                   {format.dateTime(new Date(s.created_at), { dateStyle: "medium", timeStyle: "short" })}
                 </time>
