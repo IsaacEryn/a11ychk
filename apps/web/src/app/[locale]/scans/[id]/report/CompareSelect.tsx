@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /**
@@ -18,23 +19,28 @@ export function CompareSelect({
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
 
   const setCompare = (next: string) => {
-    const params = new URLSearchParams(searchParams.toString());
-    // 첫 항목(직전 검사)이 기본값이라 파라미터를 지워 URL을 짧게 유지
-    if (next === options[0]?.id) params.delete("compare");
-    else params.set("compare", next);
-    const qs = params.toString();
-    router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    startTransition(() => {
+      const params = new URLSearchParams(searchParams.toString());
+      // 첫 항목(직전 검사)이 기본값이라 파라미터를 지워 URL을 짧게 유지
+      if (next === options[0]?.id) params.delete("compare");
+      else params.set("compare", next);
+      const qs = params.toString();
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+    });
   };
 
   return (
-    <label className="no-print flex items-center gap-2 text-sm">
+    <label className="no-print flex items-center gap-2 text-sm" aria-busy={isPending}>
       <span className="font-semibold text-[var(--color-ink-soft)]">{label}</span>
       <select
         value={selected}
         onChange={(e) => setCompare(e.target.value)}
-        className="rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-1 text-sm"
+        className={`rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-1 text-sm transition-opacity ${
+          isPending ? "cursor-progress opacity-60" : ""
+        }`}
       >
         {options.map((o) => (
           <option key={o.id} value={o.id}>

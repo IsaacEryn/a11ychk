@@ -158,6 +158,21 @@ body {
   border-radius: 2px;
 }
 
+/* ── 버튼 어포던스 — Tailwind v4 프리플라이트가 버튼 커서를 default로
+   바꾸므로 복원하고, 누름 순간의 물리적 피드백을 준다 ── */
+button:not(:disabled),
+select,
+summary,
+[role="button"]:not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+button:not(:disabled):active {
+  transform: translateY(1px);
+}
+
 ::selection {
   background: var(--color-mark);
   color: #1c2422;
