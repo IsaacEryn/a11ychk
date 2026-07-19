@@ -5,9 +5,10 @@ import { createClient } from "@/lib/supabase/client";
 
 /**
  * 확장 연결 페이지 클라이언트.
- * 로그인된 사용자의 Supabase 세션(액세스 토큰·만료시각)을 #a11ychk-ext-payload에
- * JSON으로 렌더한다. 확장의 콘텐츠 스크립트가 이 값을 읽어 저장한다.
- * (이 페이지에서만 노출되며, 사용자 본인의 토큰이다.)
+ * 로그인된 사용자의 Supabase 세션(액세스 토큰·만료시각)을 확장 콘텐츠 스크립트에
+ * window.postMessage로 전달한다. DOM에 토큰을 남기지 않아(과거 방식) 같은 페이지에
+ * 주입된 다른 확장이 잔류물을 스크랩하는 표면을 없앤다. 사용자 본인의 토큰이며,
+ * 콘텐츠 스크립트가 저장을 확인(saved)하면 즉시 메모리에서도 지운다.
  */
 export function ConnectClient({
   email,
@@ -16,42 +17,47 @@ export function ConnectClient({
   email: string;
   labels: { waiting: string; connected: string; notInstalled: string; account: string };
 }) {
-  const [payload, setPayload] = useState<string | null>(null);
   const [connected, setConnected] = useState(false);
 
   useEffect(() => {
+    const origin = window.location.origin;
+    let token: { accessToken: string; expiresAt: number; email: string } | null = null;
+    let extReady = false;
+
+    const post = () => {
+      if (token && extReady) {
+        window.postMessage({ __a11ychk: "token", payload: token }, origin);
+      }
+    };
+
+    const onMessage = (e: MessageEvent) => {
+      // 우리 오리진·우리 window에서 온 확장 메시지만 신뢰
+      if (e.origin !== origin || e.source !== window) return;
+      const data = e.data as { __a11ychk?: string } | null;
+      if (data?.__a11ychk === "ext-ready") {
+        extReady = true;
+        post();
+      } else if (data?.__a11ychk === "saved") {
+        token = null; // 전달 완료 — 메모리에서 제거
+        setConnected(true);
+      }
+    };
+    window.addEventListener("message", onMessage);
+
     const supabase = createClient();
     supabase.auth.getSession().then(({ data }) => {
       const s = data.session;
       if (s) {
-        setPayload(
-          JSON.stringify({
-            accessToken: s.access_token,
-            expiresAt: (s.expires_at ?? 0) * 1000,
-            email,
-          }),
-        );
+        token = { accessToken: s.access_token, expiresAt: (s.expires_at ?? 0) * 1000, email };
+        post();
       }
     });
 
-    const onConnected = () => setConnected(true);
-    document.addEventListener("a11ychk-ext-connected", onConnected);
-    return () => document.removeEventListener("a11ychk-ext-connected", onConnected);
+    return () => window.removeEventListener("message", onMessage);
   }, [email]);
-
-  // 페이로드가 준비되면 확장 콘텐츠 스크립트에 알림 (콘텐츠 스크립트는 이 이벤트를 듣고 토큰을 읽어감)
-  useEffect(() => {
-    if (payload) document.dispatchEvent(new CustomEvent("a11ychk-ext-payload-ready"));
-  }, [payload]);
 
   return (
     <div className="mt-8">
-      {/* 콘텐츠 스크립트가 읽는 페이로드 (숨김 · 클라이언트에서만 채워짐, SSR HTML엔 없음) */}
-      <div id="a11ychk-ext-payload" hidden suppressHydrationWarning>
-        {payload ?? ""}
-      </div>
-      <span id="a11ychk-ext-status" hidden />
-
       <div
         className={`doc-card flex items-center gap-3 p-5 ${connected ? "border-[var(--color-seal)]" : ""}`}
         aria-live="polite"

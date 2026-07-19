@@ -1,7 +1,8 @@
 /**
  * a11ychk.com/{locale}/extension/connect 페이지에서 실행되는 콘텐츠 스크립트.
- * 로그인된 사용자의 연결 페이지가 렌더한 세션 페이로드(#a11ychk-ext-payload)를 읽어
- * 확장 저장소에 보관한다. 페이지에는 확장 ID를 노출하지 않아도 되는 안전한 방식.
+ * 연결 페이지가 window.postMessage로 보내는 세션 토큰을 받아 확장 저장소에 보관한다.
+ * 토큰이 DOM에 남지 않아(과거 방식) 다른 확장이 잔류물을 스크랩하는 표면이 없다.
+ * 페이지에 확장 ID를 노출하지 않는다.
  */
 interface ExtPayload {
   accessToken: string;
@@ -9,22 +10,19 @@ interface ExtPayload {
   email?: string;
 }
 
-function readPayload(): ExtPayload | null {
-  const el = document.getElementById("a11ychk-ext-payload");
-  if (!el?.textContent) return null;
-  try {
-    const p = JSON.parse(el.textContent) as ExtPayload;
-    if (p.accessToken && typeof p.expiresAt === "number") return p;
-  } catch {
-    // 무시
-  }
-  return null;
+function isValidPayload(p: unknown): p is ExtPayload {
+  return (
+    !!p &&
+    typeof (p as ExtPayload).accessToken === "string" &&
+    typeof (p as ExtPayload).expiresAt === "number"
+  );
 }
 
-async function sync() {
-  const payload = readPayload();
-  const status = document.getElementById("a11ychk-ext-status");
-  if (!payload) return;
+let saved = false;
+
+async function save(payload: ExtPayload) {
+  if (saved) return;
+  saved = true;
   await chrome.storage.local.set({
     a11ychk_session: {
       accessToken: payload.accessToken,
@@ -32,19 +30,30 @@ async function sync() {
       email: payload.email,
     },
   });
-  if (status) status.textContent = "connected";
-  // 페이지가 확장 설치·연결 완료를 감지할 수 있도록 이벤트 발생
-  document.dispatchEvent(new CustomEvent("a11ychk-ext-connected"));
+  // 페이지에 저장 완료 통지 → 페이지는 토큰을 메모리에서 제거하고 연결 상태로 전환
+  window.postMessage({ __a11ychk: "saved" }, window.location.origin);
 }
 
-// 페이지의 세션 로드는 비동기이므로: 즉시 한 번 시도 + 준비 이벤트 수신 + 짧은 폴백 폴링
-void sync();
-document.addEventListener("a11ychk-ext-payload-ready", () => void sync());
+window.addEventListener("message", (e: MessageEvent) => {
+  // 우리 오리진·우리 window에서 온 메시지만 신뢰
+  if (e.origin !== window.location.origin || e.source !== window) return;
+  const data = e.data as { __a11ychk?: string; payload?: unknown } | null;
+  if (data?.__a11ychk === "token" && isValidPayload(data.payload)) {
+    void save(data.payload);
+  }
+});
+
+// 확장 준비 완료를 페이지에 알림 (페이지 세션 로드가 늦어도 재수신하도록 주기적으로 재통지)
+function announce() {
+  window.postMessage({ __a11ychk: "ext-ready" }, window.location.origin);
+}
+announce();
 let tries = 0;
 const timer = setInterval(() => {
   tries += 1;
-  if (readPayload() || tries > 20) {
+  if (saved || tries > 20) {
     clearInterval(timer);
-    void sync();
+    return;
   }
+  announce();
 }, 500);
