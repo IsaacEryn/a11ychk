@@ -66,6 +66,8 @@ export async function loadReport(locale: string, id: string, token: string | und
   //   3) 로그인 사용자 (RLS — 소유자/관리자, 편집 가능)
   let db: SupabaseClient;
   let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
+  // 열람자의 우선 표준 설정 — 세션 접근에서만 조회 가능 (토큰 접근은 locale 폴백)
+  let preferredStandard: "wcag" | "kwcag" | null = null;
   if (token && verifyReportToken(id, token)) {
     db = createAdminClient();
   } else if (token && (await matchesShareToken(id, token))) {
@@ -78,6 +80,15 @@ export async function loadReport(locale: string, id: string, token: string | und
     if (!user) redirect(`/${locale}/login`);
     db = supabase as unknown as SupabaseClient;
     canEdit = true; // RLS 통과 = 소유자 또는 관리자
+    // migration 0017 미적용 시 컬럼 부재로 실패 → null 관용
+    const { data: pref } = await supabase
+      .from("profiles")
+      .select("preferred_standard")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then((r) => r, () => ({ data: null }));
+    const value = (pref as { preferred_standard?: string } | null)?.preferred_standard;
+    if (value === "wcag" || value === "kwcag") preferredStandard = value;
   }
 
   // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
@@ -169,5 +180,5 @@ export async function loadReport(locale: string, id: string, token: string | und
     }
   }
 
-  return { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, compareOptions, canEdit };
+  return { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, compareOptions, canEdit, preferredStandard };
 }

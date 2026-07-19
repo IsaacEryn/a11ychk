@@ -590,6 +590,16 @@
       },
       "auto": "Automated only"
     },
+    "std": {
+      "legend": "Standards",
+      "both": "Both",
+      "wcag": "WCAG only",
+      "kwcag": "KWCAG only",
+      "notice": {
+        "wcag": "This report is printed with WCAG 2.2 results only. Switch to “Both” to see the full results including KWCAG checkpoints.",
+        "kwcag": "This report is printed with KWCAG 2.2 results only. Switch to “Both” to see the full results including WCAG success criteria."
+      }
+    },
     "export": {
       "menu": "Export",
       "csvFindings": "Violations CSV (Excel)",
@@ -625,6 +635,13 @@
         "invalid": "Nickname must be 1–30 characters.",
         "impersonation": "Nicknames that could impersonate an administrator or operator are not allowed.",
         "failed": "Failed to save. Please try again shortly."
+      },
+      "standard": {
+        "label": "Preferred standard in reports",
+        "default": "Default (Korean: KWCAG first · English: WCAG first)",
+        "kwcag": "KWCAG 2.2 first",
+        "wcag": "WCAG 2.2 first",
+        "help": "Which standard appears first in the “Both” view of reports. You can always switch to the other standard."
       }
     },
     "usage": {

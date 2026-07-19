@@ -7,6 +7,7 @@ import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
+import { PreferredStandardForm } from "./PreferredStandardForm";
 import type { ScanSummary } from "@a11ychk/core/catalog";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -28,7 +29,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/login`);
 
-  const [{ data: profile }, { data: scans }] = await Promise.all([
+  const [{ data: profile }, { data: scans }, prefRow] = await Promise.all([
     supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
     supabase
       .from("scans")
@@ -36,7 +37,18 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
       .eq("user_id", user.id)
       .order("created_at", { ascending: false })
       .limit(50),
+    // migration 0017 미적용 시 컬럼 부재로 실패 → null 관용 (별도 쿼리로 격리)
+    supabase
+      .from("profiles")
+      .select("preferred_standard")
+      .eq("id", user.id)
+      .maybeSingle()
+      .then((r) => r, () => ({ data: null })),
   ]);
+  const preferredStandard = ((prefRow.data as { preferred_standard?: string } | null)?.preferred_standard ?? null) as
+    | "wcag"
+    | "kwcag"
+    | null;
   const mpAdmin = createAdminClient();
   const plansActive = await getPlansActive(mpAdmin);
   const quota = await checkQuota(
@@ -57,6 +69,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
             {t("profile.title")}
           </h2>
           <NicknameForm defaultNickname={profile?.nickname ?? ""} />
+          <PreferredStandardForm defaultValue={preferredStandard} />
           <p className="mt-4 break-all text-sm text-[var(--color-ink-faint)]">{user.email}</p>
         </section>
 

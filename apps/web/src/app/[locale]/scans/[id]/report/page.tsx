@@ -23,6 +23,7 @@ import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { ViewToggle } from "./ViewToggle";
+import { StandardToggle } from "./StandardToggle";
 import { CompareSelect } from "./CompareSelect";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
@@ -42,19 +43,28 @@ export default async function ReportPage({
   searchParams,
 }: {
   params: Promise<{ locale: string; id: string }>;
-  searchParams: Promise<{ token?: string; view?: string; compare?: string }>;
+  searchParams: Promise<{ token?: string; view?: string; compare?: string; std?: string; pref?: string }>;
 }) {
   const { locale, id } = await params;
   setRequestLocale(locale);
-  const { token, view: viewParam, compare: compareParam } = await searchParams;
+  const { token, view: viewParam, compare: compareParam, std: stdRaw, pref: prefRaw } = await searchParams;
   // 출력 범위: all(전체, 기본) | auto(자동 검사 항목만) | done(판정 완료 항목만) | issues(오류 항목만)
   const view =
     viewParam === "done" || viewParam === "issues" || viewParam === "auto" ? viewParam : "all";
+  // 표시 표준: 없으면 both. pref는 both일 때의 순서(주로 PDF 렌더에 소유자 설정 전달용)
+  const stdParam = stdRaw === "wcag" || stdRaw === "kwcag" ? stdRaw : null;
+  const prefParam = prefRaw === "wcag" || prefRaw === "kwcag" ? prefRaw : null;
   const t = await getTranslations("report");
   const format = await getFormatter();
 
-  const { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, compareOptions, canEdit } =
+  const { scan, summary, scope, meta, wcagReviews, kwcagReviews, pages, ruleGroups, compare, compareOptions, canEdit, preferredStandard } =
     await loadReport(locale, id, token, compareParam);
+
+  // 우선 표준: 쿼리 > 사용자 설정(설정한 적 있으면) > 언어 기반 기본값(en=WCAG, ko=KWCAG)
+  const preferred: "wcag" | "kwcag" = prefParam ?? preferredStandard ?? (locale === "en" ? "wcag" : "kwcag");
+  const hasWcag = !!(summary.wcagMatrix && summary.wcagMatrix.length > 0);
+  // 구형 스캔(wcagMatrix 없음)은 KWCAG만 표시하고 토글을 숨긴다
+  const std: "both" | "wcag" | "kwcag" = !hasWcag ? "kwcag" : (stdParam ?? "both");
 
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
   // KWCAG 항목별 페이지 준수율 (인증 기준 95% 대비 근사치) — 추가 쿼리 없이 계산
@@ -80,10 +90,16 @@ export default async function ReportPage({
   const wcagManualDone = wcagManualRows.filter((r) => wcagReviews.has(r.scId)).length;
   const kwcagManualRows = (summary.kwcagMatrix ?? []).filter((r) => r.status === "manual" || r.status === "review");
   const kwcagManualDone = kwcagManualRows.filter((r) => kwcagReviews.has(r.itemId)).length;
-  const manualProgress: { key: string; label: string; done: number; total: number }[] = [
-    { key: "kwcag", label: "KWCAG 2.2", done: kwcagManualDone, total: kwcagManualRows.length },
-    { key: "wcag", label: "WCAG 2.2", done: wcagManualDone, total: wcagManualRows.length },
-  ].filter((x) => x.total > 0);
+  // 우선 표준이 먼저 오고, 단일 표준 보기에서는 해당 표준만 표시
+  const stdOrder: ("kwcag" | "wcag")[] = preferred === "wcag" ? ["wcag", "kwcag"] : ["kwcag", "wcag"];
+  const manualProgress: { key: string; label: string; done: number; total: number }[] = stdOrder
+    .filter((s) => std === "both" || std === s)
+    .map((s) =>
+      s === "kwcag"
+        ? { key: "kwcag", label: "KWCAG 2.2", done: kwcagManualDone, total: kwcagManualRows.length }
+        : { key: "wcag", label: "WCAG 2.2", done: wcagManualDone, total: wcagManualRows.length },
+    )
+    .filter((x) => x.total > 0);
 
   // 확인용 수집 자료 (signature.review) — 값이 하나라도 있는 페이지만
   const reviewPages = (pages ?? [])
@@ -160,7 +176,9 @@ export default async function ReportPage({
           </ul>
         </details>
         <a
-          href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}${compareParam ? `&compare=${compareParam}` : ""}`}
+          href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}${compareParam ? `&compare=${compareParam}` : ""}${
+            std !== "both" ? `&std=${std}` : `&pref=${preferred}`
+          }`}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
         >
           {t("downloadPdf")}
@@ -168,17 +186,31 @@ export default async function ReportPage({
         </div>
       </div>
 
-      {/* ─── 출력 범위 (화면 전용 토글 + 인쇄 포함 안내문) ─── */}
+      {/* ─── 출력 범위·표시 표준 (화면 전용 토글 + 인쇄 포함 안내문) ─── */}
       <ViewToggle
         view={view}
         labels={{ legend: t("view.legend"), all: t("view.all"), auto: t("view.auto"), done: t("view.done"), issues: t("view.issues") }}
       />
+      {hasWcag && (
+        <StandardToggle
+          std={std}
+          labels={{ legend: t("std.legend"), both: t("std.both"), wcag: t("std.wcag"), kwcag: t("std.kwcag") }}
+        />
+      )}
       {view !== "all" && (
         <p
           role="note"
           className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
         >
           {t(`view.notice.${view}`)}
+        </p>
+      )}
+      {hasWcag && std !== "both" && (
+        <p
+          role="note"
+          className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
+        >
+          {t(`std.notice.${std}`)}
         </p>
       )}
 
@@ -599,8 +631,10 @@ export default async function ReportPage({
         </section>
       )}
 
-      {/* ─── WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4) ─── */}
-      {summary.wcagMatrix && summary.wcagMatrix.length > 0 && (
+      {/* ─── 표준별 매트릭스 — std로 선택, preferred로 순서 결정 ─── */}
+      {(() => {
+        // WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4)
+        const wcagBlock = hasWcag ? (
         <section aria-labelledby="wcag-heading" className="print-break-before mt-10">
           <h2 id="wcag-heading" className="font-display text-2xl font-bold">
             {t("wcag.title")}
@@ -680,10 +714,13 @@ export default async function ReportPage({
           </div>
           <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("wcag.notCheckedNote")}</p>
         </section>
-      )}
+        ) : null;
 
-      {/* ─── 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 ─── */}
-      {cert.averageRate != null && (
+        // KWCAG 블록 — 인증 준비 요약(KWCAG 인증 기준 귀속)과 33항목 매트릭스
+        const kwcagBlock = (
+        <>
+        {/* ─── 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 ─── */}
+        {cert.averageRate != null && (
         <section aria-labelledby="cert-heading" className="print-avoid-break mt-10 doc-card p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="cert-heading" className="font-display text-xl font-bold">
@@ -727,10 +764,10 @@ export default async function ReportPage({
           )}
           <p className="mt-4 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("cert.note")}</p>
         </section>
-      )}
+        )}
 
-      {/* ─── KWCAG 매트릭스 ─── */}
-      <section aria-labelledby="kwcag-heading" className="mt-10">
+        {/* ─── KWCAG 매트릭스 ─── */}
+        <section aria-labelledby="kwcag-heading" className="print-break-before mt-10">
         <h2 id="kwcag-heading" className="font-display text-2xl font-bold">
           {t("kwcag.title")}
         </h2>
@@ -834,7 +871,24 @@ export default async function ReportPage({
           </table>
         </div>
         <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("kwcag.certNote")}</p>
-      </section>
+        </section>
+        </>
+        );
+
+        const first = std !== "kwcag" ? wcagBlock : null;
+        const second = std !== "wcag" ? kwcagBlock : null;
+        return preferred === "wcag" ? (
+          <>
+            {first}
+            {second}
+          </>
+        ) : (
+          <>
+            {second}
+            {first}
+          </>
+        );
+      })()}
 
       {/* ─── 위반 상세 ─── */}
       {/* ─── 우선 수정 권고 — 심각도·규모 기준 상위 규칙 액션 플랜 ─── */}

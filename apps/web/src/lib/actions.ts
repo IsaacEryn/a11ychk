@@ -181,6 +181,24 @@ export async function updateNickname(_prev: NicknameState, formData: FormData): 
   return { ok: true };
 }
 
+/**
+ * 보고서 우선 표준 저장. 빈 값은 미설정(null)으로 되돌려 locale 폴백을 따른다.
+ * migration 0017 미적용 환경에서는 컬럼 부재로 실패 → "failed" 반환 (페이지는 정상).
+ */
+export async function updatePreferredStandard(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { supabase, user } = await requireUser();
+  const parsed = z.enum(["", "wcag", "kwcag"]).safeParse(formData.get("preferredStandard"));
+  if (!parsed.success) return { error: "invalid" };
+
+  const { error } = await supabase
+    .from("profiles")
+    .update({ preferred_standard: parsed.data === "" ? null : parsed.data })
+    .eq("id", user.id);
+  if (error) return { error: "failed" };
+  revalidateLocalized("/mypage");
+  return { ok: true };
+}
+
 // ─────────────── 문의 ───────────────
 const InquirySchema = z.object({
   type: z.enum(["bug", "feature", "question"]),
