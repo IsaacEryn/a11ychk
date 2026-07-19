@@ -9,6 +9,7 @@
       "accessCheck": "봇 차단 검증",
       "extension": "크롬 확장 연결",
       "guide": "가이드",
+      "directory": "점검 목록",
       "my": "내 작업",
       "dashboard": "대시보드",
       "mypage": "마이페이지",
@@ -284,7 +285,11 @@
       "trendTitle": "준수율 추이",
       "trendLabel": "{host} 준수율 추이",
       "notifyDisable": "알림 끄기",
-      "notifyEnable": "알림 켜기"
+      "notifyEnable": "알림 켜기",
+      "listedOn": "공개 등재됨",
+      "listedOff": "공개 배지 발행 · 목록 등재",
+      "listedHint": "소유 확인된 도메인을 공개 목록에 등재하고 클릭형 배지를 발행합니다.",
+      "badgeNotice": "자동 점검 기반 투명성 배지이며 공식 인증이 아닙니다. 등재 시 사이트명·점검 결과가 공개 목록에 노출됩니다."
     },
     "recent": {
       "title": "최근 검사",
@@ -981,6 +986,18 @@
       "shared": "공유된 보고서",
       "aiFix": "AI 수정 요청 다운로드"
     }
+  },
+  "directory": {
+    "eyebrow": "공개 점검 목록",
+    "title": "접근성 점검 사이트",
+    "desc": "A11Y Check로 접근성을 점검하고 공개 등재에 동의한 사이트 목록입니다. 각 항목의 보고서를 누구나 열람할 수 있습니다.",
+    "disclaimer": "표시된 준수율은 자동 점검(axe + 자체 규칙) 기반 결과이며, 공식 웹 접근성 품질인증이 아닙니다. 사이트 소유자가 소유 확인 후 직접 공개 등재한 경우에만 노출됩니다.",
+    "empty": "아직 공개 등재된 사이트가 없습니다.",
+    "rate": "준수율 {rate}%",
+    "lastScanned": "최근 점검 {date}",
+    "viewReport": "보고서 보기",
+    "cta": "내 사이트도 점검하고 배지를 발행하려면",
+    "ctaLink": "대시보드에서 시작하세요"
   },
   "reset": {
     "title": "새 비밀번호 설정",

@@ -100,6 +100,32 @@ export async function toggleNotify(formData: FormData): Promise<void> {
   revalidateLocalized("/dashboard");
 }
 
+/**
+ * 공개 배지 발행 + 디렉터리 등재 opt-in 토글 (domains.public_listed — migration 0018).
+ * 소유 확인된 도메인만 등재 가능. 끄면 즉시 공개 목록·배지 링크에서 회수한다.
+ */
+export async function togglePublicListing(formData: FormData): Promise<void> {
+  const { supabase, user } = await requireUser();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  const enabled = formData.get("enabled") === "true";
+  if (!id.success) return;
+  // 소유 확인(verified) 도메인만 공개 등재 허용
+  const { data: domain } = await supabase
+    .from("domains")
+    .select("verified")
+    .eq("id", id.data)
+    .eq("user_id", user.id)
+    .maybeSingle();
+  const next = !enabled;
+  if (next && !domain?.verified) return; // 미확인 도메인은 공개 등재 불가
+  await supabase
+    .from("domains")
+    .update({ public_listed: next, listed_at: next ? new Date().toISOString() : null })
+    .eq("id", id.data)
+    .eq("user_id", user.id);
+  revalidateLocalized("/dashboard", "/directory");
+}
+
 /** DNS TXT(_a11ychk.호스트) 또는 홈페이지 메타태그로 소유 확인 */
 export async function verifyDomain(formData: FormData): Promise<void> {
   const { supabase, user } = await requireUser();

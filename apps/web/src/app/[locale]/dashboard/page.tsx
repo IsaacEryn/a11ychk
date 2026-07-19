@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
-import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, verifyDomain } from "@/lib/actions";
+import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicListing, verifyDomain } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
 
@@ -317,9 +317,30 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img src={`/api/badge/${encodeURIComponent(d.hostname)}`} alt={t("domains.badgeAlt")} height={20} />
                     </p>
+                    {/* 공개 배지 발행 + 디렉터리 등재 opt-in */}
+                    <form action={togglePublicListing} className="mb-2 flex flex-wrap items-center gap-2">
+                      <input type="hidden" name="id" value={d.id} />
+                      <input type="hidden" name="enabled" value={String(d.public_listed === true)} />
+                      <button
+                        type="submit"
+                        aria-pressed={d.public_listed === true}
+                        className={`rounded border-[1.5px] px-3 py-1 text-sm font-semibold ${
+                          d.public_listed === true
+                            ? "border-[var(--color-seal)] bg-[var(--color-seal-tint)] text-[var(--color-seal)]"
+                            : "border-[var(--color-line)] text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                        }`}
+                      >
+                        {d.public_listed === true ? t("domains.listedOn") : t("domains.listedOff")}
+                      </button>
+                      <span className="text-xs text-[var(--color-ink-faint)]">{t("domains.listedHint")}</span>
+                    </form>
+                    {/* 공개 등재 시 배지가 공개 보고서로 링크 */}
                     <code className="block break-all rounded bg-[var(--color-paper-warm)] px-2 py-1.5 text-[0.8em]">
-                      {`<a href="${siteUrl}/ko"><img src="${siteUrl}/api/badge/${d.hostname}" alt="${t("domains.badgeAlt")}"></a>`}
+                      {d.public_listed === true
+                        ? `<a href="${siteUrl}/site/${d.hostname}"><img src="${siteUrl}/api/badge/${d.hostname}" alt="${t("domains.badgeAlt")}"></a>`
+                        : `<img src="${siteUrl}/api/badge/${d.hostname}" alt="${t("domains.badgeAlt")}">`}
                     </code>
+                    <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">{t("domains.badgeNotice")}</p>
                   </div>
                 )}
               </li>

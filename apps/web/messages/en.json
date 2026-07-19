@@ -9,6 +9,7 @@
       "accessCheck": "Bot-block Checker",
       "extension": "Chrome Extension",
       "guide": "Guide",
+      "directory": "Directory",
       "my": "My Work",
       "dashboard": "Dashboard",
       "mypage": "My Page",
@@ -284,7 +285,11 @@
       "trendTitle": "Compliance trend",
       "trendLabel": "Compliance trend for {host}",
       "notifyDisable": "Turn off alerts",
-      "notifyEnable": "Turn on alerts"
+      "notifyEnable": "Turn on alerts",
+      "listedOn": "Publicly listed",
+      "listedOff": "Issue public badge · list",
+      "listedHint": "List your verified domain publicly and issue a clickable badge.",
+      "badgeNotice": "A transparency badge based on automated checks — not an official certification. Listing exposes the site name and audit result in the public directory."
     },
     "recent": {
       "title": "Recent audits",
@@ -981,6 +986,18 @@
       "shared": "Shared reports",
       "aiFix": "AI fix request downloads"
     }
+  },
+  "directory": {
+    "eyebrow": "Public directory",
+    "title": "Audited sites",
+    "desc": "Sites audited with A11Y Check that opted in to public listing. Anyone can view each report.",
+    "disclaimer": "The compliance rate shown is based on automated checks (axe + custom rules) and is not an official web accessibility quality certification. Only sites whose owners verified ownership and chose to list publicly appear here.",
+    "empty": "No sites have been publicly listed yet.",
+    "rate": "{rate}% compliant",
+    "lastScanned": "Last audited {date}",
+    "viewReport": "View report",
+    "cta": "To audit your own site and issue a badge,",
+    "ctaLink": "start from the dashboard"
   },
   "reset": {
     "title": "Set a new password",

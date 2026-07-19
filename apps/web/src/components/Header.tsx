@@ -61,6 +61,9 @@ export async function Header() {
           <Link href="/guide" className={linkCls}>
             {t("nav.guide")}
           </Link>
+          <Link href="/directory" className={linkCls}>
+            {t("nav.directory")}
+          </Link>
           {user && (
             <NavMenu
               label={t("nav.my")}

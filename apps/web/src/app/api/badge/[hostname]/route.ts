@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { gradeOf, gradeColor } from "@/lib/badgeGrade";
 import type { ScanSummary } from "@a11ychk/core";
 
 export const runtime = "nodejs";
@@ -72,6 +73,6 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
   }
 
   const rate = summary.complianceRate;
-  const color = rate >= 90 ? "#0b5d54" : rate >= 70 ? "#8a7a1f" : "#a4243b";
-  return svgResponse(badgeSvg("A11Y Check", `${rate}%`, color));
+  // 자동 점검 준수율 — 배지·디렉터리·보고서 요약 공통 밴딩
+  return svgResponse(badgeSvg("A11Y Check", `${rate}%`, gradeColor(gradeOf(rate))));
 }
