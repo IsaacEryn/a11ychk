@@ -1,6 +1,8 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { collectImpactStats } from "@/lib/impactStats";
+import { refreshRepoStats } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 
 function isoDaysAgo(days: number): string {
@@ -41,6 +43,9 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
       .limit(5),
   ]);
 
+  // 성장·확산 지표 (/impact와 동일 집계 — 관리자 모니터링용)
+  const growth = await collectImpactStats();
+
   const total30 = scans30d.count ?? 0;
   const failed30 = failed30d.count ?? 0;
   const failedRate = total30 === 0 ? 0 : Math.round((failed30 / total30) * 1000) / 10;
@@ -74,6 +79,55 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
           </div>
         ))}
       </dl>
+
+      {/* 성장·확산 지표 (GitHub·트래픽·확산) */}
+      <section aria-labelledby="admin-growth-heading" className="mt-10 doc-card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="admin-growth-heading" className="font-display text-xl font-bold">
+            {t("growth.title")}
+          </h2>
+          <div className="flex items-center gap-3">
+            <Link
+              href="/impact"
+              className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4"
+            >
+              {t("growth.publicPage")}
+            </Link>
+            <form action={refreshRepoStats}>
+              <button
+                type="submit"
+                className="rounded border-[1.5px] border-[var(--color-ink)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-paper-warm)]"
+              >
+                {t("growth.refresh")}
+              </button>
+            </form>
+          </div>
+        </div>
+        <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+          {[
+            { label: t("growth.stars"), value: growth.github ? format.number(growth.github.stars) : "—" },
+            { label: t("growth.forks"), value: growth.github ? format.number(growth.github.forks) : "—" },
+            { label: t("growth.clones"), value: growth.traffic ? format.number(growth.traffic.clones) : "—" },
+            { label: t("growth.views"), value: growth.traffic ? format.number(growth.traffic.views) : "—" },
+            { label: t("growth.sites"), value: format.number(growth.sites) },
+            { label: t("growth.improved"), value: format.number(growth.improvedSites) },
+            { label: t("growth.shared"), value: format.number(growth.sharedReports) },
+            { label: t("growth.aiFix"), value: format.number(growth.aiFixDownloads) },
+          ].map((s) => (
+            <div key={s.label} className="border-l-[3px] border-[var(--color-seal)] pl-3">
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{s.label}</dt>
+              <dd className="font-display mt-0.5 text-2xl font-extrabold tabular-nums">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+        {growth.traffic && (
+          <p className="mt-3 text-xs text-[var(--color-ink-faint)]">
+            {t("growth.since", {
+              date: format.dateTime(new Date(growth.traffic.since), { dateStyle: "medium" }),
+            })}
+          </p>
+        )}
+      </section>
 
       <div className="mt-10 grid gap-8 lg:grid-cols-2">
         {/* 최근 검사 */}

@@ -9,7 +9,7 @@
       "accessCheck": "봇 차단 검증",
       "extension": "크롬 확장 연결",
       "guide": "가이드",
-      "directory": "점검 목록",
+      "directory": "점검 사이트",
       "my": "내 작업",
       "dashboard": "대시보드",
       "mypage": "마이페이지",
@@ -843,6 +843,20 @@
         "apiBadge": "배지 위젯 API",
         "other": "기타"
       }
+    },
+    "growth": {
+      "title": "성장·확산 지표",
+      "publicPage": "공개 지표 페이지",
+      "refresh": "지금 새로고침",
+      "stars": "GitHub Stars",
+      "forks": "Forks",
+      "clones": "저장소 Clone(누적)",
+      "views": "저장소 조회(누적)",
+      "sites": "검사 사이트",
+      "improved": "개선 확인 사이트",
+      "shared": "공유 보고서",
+      "aiFix": "AI 수정 다운로드",
+      "since": "트래픽 누적 집계 시작: {date}"
     }
   },
   "guide": {

@@ -843,6 +843,20 @@
         "apiBadge": "Badge widget API",
         "other": "Other"
       }
+    },
+    "growth": {
+      "title": "Growth & reach",
+      "publicPage": "Public metrics",
+      "refresh": "Refresh now",
+      "stars": "GitHub stars",
+      "forks": "Forks",
+      "clones": "Repo clones (total)",
+      "views": "Repo views (total)",
+      "sites": "Audited sites",
+      "improved": "Improved sites",
+      "shared": "Shared reports",
+      "aiFix": "AI fix downloads",
+      "since": "Traffic accumulated since {date}"
     }
   },
   "guide": {

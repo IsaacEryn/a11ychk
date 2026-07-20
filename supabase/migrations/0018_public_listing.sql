@@ -3,7 +3,7 @@
 
 alter table public.domains
   add column public_listed boolean not null default false,  -- 사용자 opt-in 공개 등재
-  add column listed_at timestamptz;                          -- 등재 시점(증적)
+  add column listed_at timestamptz;                          -- 등재 시점(기록)
 
 -- 공개 목록 집계용 부분 인덱스 (등재된 도메인만)
 create index if not exists domains_public_listed_idx

@@ -449,6 +449,19 @@ function str(v: FormDataEntryValue | null): string | undefined {
 }
 
 // ─────────────── 관리자 ───────────────
+/** 관리자: GitHub 저장소 통계 즉시 수집 (크론이 밀렸을 때 수동 새로고침) */
+export async function refreshRepoStats(): Promise<void> {
+  const { user: actor } = await requireAdmin();
+  const { collectRepoStats } = await import("@/lib/repoStats");
+  try {
+    await collectRepoStats();
+    await logAdminAction(createAdminClient(), actor.id, "stats.refresh");
+  } catch {
+    // 토큰 부재·API 오류 — 조용히 무시 (지표는 다음 크론에 반영)
+  }
+  revalidateLocalized("/admin");
+}
+
 export async function toggleBlockUser(formData: FormData): Promise<void> {
   const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
