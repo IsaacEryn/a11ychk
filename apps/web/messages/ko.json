@@ -921,7 +921,11 @@
     "title": "문제가 발생했습니다",
     "desc": "일시적인 오류로 페이지를 표시하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     "retry": "다시 시도",
-    "loading": "불러오는 중…"
+    "loading": "불러오는 중…",
+    "persistPrefix": "문제가 계속되나요?",
+    "contact": "문의하기",
+    "digestLabel": "오류 코드",
+    "goScan": "검사 시작하기"
   },
   "about": {
     "title": "서비스 소개",
@@ -1088,5 +1092,14 @@
     "accessibility": "접근성 선언문",
     "terms": "이용약관",
     "privacy": "개인정보 처리방침"
+  },
+  "serviceStatus": {
+    "offlineTitle": "인터넷 연결이 끊겼습니다",
+    "offlineDesc": "네트워크 연결을 확인해 주세요. 연결이 복구되면 자동으로 이어집니다.",
+    "degradedTitle": "서비스 접속이 일시적으로 원활하지 않습니다",
+    "degradedDesc": "잠시 후 자동으로 복구를 확인합니다. 계속되면 잠시 뒤 다시 시도해 주세요.",
+    "retry": "다시 시도",
+    "checking": "확인 중…",
+    "dismiss": "닫기"
   }
 }

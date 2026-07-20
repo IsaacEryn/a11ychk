@@ -10,12 +10,23 @@ export default async function NotFoundPage() {
       </p>
       <h1 className="font-display mt-4 text-2xl font-bold">{t("notFoundTitle")}</h1>
       <p className="mt-2 text-[var(--color-ink-soft)]">{t("notFoundDesc")}</p>
-      <Link
-        href="/"
-        className="mt-6 inline-block rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)]"
-      >
-        {t("goHome")}
-      </Link>
+      <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+        <Link
+          href="/"
+          className="inline-block rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)]"
+        >
+          {t("goHome")}
+        </Link>
+        <Link href="/scan" className="inline-block rounded border-[1.5px] border-[var(--color-ink)] px-5 py-2.5 font-bold">
+          {t("goScan")}
+        </Link>
+      </div>
+      <p className="mt-6 text-sm text-[var(--color-ink-soft)]">
+        {t("persistPrefix")}{" "}
+        <Link href="/inquiries" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+          {t("contact")}
+        </Link>
+      </p>
     </div>
   );
 }

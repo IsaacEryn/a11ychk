@@ -921,7 +921,11 @@
     "title": "Something went wrong",
     "desc": "A temporary error kept this page from loading. Please try again in a moment.",
     "retry": "Try again",
-    "loading": "Loading…"
+    "loading": "Loading…",
+    "persistPrefix": "Still having trouble?",
+    "contact": "Contact us",
+    "digestLabel": "Error code",
+    "goScan": "Start a scan"
   },
   "about": {
     "title": "About",
@@ -1088,5 +1092,14 @@
     "accessibility": "Accessibility statement",
     "terms": "Terms of service",
     "privacy": "Privacy policy"
+  },
+  "serviceStatus": {
+    "offlineTitle": "You are offline",
+    "offlineDesc": "Please check your network connection. We will resume automatically once you are back online.",
+    "degradedTitle": "The service is temporarily unavailable",
+    "degradedDesc": "We are checking for recovery automatically. If it continues, please try again in a moment.",
+    "retry": "Try again",
+    "checking": "Checking…",
+    "dismiss": "Dismiss"
   }
 }

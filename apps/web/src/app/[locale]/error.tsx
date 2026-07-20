@@ -41,6 +41,18 @@ export default function LocaleError({
           {t("goHome")}
         </Link>
       </div>
+      {/* 문제가 계속될 때의 안내 + 지원 문의용 오류 코드(digest) */}
+      <p className="mt-6 text-sm text-[var(--color-ink-soft)]">
+        {t("persistPrefix")}{" "}
+        <Link href="/inquiries" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+          {t("contact")}
+        </Link>
+      </p>
+      {error.digest && (
+        <p className="mt-2 font-mono text-xs text-[var(--color-ink-faint)]">
+          {t("digestLabel")}: {error.digest}
+        </p>
+      )}
     </div>
   );
 }

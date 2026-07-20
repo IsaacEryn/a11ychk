@@ -7,6 +7,7 @@ import { routing } from "@/i18n/routing";
 import { Hahmlet } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
+import { ServiceStatusBanner } from "@/components/ServiceStatusBanner";
 import { themeInitScript } from "@/components/ThemeToggle";
 import "../globals.css";
 // Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
@@ -94,6 +95,7 @@ export default async function LocaleLayout({
           {t("skipToMain")}
         </a>
         <NextIntlClientProvider>
+          <ServiceStatusBanner />
           <Header />
           <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
             {children}
