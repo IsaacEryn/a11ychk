@@ -80,23 +80,27 @@ export async function deleteDomain(formData: FormData): Promise<void> {
   revalidateLocalized("/dashboard");
 }
 
-/** 도메인 정기 자동 스캔 켜기/끄기 */
+/**
+ * 도메인 정기 자동 스캔 켜기/끄기.
+ * domains에는 UPDATE RLS 정책이 없어 사용자 클라이언트로는 갱신되지 않으므로,
+ * 소유자(user_id) 필터를 명시한 admin 클라이언트로 갱신한다(verifyDomain과 동일 패턴).
+ */
 export async function toggleAutoScan(formData: FormData): Promise<void> {
-  const { supabase, user } = await requireUser();
+  const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const enabled = formData.get("enabled") === "true";
   if (!id.success) return;
-  await supabase.from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  await createAdminClient().from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
   revalidateLocalized("/dashboard");
 }
 
 /** 정기 스캔 회귀 알림 이메일 켜기/끄기 (domains.notify — migration 0013) */
 export async function toggleNotify(formData: FormData): Promise<void> {
-  const { supabase, user } = await requireUser();
+  const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const enabled = formData.get("enabled") === "true";
   if (!id.success) return;
-  await supabase.from("domains").update({ notify: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  await createAdminClient().from("domains").update({ notify: !enabled }).eq("id", id.data).eq("user_id", user.id);
   revalidateLocalized("/dashboard");
 }
 
@@ -105,20 +109,22 @@ export async function toggleNotify(formData: FormData): Promise<void> {
  * 소유 확인된 도메인만 등재 가능. 끄면 즉시 공개 목록·배지 링크에서 회수한다.
  */
 export async function togglePublicListing(formData: FormData): Promise<void> {
-  const { supabase, user } = await requireUser();
+  const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const enabled = formData.get("enabled") === "true";
   if (!id.success) return;
-  // 소유 확인(verified) 도메인만 공개 등재 허용
-  const { data: domain } = await supabase
+  // domains에는 UPDATE RLS 정책이 없어 admin 클라이언트로 갱신(소유자 필터 명시)
+  const admin = createAdminClient();
+  const { data: domain } = await admin
     .from("domains")
     .select("verified")
     .eq("id", id.data)
     .eq("user_id", user.id)
     .maybeSingle();
+  if (!domain) return; // 타인 도메인/부재
   const next = !enabled;
-  if (next && !domain?.verified) return; // 미확인 도메인은 공개 등재 불가
-  await supabase
+  if (next && !domain.verified) return; // 미확인 도메인은 공개 등재 불가
+  await admin
     .from("domains")
     .update({ public_listed: next, listed_at: next ? new Date().toISOString() : null })
     .eq("id", id.data)
