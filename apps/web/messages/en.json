@@ -33,6 +33,10 @@
       "sitemap": "Sitemap"
     },
     "localeSwitcher": "Select language",
+    "menu": {
+      "open": "Open menu",
+      "close": "Close menu"
+    },
     "theme": {
       "label": "Display theme",
       "system": "System",

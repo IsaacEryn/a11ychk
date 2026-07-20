@@ -133,7 +133,7 @@ export default async function ReportPage({
       <summary className="cursor-pointer list-none rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]">
         {t("export.menu")} ▾
       </summary>
-      <ul className="absolute right-0 z-10 mt-1 w-72 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] py-1 shadow-[4px_4px_0_0_var(--color-line)]">
+      <ul className="absolute right-0 z-10 mt-1 w-[min(18rem,90vw)] border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] py-1 shadow-[4px_4px_0_0_var(--color-line)]">
         {[
           { href: `/api/scans/${scan.id}/csv?type=findings&lang=${locale}`, label: t("export.csvFindings") },
           { href: `/api/scans/${scan.id}/csv?type=kwcag&lang=${locale}`, label: t("export.csvKwcag") },

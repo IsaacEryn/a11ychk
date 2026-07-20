@@ -243,13 +243,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                       {t("domains.autoScanOn")}
                     </span>
                   )}
-                  <div className="ml-auto flex flex-wrap gap-2">
+                  <div className="ml-auto flex flex-wrap items-center gap-2.5">
                     <form action={toggleAutoScan}>
                       <input type="hidden" name="id" value={d.id} />
                       <input type="hidden" name="enabled" value={String(d.auto_scan)} />
                       <button
                         type="submit"
-                        className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                        className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
                       >
                         {d.auto_scan ? t("domains.autoScanDisable") : t("domains.autoScanEnable")}
                       </button>
@@ -261,7 +261,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         <button
                           type="submit"
                           aria-pressed={d.notify !== false}
-                          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
                         >
                           {d.notify !== false ? t("domains.notifyDisable") : t("domains.notifyEnable")}
                         </button>
@@ -270,14 +270,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                     {!d.verified && (
                       <form action={verifyDomain}>
                         <input type="hidden" name="id" value={d.id} />
-                        <button type="submit" className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]">
+                        <button type="submit" className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]">
                           {t("domains.verify")}
                         </button>
                       </form>
                     )}
-                    <form action={deleteDomain}>
+                    {/* 파괴적 삭제는 ml-auto로 나머지 액션과 떨어뜨려 오탭 방지 */}
+                    <form action={deleteDomain} className="ml-auto">
                       <input type="hidden" name="id" value={d.id} />
-                      <button type="submit" className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1 text-sm font-semibold text-[var(--color-ink-faint)] hover:border-[var(--color-crit)] hover:text-[var(--color-crit)]">
+                      <button type="submit" className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink-faint)] hover:border-[var(--color-crit)] hover:text-[var(--color-crit)]">
                         {t("domains.delete")}
                       </button>
                     </form>

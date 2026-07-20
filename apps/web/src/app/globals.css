@@ -173,6 +173,18 @@ button:not(:disabled):active {
   transform: translateY(1px);
 }
 
+/* ── 터치 기기: 인터랙티브 컨트롤 최소 44px 높이 (WCAG 2.5.5 목표 크기).
+   정밀 포인터(마우스)는 제외해 데스크톱의 조밀한 표·인라인 버튼을 그대로 둔다 ── */
+@media (pointer: coarse) {
+  button:not(:disabled),
+  input[type="submit"],
+  input[type="button"],
+  select,
+  summary {
+    min-height: 44px;
+  }
+}
+
 ::selection {
   background: var(--color-mark);
   color: #1c2422;

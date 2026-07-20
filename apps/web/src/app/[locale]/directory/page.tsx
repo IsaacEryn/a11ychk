@@ -62,7 +62,7 @@ export default async function DirectoryPage({ params }: { params: Promise<{ loca
               )}
               <a
                 href={`${siteUrl}/site/${encodeURIComponent(s.hostname)}`}
-                className="text-sm font-bold text-[var(--color-seal)] underline underline-offset-4"
+                className="inline-flex min-h-[44px] items-center text-sm font-bold text-[var(--color-seal)] underline underline-offset-4"
               >
                 {t("viewReport")}
               </a>

@@ -33,6 +33,10 @@
       "sitemap": "사이트맵"
     },
     "localeSwitcher": "언어 선택",
+    "menu": {
+      "open": "메뉴 열기",
+      "close": "메뉴 닫기"
+    },
     "theme": {
       "label": "화면 테마",
       "system": "시스템",

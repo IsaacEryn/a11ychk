@@ -83,10 +83,11 @@ export function ReportControls({
 
   return (
     <div data-view={view} data-std={std} data-pref={preferred}>
-      {/* 액션 바 — PDF 링크만 상태 의존, 나머지는 서버 노드 그대로 */}
-      <div className="no-print mb-8 flex flex-wrap items-center justify-between gap-2">
+      {/* 액션 바 — PDF 링크만 상태 의존, 나머지는 서버 노드 그대로.
+          모바일은 justify-start(줄바꿈 시 좌우 벌어짐 방지), 데스크톱은 justify-between */}
+      <div className="no-print mb-8 flex flex-wrap items-center justify-start gap-2 sm:justify-between">
         <div>{leftActions}</div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
+        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
           {rightActions}
           <a
             href={pdfHref}
@@ -134,14 +135,14 @@ function Segmented<T extends string>({
   return (
     <div role="group" aria-label={legend} className="no-print mb-6 flex flex-wrap items-center gap-2">
       <span className="text-sm font-bold text-[var(--color-ink-soft)]">{legend}</span>
-      <div className="flex gap-1 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] p-1">
+      <div className="flex gap-1.5 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] p-1">
         {options.map((opt) => (
           <button
             key={opt.value}
             type="button"
             aria-pressed={value === opt.value}
             onClick={() => onChange(opt.value)}
-            className={`rounded-[3px] px-3 py-1 text-sm font-semibold transition-colors ${
+            className={`rounded-[3px] px-3 py-1.5 text-sm font-semibold transition-colors ${
               value === opt.value
                 ? "bg-[var(--color-seal)] text-[var(--color-paper)]"
                 : "text-[var(--color-ink-soft)] hover:bg-[var(--color-paper-warm)] hover:text-[var(--color-ink)]"

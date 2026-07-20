@@ -55,6 +55,38 @@ describe("공개 페이지 스모크 (무인증)", () => {
   }
 });
 
+describe("모바일 헤더 메뉴 (무인증)", () => {
+  it("좁은 화면에서 햄버거 → 드롭다운 패널이 링크와 함께 열린다", async () => {
+    const context = await browser.newContext({ viewport: { width: 375, height: 812 } });
+    const page = await context.newPage();
+    await page.goto(BASE_URL + "/ko", { waitUntil: "networkidle", timeout: 30_000 });
+
+    // 데스크톱 nav는 모바일에서 숨겨져 있어야 한다 (hidden md:flex)
+    const hamburger = page.getByRole("button", { name: "메뉴 열기", exact: true });
+    await hamburger.waitFor({ state: "visible", timeout: 15_000 });
+    expect(await hamburger.getAttribute("aria-expanded")).toBe("false");
+
+    await hamburger.click();
+    // 열림 상태 + 공개 링크 노출
+    await page.waitForFunction(
+      () => document.querySelector('button[aria-label="메뉴 닫기"]')?.getAttribute("aria-expanded") === "true",
+      undefined,
+      { timeout: 5_000 },
+    );
+    expect(await page.getByRole("link", { name: "서비스 소개", exact: true }).isVisible()).toBe(true);
+    expect(await page.getByRole("link", { name: "점검 사이트", exact: true }).isVisible()).toBe(true);
+
+    // Escape로 닫힘
+    await page.keyboard.press("Escape");
+    await page.waitForFunction(
+      () => document.querySelector('button[aria-label="메뉴 열기"]')?.getAttribute("aria-expanded") === "false",
+      undefined,
+      { timeout: 5_000 },
+    );
+    await context.close();
+  });
+});
+
 describe.runIf(!!REPORT_URL)("보고서 클라이언트 필터 (view 토글)", () => {
   it("자동 검사만 클릭 시 서버 재페치 없이 행이 필터된다", async () => {
     const context = await browser.newContext();
