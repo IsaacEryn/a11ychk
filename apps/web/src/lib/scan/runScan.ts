@@ -41,6 +41,17 @@ const PAGE_LOAD_TIMEOUT_MS = 20_000;
 const SCAN_BUDGET_MS = 210_000;
 
 /**
+ * 페이지 동시 스캔 수. 같은 origin 표본이라 한 브라우저(host-resolver 핀 공유)에
+ * 컨텍스트를 N개 띄워 동시에 검사한다. 메모리(서버리스 크로미엄 + axe DOM 직렬화)가
+ * 하드캡이라 기본 2 — 함수 메모리 상향 없이 3+는 ERR_INSUFFICIENT_RESOURCES 위험.
+ * OOM이 보이면 A11YCHK_SCAN_CONCURRENCY=1로 재배포 없이 즉시 백오프할 수 있다(1~3 클램프).
+ */
+const SCAN_CONCURRENCY = Math.min(3, Math.max(1, Number(process.env.A11YCHK_SCAN_CONCURRENCY) || 2));
+
+/** 스캔 페이지 행(오케스트레이터 내부용 경량 타입) */
+type ScanPageRow = { id: string; url: string; sample_type: string | null };
+
+/**
  * 단일 페이지 하드 타임아웃. goto(20s)·load·폰트·2패스 axe 합이 비정상적으로 길어지는
  * 페이지 하나가 전체 예산을 삼키지 않도록 캡을 둔다.
  */
@@ -287,79 +298,103 @@ export async function runScan(scanId: string): Promise<void> {
       .select("id, url, sample_type");
     if (insertError || !pageRows) throw new Error(`페이지 행 생성 실패: ${insertError?.message}`);
 
-    // 3) 페이지별 스캔 (부분 실패 허용) — 구조/무작위 표본별 위반 규칙 추적(WCAG-EM 4.c)
+    // 3) 페이지 스캔 — 동시 SCAN_CONCURRENCY개(한 브라우저에 컨텍스트 N개)로 배치 처리.
+    //    같은 origin 표본이라 host-resolver 핀을 공유하므로 한 브라우저로 안전하다(SSRF).
+    //    메모리는 배치마다 브라우저를 닫아 리셋한다(2 동시 = ERR_INSUFFICIENT_RESOURCES 여유).
+    //    구조/무작위 표본별 위반 규칙 추적(WCAG-EM 4.c).
     const results: PageScanResult[] = [];
     const signatures: PageSignature[] = [];
     const structuredRules = new Set<string>();
     const randomRules = new Set<string>();
 
-    // 시간 예산 — 초과 시 남은 페이지는 pending으로 두고 부분 결과로 완료한다(좀비 방지)
+    // 시간 예산 — 초과 시 남은 페이지는 두고 부분 결과로 완료한다(강제 종료·좀비 방지)
     const scanStarted = Date.now();
     let budgetExceeded = false;
+    const overBudget = () => Date.now() - scanStarted > SCAN_BUDGET_MS;
 
-    for (const row of pageRows) {
-      if (Date.now() - scanStarted > SCAN_BUDGET_MS) {
-        budgetExceeded = true;
-        break; // 남은 페이지는 pending(보고서에 '건너뜀')으로 남긴다
+    const pages = pageRows as ScanPageRow[];
+
+    // 주어진 브라우저에서 한 페이지 스캔. 성공 시 결과 반영(done 기록), 실패 시 Error 반환.
+    const scanRow = async (b: Browser, row: ScanPageRow): Promise<Error | null> => {
+      try {
+        await assertPublicHttpUrl(row.url);
+        // 페이지별 하드 타임아웃 — 한 페이지가 예산을 통째로 삼키지 않게 캡
+        const { result, signature } = await withTimeout(
+          scanSinglePage(b, row.url),
+          PAGE_SCAN_TIMEOUT_MS,
+          `페이지 검사 시간 초과 (${Math.round(PAGE_SCAN_TIMEOUT_MS / 1000)}초)`,
+        );
+        await persistPageResult(db, row.id, result, signature);
+        results.push(result);
+        if (signature) signatures.push(signature);
+        const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
+        for (const v of result.violations) ruleTarget.add(v.ruleId);
+        return null;
+      } catch (e) {
+        return e as Error;
       }
-      await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
-      let lastError: Error | undefined;
+    };
 
-      // 메모리 누적 방지: 페이지마다 브라우저를 새로 띄우고 끝나면 완전히 닫는다.
-      // (Hobby 2GB 한도에서 여러 페이지에 걸친 자원 누적 → ERR_INSUFFICIENT_RESOURCES 방지)
-      // 실패 시 1회 재시도 — 재시도도 깨끗한 브라우저로 실행된다.
-      for (let attempt = 1; attempt <= 2; attempt++) {
-        try {
-          await assertPublicHttpUrl(row.url);
-          browser = await launchGuardedBrowser(row.url);
-          try {
-            // 페이지별 하드 타임아웃 — 한 페이지가 예산을 통째로 삼키지 않게 캡
-            const { result, signature } = await withTimeout(
-              scanSinglePage(browser, row.url),
-              PAGE_SCAN_TIMEOUT_MS,
-              `페이지 검사 시간 초과 (${Math.round(PAGE_SCAN_TIMEOUT_MS / 1000)}초)`,
-            );
-            await persistPageResult(db, row.id, result, signature);
-            results.push(result);
-            if (signature) signatures.push(signature);
+    // 한 배치(≤N)를 한 브라우저로 동시 스캔. 실패한 row.id → Error 맵. 브라우저는 항상 정리.
+    const runBatch = async (rows: ScanPageRow[]): Promise<Map<string, Error>> => {
+      const errors = new Map<string, Error>();
+      try {
+        browser = await launchGuardedBrowser(rows[0].url);
+        const b = browser;
+        const outcomes = await Promise.all(rows.map((row) => scanRow(b, row)));
+        rows.forEach((row, i) => {
+          const e = outcomes[i];
+          if (e) errors.set(row.id, e);
+        });
+      } catch (launchErr) {
+        // 브라우저 실행 실패 → 배치 전체 실패(재시도 대상)
+        for (const row of rows) errors.set(row.id, launchErr as Error);
+      } finally {
+        await disposeBrowser(browser);
+        browser = null;
+      }
+      return errors;
+    };
 
-            const ruleTarget = row.sample_type === "random" ? randomRules : structuredRules;
-            for (const v of result.violations) ruleTarget.add(v.ruleId);
-          } finally {
-            await disposeBrowser(browser);
-            browser = null;
-          }
-          lastError = undefined;
-          break;
-        } catch (pageError) {
-          lastError = pageError as Error;
-          await disposeBrowser(browser);
-          browser = null;
-          // 예산이 소진됐으면 재시도하지 않는다
-          if (Date.now() - scanStarted > SCAN_BUDGET_MS) break;
+    // 1차 패스 — 예산 내에서 N개씩 배치. 실패 페이지는 재시도 큐로.
+    const retryQueue: ScanPageRow[] = [];
+    for (let i = 0; i < pages.length; i += SCAN_CONCURRENCY) {
+      if (overBudget()) {
+        budgetExceeded = true;
+        break;
+      }
+      const batch = pages.slice(i, i + SCAN_CONCURRENCY);
+      await db.from("scan_pages").update({ status: "running" }).in("id", batch.map((r) => r.id));
+      const errs = await runBatch(batch);
+      for (const row of batch) if (errs.has(row.id)) retryQueue.push(row);
+    }
+
+    // 2차 패스 — 실패 페이지 1회 재시도(깨끗한 브라우저). 재시도도 실패하면 사유 기록.
+    for (let i = 0; i < retryQueue.length; i += SCAN_CONCURRENCY) {
+      if (overBudget()) {
+        budgetExceeded = true;
+        break;
+      }
+      const batch = retryQueue.slice(i, i + SCAN_CONCURRENCY);
+      const errs = await runBatch(batch);
+      for (const row of batch) {
+        const e = errs.get(row.id);
+        if (e) {
+          await db.from("scan_pages").update({ status: "failed", error: truncate(e.message, 500) }).eq("id", row.id);
         }
       }
-
-      if (lastError) {
-        await db
-          .from("scan_pages")
-          .update({ status: "failed", error: truncate(lastError.message, 500) })
-          .eq("id", row.id);
-      }
     }
 
-    // 예산 초과로 중단됐으면 미검사(pending) 페이지를 사유와 함께 failed로 표시한다.
-    // (보고서에 '검사 실패'로 명시 + 개별 페이지 재검사 버튼 노출 — 조용한 누락보다 명확)
-    if (budgetExceeded) {
-      await db
-        .from("scan_pages")
-        .update({
-          status: "failed",
-          error: "TIMEOUT: 전체 검사 시간이 초과되어 이 페이지는 검사하지 못했습니다. 페이지별 재검사 또는 재시도로 마저 검사할 수 있습니다.",
-        })
-        .eq("scan_id", scanId)
-        .eq("status", "pending");
-    }
+    // 최종 정리 — done/failed 확정 외 남은 페이지(pending=미도달, running=예산 초과로
+    // 재시도 못 함)를 실패로 표시한다(조용한 누락 방지 + 개별 재검사 버튼 노출).
+    const leftoverMsg = budgetExceeded
+      ? "TIMEOUT: 전체 검사 시간이 초과되어 이 페이지는 검사하지 못했습니다. 페이지별 재검사 또는 '동일 조건 재검사'로 마저 검사할 수 있습니다."
+      : "검사를 완료하지 못했습니다. 다시 시도해 주세요.";
+    await db
+      .from("scan_pages")
+      .update({ status: "failed", error: leftoverMsg })
+      .eq("scan_id", scanId)
+      .in("status", ["pending", "running"]);
 
     if (results.length === 0) {
       throw new Error(
