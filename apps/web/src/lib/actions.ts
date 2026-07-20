@@ -146,7 +146,7 @@ export async function verifyDomain(formData: FormData): Promise<void> {
     .single();
   if (!domain || domain.verified) return;
 
-  let method: "dns_txt" | "meta_tag" | null = null;
+  let method: "dns_txt" | "meta_tag" | "html_file" | null = null;
 
   // 1) DNS TXT
   try {
@@ -155,10 +155,10 @@ export async function verifyDomain(formData: FormData): Promise<void> {
       method = "dns_txt";
     }
   } catch {
-    // 레코드 없음 — 메타태그로 진행
+    // 레코드 없음 — 다음 방법으로 진행
   }
 
-  // 2) 메타태그
+  // 2) 메타태그 (홈페이지 <head>)
   if (!method) {
     try {
       const res = await guardedFetch(`https://${domain.hostname}/`);
@@ -173,6 +173,23 @@ export async function verifyDomain(formData: FormData): Promise<void> {
             method = "meta_tag";
             break;
           }
+        }
+      }
+    } catch {
+      // 접속 실패 — 다음 방법으로 진행
+    }
+  }
+
+  // 3) HTML 파일 (.well-known/a11ychk-verify.txt)
+  if (!method) {
+    try {
+      const res = await guardedFetch(`https://${domain.hostname}/.well-known/a11ychk-verify.txt`);
+      // 일부 서버는 404 본문에도 200을 주므로 content-type도 함께 본다
+      const ct = res.headers.get("content-type") ?? "";
+      if (res.ok && !ct.includes("html")) {
+        const body = (await res.text()).slice(0, 1_000).trim();
+        if (body === domain.verify_token) {
+          method = "html_file";
         }
       }
     } catch {

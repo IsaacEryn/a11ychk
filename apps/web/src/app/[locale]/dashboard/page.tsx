@@ -296,18 +296,44 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 {!d.verified && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
                     <p className="font-semibold">{t("domains.verifyTitle")}</p>
-                    <ol className="mt-1.5 list-decimal space-y-1 pl-5">
+                    <p className="mt-1">{t("domains.verifyIntro")}</p>
+                    {/* 초보자 안내: 3가지 중 하나만 하면 됨을 강조 */}
+                    <p className="mt-2 rounded border-l-[3px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] px-3 py-2 font-semibold text-[var(--color-ink)]">
+                      {t("domains.verifyOnlyOne")}
+                    </p>
+                    <ul className="mt-3 space-y-3">
                       <li>
-                        <code className="break-all rounded bg-[var(--color-paper-warm)] px-1.5 py-0.5 text-[0.85em]">
-                          {t("domains.verifyDns", { host: d.hostname, token: d.verify_token })}
+                        <p className="font-semibold text-[var(--color-ink)]">{t("domains.verifyFileTitle")}</p>
+                        <p className="mt-0.5">{t("domains.verifyFileDesc")}</p>
+                        <p className="mt-1">
+                          {t("domains.verifyFilePath")}{" "}
+                          <code className="break-all rounded bg-[var(--color-paper-warm)] px-1.5 py-0.5 text-[0.85em]">
+                            /.well-known/a11ychk-verify.txt
+                          </code>
+                        </p>
+                        <p className="mt-1">
+                          {t("domains.verifyFileContent")}{" "}
+                          <code className="break-all rounded bg-[var(--color-paper-warm)] px-1.5 py-0.5 text-[0.85em]">
+                            {d.verify_token}
+                          </code>
+                        </p>
+                      </li>
+                      <li>
+                        <p className="font-semibold text-[var(--color-ink)]">{t("domains.verifyMetaTitle")}</p>
+                        <p className="mt-0.5">{t("domains.verifyMetaDesc")}</p>
+                        <code className="mt-1 block break-all rounded bg-[var(--color-paper-warm)] px-1.5 py-0.5 text-[0.85em]">
+                          {`<meta name="a11ychk-verify" content="${d.verify_token}">`}
                         </code>
                       </li>
                       <li>
-                        <code className="break-all rounded bg-[var(--color-paper-warm)] px-1.5 py-0.5 text-[0.85em]">
-                          {t("domains.verifyMeta", { token: d.verify_token })}
+                        <p className="font-semibold text-[var(--color-ink)]">{t("domains.verifyDnsTitle")}</p>
+                        <p className="mt-0.5">{t("domains.verifyDnsDesc")}</p>
+                        <code className="mt-1 block break-all rounded bg-[var(--color-paper-warm)] px-1.5 py-0.5 text-[0.85em]">
+                          {t("domains.verifyDnsRecord", { host: d.hostname, token: d.verify_token })}
                         </code>
                       </li>
-                    </ol>
+                    </ul>
+                    <p className="mt-3 text-xs text-[var(--color-ink-faint)]">{t("domains.verifyAfter")}</p>
                   </div>
                 )}
                 {d.verified && (
