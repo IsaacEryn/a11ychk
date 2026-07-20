@@ -28,6 +28,14 @@
 
 :root {
   color-scheme: light;
+  /* sticky 헤더 공칭 높이 — 앵커 스크롤 여백·모바일 패널 높이 계산에 공유 */
+  --header-h: 3.5rem;
+}
+
+/* 앵커(#id) 점프 시 sticky 헤더에 가리지 않도록 스크롤 여백 확보.
+   기존 개별 scroll-mt-* 대신 전역 일괄 처리(헤더 높이 변동 감안해 여유). */
+html {
+  scroll-padding-top: calc(var(--header-h) + 1rem);
 }
 
 /* 다크 모드 — 명시적 테마가 없을 때만 OS 설정을 따름 */
@@ -180,9 +188,23 @@ button:not(:disabled):active {
   input[type="submit"],
   input[type="button"],
   select,
-  summary {
+  summary,
+  [role="button"]:not([aria-disabled="true"]),
+  a[data-btn] {
     min-height: 44px;
   }
+  /* 라디오/체크박스는 감싸는 라벨을 목표 크기로 — 입력 자체를 왜곡하지 않고
+     실제 탭 영역인 라벨을 44px로(WCAG 2.5.5). 인라인 텍스트 링크는 제외(예외 항목). */
+  label:has(> input[type="radio"]),
+  label:has(> input[type="checkbox"]) {
+    min-height: 44px;
+  }
+}
+/* 버튼형 링크 표식 — inline이면 min-height가 안 먹으므로 flex 정렬 부여 */
+a[data-btn] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 ::selection {
@@ -286,6 +308,21 @@ button:not(:disabled):active {
 }
 @media (prefers-reduced-motion: no-preference) {
   .table-scroll { scroll-behavior: smooth; }
+}
+
+/* 가로 스크롤 표의 첫 열(행 레이블) 고정 — 오른쪽 열을 봐도 항목명이 계속 보인다.
+   불투명 배경 필수(투명이면 스크롤되는 뒷열이 비침). 배경은 토큰이라 라이트/다크/고대비 자동 대응.
+   경계선이 스크롤 시 사라지지 않도록 오른쪽에 구분선을 그린다. */
+.col-sticky {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--color-paper);
+  box-shadow: 1px 0 0 0 var(--color-line);
+}
+/* 헤더행의 고정 셀은 헤더 배경(warm)과 맞춘다 */
+.col-sticky-head {
+  background: var(--color-paper-warm);
 }
 
 /* ═══════════ 인쇄(보고서 PDF) 스타일 ═══════════ */

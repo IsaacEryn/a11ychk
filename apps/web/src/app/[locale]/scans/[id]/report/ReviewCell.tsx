@@ -37,7 +37,7 @@ export function ReviewCell({
       <summary className="cursor-pointer text-xs font-bold text-[var(--color-seal)] underline underline-offset-2">
         {current ? t("edit") : t("add")}
       </summary>
-      <form action={formAction} className="mt-2 w-64 space-y-2 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-3">
+      <form action={formAction} className="mt-2 w-[min(16rem,78vw)] space-y-2 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-3">
         <input type="hidden" name="scanId" value={scanId} />
         <input type="hidden" name="standard" value={standard} />
         <input type="hidden" name="itemId" value={itemId} />

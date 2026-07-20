@@ -248,23 +248,27 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
           <ul className="mt-5 space-y-4">
             {domains.map((d) => (
               <li key={d.id} className="doc-card p-5">
-                <div className="flex flex-wrap items-center gap-3">
-                  <span className="font-display text-lg font-bold">{d.hostname}</span>
-                  {d.verified ? (
-                    <span className="rounded-full border-[1.5px] border-[var(--color-seal)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-seal)]">
-                      ✓ {t("domains.verified")}
-                    </span>
-                  ) : (
-                    <span className="rounded-full border-[1.5px] border-[var(--color-line)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
-                      {t("domains.unverified")}
-                    </span>
-                  )}
-                  {d.auto_scan && (
-                    <span className="rounded-full bg-[var(--color-seal-tint)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-seal)]">
-                      {t("domains.autoScanOn")}
-                    </span>
-                  )}
-                  <div className="ml-auto flex flex-wrap items-center gap-2.5">
+                {/* 모바일: 제목/배지 → 액션을 세로 스택. 데스크톱: 한 줄(액션 우측 정렬) */}
+                <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
+                  <div className="flex flex-wrap items-center gap-2.5">
+                    <span className="font-display text-lg font-bold break-all">{d.hostname}</span>
+                    {d.verified ? (
+                      <span className="rounded-full border-[1.5px] border-[var(--color-seal)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-seal)]">
+                        ✓ {t("domains.verified")}
+                      </span>
+                    ) : (
+                      <span className="rounded-full border-[1.5px] border-[var(--color-line)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
+                        {t("domains.unverified")}
+                      </span>
+                    )}
+                    {d.auto_scan && (
+                      <span className="rounded-full bg-[var(--color-seal-tint)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-seal)]">
+                        {t("domains.autoScanOn")}
+                      </span>
+                    )}
+                  </div>
+                  {/* 모바일에선 전체 폭 행 → 삭제가 ml-auto로 우측 끝에 분리(오탭 방지) */}
+                  <div className="flex flex-wrap items-center gap-2.5 sm:ml-auto">
                     <form action={toggleAutoScan}>
                       <input type="hidden" name="id" value={d.id} />
                       <input type="hidden" name="enabled" value={String(d.auto_scan)} />

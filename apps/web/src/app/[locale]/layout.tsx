@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { NextIntlClientProvider, hasLocale } from "next-intl";
@@ -25,6 +25,21 @@ const hahmlet = Hahmlet({
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
+
+/**
+ * 뷰포트 — 모바일 필수 기반.
+ * viewport-fit=cover로 노치/홈바 안전영역(env(safe-area-inset-*)) 사용을 활성화하고,
+ * themeColor를 테마별로 지정해 브라우저 UI(주소창) 색을 페이지 배경(--color-paper)과 맞춘다.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#faf8f3" },
+    { media: "(prefers-color-scheme: dark)", color: "#14201d" },
+  ],
+};
 
 export async function generateMetadata({
   params,

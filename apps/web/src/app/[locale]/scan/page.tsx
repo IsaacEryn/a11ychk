@@ -108,7 +108,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
         <h2 id="scan-quota-heading" className="font-display text-xl font-bold">
           {tDash("quota.title")}
         </h2>
-        <dl className="mt-4 grid grid-cols-3 gap-3">
+        <dl className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
           {(["daily", "weekly", "monthly"] as const).map((key) => (
             <div key={key} className="border-l-[3px] border-[var(--color-seal)] pl-3">
               <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{tDash(`quota.${key}`)}</dt>

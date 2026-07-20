@@ -135,7 +135,7 @@ function Segmented<T extends string>({
   return (
     <div role="group" aria-label={legend} className="no-print mb-6 flex flex-wrap items-center gap-2">
       <span className="text-sm font-bold text-[var(--color-ink-soft)]">{legend}</span>
-      <div className="flex gap-1.5 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] p-1">
+      <div className="flex flex-wrap gap-1.5 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] p-1">
         {options.map((opt) => (
           <button
             key={opt.value}

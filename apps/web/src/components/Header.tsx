@@ -24,8 +24,8 @@ export async function Header() {
     "rounded px-2 py-1 text-[0.95rem] font-medium text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:underline underline-offset-4";
 
   return (
-    <header className="sticky top-0 z-40 border-b-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)]">
-      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3 sm:px-6">
+    <header className="sticky top-0 z-40 border-b-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] pt-[env(safe-area-inset-top)]">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 py-3 pl-[max(1rem,env(safe-area-inset-left))] pr-[max(1rem,env(safe-area-inset-right))] sm:pl-[max(1.5rem,env(safe-area-inset-left))] sm:pr-[max(1.5rem,env(safe-area-inset-right))]">
         <Link href="/" className="flex items-center gap-2 rounded">
           {/* 브랜드 마크 (brand/a11y-check-mark.svg) — 자체 배경색을 가져 테마 무관 */}
           <svg aria-hidden="true" viewBox="0 0 64 64" className="h-6 w-6 shrink-0">

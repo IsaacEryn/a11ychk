@@ -137,7 +137,7 @@ export function MobileNav({
       <div
         id={panelId}
         hidden={!open}
-        className="absolute left-0 right-0 top-full z-40 max-h-[calc(100svh-4rem)] overflow-y-auto border-b-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 pb-4 pt-2 shadow-[0_8px_16px_-8px_rgba(0,0,0,0.3)]"
+        className="absolute left-0 right-0 top-full z-40 max-h-[calc(100dvh-var(--header-h))] overflow-y-auto border-b-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 pt-2 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-[0_8px_16px_-8px_rgba(0,0,0,0.3)]"
       >
         <nav aria-label={labels.openMenu}>
           <ul className="flex flex-col gap-0.5">

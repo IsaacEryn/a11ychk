@@ -326,7 +326,7 @@ export default async function ReportPage({
               <caption className="sr-only">{t("pages.title")}</caption>
               <thead>
                 <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
-                  <th scope="col" className="py-2 pr-3 font-bold">{t("pages.colUrl")}</th>
+                  <th scope="col" className="col-sticky col-sticky-head py-2 pr-3 font-bold">{t("pages.colUrl")}</th>
                   <th scope="col" className="w-24 py-2 pr-3 font-bold">{t("pages.colCategory")}</th>
                   <th scope="col" className="w-20 py-2 pr-3 font-bold">{t("pages.colSample")}</th>
                   <th scope="col" className="w-24 py-2 pr-3 text-right font-bold">{t("pages.colViolations")}</th>
@@ -343,7 +343,7 @@ export default async function ReportPage({
                   const totalV = critSer + (vc.moderate ?? 0) + (vc.minor ?? 0);
                   return (
                     <tr key={p.id} className="border-b border-[var(--color-line)] align-top">
-                      <td className="break-all py-2 pr-3">
+                      <td className="col-sticky max-w-[16rem] break-all py-2 pr-3">
                         {p.url}
                         {viaExtension && (
                           <span className="ml-2 inline-block whitespace-nowrap rounded-full border border-[var(--color-seal)] px-2 py-0.5 text-xs font-bold text-[var(--color-seal)]">
@@ -609,7 +609,7 @@ export default async function ReportPage({
               <caption className="sr-only">{t("wcag.title")}</caption>
               <thead>
                 <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
-                  <th scope="col" className="py-2 pr-3 font-bold">{t("wcag.colSc")}</th>
+                  <th scope="col" className="col-sticky col-sticky-head py-2 pr-3 font-bold">{t("wcag.colSc")}</th>
                   <th scope="col" className="w-16 py-2 pr-3 font-bold">{t("wcag.colLevel")}</th>
                   <th scope="col" className="w-32 py-2 pr-3 font-bold">{t("wcag.colOutcome")}</th>
                   <th scope="col" className="w-14 py-2 pr-3 text-right font-bold">{t("wcag.colCount")}</th>
@@ -626,7 +626,7 @@ export default async function ReportPage({
                   const effective = (review?.outcome as WcagOutcome | undefined) ?? row.outcome;
                   return (
                     <tr key={row.scId} {...wcagRowData(row.outcome, review)} className="border-b border-[var(--color-line)] align-top">
-                      <th scope="row" className="py-2 pr-3 text-left font-medium">
+                      <th scope="row" className="col-sticky w-[15rem] py-2 pr-3 text-left font-medium">
                         <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
                         {pick(c.name, locale)}
                         {review?.note && (
@@ -740,7 +740,7 @@ export default async function ReportPage({
             <caption className="sr-only">{t("kwcag.title")}</caption>
             <thead>
               <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
-                <th scope="col" className="py-2 pr-3 font-bold">
+                <th scope="col" className="col-sticky col-sticky-head py-2 pr-3 font-bold">
                   {t("kwcag.colItem")}
                 </th>
                 <th scope="col" className="w-32 py-2 pr-3 font-bold">
@@ -764,7 +764,7 @@ export default async function ReportPage({
                 const review = kwcagReviews.get(row.itemId) ?? null;
                 return (
                   <tr key={row.itemId} {...kwcagRowData(row.status, review)} className="border-b border-[var(--color-line)] align-top">
-                    <th scope="row" className="py-2 pr-3 text-left font-medium">
+                    <th scope="row" className="col-sticky w-[15rem] py-2 pr-3 text-left font-medium">
                       <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
                       {pick(item.name, locale)}
                       {item.addedIn22 && (

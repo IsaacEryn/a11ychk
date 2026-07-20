@@ -83,5 +83,6 @@ export function Turnstile({
 
   if (!SITE_KEY) return null;
   // role="group" — 일반 div에는 aria-label을 쓸 수 없음 (aria-prohibited-attr)
-  return <div ref={ref} role="group" className="mt-3" aria-label="보안 확인" />;
+  // 위젯은 ~300px 고정폭 → 좁은 카드(소형 모바일)에서 넘치지 않게 가로 스크롤 컨테이너로 감싼다.
+  return <div ref={ref} role="group" className="mt-3 max-w-full overflow-x-auto" aria-label="보안 확인" />;
 }
