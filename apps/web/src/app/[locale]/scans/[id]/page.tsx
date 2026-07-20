@@ -1,6 +1,8 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { ScanProgress } from "./ScanProgress";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
@@ -20,6 +22,9 @@ export default async function ScanPage({ params }: { params: Promise<{ locale: s
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) redirect(`/${locale}/login`);
+
+  // 좀비 검사 자가 치유 — 이 검사가 제한 시간을 넘겨 running/queued에 멈춰 있으면 failed로 정리
+  await reclaimStaleScans(createAdminClient(), { scanId: id });
 
   const { data: scan } = await supabase.from("scans").select("id, root_url, status, error").eq("id", id).maybeSingle();
   if (!scan) notFound();

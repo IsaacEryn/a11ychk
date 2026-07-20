@@ -3,6 +3,7 @@ import type { EvaluationScope } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { QUOTA_WINDOWS, checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
+import { reclaimStaleScans } from "./reclaimStale";
 
 export type CreateScanResult =
   | { ok: true; id: string }
@@ -61,6 +62,10 @@ export async function createScanForUser(
       params: { limit: quota.limits[quota.exceeded!] },
     };
   }
+
+  // 좀비 검사 회수 — 함수 강제 종료로 running/queued에 멈춘 검사가 있으면 먼저 failed로
+  // 정리한다. 이게 없으면 아래 동시 실행 가드·유니크 인덱스가 새 검사를 영구 차단한다.
+  await reclaimStaleScans(admin, { userId });
 
   // 동시 실행 제한 — 사용자당 1건 (빠른 사전 검사; 원자적 보장은 아래
   // 부분 유니크 인덱스 scans_one_active_per_user가 담당 — migration 0011)

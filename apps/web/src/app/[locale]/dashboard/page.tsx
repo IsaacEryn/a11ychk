@@ -4,6 +4,7 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
+import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicListing, verifyDomain } from "@/lib/actions";
@@ -27,6 +28,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const user = await getCachedUser();
   if (!user) redirect(`/${locale}/login`);
   const supabase = await createClient();
+
+  // 좀비 검사 자가 치유 — 제한 시간을 넘긴 running/queued 검사를 failed로 정리해
+  // "검사 중" 칩이 영원히 남거나 새 검사가 차단되는 것을 막는다.
+  await reclaimStaleScans(createAdminClient(), { userId: user.id });
 
   const [{ data: profile }, { data: domains }, { data: scans }, { data: trendRows }] = await Promise.all([
     supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
