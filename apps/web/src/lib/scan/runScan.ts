@@ -34,6 +34,28 @@ import { fetchAllRows } from "@/lib/scan/fetchAll";
 const PAGE_LOAD_TIMEOUT_MS = 20_000;
 
 /**
+ * 전체 스캔 시간 예산. 라우트 maxDuration=300s를 넘기면 함수가 강제 종료되어
+ * 검사가 running에 갇히므로(좀비), 그 전에 루프를 멈추고 '부분 결과'로 완료한다.
+ * 표본 수집(buildSample)·집계·DB 기록·브라우저 정리 여유를 두어 210s로 잡는다.
+ */
+const SCAN_BUDGET_MS = 210_000;
+
+/**
+ * 단일 페이지 하드 타임아웃. goto(20s)·load·폰트·2패스 axe 합이 비정상적으로 길어지는
+ * 페이지 하나가 전체 예산을 삼키지 않도록 캡을 둔다.
+ */
+const PAGE_SCAN_TIMEOUT_MS = 55_000;
+
+/** 프라미스에 타임아웃을 건다(초과 시 reject). 원 프라미스는 race가 계속 참조하므로 미처리 거부 없음. */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
  * 서브리소스 요청의 내부망 접근 차단 (SSRF 심층 방어).
  * 리터럴 IP는 즉시 판정하고, 호스트네임은 DNS로 해석해 사설 대역이면 차단한다.
  * (호스트네임이 사설 IP로 해석되는 rebinding·내부 참조를 막는다)
@@ -271,7 +293,15 @@ export async function runScan(scanId: string): Promise<void> {
     const structuredRules = new Set<string>();
     const randomRules = new Set<string>();
 
+    // 시간 예산 — 초과 시 남은 페이지는 pending으로 두고 부분 결과로 완료한다(좀비 방지)
+    const scanStarted = Date.now();
+    let budgetExceeded = false;
+
     for (const row of pageRows) {
+      if (Date.now() - scanStarted > SCAN_BUDGET_MS) {
+        budgetExceeded = true;
+        break; // 남은 페이지는 pending(보고서에 '건너뜀')으로 남긴다
+      }
       await db.from("scan_pages").update({ status: "running" }).eq("id", row.id);
       let lastError: Error | undefined;
 
@@ -283,7 +313,12 @@ export async function runScan(scanId: string): Promise<void> {
           await assertPublicHttpUrl(row.url);
           browser = await launchGuardedBrowser(row.url);
           try {
-            const { result, signature } = await scanSinglePage(browser, row.url);
+            // 페이지별 하드 타임아웃 — 한 페이지가 예산을 통째로 삼키지 않게 캡
+            const { result, signature } = await withTimeout(
+              scanSinglePage(browser, row.url),
+              PAGE_SCAN_TIMEOUT_MS,
+              `페이지 검사 시간 초과 (${Math.round(PAGE_SCAN_TIMEOUT_MS / 1000)}초)`,
+            );
             await persistPageResult(db, row.id, result, signature);
             results.push(result);
             if (signature) signatures.push(signature);
@@ -300,6 +335,8 @@ export async function runScan(scanId: string): Promise<void> {
           lastError = pageError as Error;
           await disposeBrowser(browser);
           browser = null;
+          // 예산이 소진됐으면 재시도하지 않는다
+          if (Date.now() - scanStarted > SCAN_BUDGET_MS) break;
         }
       }
 
@@ -309,6 +346,19 @@ export async function runScan(scanId: string): Promise<void> {
           .update({ status: "failed", error: truncate(lastError.message, 500) })
           .eq("id", row.id);
       }
+    }
+
+    // 예산 초과로 중단됐으면 미검사(pending) 페이지를 사유와 함께 failed로 표시한다.
+    // (보고서에 '검사 실패'로 명시 + 개별 페이지 재검사 버튼 노출 — 조용한 누락보다 명확)
+    if (budgetExceeded) {
+      await db
+        .from("scan_pages")
+        .update({
+          status: "failed",
+          error: "TIMEOUT: 전체 검사 시간이 초과되어 이 페이지는 검사하지 못했습니다. 페이지별 재검사 또는 재시도로 마저 검사할 수 있습니다.",
+        })
+        .eq("scan_id", scanId)
+        .eq("status", "pending");
     }
 
     if (results.length === 0) {
