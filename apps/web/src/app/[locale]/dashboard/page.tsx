@@ -5,11 +5,12 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
-import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { checkQuota, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
-import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicListing, verifyDomain } from "@/lib/actions";
+import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicListing } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
+import { DomainVerify } from "./DomainVerify";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -46,6 +47,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       .order("created_at", { ascending: false })
       .limit(60),
   ]);
+
+  // 등급별 소유 확인 도메인 수 한도 (실제 요금제 시행 전이라도 배정 등급으로 즉시 적용)
+  const verifyLimit = getVerifiedDomainLimit(profile?.scan_limit_override);
+  const verifiedCount = (domains ?? []).filter((d) => d.verified).length;
+  const atVerifyLimit = verifiedCount >= verifyLimit;
 
   // 호스트별 준수율 추이 (오래된 → 최신, 도메인당 최근 12회)
   // 등록 도메인(codeslog.com)과 검사 URL(www.codeslog.com)을 잇도록 www.은 접어서 비교
@@ -201,6 +207,16 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
           {t("domains.title")}
         </h2>
 
+        {/* 소유 확인 한도 안내 — 등급별 상한과 현재 사용량, 초과 시 관리자 문의 유도 */}
+        <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
+          {t("domains.verifyQuota", { count: verifiedCount, limit: verifyLimit })}{" "}
+          {atVerifyLimit && (
+            <Link href="/inquiries" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+              {t("domains.verifyQuotaContact")}
+            </Link>
+          )}
+        </p>
+
         <form action={addDomain} className="mt-4 flex max-w-lg flex-wrap items-end gap-2">
           <div className="min-w-52 flex-1">
             <label htmlFor="hostname" className="mb-1 block text-sm font-semibold">
@@ -272,14 +288,6 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         </button>
                       </form>
                     )}
-                    {!d.verified && (
-                      <form action={verifyDomain}>
-                        <input type="hidden" name="id" value={d.id} />
-                        <button type="submit" className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]">
-                          {t("domains.verify")}
-                        </button>
-                      </form>
-                    )}
                     {/* 파괴적 삭제는 ml-auto로 나머지 액션과 떨어뜨려 오탭 방지 */}
                     <form action={deleteDomain} className="ml-auto">
                       <input type="hidden" name="id" value={d.id} />
@@ -339,7 +347,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         </code>
                       </li>
                     </ul>
-                    <p className="mt-3 text-xs text-[var(--color-ink-faint)]">{t("domains.verifyAfter")}</p>
+                    <DomainVerify domainId={d.id} atLimit={atVerifyLimit} limit={verifyLimit} />
                   </div>
                 )}
                 {d.verified && (

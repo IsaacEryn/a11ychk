@@ -1,7 +1,7 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createInquiry } from "@/lib/actions";
+import { InquiryForm } from "./InquiryForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -39,61 +39,7 @@ export default async function InquiriesPage({ params }: { params: Promise<{ loca
       <p className="mt-2 text-[var(--color-ink-soft)]">{t("desc")}</p>
 
       {/* 새 문의 */}
-      <form action={createInquiry} className="doc-card mt-8 p-6">
-        <fieldset>
-          <legend className="font-display text-xl font-bold">{t("new.legend")}</legend>
-
-          <div className="mt-4">
-            <label htmlFor="inq-type" className="mb-1 block text-sm font-semibold">
-              {t("new.type")}
-            </label>
-            <select
-              id="inq-type"
-              name="type"
-              className="rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2"
-            >
-              <option value="feature">{t("new.typeFeature")}</option>
-              <option value="bug">{t("new.typeBug")}</option>
-              <option value="question">{t("new.typeQuestion")}</option>
-            </select>
-          </div>
-
-          <div className="mt-4">
-            <label htmlFor="inq-title" className="mb-1 block text-sm font-semibold">
-              {t("new.subject")}
-            </label>
-            <input
-              id="inq-title"
-              name="title"
-              type="text"
-              required
-              maxLength={200}
-              className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2"
-            />
-          </div>
-
-          <div className="mt-4">
-            <label htmlFor="inq-body" className="mb-1 block text-sm font-semibold">
-              {t("new.body")}
-            </label>
-            <textarea
-              id="inq-body"
-              name="body"
-              required
-              rows={5}
-              maxLength={5000}
-              className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2"
-            />
-          </div>
-
-          <button
-            type="submit"
-            className="mt-4 rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
-          >
-            {t("new.submit")}
-          </button>
-        </fieldset>
-      </form>
+      <InquiryForm />
 
       {/* 내 문의 */}
       <section aria-labelledby="my-inquiries-heading" className="mt-10">

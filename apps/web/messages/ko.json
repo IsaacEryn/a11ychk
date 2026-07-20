@@ -303,7 +303,28 @@
       "verifyDnsTitle": "방법 3 · 도메인 설정(DNS)에 추가",
       "verifyDnsDesc": "도메인을 구입한 곳(가비아·후이즈·Cloudflare 등)의 DNS 관리에서 아래 TXT 레코드를 추가하세요. (도메인 설정에 익숙할 때 권장합니다.)",
       "verifyDnsRecord": "유형: TXT · 이름: _a11ychk.{host} · 값: {token}",
-      "verifyAfter": "설정 후 위의 '소유 확인' 버튼을 누르세요. 반영까지 몇 분 걸릴 수 있습니다."
+      "verifyAfter": "설정 후 위의 '소유 확인' 버튼을 누르세요. 반영까지 몇 분 걸릴 수 있습니다.",
+      "verifying": "확인 중…",
+      "verifyFailedHint": "DNS 레코드는 전파에 최대 몇 분~수십 분이 걸릴 수 있어요. 잠시 후 다시 눌러 주세요. 파일·메타태그 방법은 보통 즉시 반영됩니다.",
+      "verifyError": "요청을 처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      "verifyLimitTitle": "소유 확인 한도({limit}개)에 도달했습니다",
+      "verifyLimitDesc": "현재 등급에서 확인 가능한 사이트 수를 모두 사용했습니다. 더 많은 사이트를 등록하려면 관리자에게 문의해 주세요.",
+      "verifyQuota": "소유 확인 {count}/{limit}개",
+      "verifyQuotaContact": "더 등록하려면 관리자에게 문의",
+      "cfToggle": "Cloudflare로 자동 설정하기",
+      "cfTitle": "Cloudflare 자동 설정",
+      "cfDesc": "Cloudflare에서 도메인을 관리 중이라면, API 토큰으로 소유 확인용 DNS(TXT) 레코드를 자동으로 만들어 드립니다.",
+      "cfTokenLabel": "Cloudflare API 토큰",
+      "cfTokenPlaceholder": "API 토큰 붙여넣기",
+      "cfTokenHelp": "Zone·DNS 편집 권한 토큰이 필요합니다. 토큰은 저장되지 않고 이 요청에만 사용됩니다.",
+      "cfTokenCreate": "토큰 만들기",
+      "cfSubmit": "자동 설정하고 확인",
+      "cfSubmitting": "설정하는 중…",
+      "cfDone": "DNS 레코드를 생성했습니다. 전파 후(보통 1~2분) 위의 “소유 확인”을 눌러 마무리해 주세요.",
+      "cfZoneNotFound": "이 도메인에 해당하는 Cloudflare 존을 찾지 못했습니다. 토큰이 해당 도메인 권한을 포함하는지 확인해 주세요.",
+      "cfAuthError": "토큰이 유효하지 않거나 권한이 부족합니다. Zone·DNS 편집 권한을 확인해 주세요.",
+      "cfApiError": "Cloudflare 설정 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
+      "cfInvalid": "API 토큰을 올바르게 입력해 주세요."
     },
     "recent": {
       "title": "최근 검사",
@@ -697,7 +718,19 @@
       "subject": "제목",
       "body": "내용",
       "submit": "등록하기",
-      "success": "문의가 등록되었습니다."
+      "success": "문의가 등록되었습니다.",
+      "submitting": "등록 중…",
+      "successHint": "소중한 의견 감사합니다. 운영자 답변은 아래 ‘내 문의 내역’에서 확인하실 수 있습니다.",
+      "error": {
+        "invalid": "입력한 내용을 다시 확인해 주세요.",
+        "rateLimited": "잠시 후 다시 시도해 주세요.",
+        "failed": "문의 등록에 실패했습니다."
+      },
+      "errorHint": {
+        "invalid": "제목은 1~200자, 내용은 1~5000자로 입력해 주세요.",
+        "rateLimited": "10분 안에 5건까지 등록할 수 있습니다. 이미 등록한 문의는 아래 목록에서 확인하실 수 있습니다.",
+        "failed": "일시적인 문제일 수 있습니다. 잠시 후 다시 시도해 주세요."
+      }
     },
     "list": {
       "title": "내 문의 내역",

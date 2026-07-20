@@ -12,7 +12,8 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireScanOwner } from "@/lib/apiAuth";
 import { isImpersonatingNickname } from "@/lib/nickname";
-import { MAX_PAGES_PER_SCAN, PLAN_IDS } from "@/lib/quota";
+import { MAX_PAGES_PER_SCAN, PLAN_IDS, getVerifiedDomainLimit } from "@/lib/quota";
+import { setupCloudflareTxt } from "@/lib/cloudflare";
 import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction } from "@/lib/logs";
 
@@ -132,11 +133,45 @@ export async function togglePublicListing(formData: FormData): Promise<void> {
   revalidateLocalized("/dashboard", "/directory");
 }
 
-/** DNS TXT(_a11ychk.호스트) 또는 홈페이지 메타태그로 소유 확인 */
-export async function verifyDomain(formData: FormData): Promise<void> {
+/**
+ * 소유 확인 결과 상태 (useActionState용). UI가 next-intl로 문구를 번역해 표시한다.
+ * - verified: 확인 성공  - failed: 세 방법 모두 확인 수단을 찾지 못함(예: DNS 전파 전)
+ * - limit: 등급별 소유 확인 도메인 수 초과  - error: 잘못된 요청/도메인 없음
+ */
+export interface VerifyDomainState {
+  status?: "verified" | "failed" | "limit" | "error";
+  method?: "dns_txt" | "meta_tag" | "html_file";
+  /** limit 상태에서 표시할 현재 한도 */
+  limit?: number;
+}
+
+/**
+ * 현재 사용자가 새 도메인을 소유 확인할 수 있는지 — 이미 확인된 도메인 수 < 등급 한도.
+ * @returns 초과 시 { limit } (차단), 여유 있으면 null
+ */
+async function checkVerifyCapacity(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<{ limit: number } | null> {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("scan_limit_override")
+    .eq("id", userId)
+    .single();
+  const limit = getVerifiedDomainLimit(profile?.scan_limit_override);
+  const { count } = await supabase
+    .from("domains")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .eq("verified", true);
+  return (count ?? 0) >= limit ? { limit } : null;
+}
+
+/** DNS TXT(_a11ychk.호스트)·메타태그·.well-known 파일로 소유 확인. useActionState 시그니처. */
+export async function verifyDomain(_prev: VerifyDomainState, formData: FormData): Promise<VerifyDomainState> {
   const { supabase, user } = await requireUser();
   const idParsed = z.string().uuid().safeParse(formData.get("id"));
-  if (!idParsed.success) return;
+  if (!idParsed.success) return { status: "error" };
 
   const { data: domain } = await supabase
     .from("domains")
@@ -144,65 +179,117 @@ export async function verifyDomain(formData: FormData): Promise<void> {
     .eq("id", idParsed.data)
     .eq("user_id", user.id)
     .single();
-  if (!domain || domain.verified) return;
+  if (!domain) return { status: "error" };
+  if (domain.verified) return { status: "verified" };
 
-  let method: "dns_txt" | "meta_tag" | "html_file" | null = null;
+  // 등급별 소유 확인 도메인 수 한도 검사
+  const over = await checkVerifyCapacity(supabase, user.id);
+  if (over) return { status: "limit", limit: over.limit };
 
+  const method = await detectVerification(domain.hostname, domain.verify_token);
+  if (!method) return { status: "failed" };
+
+  // verified 갱신은 service role로 (domains에 UPDATE RLS 없음, 소유자 필터 명시)
+  await createAdminClient().from("domains").update({ verified: true, verify_method: method }).eq("id", domain.id);
+  revalidateLocalized("/dashboard", "/scan");
+  return { status: "verified", method };
+}
+
+/** 3중 폴백(DNS TXT → 메타태그 → .well-known 파일)으로 소유 확인 수단을 탐지. 없으면 null */
+async function detectVerification(
+  hostname: string,
+  token: string,
+): Promise<"dns_txt" | "meta_tag" | "html_file" | null> {
   // 1) DNS TXT
   try {
-    const records = await resolveTxt(`_a11ychk.${domain.hostname}`);
-    if (records.some((chunks) => chunks.join("").trim() === domain.verify_token)) {
-      method = "dns_txt";
-    }
+    const records = await resolveTxt(`_a11ychk.${hostname}`);
+    if (records.some((chunks) => chunks.join("").trim() === token)) return "dns_txt";
   } catch {
-    // 레코드 없음 — 다음 방법으로 진행
+    // 레코드 없음 — 다음 방법으로
   }
 
   // 2) 메타태그 (홈페이지 <head>)
-  if (!method) {
-    try {
-      const res = await guardedFetch(`https://${domain.hostname}/`);
-      if (res.ok) {
-        const html = (await res.text()).slice(0, 500_000);
-        // 토큰을 RegExp에 보간하지 않는다(정규식 주입·ReDoS 방지) —
-        // 메타태그 패턴만 정규식으로 찾고 토큰은 문자열 비교로 확인
-        const metaRe = /<meta\b[^>]*>/gi;
-        for (const m of html.match(metaRe) ?? []) {
-          const tag = m.toLowerCase();
-          if (tag.includes("a11ychk-verify") && m.includes(domain.verify_token)) {
-            method = "meta_tag";
-            break;
-          }
-        }
+  try {
+    const res = await guardedFetch(`https://${hostname}/`);
+    if (res.ok) {
+      const html = (await res.text()).slice(0, 500_000);
+      // 토큰을 RegExp에 보간하지 않는다(정규식 주입·ReDoS 방지) — 태그만 정규식, 토큰은 문자열 비교
+      const metaRe = /<meta\b[^>]*>/gi;
+      for (const m of html.match(metaRe) ?? []) {
+        if (m.toLowerCase().includes("a11ychk-verify") && m.includes(token)) return "meta_tag";
       }
-    } catch {
-      // 접속 실패 — 다음 방법으로 진행
     }
+  } catch {
+    // 접속 실패 — 다음 방법으로
   }
 
   // 3) HTML 파일 (.well-known/a11ychk-verify.txt)
-  if (!method) {
-    try {
-      const res = await guardedFetch(`https://${domain.hostname}/.well-known/a11ychk-verify.txt`);
-      // 일부 서버는 404 본문에도 200을 주므로 content-type도 함께 본다
-      const ct = res.headers.get("content-type") ?? "";
-      if (res.ok && !ct.includes("html")) {
-        const body = (await res.text()).slice(0, 1_000).trim();
-        if (body === domain.verify_token) {
-          method = "html_file";
-        }
-      }
-    } catch {
-      // 접속 실패 — 미확인 유지
+  try {
+    const res = await guardedFetch(`https://${hostname}/.well-known/a11ychk-verify.txt`);
+    // 일부 서버는 404 본문에도 200을 주므로 content-type도 함께 본다
+    const ct = res.headers.get("content-type") ?? "";
+    if (res.ok && !ct.includes("html")) {
+      const body = (await res.text()).slice(0, 1_000).trim();
+      if (body === token) return "html_file";
     }
+  } catch {
+    // 접속 실패 — 미확인 유지
   }
+  return null;
+}
 
-  if (method) {
-    // verified 갱신은 service role로 (verify_method 포함)
-    const admin = createAdminClient();
-    await admin.from("domains").update({ verified: true, verify_method: method }).eq("id", domain.id);
+/**
+ * Cloudflare 자동 설정 결과 상태 (useActionState용).
+ * - verified: TXT 생성 후 즉시 확인까지 완료
+ * - done: TXT 레코드는 생성했으나 아직 전파 전 → 잠시 후 "소유 확인" 필요
+ * - zone_not_found: 토큰으로 이 도메인의 존을 찾지 못함  - auth_error: 토큰 무효/권한 부족
+ * - api_error / invalid / limit / error
+ */
+export interface CloudflareState {
+  status?: "verified" | "done" | "zone_not_found" | "auth_error" | "api_error" | "invalid" | "limit" | "error";
+  limit?: number;
+}
+
+/**
+ * Cloudflare API 토큰으로 소유 확인용 TXT 레코드를 자동 생성하고, 가능하면 즉시 확인까지 처리.
+ * 토큰은 저장하지 않고 이 요청에서만 사용한다(cloudflare.ts). useActionState 시그니처.
+ */
+export async function setupCloudflareDns(_prev: CloudflareState, formData: FormData): Promise<CloudflareState> {
+  const { supabase, user } = await requireUser();
+  const idParsed = z.string().uuid().safeParse(formData.get("id"));
+  const token = String(formData.get("cfToken") ?? "").trim();
+  // Cloudflare API 토큰은 보통 40자. 형식만 느슨히 검증(값은 로깅하지 않음)
+  if (!idParsed.success || token.length < 20 || token.length > 200) return { status: "invalid" };
+
+  const { data: domain } = await supabase
+    .from("domains")
+    .select("id, hostname, verify_token, verified")
+    .eq("id", idParsed.data)
+    .eq("user_id", user.id)
+    .single();
+  if (!domain) return { status: "error" };
+  if (domain.verified) return { status: "verified" };
+
+  // 자동 설정 후 곧바로 확인까지 이어지므로, 확인 한도를 미리 검사해 헛수고를 막는다
+  const over = await checkVerifyCapacity(supabase, user.id);
+  if (over) return { status: "limit", limit: over.limit };
+
+  const recordName = `_a11ychk.${domain.hostname}`;
+  const result = await setupCloudflareTxt(token, domain.hostname, recordName, domain.verify_token);
+  if (result.status !== "ok") return { status: result.status };
+
+  // 레코드 생성 직후 1회 확인 시도 — 전파 전이면 실패할 수 있어 done으로 안내
+  try {
+    const records = await resolveTxt(recordName);
+    if (records.some((chunks) => chunks.join("").trim() === domain.verify_token)) {
+      await createAdminClient().from("domains").update({ verified: true, verify_method: "dns_txt" }).eq("id", domain.id);
+      revalidateLocalized("/dashboard", "/scan");
+      return { status: "verified" };
+    }
+  } catch {
+    // 전파 전 — done으로 안내
   }
-  revalidateLocalized("/dashboard", "/scan");
+  return { status: "done" };
 }
 
 // ─────────────── 프로필 ───────────────
@@ -255,24 +342,30 @@ const InquirySchema = z.object({
   body: z.string().trim().min(1).max(5000),
 });
 
-export async function createInquiry(formData: FormData): Promise<void> {
+/**
+ * 문의 등록. 실패해도 사용자가 이유를 알 수 있도록 결과 상태를 돌려준다(useActionState).
+ * error: "invalid"(입력 검증) | "rateLimited"(단시간 과다) | "failed"(저장 실패)
+ */
+export async function createInquiry(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
   const parsed = InquirySchema.safeParse({
     type: formData.get("type"),
     title: formData.get("title"),
     body: formData.get("body"),
   });
-  if (!parsed.success) return;
-  // 레이트리밋 — 사용자당 최근 10분 내 5건 초과 시 무시 (스팸·테이블 팽창 방지)
+  if (!parsed.success) return { error: "invalid" };
+  // 레이트리밋 — 사용자당 최근 10분 내 5건 초과 시 거절 (스팸·테이블 팽창 방지)
   const since = new Date(Date.now() - 10 * 60_000).toISOString();
   const { count } = await supabase
     .from("inquiries")
     .select("id", { count: "exact", head: true })
     .eq("user_id", user.id)
     .gte("created_at", since);
-  if ((count ?? 0) >= 5) return;
-  await supabase.from("inquiries").insert({ user_id: user.id, ...parsed.data });
-  revalidateLocalized("/contact", "/admin/inquiries");
+  if ((count ?? 0) >= 5) return { error: "rateLimited" };
+  const { error } = await supabase.from("inquiries").insert({ user_id: user.id, ...parsed.data });
+  if (error) return { error: "failed" };
+  revalidateLocalized("/contact", "/inquiries", "/admin/inquiries");
+  return { ok: true };
 }
 
 // ─────────────── 보고서 워크벤치 (점검자 판정·메타) ───────────────

@@ -41,6 +41,27 @@ export const DEFAULT_SCAN_LIMITS: ScanLimits = {
 /** 소유 확인된 도메인의 free 등급 보너스 표본 수 (현행 동작 유지) */
 export const VERIFIED_FREE_SAMPLE_SIZE = 10;
 
+/**
+ * 등급(요금제)별 소유 확인 가능한 도메인 수 상한.
+ * 실제 요금제 시행(plansActive) 전이라도 관리자가 배정한 등급(getPlan)에 따라 즉시 적용된다
+ * — 스캔 횟수 한도와 달리 도메인 소유 확인 수는 등급 자체로 관리(운영 정책). 더 필요하면 관리자 문의.
+ */
+export const DOMAIN_VERIFY_LIMITS: Record<PlanId, number> = {
+  free: 1,
+  pro: 3,
+  enterprise: 10,
+};
+
+/**
+ * 사용자가 소유 확인할 수 있는 도메인 수.
+ * 우선순위: 관리자 지정 개별 숫자(scan_limit_override.verifiedDomains) > 배정 등급 기본값.
+ */
+export function getVerifiedDomainLimit(override: unknown): number {
+  const v = asRecord(override).verifiedDomains;
+  if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
+  return DOMAIN_VERIFY_LIMITS[getPlan(override)];
+}
+
 /** 스캔 1회당 절대 최대 표본 페이지 수 (하드 캡) — Vercel 함수 실행 시간 한도 고려 */
 export const MAX_PAGES_PER_SCAN = 30;
 

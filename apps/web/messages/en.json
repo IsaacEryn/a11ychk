@@ -303,7 +303,28 @@
       "verifyDnsTitle": "Option 3 · Add a DNS record",
       "verifyDnsDesc": "In the DNS settings where you bought your domain (Cloudflare, GoDaddy, etc.), add the TXT record below. (Recommended if you're comfortable with DNS.)",
       "verifyDnsRecord": "Type: TXT · Name: _a11ychk.{host} · Value: {token}",
-      "verifyAfter": "After setting it up, click the 'Verify' button above. It may take a few minutes to take effect."
+      "verifyAfter": "After setting it up, click the 'Verify' button above. It may take a few minutes to take effect.",
+      "verifying": "Verifying…",
+      "verifyFailedHint": "DNS records can take a few minutes to propagate. Please try again shortly. The file and meta-tag methods usually take effect immediately.",
+      "verifyError": "We could not process the request. Please try again in a moment.",
+      "verifyLimitTitle": "Ownership limit reached ({limit})",
+      "verifyLimitDesc": "You have verified the maximum number of sites for your current tier. To register more sites, please contact the administrator.",
+      "verifyQuota": "Verified {count}/{limit}",
+      "verifyQuotaContact": "Contact admin to add more",
+      "cfToggle": "Set up automatically with Cloudflare",
+      "cfTitle": "Cloudflare auto-setup",
+      "cfDesc": "If your domain is managed on Cloudflare, we can create the DNS (TXT) verification record for you using an API token.",
+      "cfTokenLabel": "Cloudflare API token",
+      "cfTokenPlaceholder": "Paste API token",
+      "cfTokenHelp": "A token with Zone · DNS edit permission is required. The token is not stored and is used only for this request.",
+      "cfTokenCreate": "Create a token",
+      "cfSubmit": "Set up and verify",
+      "cfSubmitting": "Setting up…",
+      "cfDone": "DNS record created. After it propagates (usually 1–2 minutes), press “Verify” above to finish.",
+      "cfZoneNotFound": "No matching Cloudflare zone was found for this domain. Make sure the token includes permission for this domain.",
+      "cfAuthError": "The token is invalid or lacks permission. Please check Zone · DNS edit permission.",
+      "cfApiError": "An error occurred during Cloudflare setup. Please try again in a moment.",
+      "cfInvalid": "Please enter a valid API token."
     },
     "recent": {
       "title": "Recent audits",
@@ -697,7 +718,19 @@
       "subject": "Subject",
       "body": "Details",
       "submit": "Submit",
-      "success": "Your inquiry has been submitted."
+      "success": "Your inquiry has been submitted.",
+      "submitting": "Submitting…",
+      "successHint": "Thank you — we appreciate it. Replies appear under “My inquiries” below.",
+      "error": {
+        "invalid": "Please check what you entered.",
+        "rateLimited": "Please try again in a little while.",
+        "failed": "Could not submit your inquiry."
+      },
+      "errorHint": {
+        "invalid": "Subject must be 1–200 characters and details 1–5000 characters.",
+        "rateLimited": "You can submit up to 5 inquiries per 10 minutes. Inquiries you already submitted appear in the list below.",
+        "failed": "This may be temporary. Please try again shortly."
+      }
     },
     "list": {
       "title": "My inquiries",
