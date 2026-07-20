@@ -23,6 +23,7 @@ import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { ReportControls } from "./ReportControls";
+import { wcagRowData, kwcagRowData } from "./reportFilter";
 import { CompareSelect } from "./CompareSelect";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
@@ -110,38 +111,7 @@ export default async function ReportPage({
     );
   const maxImpact = Math.max(1, ...IMPACT_ORDER.map((k) => summary.byImpact[k]));
 
-  // 출력 범위 필터 — 점검자 판정이 있으면 그것을 우선한다 (매트릭스 표시 규칙과 동일).
-  // view별 가시성을 각 행에 data 속성으로 새겨 CSS가 즉시 필터하게 한다(서버 재페치 제거).
-  const wcagRowVisible = (v: "all" | "auto" | "done" | "issues", outcome: WcagOutcome, review: { outcome: string } | null): boolean => {
-    if (v === "all") return true;
-    // auto: 자동 도구가 판정을 낸 항목만 (notChecked = 수동 필요 → 제외). 점검자 판정과 무관
-    if (v === "auto") return outcome !== "notChecked";
-    const effective = (review?.outcome as WcagOutcome | undefined) ?? outcome;
-    if (v === "issues") return effective === "failed";
-    // done: 점검자가 판정했거나 자동으로 확정 판정된 항목
-    return review !== null || effective === "passed" || effective === "failed" || effective === "cannotTell";
-  };
-  const kwcagRowVisible = (v: "all" | "auto" | "done" | "issues", status: string, review: { outcome: string } | null): boolean => {
-    if (v === "all") return true;
-    if (v === "auto") return status !== "manual";
-    if (review) return v === "issues" ? review.outcome === "failed" : true;
-    if (v === "issues") return status === "fail";
-    return status === "pass" || status === "fail" || status === "review";
-  };
-  /** 행에 붙일 view 가시성 data 속성 (all은 항상 보이므로 생략). undefined면 React가 속성 미출력 */
-  const wcagRowData = (outcome: WcagOutcome, review: { outcome: string } | null) => ({
-    "data-row": "",
-    "data-v-auto": wcagRowVisible("auto", outcome, review) ? "" : undefined,
-    "data-v-done": wcagRowVisible("done", outcome, review) ? "" : undefined,
-    "data-v-issues": wcagRowVisible("issues", outcome, review) ? "" : undefined,
-  });
-  const kwcagRowData = (status: string, review: { outcome: string } | null) => ({
-    "data-row": "",
-    "data-v-auto": kwcagRowVisible("auto", status, review) ? "" : undefined,
-    "data-v-done": kwcagRowVisible("done", status, review) ? "" : undefined,
-    "data-v-issues": kwcagRowVisible("issues", status, review) ? "" : undefined,
-  });
-
+  // 출력 범위(view) 행 가시성 → data 속성 (판정 로직은 reportFilter.ts, 유닛테스트로 잠금)
   const statusStyle: Record<string, string> = {
     pass: "bg-[var(--color-seal-tint)] text-[var(--color-pass)] border-[var(--color-seal)]",
     fail: "bg-[var(--color-crit-tint)] text-[var(--color-crit)] border-[var(--color-crit)]",

@@ -5,7 +5,6 @@ import { NextIntlClientProvider, hasLocale } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { routing } from "@/i18n/routing";
 import { Hahmlet } from "next/font/google";
-import Script from "next/script";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { themeInitScript } from "@/components/ThemeToggle";
@@ -82,10 +81,15 @@ export default async function LocaleLayout({
     // 설정하므로 html 속성 불일치 경고를 억제한다 (theme attribute 표준 패턴)
     <html lang={locale} suppressHydrationWarning className={hahmlet.variable}>
       <body className="flex min-h-svh flex-col">
-        {/* 저장된 테마를 렌더 전에 적용해 깜빡임(FOUC) 방지 */}
-        <Script id="theme-init" strategy="beforeInteractive" nonce={nonce}>
-          {themeInitScript}
-        </Script>
+        {/* 저장된 테마를 렌더 전에 적용해 깜빡임(FOUC) 방지.
+            네이티브 <script>로 렌더 — React 19는 nonce를 클라이언트에 반영하지 않아
+            (브라우저가 nonce를 지워도) hydration 불일치가 없다. suppressHydrationWarning은
+            방어적. body 최상단이라 파싱 시점에 즉시 실행돼 FOUC 없음. */}
+        <script
+          nonce={nonce}
+          suppressHydrationWarning
+          dangerouslySetInnerHTML={{ __html: themeInitScript }}
+        />
         <a href="#main" className="skip-link">
           {t("skipToMain")}
         </a>
