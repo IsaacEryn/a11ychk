@@ -9,8 +9,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t("title"), description: t("desc") };
 }
 
-/** 공개 등재 사이트 목록 — 1시간 캐시 (opt-in 도메인만) */
-const getListedSites = unstable_cache(collectListedSites, ["directory-sites"], { revalidate: 3600 });
+/** 공개 등재 사이트 목록 — 60초 캐시 (등재·검사 변경이 곧 반영되도록 짧게, opt-in 도메인만) */
+const getListedSites = unstable_cache(collectListedSites, ["directory-sites"], { revalidate: 60 });
 
 const GRADE_STYLE: Record<string, string> = {
   good: "bg-[var(--color-seal-tint)] text-[var(--color-pass)] border-[var(--color-seal)]",

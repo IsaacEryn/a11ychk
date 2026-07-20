@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { findLatestDoneScanForHost } from "@/lib/host";
 import { gradeOf, gradeColor } from "@/lib/badgeGrade";
 import type { ScanSummary } from "@a11ychk/core";
 
@@ -58,14 +59,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
     return svgResponse(badgeSvg("A11Y Check", "N/A", "#9e9e9e"));
   }
 
-  const { data: scan } = await admin
-    .from("scans")
-    .select("summary")
-    .eq("domain_id", domain.id)
-    .eq("status", "done")
-    .order("finished_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  // www/apex 무관 최신 완료 검사 (domain_id는 과거 불일치로 null일 수 있어 root_url 호스트로 매칭)
+  const scan = await findLatestDoneScanForHost<{ summary: unknown; root_url: string | null }>(
+    admin,
+    domain.user_id as string,
+    hostname,
+    "summary, root_url",
+  );
 
   const summary = scan?.summary as ScanSummary | null;
   if (!summary) {

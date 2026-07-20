@@ -3,6 +3,7 @@ import type { EvaluationScope } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { QUOTA_WINDOWS, checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
+import { foldHost } from "@/lib/host";
 import { reclaimStaleScans } from "./reclaimStale";
 
 export type CreateScanResult =
@@ -78,13 +79,17 @@ export async function createScanForUser(
     return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요.", code: "concurrent" };
   }
 
-  // 도메인 연결 + 요금제·소유확인 기반 표본 크기
-  const { data: domain } = await admin
+  // 도메인 연결 + 요금제·소유확인 기반 표본 크기.
+  // www/apex 무관 매칭 — 등록 도메인(codeslog.com)과 검사 URL(www.codeslog.com)이 어긋나도
+  // 같은 사이트로 연결(domain_id·소유확인 보너스 정상 적용). 정확 일치를 우선하고, 없으면 접어서.
+  const { data: userDomains } = await admin
     .from("domains")
-    .select("id, verified")
-    .eq("user_id", userId)
-    .eq("hostname", url.hostname)
-    .maybeSingle();
+    .select("id, verified, hostname")
+    .eq("user_id", userId);
+  const domain =
+    (userDomains ?? []).find((x) => x.hostname === url.hostname) ??
+    (userDomains ?? []).find((x) => foldHost(x.hostname as string) === foldHost(url.hostname)) ??
+    null;
 
   const pageLimit = getSampleSize({
     override: profile.scan_limit_override,
