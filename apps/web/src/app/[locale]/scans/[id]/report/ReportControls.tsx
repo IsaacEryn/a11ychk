@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useActionState, useState, type ReactNode } from "react";
+import { savePublicView } from "@/lib/actions";
 
 type View = "all" | "auto" | "done" | "issues";
 type Std = "both" | "wcag" | "kwcag";
@@ -14,6 +15,8 @@ type Std = "both" | "wcag" | "kwcag";
  * 링크가 현재 상태를 유지한다. (기존엔 router.replace로 매번 RSC를 재페치했음)
  */
 export function ReportControls({
+  canEdit,
+  scanId,
   initialView,
   initialStd,
   preferred,
@@ -24,6 +27,9 @@ export function ReportControls({
   rightActions,
   children,
 }: {
+  /** 소유자만 컨트롤(내보내기·표시 토글·공개 보기 저장)을 조작할 수 있다. 비소유자는 읽기 전용 */
+  canEdit: boolean;
+  scanId: string;
   initialView: View;
   initialStd: Std;
   preferred: "wcag" | "kwcag";
@@ -36,6 +42,9 @@ export function ReportControls({
     viewNotice: { auto: string; done: string; issues: string };
     stdNotice: { wcag: string; kwcag: string };
     downloadPdf: string;
+    savePublic: string;
+    savePublicHint: string;
+    savedPublic: string;
   };
   leftActions: ReactNode;
   rightActions: ReactNode;
@@ -43,6 +52,16 @@ export function ReportControls({
 }) {
   const [view, setView] = useState<View>(initialView);
   const [std, setStd] = useState<Std>(hasWcag ? initialStd : "kwcag");
+  const [saveState, saveAction, saving] = useActionState(savePublicView, {} as Awaited<ReturnType<typeof savePublicView>>);
+
+  // 비소유자(공유 링크·배지) — 읽기 전용: 소유자가 지정한 표시 모드로 고정, 컨트롤 없음.
+  if (!canEdit) {
+    return (
+      <div data-view={initialView} data-std={hasWcag ? initialStd : "kwcag"} data-pref={preferred}>
+        {children}
+      </div>
+    );
+  }
 
   /** URL 쿼리 동기화 — 네비게이션 없이 주소만 갱신(새로고침·공유·PDF 일관) */
   const syncUrl = (nextView: View, nextStd: Std) => {
@@ -102,6 +121,23 @@ export function ReportControls({
       <Segmented legend={labels.view.legend} value={view} options={viewOpts} onChange={onView} />
       {/* 표시 표준 토글 (WCAG 매트릭스가 있을 때만) */}
       {hasWcag && <Segmented legend={labels.std.legend} value={std} options={stdOpts} onChange={onStd} />}
+
+      {/* 공개 보기 저장 — 현재 표시 모드를 공유 링크·배지로 보는 사람에게 고정 적용 */}
+      <form action={saveAction} className="no-print mb-6 flex flex-wrap items-center gap-2">
+        <input type="hidden" name="scanId" value={scanId} />
+        <input type="hidden" name="view" value={view} />
+        <input type="hidden" name="std" value={std} />
+        <button
+          type="submit"
+          disabled={saving}
+          className="rounded border-[1.5px] border-[var(--color-ink)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-paper-warm)] disabled:opacity-60"
+        >
+          {labels.savePublic}
+        </button>
+        <span className="text-xs text-[var(--color-ink-faint)]">
+          {saveState?.ok ? labels.savedPublic : labels.savePublicHint}
+        </span>
+      </form>
 
       {/* 안내문 — 상태에 따라 표시 (인쇄·PDF 포함) */}
       {view !== "all" && (

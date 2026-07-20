@@ -689,7 +689,10 @@
       "belowTitle": "Checkpoints under 95% ({count}) — remediation priority",
       "belowChip": "{id} {title} · {rate}%",
       "note": "An approximation of the expert-review pass threshold used by Korea's web accessibility quality certification (average compliance of the 33 checkpoints ≥95%; 85–95% triggers a second review), based on automated results and reviewer judgments. Checkpoints without evidence are excluded, and certification uses element-level scoring that may differ. Certification also includes a separate user evaluation (100% task success across disability types)."
-    }
+    },
+    "savePublic": "Save as public view",
+    "savePublicHint": "Applies the current display mode to visitors via the share link and badge.",
+    "savedPublic": "✓ Saved as public view"
   },
   "mypage": {
     "title": "My Page",

@@ -535,7 +535,22 @@ const ReportMetaSchema = z.object({
   executiveSummary: z.string().max(10000).optional(),
 });
 
-/** 보고서 메타 정보 저장 (scans.report_meta) */
+/** report_meta에 patch를 병합 저장 — 기존 필드(공유 보기 설정 등)를 보존한다(읽기-수정-쓰기) */
+async function mergeReportMeta(
+  admin: ReturnType<typeof createAdminClient>,
+  scanId: string,
+  patch: Record<string, unknown>,
+): Promise<boolean> {
+  const { data } = await admin.from("scans").select("report_meta").eq("id", scanId).maybeSingle();
+  const current = (data?.report_meta ?? {}) as Record<string, unknown>;
+  const { error } = await admin
+    .from("scans")
+    .update({ report_meta: { ...current, ...patch } })
+    .eq("id", scanId);
+  return !error;
+}
+
+/** 보고서 메타 정보 저장 (scans.report_meta) — 공유 보기 설정(publicView/Std)은 보존 */
 export async function saveReportMeta(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
 
@@ -554,10 +569,33 @@ export async function saveReportMeta(_prev: SaveState, formData: FormData): Prom
   if (!parsed.success) return { error: "invalid" };
 
   // service role로 갱신 (scans는 클라이언트 update 정책이 없음 — 서버에서 소유 검증 후)
-  const admin = createAdminClient();
-  const { error } = await admin.from("scans").update({ report_meta: parsed.data }).eq("id", scanId.data);
-  if (error) return { error: "failed" };
+  const ok = await mergeReportMeta(createAdminClient(), scanId.data, parsed.data);
+  if (!ok) return { error: "failed" };
   revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
+  return { ok: true };
+}
+
+/**
+ * 공유 보기 표시 설정 저장 (report_meta.publicView/publicStd).
+ * 비소유자(공유 링크·배지)로 보고서를 볼 때 이 표시 모드(출력 범위·표준)로 고정 노출된다.
+ */
+export async function savePublicView(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { supabase, user } = await requireUser();
+  const scanId = z.string().uuid().safeParse(formData.get("scanId"));
+  if (!scanId.success) return { error: "invalid" };
+  const scan = await requireScanOwner(supabase, scanId.data, user.id);
+  if (!scan) return { error: "forbidden" };
+
+  const view = z.enum(["all", "auto", "done", "issues"]).safeParse(formData.get("view"));
+  const std = z.enum(["both", "wcag", "kwcag"]).safeParse(formData.get("std"));
+  if (!view.success || !std.success) return { error: "invalid" };
+
+  const ok = await mergeReportMeta(createAdminClient(), scanId.data, {
+    publicView: view.data,
+    publicStd: std.data,
+  });
+  if (!ok) return { error: "failed" };
+  revalidateLocalized(`/scans/${scanId.data}/report`);
   return { ok: true };
 }
 

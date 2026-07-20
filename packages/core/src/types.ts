@@ -157,6 +157,10 @@ export interface ReportMeta {
   title?: string;
   /** 총평 / Executive Summary (dct:summary) */
   executiveSummary?: string;
+  /** 공유 보기 기본 출력 범위 — 비소유자(공유 링크) 뷰에 소유자가 지정한 표시 모드 */
+  publicView?: "all" | "auto" | "done" | "issues";
+  /** 공유 보기 기본 표시 표준 — 비소유자 뷰의 std */
+  publicStd?: "both" | "wcag" | "kwcag";
 }
 
 /** 점검자 판정 (scan_reviews 행) */

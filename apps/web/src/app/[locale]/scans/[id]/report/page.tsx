@@ -66,6 +66,11 @@ export default async function ReportPage({
   // 구형 스캔(wcagMatrix 없음)은 KWCAG만 표시하고 토글을 숨긴다
   const std: "both" | "wcag" | "kwcag" = !hasWcag ? "kwcag" : (stdParam ?? "both");
 
+  // 공유 보기(비소유자): 소유자가 지정한 표시 모드(report_meta.public*)로 고정 노출.
+  // 소유자는 URL 토글로 자유롭게 미리보고, 저장하면 이 값이 비소유자에게 반영된다.
+  const effView = canEdit ? view : ((meta?.publicView as typeof view | undefined) ?? "all");
+  const effStd = !hasWcag ? "kwcag" : canEdit ? std : ((meta?.publicStd as typeof std | undefined) ?? "both");
+
   const failedPages = (pages ?? []).filter((p) => p.status === "failed");
   // KWCAG 항목별 페이지 준수율 (인증 기준 95% 대비 근사치) — 추가 쿼리 없이 계산
   const kwcagRates = computeKwcagPageRates(
@@ -156,8 +161,10 @@ export default async function ReportPage({
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       {/* 출력 범위(view)·표시 표준(std) 토글 — 클라이언트 상태로 서버 재페치 없이 CSS 필터 */}
       <ReportControls
-        initialView={view}
-        initialStd={std}
+        canEdit={canEdit}
+        scanId={scan.id}
+        initialView={effView}
+        initialStd={effStd}
         preferred={preferred}
         hasWcag={hasWcag}
         pdfBase={{ scanId: scan.id, locale, compareParam }}
@@ -167,6 +174,9 @@ export default async function ReportPage({
           viewNotice: { auto: t("view.notice.auto"), done: t("view.notice.done"), issues: t("view.notice.issues") },
           stdNotice: { wcag: t("std.notice.wcag"), kwcag: t("std.notice.kwcag") },
           downloadPdf: t("downloadPdf"),
+          savePublic: t("savePublic"),
+          savePublicHint: t("savePublicHint"),
+          savedPublic: t("savedPublic"),
         }}
         leftActions={canEdit && <ShareLinkButton scanId={scan.id} initialToken={(scan.share_token as string | null) ?? null} />}
         rightActions={
@@ -1047,7 +1057,8 @@ export default async function ReportPage({
         </section>
       )}
 
-      {/* ─── 수동 검사 항목 (출력 범위 all일 때만 — 숨김은 CSS data-only-all) ─── */}
+      {/* ─── 수동 검사 항목 — 소유자 전용(점검 워크플로 안내). 공유·비소유자 뷰엔 미노출 ─── */}
+      {canEdit && (
       <section data-only-all aria-labelledby="manual-heading" className="print-break-before mt-12">
         <h2 id="manual-heading" className="font-display text-2xl font-bold">
           {t("manual.title")}
@@ -1069,6 +1080,7 @@ export default async function ReportPage({
           ))}
         </ul>
       </section>
+      )}
 
       {/* ─── WCAG-EM 적합성 진술 (Step 5.c) ─── */}
       <section aria-labelledby="statement-heading" className="print-avoid-break mt-12 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] p-6">
