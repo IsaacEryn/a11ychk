@@ -3,7 +3,7 @@ import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl, isSameOrigin, normalizeUrl, type EvaluationScope } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
 import { createScanForUser } from "@/lib/scan/createScan";
-import { runScan } from "@/lib/scan/runScan";
+import { drainQueue } from "@/lib/scan/drain";
 import { MAX_PAGES_PER_SCAN } from "@/lib/quota";
 
 // Vercel Fluid Compute — after() 콜백(스캔 실행)까지 포함한 최대 실행 시간
@@ -106,8 +106,9 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: result.error, code: result.code, params: result.params }, { status: result.status });
   }
 
-  // 6) 응답 반환 후 백그라운드에서 스캔 실행
-  after(() => runScan(result.id));
+  // 6) 응답 반환 후 백그라운드에서 큐 드레인 — 전역 동시 상한(MAX) 내에서만 실행,
+  //    초과분은 queued로 대기하다가 슬롯이 비면 자동 시작(드레인 루프).
+  after(() => drainQueue());
 
   return NextResponse.json({ id: result.id }, { status: 202 });
 }

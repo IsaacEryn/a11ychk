@@ -1,12 +1,19 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { MAX_CONCURRENT_SCANS } from "@/lib/scan/drain";
 import { collectImpactStats } from "@/lib/impactStats";
 import { refreshRepoStats } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 
 function isoDaysAgo(days: number): string {
   return new Date(Date.now() - days * 24 * 3600_000).toISOString();
+}
+
+/** ISO 시각으로부터 지금까지 경과한 분(음수 방지). 컴포넌트 본문 밖에서 Date.now 호출 */
+function minutesSince(iso: string | null): number {
+  if (!iso) return 0;
+  return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
 }
 
 /** 관리자 대시보드 — 요약 지표 + 최근 항목. 상세 관리는 하위 페이지에서 */
@@ -20,7 +27,18 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   const admin = createAdminClient();
   const thirtyDaysAgo = isoDaysAgo(30);
 
-  const [users, scans30d, failed30d, running, openInquiries, recentScans, openList] = await Promise.all([
+  const [
+    users,
+    scans30d,
+    failed30d,
+    running,
+    runningNow,
+    queuedNow,
+    oldestQueued,
+    openInquiries,
+    recentScans,
+    openList,
+  ] = await Promise.all([
     admin.from("profiles").select("id", { count: "exact", head: true }),
     admin.from("scans").select("id", { count: "exact", head: true }).gte("created_at", thirtyDaysAgo),
     admin
@@ -29,6 +47,9 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
       .eq("status", "failed")
       .gte("created_at", thirtyDaysAgo),
     admin.from("scans").select("id", { count: "exact", head: true }).in("status", ["queued", "running"]),
+    admin.from("scans").select("id", { count: "exact", head: true }).eq("status", "running"),
+    admin.from("scans").select("id", { count: "exact", head: true }).eq("status", "queued"),
+    admin.from("scans").select("created_at").eq("status", "queued").order("created_at").limit(1).maybeSingle(),
     admin.from("inquiries").select("id", { count: "exact", head: true }).eq("status", "open"),
     admin
       .from("scans")
@@ -49,6 +70,13 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   const total30 = scans30d.count ?? 0;
   const failed30 = failed30d.count ?? 0;
   const failedRate = total30 === 0 ? 0 : Math.round((failed30 / total30) * 1000) / 10;
+
+  // ── 동시성 모니터: running/queued 및 최장 대기(가장 오래된 queued) ──
+  const runningCount = runningNow.count ?? 0;
+  const queuedCount = queuedNow.count ?? 0;
+  const oldestWaitMin = minutesSince(oldestQueued.data?.created_at ?? null);
+  // 백로그가 쌓이는지 판정: running이 상한에 도달했고 대기가 있으면 포화
+  const queueSaturated = queuedCount > 0 && runningCount >= MAX_CONCURRENT_SCANS;
 
   const stats = [
     { label: t("stats.users"), value: String(users.count ?? 0), href: "/admin/users" },
@@ -79,6 +107,40 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
           </div>
         ))}
       </dl>
+
+      {/* 동시성 모니터 — 실행/대기·최장 대기·전역 상한. 부하 진단·수동 개입용 */}
+      <section aria-labelledby="admin-queue-heading" className="mt-8 doc-card p-6">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 id="admin-queue-heading" className="font-display text-xl font-bold">
+            {t("queue.title")}
+          </h2>
+          <span
+            className={`rounded-full px-3 py-1 text-xs font-bold ${
+              queueSaturated
+                ? "bg-[var(--color-warn-tint)] text-[var(--color-ink)]"
+                : "bg-[var(--color-seal-tint)] text-[var(--color-seal)]"
+            }`}
+          >
+            {queueSaturated ? t("queue.saturated") : t("queue.healthy")}
+          </span>
+        </div>
+        <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {[
+            { label: t("queue.running"), value: `${runningCount} / ${MAX_CONCURRENT_SCANS}` },
+            { label: t("queue.queued"), value: String(queuedCount) },
+            {
+              label: t("queue.oldestWait"),
+              value: queuedCount > 0 ? t("queue.minutes", { min: oldestWaitMin }) : "—",
+            },
+            { label: t("queue.max"), value: String(MAX_CONCURRENT_SCANS) },
+          ].map((s) => (
+            <div key={s.label} className="border-l-[3px] border-[var(--color-seal)] pl-3">
+              <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{s.label}</dt>
+              <dd className="font-display mt-0.5 text-2xl font-extrabold tabular-nums">{s.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
 
       {/* 성장·확산 지표 (GitHub·트래픽·확산) */}
       <section aria-labelledby="admin-growth-heading" className="mt-10 doc-card p-6">

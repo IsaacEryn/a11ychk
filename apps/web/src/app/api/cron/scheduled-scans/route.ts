@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { runScan } from "@/lib/scan/runScan";
+import { drainQueue } from "@/lib/scan/drain";
 import { sendScanAlert } from "@/lib/notify";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 
@@ -115,6 +116,10 @@ export async function GET(request: Request) {
       }
     }
   }
+
+  // 백스톱: 트리거(생성·완료·좀비회수)를 모두 놓친 정지 큐를 최후로 소진.
+  // 트래픽 없는 조용한 큐도 하루 1회 크론이 반드시 흘려보낸다.
+  await drainQueue();
 
   return NextResponse.json({ processed: results.length, results, cleaned });
 }

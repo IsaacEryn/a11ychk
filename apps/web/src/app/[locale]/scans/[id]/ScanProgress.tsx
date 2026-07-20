@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import { useRouter, Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -23,7 +24,15 @@ interface Labels {
   status: Record<"queued" | "running" | "done" | "failed", string>;
 }
 
-const POLL_MS = 2500;
+interface QueueInfo {
+  ahead: number;
+  estMinutes: number;
+}
+
+// 폴링 백오프 — 대기가 길어질수록 간격을 늘려 DB 폴링 부하를 낮춘다(장애 상황의 양의 피드백 차단).
+const POLL_MIN_MS = 2500;
+const POLL_MAX_MS = 12_000;
+const POLL_FACTOR = 1.3;
 
 export function ScanProgress({
   scanId,
@@ -37,14 +46,18 @@ export function ScanProgress({
   labels: Labels;
 }) {
   const router = useRouter();
+  const tq = useTranslations("scan.queued");
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState(initialError);
   const [pages, setPages] = useState<PageRow[]>([]);
+  const [queue, setQueue] = useState<QueueInfo | null>(null);
 
   useEffect(() => {
     if (status === "done" || status === "failed") return;
     const supabase = createClient();
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let delay = POLL_MIN_MS; // 상태(effect dep)가 바뀌면 effect가 재실행돼 간격이 리셋된다
 
     const tick = async () => {
       const [{ data: scan }, { data: pageRows }] = await Promise.all([
@@ -58,19 +71,39 @@ export function ScanProgress({
         setError(scan.error);
         if (scan.status === "done") {
           router.push(`/scans/${scanId}/report`);
+          return;
         }
       }
+      // queued면 대기열 현황(앞선 대기 수·예상 시간) 조회 — 소유자 게이트 엔드포인트
+      if ((scan?.status ?? status) === "queued") {
+        try {
+          const res = await fetch(`/api/scans/${scanId}/queue`, { cache: "no-store" });
+          if (!cancelled && res.ok) {
+            const q = (await res.json()) as { status?: string; ahead?: number; estMinutes?: number };
+            setQueue(q.status === "queued" ? { ahead: q.ahead ?? 0, estMinutes: q.estMinutes ?? 0 } : null);
+          }
+        } catch {
+          // 대기열 조회 실패는 무시 — 다음 tick에서 재시도
+        }
+      } else if (!cancelled) {
+        setQueue(null);
+      }
+      if (cancelled) return;
+      delay = Math.min(Math.round(delay * POLL_FACTOR), POLL_MAX_MS);
+      timer = setTimeout(tick, delay);
     };
 
     tick();
-    const timer = setInterval(tick, POLL_MS);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      if (timer) clearTimeout(timer);
     };
   }, [scanId, status, router]);
 
   const statusLabel = labels.status[status as keyof Labels["status"]] ?? status;
+  const isQueued = status === "queued";
+  const aheadText = queue ? (queue.ahead > 0 ? tq("ahead", { n: queue.ahead }) : tq("aheadNone")) : null;
+  const etaText = queue && queue.ahead > 0 ? tq("eta", { min: queue.estMinutes }) : null;
 
   return (
     <div className="mt-8">
@@ -78,9 +111,28 @@ export function ScanProgress({
       <div aria-live="polite" className="doc-card flex items-center gap-3 p-5">
         <StatusBadge status={status} label={statusLabel} />
         <span className="text-sm text-[var(--color-ink-soft)]">
-          {status === "failed" ? labels.failedTitle : labels.runningDesc}
+          {status === "failed"
+            ? labels.failedTitle
+            : isQueued
+              ? tq("desc")
+              : labels.runningDesc}
         </span>
       </div>
+
+      {/* 대기열 현황 — queued일 때만: 앞선 대기 수·예상 시간을 정직하게 안내 */}
+      {isQueued && (
+        <div className="mt-4 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-4" aria-live="polite">
+          <p className="font-bold">{tq("title")}</p>
+          {aheadText ? (
+            <p className="mt-1 text-sm text-[var(--color-ink-soft)]">
+              {aheadText}
+              {etaText && <span> · {etaText}</span>}
+            </p>
+          ) : (
+            <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{tq("starting")}</p>
+          )}
+        </div>
+      )}
 
       {status === "failed" && (
         <div role="alert" className="mt-4 border-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] p-4">

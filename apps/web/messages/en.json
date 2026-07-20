@@ -336,7 +336,15 @@
     "viewReport": "View report",
     "failedTitle": "The audit failed",
     "backToDashboard": "Back to dashboard",
-    "runningDesc": "Collecting representative pages and running the automated audit. This takes about 1–3 minutes."
+    "runningDesc": "Collecting representative pages and running the automated audit. This takes about 1–3 minutes.",
+    "queued": {
+      "title": "Waiting in queue",
+      "desc": "Many scans are running right now, so your scan has been queued. It will start automatically when its turn comes.",
+      "ahead": "{n} ahead of you",
+      "aheadNone": "You are next in line",
+      "eta": "Estimated wait ~{min} min",
+      "starting": "Starting soon…"
+    }
   },
   "report": {
     "docTitle": "Web Accessibility Audit Report",
@@ -874,6 +882,16 @@
       "shared": "Shared reports",
       "aiFix": "AI fix downloads",
       "since": "Traffic accumulated since {date}"
+    },
+    "queue": {
+      "title": "Concurrency monitor",
+      "healthy": "Healthy",
+      "saturated": "Backlog",
+      "running": "Running / cap",
+      "queued": "Queued",
+      "oldestWait": "Oldest wait",
+      "max": "Global cap",
+      "minutes": "{min} min"
     }
   },
   "guide": {

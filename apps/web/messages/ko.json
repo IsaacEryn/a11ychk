@@ -336,7 +336,15 @@
     "viewReport": "보고서 보기",
     "failedTitle": "검사에 실패했습니다",
     "backToDashboard": "대시보드로 돌아가기",
-    "runningDesc": "대표 페이지를 수집하고 자동 검사를 실행하고 있습니다. 페이지 수에 따라 1~3분 정도 걸립니다."
+    "runningDesc": "대표 페이지를 수집하고 자동 검사를 실행하고 있습니다. 페이지 수에 따라 1~3분 정도 걸립니다.",
+    "queued": {
+      "title": "대기열에서 대기 중",
+      "desc": "지금 검사 요청이 많아 대기열에 등록되었습니다. 순서가 되면 자동으로 시작됩니다.",
+      "ahead": "앞에 {n}명 대기 중",
+      "aheadNone": "다음 차례입니다",
+      "eta": "예상 대기 약 {min}분",
+      "starting": "곧 시작됩니다…"
+    }
   },
   "report": {
     "docTitle": "웹 접근성 점검 보고서",
@@ -874,6 +882,16 @@
       "shared": "공유 보고서",
       "aiFix": "AI 수정 다운로드",
       "since": "트래픽 누적 집계 시작: {date}"
+    },
+    "queue": {
+      "title": "동시성 모니터",
+      "healthy": "정상",
+      "saturated": "대기 발생",
+      "running": "실행 중 / 상한",
+      "queued": "대기 중",
+      "oldestWait": "최장 대기",
+      "max": "전역 동시 상한",
+      "minutes": "{min}분"
     }
   },
   "guide": {

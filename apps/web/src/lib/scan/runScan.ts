@@ -245,9 +245,14 @@ export async function runScan(scanId: string): Promise<void> {
   const db = createAdminClient();
 
   const { data: scan, error: loadError } = await db.from("scans").select("*").eq("id", scanId).single();
-  if (loadError || !scan || scan.status !== "queued") return;
+  // queued(직접 호출) 또는 running(드레이너가 claim_scans로 이미 선점)만 진행.
+  // done/failed는 재실행 방지. claim의 SKIP LOCKED + 단일 디스패치가 중복 실행을 막는다.
+  if (loadError || !scan || (scan.status !== "queued" && scan.status !== "running")) return;
 
-  await db.from("scans").update({ status: "running", started_at: new Date().toISOString() }).eq("id", scanId);
+  // 아직 queued면(직접 호출 경로) running으로 전환. 이미 running이면(claim됨) started_at 보존.
+  if (scan.status === "queued") {
+    await db.from("scans").update({ status: "running", started_at: new Date().toISOString() }).eq("id", scanId);
+  }
 
   const scope = (scan.scope ?? null) as EvaluationScope | null;
   const conformanceTarget: WcagLevel | "AAA" = scope?.conformanceTarget ?? "AA";

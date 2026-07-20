@@ -6,7 +6,10 @@
 [사용자] POST /api/scans
   1. 인증 (Supabase Auth) → 2. Zod 입력 검증 → 3. SSRF 가드 (스킴·DNS·사설 IP)
   4. 차단 계정·횟수 제한(24시간 3회 / 7일 10회 / 30일 20회, 롤링 윈도우) → 5. 동시 실행 1건 제한
-  6. scans 행 생성(queued) → 202 응답 → after()로 백그라운드 실행
+  6. scans 행 생성(queued) → 202 응답 → after()로 큐 드레인(drainQueue)
+[drainQueue 드레이너]  (apps/web/src/lib/scan/drain.ts)
+  claim_scans(MAX): 남은 용량(MAX − running)만큼 oldest queued를 원자적으로 running 전환
+  → 각 검사를 내부 엔드포인트 POST /api/internal/run-scan(CRON_SECRET)로 분리 인보케이션에 태움
 [runScan 오케스트레이터]  (apps/web/src/lib/scan/runScan.ts)
   7. collectPages: robots.txt 확인 → sitemap.xml → 내부 링크 BFS (미확인 5 / 확인 10페이지)
   8. 페이지별: SSRF 재검증 → chromium 로드 → 서브리소스 내부망 차단 route →
@@ -41,9 +44,39 @@
 | 응답 헤더 | X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy |
 | 남용 방지 | 일/주/월 횟수 제한, 사용자당 동시 1건, 계정 차단, open redirect 검증(auth callback) |
 
+## 동시 부하 대응 (전역 동시성 상한 + DB 큐)
+
+스캔은 헤드리스 chromium을 함수 인보케이션에서 직접 띄우는 무거운 작업이라, 서로 다른
+사용자가 동시에 다수 시작하면 Fluid Compute가 인보케이션을 한 인스턴스에 패킹하면서
+메모리·동시성 한계에서 무너질 수 있다(OOM → 좀비 running 적체 → 폴링 부하 증가의 연쇄).
+이를 **버스트는 큐로 흡수하고 전역 동시 실행은 낮은 상한으로 제한**해 방어한다.
+
+- **전역 상한**: `A11YCHK_MAX_CONCURRENT_SCANS`(기본 3, 무재배포 조절). 동시에 running인
+  검사 수의 상한이며, 초과분은 `queued`로 대기한다.
+- **원자적 claim**: `claim_scans(p_cap)` 함수(마이그레이션 0020)가 `pg_advisory_xact_lock`으로
+  "running 카운트 → claim"을 직렬화하고 `FOR UPDATE SKIP LOCKED`로 경합을 피해, 여러 드레인이
+  동시에 돌아도 **전역 running ≤ MAX**를 보장한다.
+- **자기 지속 드레인 루프**: 각 검사 완료 후(`/api/internal/run-scan`의 finally)에 재드레인해
+  슬롯이 비면 다음 queued를 자동 시작한다. 트리거는 ①검사 생성 ②검사 완료 ③좀비 회수
+  (`reclaimStale`) ④일일 크론(백스톱) — 상시 워커 없이 기존 트래픽에 편승해 큐가 빠진다.
+- **메모리 격리**: claim된 검사는 내부 HTTP로 분리 인보케이션에 태워 스캔당 독립 메모리
+  예산을 확보한다(패킹 OOM 완화). 베이스 URL 미상(로컬)이면 인프로세스로 폴백한다.
+- **우아한 저하(UX)**: queued 화면은 "앞에 N명 · 예상 ~M분"을 정직하게 표시하고, 폴링은
+  대기가 길어질수록 간격을 늘린다(2.5s→×1.3, 상한 12s). 관리자 대시보드에 동시성 모니터
+  (running/queued·최장 대기·상한) 노출.
+
+### 확장 레버 (트래픽 급증 시)
+
+| 지표 트리거 | 레버 |
+|------|------|
+| OOM율 상승·MAX 상향 필요 | Vercel 함수 메모리 상향(3GB 등) 선반영 후 `A11YCHK_MAX_CONCURRENT_SCANS` 상향 |
+| 큐 깊이 상시 누적 | Pro 전환 → 잦은 크론 드레이너(분 단위)·동시성·모니터 강화 |
+| 버스트가 함수 층을 압도 | 외부 큐(QStash 등)로 디스패치 이관, 브라우저는 Browserless로 오프로드 |
+| 폴링 부하·실시간성 요구 | 폴링 → Supabase Realtime 구독 전환 |
+
 ## 알려진 한계 (의도된 트레이드오프)
 
 - Vercel 함수 시간 제한 내 순차 스캔 → 페이지 수 상한 10. 초과 수요 시 별도 워커로 이전
   (core가 Page 주입형이라 이전 비용 낮음).
-- 스캔 진행 표시는 폴링(2.5s). 트래픽 증가 시 Supabase Realtime으로 교체 가능.
+- 스캔 진행 표시는 폴링(대기 길이에 따라 2.5~12s 백오프). 트래픽 증가 시 Supabase Realtime으로 교체 가능.
 - axe `incomplete` 결과는 "확인 필요"로만 표시 — 오탐을 위반으로 단정하지 않는다.

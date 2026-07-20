@@ -1,5 +1,7 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { drainQueue } from "./drain";
 
 /**
  * 좀비 검사 판정 임계(분). 오케스트레이터(runScan)의 maxDuration이 300s이므로,
@@ -36,5 +38,22 @@ export async function reclaimStaleScans(
   if (opts.userId) q = q.eq("user_id", opts.userId);
   if (opts.scanId) q = q.eq("id", opts.scanId);
   const { data } = await q.select("id").then((r) => r, () => ({ data: null }));
-  return data?.length ?? 0;
+  const reclaimed = data?.length ?? 0;
+
+  // 좀비 회수로 슬롯이 비었으면 드레인 킥 — 대기 중이던 queued가 자동 시작(트리거 유실 자가치유).
+  // 상시 워커 없이 기존 트래픽(생성·상태조회)에 편승해 큐가 빠진다.
+  if (reclaimed > 0) {
+    kickDrain();
+  }
+  return reclaimed;
+}
+
+/** 응답 이후 드레인(request 컨텍스트면 after, 아니면 fire-and-forget). 실패해도 무시. */
+function kickDrain(): void {
+  try {
+    after(() => drainQueue());
+  } catch {
+    // after()가 request 컨텍스트 밖(스크립트 등)이면 예외 — 즉시 fire-and-forget으로 폴백
+    drainQueue().catch(() => undefined);
+  }
 }
