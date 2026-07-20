@@ -56,7 +56,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
     .maybeSingle();
 
   if (!domain) {
-    return svgResponse(badgeSvg("A11Y Check", "N/A", "#9e9e9e"));
+    return svgResponse(badgeSvg("A11y Check", "N/A", "#9e9e9e"));
   }
 
   // 공개 지정 검사(있으면) 또는 www/apex 무관 최신 완료 검사
@@ -68,10 +68,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
 
   const summary = scan?.summary as ScanSummary | null;
   if (!summary) {
-    return svgResponse(badgeSvg("A11Y Check", "N/A", "#9e9e9e"));
+    return svgResponse(badgeSvg("A11y Check", "N/A", "#9e9e9e"));
   }
 
   const rate = summary.complianceRate;
   // 자동 점검 준수율 — 배지·디렉터리·보고서 요약 공통 밴딩
-  return svgResponse(badgeSvg("A11Y Check", `${rate}%`, gradeColor(gradeOf(rate))));
+  return svgResponse(badgeSvg("A11y Check", `${rate}%`, gradeColor(gradeOf(rate))));
 }

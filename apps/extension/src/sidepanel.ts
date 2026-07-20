@@ -786,7 +786,7 @@ const MAX_AIFIX_NODES = 10;
  */
 function buildAiFixMarkdown(page: NonNullable<typeof lastPage>): string {
   const sorted = [...page.violations].sort((a, b) => IMPACTS.indexOf(a.impact) - IMPACTS.indexOf(b.impact));
-  const lines: string[] = [`# A11Y Check — ${msg("aiFixExport")}`, "", `- URL: ${page.url}`, `- ${msg("aiFixIntro")}`, ""];
+  const lines: string[] = [`# A11y Check — ${msg("aiFixExport")}`, "", `- URL: ${page.url}`, `- ${msg("aiFixIntro")}`, ""];
   let i = 0;
   for (const v of sorted) {
     i++;

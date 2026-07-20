@@ -45,7 +45,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const earl = {
     "@context": "https://www.w3.org/ns/earl",
     "@type": "earl:Software",
-    assertedBy: { "@type": "earl:Assertor", name: "A11Y Check", homepage: "https://a11ychk.com" },
+    assertedBy: { "@type": "earl:Assertor", name: "A11y Check", homepage: "https://a11ychk.com" },
     subject: {
       "@type": "earl:TestSubject",
       url: scan.root_url,

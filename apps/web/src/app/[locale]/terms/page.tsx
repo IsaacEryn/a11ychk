@@ -17,7 +17,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
       {
         heading: "제1조 (목적)",
         body: [
-          "이 약관은 A11Y Check(이하 \"서비스\")가 제공하는 웹 접근성 자동 점검 및 평가 보고서 서비스의 이용 조건과 절차, 이용자와 운영자의 권리·의무를 규정함을 목적으로 합니다.",
+          "이 약관은 A11y Check(이하 \"서비스\")가 제공하는 웹 접근성 자동 점검 및 평가 보고서 서비스의 이용 조건과 절차, 이용자와 운영자의 권리·의무를 규정함을 목적으로 합니다.",
         ],
       },
       {
@@ -87,7 +87,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
       {
         heading: "1. Purpose",
         body: [
-          "These terms govern the use of A11Y Check (the \"Service\"), a web accessibility automated audit and evaluation reporting service, and define the rights and obligations of users and the operator.",
+          "These terms govern the use of A11y Check (the \"Service\"), a web accessibility automated audit and evaluation reporting service, and define the rights and obligations of users and the operator.",
         ],
       },
       {

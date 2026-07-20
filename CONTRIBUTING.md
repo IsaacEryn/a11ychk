@@ -1,6 +1,6 @@
 # 기여 가이드 (Contributing)
 
-A11Y Check에 관심 가져주셔서 감사합니다! 이 프로젝트는 **한국어 웹 접근성 생태계를 위한 공공재**를
+A11y Check에 관심 가져주셔서 감사합니다! 이 프로젝트는 **한국어 웹 접근성 생태계를 위한 공공재**를
 지향합니다. 코드가 아니어도 기여할 수 있는 방법이 많습니다.
 
 *English speakers: issues and PRs in English are welcome — the rule catalog is Korean-first,

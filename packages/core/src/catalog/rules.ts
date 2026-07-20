@@ -404,7 +404,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     level: "A",
     title: { ko: "문서에 title이 없습니다", en: "Documents must have a title" },
     guide: {
-      ko: "`<title>`은 스크린 리더가 페이지 진입 시 가장 먼저 읽는 정보이며 탭 전환·북마크에서 페이지를 식별하는 수단입니다. 페이지 내용을 구체적으로 설명하는 고유한 제목을 제공하세요.\n\n```html\n<title>검사 결과 보고서 - A11Y Check</title>\n```",
+      ko: "`<title>`은 스크린 리더가 페이지 진입 시 가장 먼저 읽는 정보이며 탭 전환·북마크에서 페이지를 식별하는 수단입니다. 페이지 내용을 구체적으로 설명하는 고유한 제목을 제공하세요.\n\n```html\n<title>검사 결과 보고서 - A11y Check</title>\n```",
       en: "Provide a descriptive, unique document title.",
     },
   },
@@ -1001,7 +1001,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     guide: { ko: "iframe 내부 문서는 이번 자동 검사 범위에 포함되지 않았습니다. 프레임 내부 페이지를 별도로 검사하세요.", en: "Scan the framed document separately." },
   },
 
-  // ───────── A11Y Check 자체 규칙 (axe 미커버 SC 보완) ─────────
+  // ───────── A11y Check 자체 규칙 (axe 미커버 SC 보완) ─────────
   {
     ruleId: "a11ychk:reflow",
     wcag: ["1.4.10"],

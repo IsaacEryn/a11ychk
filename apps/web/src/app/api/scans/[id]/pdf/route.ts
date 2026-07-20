@@ -62,7 +62,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       displayHeaderFooter: true,
       headerTemplate: "<span></span>",
       footerTemplate:
-        '<div style="width:100%;font-size:8px;color:#888;text-align:center;">A11Y Check · a11ychk.com — <span class="pageNumber"></span> / <span class="totalPages"></span></div>',
+        '<div style="width:100%;font-size:8px;color:#888;text-align:center;">A11y Check · a11ychk.com — <span class="pageNumber"></span> / <span class="totalPages"></span></div>',
     });
     const hostname = new URL(scan.root_url).hostname;
     return new NextResponse(new Uint8Array(pdf), {

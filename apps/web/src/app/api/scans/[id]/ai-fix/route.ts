@@ -131,7 +131,7 @@ Output format per violation: [target location] → [fixed code] → [one-line ra
   if (format === "json") {
     const payload = {
       meta: {
-        tool: "A11Y Check (a11ychk.com)",
+        tool: "A11y Check (a11ychk.com)",
         site,
         scannedAt,
         standard: "WCAG 2.2 AA + KWCAG 2.2",
@@ -172,7 +172,7 @@ Output format per violation: [target location] → [fixed code] → [one-line ra
   const lines: string[] = [];
   lines.push(`# ${L("웹 접근성 수정 요청", "Web Accessibility Fix Request")} — ${site}`);
   lines.push("");
-  lines.push(`- ${L("검사 도구", "Audit tool")}: A11Y Check (a11ychk.com)`);
+  lines.push(`- ${L("검사 도구", "Audit tool")}: A11y Check (a11ychk.com)`);
   lines.push(`- ${L("검사 일시", "Scanned at")}: ${scannedAt}`);
   lines.push(`- ${L("검사 기준", "Standard")}: WCAG 2.2 AA · KWCAG 2.2 / axe-core v${summary.engine.axeVersion} + a11ychk rules`);
   lines.push(

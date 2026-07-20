@@ -1,6 +1,6 @@
 # Licensing
 
-A11Y Check는 **분할 라이선싱(split licensing)** 모노레포입니다. 디렉터리마다 적용
+A11y Check는 **분할 라이선싱(split licensing)** 모노레포입니다. 디렉터리마다 적용
 라이선스가 다르며, 각 디렉터리의 `LICENSE` 파일이 저장소 루트보다 우선합니다
 (SPDX/REUSE 관례).
 

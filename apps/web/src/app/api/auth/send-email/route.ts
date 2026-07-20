@@ -75,21 +75,21 @@ interface MailContent {
 function content(lang: Lang, action: string): MailContent {
   const ko: Record<string, MailContent> = {
     signup: {
-      subject: "[A11Y Check] 이메일 인증을 완료해 주세요",
+      subject: "[A11y Check] 이메일 인증을 완료해 주세요",
       heading: "이메일 인증",
-      body: "A11Y Check 가입을 환영합니다. 아래 버튼을 눌러 이메일 인증을 완료하면 로그인할 수 있습니다.",
+      body: "A11y Check 가입을 환영합니다. 아래 버튼을 눌러 이메일 인증을 완료하면 로그인할 수 있습니다.",
       button: "이메일 인증하기",
       footer: "본인이 요청하지 않았다면 이 메일을 무시하셔도 됩니다.",
     },
     recovery: {
-      subject: "[A11Y Check] 비밀번호 재설정",
+      subject: "[A11y Check] 비밀번호 재설정",
       heading: "비밀번호 재설정",
       body: "비밀번호 재설정을 요청하셨습니다. 아래 버튼을 눌러 새 비밀번호를 설정하세요. 링크는 잠시 후 만료됩니다.",
       button: "비밀번호 재설정하기",
       footer: "본인이 요청하지 않았다면 비밀번호는 변경되지 않으니 이 메일을 무시하셔도 됩니다.",
     },
     email_change: {
-      subject: "[A11Y Check] 이메일 변경 확인",
+      subject: "[A11y Check] 이메일 변경 확인",
       heading: "이메일 변경 확인",
       body: "이메일 주소 변경을 확인하려면 아래 버튼을 눌러 주세요.",
       button: "이메일 변경 확인",
@@ -98,21 +98,21 @@ function content(lang: Lang, action: string): MailContent {
   };
   const en: Record<string, MailContent> = {
     signup: {
-      subject: "[A11Y Check] Confirm your email",
+      subject: "[A11y Check] Confirm your email",
       heading: "Confirm your email",
-      body: "Welcome to A11Y Check. Click the button below to confirm your email and finish signing up.",
+      body: "Welcome to A11y Check. Click the button below to confirm your email and finish signing up.",
       button: "Confirm email",
       footer: "If you didn't request this, you can safely ignore this email.",
     },
     recovery: {
-      subject: "[A11Y Check] Reset your password",
+      subject: "[A11y Check] Reset your password",
       heading: "Reset your password",
       body: "You requested a password reset. Click the button below to set a new password. This link expires soon.",
       button: "Reset password",
       footer: "If you didn't request this, your password won't change — ignore this email.",
     },
     email_change: {
-      subject: "[A11Y Check] Confirm email change",
+      subject: "[A11y Check] Confirm email change",
       heading: "Confirm email change",
       body: "Click the button below to confirm your new email address.",
       button: "Confirm email change",
@@ -175,7 +175,7 @@ export async function POST(request: Request) {
       method: "POST",
       headers: { authorization: `Bearer ${resendKey}`, "content-type": "application/json" },
       body: JSON.stringify({
-        from: "A11Y Check <noreply@a11ychk.com>",
+        from: "A11y Check <noreply@a11ychk.com>",
         to: payload.user.email,
         subject: c.subject,
         html: renderHtml(c, link),

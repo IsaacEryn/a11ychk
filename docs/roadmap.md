@@ -1,4 +1,4 @@
-# A11Y Check 로드맵
+# A11y Check 로드맵
 
 ## Phase 상태
 

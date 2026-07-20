@@ -10,7 +10,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   const jsonLd = {
     "@context": "https://schema.org",
     "@type": "WebApplication",
-    name: "A11Y Check",
+    name: "A11y Check",
     url: "https://www.a11ychk.com",
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Web",

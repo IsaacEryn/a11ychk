@@ -70,7 +70,7 @@ async function maybeAlertAdmin(message: string, method: string, path: string): P
 
     const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
-    const subject = `[A11Y Check] 새 서버 오류: ${message.slice(0, 80)}`;
+    const subject = `[A11y Check] 새 서버 오류: ${message.slice(0, 80)}`;
     const html = `
 <div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422;font-size:14px;line-height:1.6">
   <p style="font-weight:700;margin:0 0 12px">처리되지 않은 서버 오류가 새로 발생했습니다.</p>
@@ -83,7 +83,7 @@ async function maybeAlertAdmin(message: string, method: string, path: string): P
     await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${resendKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: "A11Y Check <noreply@a11ychk.com>", to, subject, html }),
+      body: JSON.stringify({ from: "A11y Check <noreply@a11ychk.com>", to, subject, html }),
     });
   } catch {
     // 알림 실패 — 무시

@@ -19,7 +19,7 @@ export async function sendScanAlert(alert: ScanAlert): Promise<boolean> {
   if (!key) return false;
 
   const delta = Math.round((alert.newRate - alert.prevRate) * 10) / 10;
-  const subject = `[A11Y Check] ${alert.hostname} 접근성 점검 변화 알림 (${alert.newRate}%, ${delta >= 0 ? "+" : ""}${delta}p)`;
+  const subject = `[A11y Check] ${alert.hostname} 접근성 점검 변화 알림 (${alert.newRate}%, ${delta >= 0 ? "+" : ""}${delta}p)`;
 
   const newRulesHtml =
     alert.newRules.length > 0
@@ -54,7 +54,7 @@ export async function sendScanAlert(alert: ScanAlert): Promise<boolean> {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: "A11Y Check <noreply@a11ychk.com>", to: alert.to, subject, html }),
+      body: JSON.stringify({ from: "A11y Check <noreply@a11ychk.com>", to: alert.to, subject, html }),
     });
     return res.ok;
   } catch {

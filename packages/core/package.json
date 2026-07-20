@@ -1,7 +1,7 @@
 {
   "name": "@a11ychk/core",
   "version": "0.1.0",
-  "description": "A11Y Check core engine — crawler, axe-core scanner, WCAG 2.2 + KWCAG 2.2 rule catalog, report aggregation, SSRF guard",
+  "description": "A11y Check core engine — crawler, axe-core scanner, WCAG 2.2 + KWCAG 2.2 rule catalog, report aggregation, SSRF guard",
   "license": "Apache-2.0",
   "type": "module",
   "exports": {

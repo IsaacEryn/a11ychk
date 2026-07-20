@@ -1,6 +1,6 @@
 <div align="center">
 
-# A11Y Check · 알리첵
+# A11y Check · 알리첵
 
 **WCAG 2.2 + KWCAG 2.2를 이중 매핑한 한국어 우선 웹 접근성 자동 점검 엔진**
 
@@ -25,9 +25,9 @@ remediation guides for all 33 KWCAG 2.2 checkpoints.*
 
 ---
 
-## 왜 A11Y Check인가
+## 왜 A11y Check인가
 
-대부분의 자동 검사 도구는 위반 목록을 영어로 나열하는 데 그칩니다. A11Y Check는 진단에서
+대부분의 자동 검사 도구는 위반 목록을 영어로 나열하는 데 그칩니다. A11y Check는 진단에서
 멈추지 않고 **개선 작업으로 이어지는 산출물**을 만듭니다.
 
 - 🇰🇷 **KWCAG 2.2 한국어 규칙 카탈로그** — [`packages/core/src/catalog`](packages/core/src/catalog)에

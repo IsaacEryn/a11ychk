@@ -78,9 +78,9 @@ async function sendMonthlySnapshot(): Promise<boolean> {
     method: "POST",
     headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
     body: JSON.stringify({
-      from: "A11Y Check <noreply@a11ychk.com>",
+      from: "A11y Check <noreply@a11ychk.com>",
       to,
-      subject: `[A11Y Check] 월간 지표 스냅샷 ${month}`,
+      subject: `[A11y Check] 월간 지표 스냅샷 ${month}`,
       html,
     }),
   });

@@ -12,8 +12,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     title: locale === "en" ? "Accessibility Statement" : "접근성 선언문",
     description:
       locale === "en"
-        ? "A11Y Check's commitment to WCAG 2.2 AA and KWCAG 2.2 conformance."
-        : "A11Y Check의 WCAG 2.2 AA·KWCAG 2.2 준수 약속과 자체 점검 방식.",
+        ? "A11y Check's commitment to WCAG 2.2 AA and KWCAG 2.2 conformance."
+        : "A11y Check의 WCAG 2.2 AA·KWCAG 2.2 준수 약속과 자체 점검 방식.",
   };
 }
 
@@ -26,7 +26,7 @@ const CONTENT: Record<"ko" | "en", { title: string; intro: string; updated: stri
   ko: {
     title: "접근성 선언문",
     intro:
-      "A11Y Check는 모든 사용자가 장애 유무와 관계없이 동등하게 서비스를 이용할 수 있어야 한다고 믿습니다. 접근성 점검 서비스로서, 우리는 우리가 요구하는 기준을 우리 자신에게 가장 먼저 적용합니다.",
+      "A11y Check는 모든 사용자가 장애 유무와 관계없이 동등하게 서비스를 이용할 수 있어야 한다고 믿습니다. 접근성 점검 서비스로서, 우리는 우리가 요구하는 기준을 우리 자신에게 가장 먼저 적용합니다.",
     updated: "최종 갱신: 2026년 7월 16일",
     sections: [
       {
@@ -63,7 +63,7 @@ const CONTENT: Record<"ko" | "en", { title: string; intro: string; updated: stri
   en: {
     title: "Accessibility Statement",
     intro:
-      "A11Y Check believes every user deserves equal access, regardless of disability. As an accessibility audit service, we hold ourselves to the same standards we measure others against — first.",
+      "A11y Check believes every user deserves equal access, regardless of disability. As an accessibility audit service, we hold ourselves to the same standards we measure others against — first.",
     updated: "Last updated: July 16, 2026",
     sections: [
       {

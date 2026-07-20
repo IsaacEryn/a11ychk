@@ -213,7 +213,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       ],
       commissioner: meta?.organization ?? "",
       date: scan.finished_at ?? scan.created_at,
-      evaluator: meta?.evaluatorName ?? "A11Y Check (a11ychk.com)",
+      evaluator: meta?.evaluatorName ?? "A11y Check (a11ychk.com)",
       evaluationSpecifics: `자동 검사 엔진: ${summary.engine.name} ${summary.engine.axeVersion} · ${summary.sample?.method ?? ""}`,
       summary: meta?.executiveSummary ?? "",
       title: meta?.title || `${siteTitle} 웹 접근성 평가 보고서`,

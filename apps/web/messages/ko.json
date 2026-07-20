@@ -1,6 +1,6 @@
 {
   "common": {
-    "appName": "A11Y Check",
+    "appName": "A11y Check",
     "skipToMain": "본문 바로가기",
     "nav": {
       "about": "서비스 소개",
@@ -72,7 +72,7 @@
     "how3Title": "보고서 확인",
     "how3Desc": "준수율, 항목별 매트릭스, 개선 가이드가 담긴 보고서를 받아보세요.",
     "honestyTitle": "정직한 자동 검사",
-    "honestyDesc": "자동 도구는 접근성 문제의 일부만 찾을 수 있습니다. A11Y Check는 자동 검사의 한계를 명시하고, 반드시 사람이 확인해야 하는 항목을 검사 방법과 함께 안내합니다.",
+    "honestyDesc": "자동 도구는 접근성 문제의 일부만 찾을 수 있습니다. A11y Check는 자동 검사의 한계를 명시하고, 반드시 사람이 확인해야 하는 항목을 검사 방법과 함께 안내합니다.",
     "openSourceTitle": "오픈소스로 만듭니다",
     "openSourceDesc": "검사 엔진과 규칙 카탈로그는 Apache-2.0 라이선스로 공개되어 있습니다. 한국어 개선 가이드 기여를 환영합니다.",
     "demo": {
@@ -180,7 +180,7 @@
       },
       "robots-blocked": {
         "label": "robots.txt 차단",
-        "desc": "사이트의 robots.txt가 검사 봇의 접근을 허용하지 않습니다. A11Y Check는 robots.txt를 존중하므로 이 상태에서는 자동 검사를 실행하지 않습니다.",
+        "desc": "사이트의 robots.txt가 검사 봇의 접근을 허용하지 않습니다. A11y Check는 robots.txt를 존중하므로 이 상태에서는 자동 검사를 실행하지 않습니다.",
         "solution": "사이트 관리자라면 robots.txt에 a11ychk-bot 허용 규칙을 추가하세요(아래 가이드 1번). 관리 권한이 없다면 크롬 확장으로 검사하세요."
       },
       "ua-blocked": {
@@ -220,7 +220,7 @@
     "guide": {
       "robots": {
         "title": "robots.txt에 검사 봇 허용",
-        "desc": "사이트 관리자라면 robots.txt에 아래 규칙을 추가하세요. A11Y Check는 robots.txt를 존중하는 착한 봇이므로, 허용 규칙만으로 자동 검사가 가능해집니다."
+        "desc": "사이트 관리자라면 robots.txt에 아래 규칙을 추가하세요. A11y Check는 robots.txt를 존중하는 착한 봇이므로, 허용 규칙만으로 자동 검사가 가능해집니다."
       },
       "waf": {
         "title": "WAF·CDN에서 User-Agent 허용",
@@ -280,7 +280,7 @@
       "verifyFailed": "확인에 실패했습니다. 설정 반영까지 몇 분 걸릴 수 있습니다.",
       "verifySuccess": "도메인 소유가 확인되었습니다!",
       "badgeTitle": "접근성 배지 (최신 검사 준수율)",
-      "badgeAlt": "A11Y Check 접근성 점검 준수율",
+      "badgeAlt": "A11y Check 접근성 점검 준수율",
       "autoScanOn": "정기 검사 켜짐",
       "autoScanEnable": "정기 검사 켜기",
       "autoScanDisable": "정기 검사 끄기",
@@ -589,7 +589,7 @@
     "downloadEarl": "EARL(JSON)",
     "downloadReportTool": "WCAG-EM Report Tool(JSON)",
     "print": "인쇄",
-    "generatedBy": "이 보고서는 A11Y Check (a11ychk.com)에서 생성되었습니다.",
+    "generatedBy": "이 보고서는 A11y Check (a11ychk.com)에서 생성되었습니다.",
     "inline": {
       "fixSummary": "개선 방법 보기 ({count}개 규칙)",
       "reviewSummary": "확인 방법 보기 ({count}개 규칙)",
@@ -951,7 +951,7 @@
   },
   "guide": {
     "title": "수동 검사 가이드",
-    "desc": "자동 도구가 판정할 수 없어 사람이 직접 확인해야 하는 KWCAG 2.2 검사항목과 검사 방법입니다. A11Y Check 보고서의 '수동 검사 필요' 항목과 동일한 기준입니다.",
+    "desc": "자동 도구가 판정할 수 없어 사람이 직접 확인해야 하는 KWCAG 2.2 검사항목과 검사 방법입니다. A11y Check 보고서의 '수동 검사 필요' 항목과 동일한 기준입니다.",
     "wcagRef": "WCAG 대응",
     "coverage": {
       "partial": "일부 자동 검사",
@@ -960,8 +960,8 @@
   },
   "extension": {
     "title": "크롬 확장 연결",
-    "desc": "A11Y Check 크롬 확장을 설치하면 로그인이 필요한 페이지나 작업 중인 화면도 바로 검사하고, 수동 점검 체크리스트를 사용할 수 있습니다. 이 페이지에서 확장과 계정을 연결하세요.",
-    "step1": "크롬 웹스토어에서 'A11Y Check' 확장을 설치합니다.",
+    "desc": "A11y Check 크롬 확장을 설치하면 로그인이 필요한 페이지나 작업 중인 화면도 바로 검사하고, 수동 점검 체크리스트를 사용할 수 있습니다. 이 페이지에서 확장과 계정을 연결하세요.",
+    "step1": "크롬 웹스토어에서 'A11y Check' 확장을 설치합니다.",
     "step2": "이 페이지를 열어 두면 확장이 자동으로 계정과 연결됩니다.",
     "step3": "연결되면 확장 팝업에서 '결과를 내 계정에 저장'을 사용할 수 있습니다.",
     "waiting": "확장 연결을 기다리는 중…",
@@ -1050,7 +1050,7 @@
     "name": {
       "title": "이름 이야기",
       "korean": "알리첵",
-      "english": "A11Y Check",
+      "english": "A11y Check",
       "a11yDesc": "accessibility는 철자가 길어서, 국제적으로 a와 y 사이 글자 수를 세어 \"a11y\"라고 줄여 씁니다. 이걸 한글로 읽으면 \"알리\"가 됩니다. 마침 우리말 \"알리다\"와 같은 소리라, 점검을 뜻하는 첵(check)을 붙여 알리첵이라 부르기로 했습니다.",
       "part1Title": "알리",
       "part1Desc": "a11y의 한글 독음이면서, 잘 보이지 않던 접근성 문제를 세상에 알린다는 뜻이기도 합니다.",
@@ -1065,8 +1065,8 @@
   },
   "impact": {
     "eyebrow": "투명성 지표",
-    "title": "A11Y Check가 만든 변화",
-    "desc": "A11Y Check는 웹 접근성 개선이라는 공익 목표로 운영되는 오픈소스 서비스입니다. 서비스가 실제로 만든 변화를 집계 수치로 투명하게 공개합니다. 개별 사이트·사용자 정보는 포함되지 않습니다.",
+    "title": "A11y Check가 만든 변화",
+    "desc": "A11y Check는 웹 접근성 개선이라는 공익 목표로 운영되는 오픈소스 서비스입니다. 서비스가 실제로 만든 변화를 집계 수치로 투명하게 공개합니다. 개별 사이트·사용자 정보는 포함되지 않습니다.",
     "stats": {
       "sites": "검사한 사이트",
       "scans": "완료된 검사",
@@ -1102,7 +1102,7 @@
   "directory": {
     "eyebrow": "공개 점검 목록",
     "title": "접근성 점검 사이트",
-    "desc": "A11Y Check로 접근성을 점검하고 공개 등재에 동의한 사이트 목록입니다. 각 항목의 보고서를 누구나 열람할 수 있습니다.",
+    "desc": "A11y Check로 접근성을 점검하고 공개 등재에 동의한 사이트 목록입니다. 각 항목의 보고서를 누구나 열람할 수 있습니다.",
     "disclaimer": "표시된 준수율은 자동 점검(axe + 자체 규칙) 기반 결과이며, 공식 웹 접근성 품질인증이 아닙니다. 사이트 소유자가 소유 확인 후 직접 공개 등재한 경우에만 노출됩니다.",
     "empty": "아직 공개 등재된 사이트가 없습니다.",
     "rate": "준수율 {rate}%",

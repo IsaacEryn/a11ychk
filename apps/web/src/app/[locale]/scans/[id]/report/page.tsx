@@ -203,7 +203,7 @@ export default async function ReportPage({
             <circle cx="11" cy="40" r="3.5" fill="#4d8dff" opacity="0.8" />
             <path d="M20 34 L30 44 L52 15" fill="none" stroke="#ffffff" strokeWidth="9" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          A11Y CHECK · a11ychk.com
+          A11y Check · a11ychk.com
         </p>
         <h1 className="font-display mt-2 text-3xl font-extrabold sm:text-4xl">{meta?.title || t("docTitle")}</h1>
         <dl className="mt-6 grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
