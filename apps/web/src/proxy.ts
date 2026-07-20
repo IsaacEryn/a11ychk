@@ -44,6 +44,6 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  // API·정적 파일·auth 콜백 제외
-  matcher: ["/((?!api|auth|_next|_vercel|.*\\..*).*)"],
+  // API·정적 파일·auth 콜백·데모 리다이렉터(route handler) 제외
+  matcher: ["/((?!api|auth|demo|_next|_vercel|.*\\..*).*)"],
 };

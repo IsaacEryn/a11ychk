@@ -55,12 +55,14 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
               {t("ctaSecondary")}
             </Link>
           </div>
-          {/* 실제 예시 보고서 — 공유 링크가 설정된 경우에만 노출.
-              자사 사이트(a11ychk.com) 자체 검사 결과 = 접근성 선언문의 자체 점검 실증 */}
+          {/* 실제 예시 보고서 — 데모 URL이 설정된 경우에만 노출. /demo 라우터가 서버 302로
+              공유 링크(읽기 전용)에 연결해 비로그인 사용자도 볼 수 있게 한다(직접 토큰 URL 대신). */}
           {process.env.NEXT_PUBLIC_DEMO_REPORT_URL && (
             <p className="rise rise-4 mt-4">
+              {/* /demo는 라우트 핸들러(서버 302)라 하드 네비게이션이 필요 — next/link(소프트 nav) 부적합 */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a
-                href={process.env.NEXT_PUBLIC_DEMO_REPORT_URL}
+                href="/demo"
                 className="text-base font-semibold text-[var(--color-seal)] underline underline-offset-4 hover:text-[var(--color-seal-deep)]"
               >
                 {t("ctaDemoReport")} →

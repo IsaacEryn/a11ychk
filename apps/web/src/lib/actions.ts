@@ -143,8 +143,12 @@ export async function setPublicReport(formData: FormData): Promise<void> {
   const applyUpdate = async (fields: { public_listed: boolean; listed_at: string | null; public_scan_id: string | null }) => {
     const { error } = await admin.from("domains").update(fields).eq("id", id.data).eq("user_id", user.id);
     if (error) {
-      const { public_scan_id: _omit, ...rest } = fields;
-      await admin.from("domains").update(rest).eq("id", id.data).eq("user_id", user.id);
+      // 0022(public_scan_id) 미적용 폴백 — 컬럼 없이 등재 상태만 갱신
+      await admin
+        .from("domains")
+        .update({ public_listed: fields.public_listed, listed_at: fields.listed_at })
+        .eq("id", id.data)
+        .eq("user_id", user.id);
     }
   };
 
