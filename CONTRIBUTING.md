@@ -47,4 +47,20 @@ npm run typecheck && npm run lint
 
 ## 라이선스
 
-기여하신 내용은 프로젝트와 동일한 [MIT 라이선스](LICENSE)로 배포됩니다.
+이 프로젝트는 **분할 라이선싱**입니다([LICENSING.md](LICENSING.md) 참고). 기여하신 내용은
+기여한 디렉터리의 라이선스로 배포됩니다:
+
+- `packages/core`(검사 엔진·카탈로그) · `apps/extension`(크롬 확장) → **Apache-2.0**
+- `apps/web`(서비스 앱) → **AGPL-3.0-only**
+
+### DCO (Developer Certificate of Origin)
+
+기여 출처를 명확히 하기 위해 커밋에 **sign-off**를 넣어 주세요. 이는 본인이 해당 기여를
+제출할 권리가 있음을 [DCO](https://developercertificate.org/)에 따라 확인하는 것입니다.
+
+```bash
+git commit -s -m "커밋 메시지"
+```
+
+무거운 CLA(저작권 양도) 대신 가벼운 DCO를 사용합니다 — 오픈소스 생태계 관례를 따르면서
+기여의 법적 출처를 보증합니다.
