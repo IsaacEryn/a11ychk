@@ -760,6 +760,8 @@
       "resetPending": "Resetting…",
       "resetDone": "{scope} quota has been reset",
       "resetFailed": "Reset failed. Please try again.",
+      "plansInactive": "Plan enforcement is off, so the plan assignments below have no effect — every user gets the free limit.",
+      "plansInactiveLink": "Turn on enforcement in operations settings",
       "bulkPlanLabel": "Assign plan to all users",
       "bulkApply": "Apply to all",
       "bulkHint": "Applies the selected plan to every user. Per-user custom limits are cleared. (Group management for future monetization)",

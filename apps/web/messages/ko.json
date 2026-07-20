@@ -760,6 +760,8 @@
       "resetPending": "초기화 중…",
       "resetDone": "{scope} 한도가 초기화되었습니다",
       "resetFailed": "초기화에 실패했습니다. 다시 시도해 주세요.",
+      "plansInactive": "요금제 시행이 꺼져 있어 아래 등급 배정은 적용되지 않습니다 — 모든 사용자에게 free 한도가 적용됩니다.",
+      "plansInactiveLink": "운영 설정에서 시행 켜기",
       "bulkPlanLabel": "전체 사용자 요금제 일괄 배정",
       "bulkApply": "전체 적용",
       "bulkHint": "선택한 요금제를 모든 사용자에게 적용합니다. 개별 한도 설정은 초기화됩니다. (유료화 대비 그룹 관리)",

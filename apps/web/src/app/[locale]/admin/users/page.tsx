@@ -59,6 +59,16 @@ export default async function AdminUsersPage({
         {t("users.title")}
       </h2>
 
+      {/* 요금제 시행이 꺼져 있으면 아래 등급 배정이 무효임을 명시 (배정만 하고 시행 토글을 안 켠 혼란 방지) */}
+      {!plansActive && (
+        <p role="note" className="mt-3 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
+          {t("users.plansInactive")}{" "}
+          <a href={`/${locale}/admin/settings`} className="font-bold underline underline-offset-4">
+            {t("users.plansInactiveLink")}
+          </a>
+        </p>
+      )}
+
       {/* 닉네임 검색 (GET 폼) */}
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
         <div>
