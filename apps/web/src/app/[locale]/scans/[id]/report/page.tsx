@@ -174,6 +174,7 @@ export default async function ReportPage({
           viewNotice: { auto: t("view.notice.auto"), done: t("view.notice.done"), issues: t("view.notice.issues") },
           stdNotice: { wcag: t("std.notice.wcag"), kwcag: t("std.notice.kwcag") },
           downloadPdf: t("downloadPdf"),
+          displayGroup: t("displayGroup"),
           savePublic: t("savePublic"),
           savePublicHint: t("savePublicHint"),
           savedPublic: t("savedPublic"),

@@ -42,6 +42,7 @@ export function ReportControls({
     viewNotice: { auto: string; done: string; issues: string };
     stdNotice: { wcag: string; kwcag: string };
     downloadPdf: string;
+    displayGroup: string;
     savePublic: string;
     savePublicHint: string;
     savedPublic: string;
@@ -102,42 +103,43 @@ export function ReportControls({
 
   return (
     <div data-view={view} data-std={std} data-pref={preferred}>
-      {/* 액션 바 — PDF 링크만 상태 의존, 나머지는 서버 노드 그대로.
-          모바일은 justify-start(줄바꿈 시 좌우 벌어짐 방지), 데스크톱은 justify-between */}
-      <div className="no-print mb-8 flex flex-wrap items-center justify-start gap-2 sm:justify-between">
-        <div>{leftActions}</div>
-        <div className="flex flex-wrap items-center justify-start gap-2 sm:justify-end">
-          {rightActions}
-          <a
-            href={pdfHref}
-            className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
-          >
-            {labels.downloadPdf}
-          </a>
-        </div>
+      {/* 공유 링크(읽기 전용) — 자체 행. 좌우 분리(justify-between) 없이 각 행이 자연 줄바꿈해
+          공유 켤 때 레이아웃이 어긋나지 않게 한다. */}
+      {leftActions && <div className="no-print mb-3">{leftActions}</div>}
+      {/* 재검사·인쇄·내보내기·PDF — 버튼 크기 통일(px-4 py-2), 한 행에서 자연 줄바꿈 */}
+      <div className="no-print mb-8 flex flex-wrap items-center gap-2">
+        {rightActions}
+        <a
+          href={pdfHref}
+          className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
+        >
+          {labels.downloadPdf}
+        </a>
       </div>
 
-      {/* 출력 범위 토글 */}
-      <Segmented legend={labels.view.legend} value={view} options={viewOpts} onChange={onView} />
-      {/* 표시 표준 토글 (WCAG 매트릭스가 있을 때만) */}
-      {hasWcag && <Segmented legend={labels.std.legend} value={std} options={stdOpts} onChange={onStd} />}
-
-      {/* 공개 보기 저장 — 현재 표시 모드를 공유 링크·배지로 보는 사람에게 고정 적용 */}
-      <form action={saveAction} className="no-print mb-6 flex flex-wrap items-center gap-2">
-        <input type="hidden" name="scanId" value={scanId} />
-        <input type="hidden" name="view" value={view} />
-        <input type="hidden" name="std" value={std} />
-        <button
-          type="submit"
-          disabled={saving}
-          className="rounded border-[1.5px] border-[var(--color-ink)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-paper-warm)] disabled:opacity-60"
-        >
-          {labels.savePublic}
-        </button>
-        <span className="text-xs text-[var(--color-ink-faint)]">
-          {saveState?.ok ? labels.savedPublic : labels.savePublicHint}
-        </span>
-      </form>
+      {/* 표시 설정 — 출력 범위·표시 표준 토글과 '공개 보기 저장'을 한 묶음으로 그룹핑.
+          토글은 소유자 미리보기이고, 저장하면 공유 링크·배지 방문자에게 그대로 적용된다. */}
+      <section aria-label={labels.displayGroup} className="no-print mb-8 rounded border-[1.5px] border-[var(--color-line)] p-4">
+        <p className="mb-3 text-sm font-bold text-[var(--color-ink)]">{labels.displayGroup}</p>
+        <Segmented legend={labels.view.legend} value={view} options={viewOpts} onChange={onView} />
+        {hasWcag && <Segmented legend={labels.std.legend} value={std} options={stdOpts} onChange={onStd} />}
+        {/* 공개 보기 저장 — 현재 표시 모드를 공유 링크·배지로 보는 사람에게 고정 적용 */}
+        <form action={saveAction} className="mt-1 flex flex-wrap items-center gap-2">
+          <input type="hidden" name="scanId" value={scanId} />
+          <input type="hidden" name="view" value={view} />
+          <input type="hidden" name="std" value={std} />
+          <button
+            type="submit"
+            disabled={saving}
+            className="rounded border-[1.5px] border-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)] disabled:opacity-60"
+          >
+            {labels.savePublic}
+          </button>
+          <span className="text-xs text-[var(--color-ink-faint)]">
+            {saveState?.ok ? labels.savedPublic : labels.savePublicHint}
+          </span>
+        </form>
+      </section>
 
       {/* 안내문 — 상태에 따라 표시 (인쇄·PDF 포함) */}
       {view !== "all" && (

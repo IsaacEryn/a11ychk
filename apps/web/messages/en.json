@@ -692,7 +692,8 @@
     },
     "savePublic": "Save as public view",
     "savePublicHint": "Applies the current display mode to visitors via the share link and badge.",
-    "savedPublic": "✓ Saved as public view"
+    "savedPublic": "✓ Saved as public view",
+    "displayGroup": "Display settings (shared view)"
   },
   "mypage": {
     "title": "My Page",

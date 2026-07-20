@@ -47,12 +47,12 @@ export function ShareLinkButton({ scanId, initialToken }: { scanId: string; init
               setTimeout(() => setCopied(false), 2000);
             });
           }}
-          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-2 text-sm font-semibold hover:bg-[var(--color-paper-warm)]"
+          className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
         >
           {copied ? t("copied") : t("copy")}
         </button>
       )}
-      <span role="status" className="text-xs text-[var(--color-ink-faint)]">
+      <span role="status" className="w-full text-xs text-[var(--color-ink-faint)] sm:w-auto">
         {state.error ? t("failed") : token ? t("onDesc") : ""}
       </span>
     </div>

@@ -692,7 +692,8 @@
     },
     "savePublic": "이 표시로 공개 저장",
     "savePublicHint": "공유 링크·배지로 보는 사람에게 현재 표시 모드가 적용됩니다.",
-    "savedPublic": "✓ 공개 보기로 저장됨"
+    "savedPublic": "✓ 공개 보기로 저장됨",
+    "displayGroup": "표시 설정 (공유 보기)"
   },
   "mypage": {
     "title": "마이페이지",
