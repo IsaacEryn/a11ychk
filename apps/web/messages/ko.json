@@ -324,7 +324,19 @@
       "cfZoneNotFound": "이 도메인에 해당하는 Cloudflare 존을 찾지 못했습니다. 토큰이 해당 도메인 권한을 포함하는지 확인해 주세요.",
       "cfAuthError": "토큰이 유효하지 않거나 권한이 부족합니다. Zone·DNS 편집 권한을 확인해 주세요.",
       "cfApiError": "Cloudflare 설정 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.",
-      "cfInvalid": "API 토큰을 올바르게 입력해 주세요."
+      "cfInvalid": "API 토큰을 올바르게 입력해 주세요.",
+      "badgePreview": "미리보기",
+      "badgeFormat": "배지 코드 형식",
+      "badgeFormatHtml": "HTML",
+      "badgeFormatMd": "Markdown",
+      "badgeCopy": "복사",
+      "badgeCopied": "복사됨!",
+      "scheduleFreqLabel": "검사 주기",
+      "scheduleDaily": "매일",
+      "scheduleWeekly": "매주",
+      "scheduleMonthly": "매월",
+      "scheduleApply": "적용",
+      "scheduleExplain": "정기 검사는 매일 새벽 3시경(한국 시간)에 자동 실행되며, 선택한 주기가 지난 도메인만 검사합니다. 정확한 시각 지정은 지원하지 않습니다."
     },
     "recent": {
       "title": "최근 검사",

@@ -105,6 +105,17 @@ export async function toggleNotify(formData: FormData): Promise<void> {
   revalidateLocalized("/dashboard");
 }
 
+/** 정기 검사 주기 설정 (domains.scan_frequency — migration 0021). daily/weekly/monthly */
+export async function setScanFrequency(formData: FormData): Promise<void> {
+  const { user } = await requireUser();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  const freq = z.enum(["daily", "weekly", "monthly"]).safeParse(formData.get("frequency"));
+  if (!id.success || !freq.success) return;
+  // domains에는 UPDATE RLS 정책이 없어 admin 클라이언트로 갱신(소유자 필터 명시)
+  await createAdminClient().from("domains").update({ scan_frequency: freq.data }).eq("id", id.data).eq("user_id", user.id);
+  revalidateLocalized("/dashboard");
+}
+
 /**
  * 공개 배지 발행 + 디렉터리 등재 opt-in 토글 (domains.public_listed — migration 0018).
  * 소유 확인된 도메인만 등재 가능. 끄면 즉시 공개 목록·배지 링크에서 회수한다.

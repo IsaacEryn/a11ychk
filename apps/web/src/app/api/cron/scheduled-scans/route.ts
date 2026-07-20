@@ -13,8 +13,19 @@ export const maxDuration = 300;
 
 // 한 번의 크론 실행에서 처리할 최대 도메인 수 (함수 시간 제한 보호)
 const BATCH = 3;
-// 마지막 자동 스캔 이후 최소 간격(시간) — 하루 1회 크론에서 중복 실행 방지
-const MIN_INTERVAL_HOURS = 20;
+
+/**
+ * 주기별 "검사 실행 간격"(시간). 하루 1회 크론이 이 간격 이상 지난 도메인만 검사한다.
+ * 주기보다 살짝 짧게 잡아 드리프트로 하루씩 밀리는 것을 방지(예: weekly는 6.5일 후 검사).
+ * 미적용(컬럼 없음)·미지정 도메인은 daily로 폴백.
+ */
+const FREQUENCY_HOURS: Record<string, number> = {
+  daily: 20,
+  weekly: 6.5 * 24,
+  monthly: 27 * 24,
+};
+const dueIntervalHours = (freq: unknown): number =>
+  FREQUENCY_HOURS[typeof freq === "string" ? freq : "daily"] ?? FREQUENCY_HOURS.daily;
 
 /**
  * 정기 스캔 크론 (Vercel Cron, 하루 1회).
@@ -28,16 +39,26 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
   const plansActive = await getPlansActive(admin);
-  const cutoff = new Date(Date.now() - MIN_INTERVAL_HOURS * 3600_000).toISOString();
+  const now = Date.now();
 
-  // select * — notify 컬럼(0013) 미적용 환경에서도 조회가 깨지지 않게
-  const { data: domains } = await admin
+  // 후보: 최소 간격(daily=20h)을 넘긴 도메인 전부. 주기별(매주·매월) 필터는 아래 JS에서.
+  const minCutoff = new Date(now - FREQUENCY_HOURS.daily * 3600_000).toISOString();
+  // select * — notify·scan_frequency 컬럼 미적용 환경에서도 조회가 깨지지 않게
+  const { data: candidates } = await admin
     .from("domains")
     .select("*")
     .eq("auto_scan", true)
-    .or(`last_auto_scan_at.is.null,last_auto_scan_at.lt.${cutoff}`)
+    .or(`last_auto_scan_at.is.null,last_auto_scan_at.lt.${minCutoff}`)
     .order("last_auto_scan_at", { ascending: true, nullsFirst: true })
-    .limit(BATCH);
+    .limit(30);
+
+  // 도메인별 주기 간격을 넘긴 것만 실제 대상으로(null=한 번도 안 함=즉시 대상), 오래된 순 BATCH개
+  const domains = (candidates ?? [])
+    .filter((d) => {
+      const last = d.last_auto_scan_at ? new Date(d.last_auto_scan_at as string).getTime() : 0;
+      return now - last >= dueIntervalHours(d.scan_frequency) * 3600_000;
+    })
+    .slice(0, BATCH);
 
   // ── 로그 보존 정책: 90일 지난 로그인 기록(IP 포함)·서버 오류 삭제 (best-effort) ──
   // 관리자 행위 감사(audit_logs)는 감사 목적상 보존한다.

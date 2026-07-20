@@ -11,6 +11,8 @@ import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicList
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
 import { DomainVerify } from "./DomainVerify";
+import { BadgeEmbed } from "./BadgeEmbed";
+import { ScanScheduleControl } from "./ScanScheduleControl";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -301,6 +303,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                     </form>
                   </div>
                 </div>
+                {/* 정기 검사 주기 설정 + 실행 시점 안내 (자동 검사 켜짐일 때만) */}
+                {d.auto_scan && (
+                  <ScanScheduleControl domainId={d.id} frequency={(d.scan_frequency as string) ?? "daily"} />
+                )}
                 {(trendByHost.get(foldHost(d.hostname))?.length ?? 0) >= 2 && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3">
                     <p className="text-sm font-semibold text-[var(--color-ink-soft)]">{t("domains.trendTitle")}</p>
@@ -356,13 +362,9 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 )}
                 {d.verified && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
-                    <p className="mb-2 flex items-center gap-2 font-semibold">
-                      {t("domains.badgeTitle")}
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={`/api/badge/${encodeURIComponent(d.hostname)}`} alt={t("domains.badgeAlt")} height={20} />
-                    </p>
+                    <p className="mb-2 font-semibold">{t("domains.badgeTitle")}</p>
                     {/* 공개 배지 발행 + 디렉터리 등재 opt-in */}
-                    <form action={togglePublicListing} className="mb-2 flex flex-wrap items-center gap-2">
+                    <form action={togglePublicListing} className="mb-3 flex flex-wrap items-center gap-2">
                       <input type="hidden" name="id" value={d.id} />
                       <input type="hidden" name="enabled" value={String(d.public_listed === true)} />
                       <button
@@ -378,13 +380,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                       </button>
                       <span className="text-xs text-[var(--color-ink-faint)]">{t("domains.listedHint")}</span>
                     </form>
-                    {/* 공개 등재 시 배지가 공개 보고서로 링크 */}
-                    <code className="block break-all rounded bg-[var(--color-paper-warm)] px-2 py-1.5 text-[0.8em]">
-                      {d.public_listed === true
-                        ? `<a href="${siteUrl}/site/${d.hostname}"><img src="${siteUrl}/api/badge/${d.hostname}" alt="${t("domains.badgeAlt")}"></a>`
-                        : `<img src="${siteUrl}/api/badge/${d.hostname}" alt="${t("domains.badgeAlt")}">`}
-                    </code>
-                    <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">{t("domains.badgeNotice")}</p>
+                    {/* 배지 미리보기 + HTML/Markdown 코드 + 복사 (공개 등재 시 공개 보고서로 링크) */}
+                    <BadgeEmbed
+                      siteUrl={siteUrl}
+                      hostname={d.hostname}
+                      publicListed={d.public_listed === true}
+                      alt={t("domains.badgeAlt")}
+                    />
                   </div>
                 )}
               </li>

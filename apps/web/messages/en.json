@@ -324,7 +324,19 @@
       "cfZoneNotFound": "No matching Cloudflare zone was found for this domain. Make sure the token includes permission for this domain.",
       "cfAuthError": "The token is invalid or lacks permission. Please check Zone · DNS edit permission.",
       "cfApiError": "An error occurred during Cloudflare setup. Please try again in a moment.",
-      "cfInvalid": "Please enter a valid API token."
+      "cfInvalid": "Please enter a valid API token.",
+      "badgePreview": "Preview",
+      "badgeFormat": "Badge code format",
+      "badgeFormatHtml": "HTML",
+      "badgeFormatMd": "Markdown",
+      "badgeCopy": "Copy",
+      "badgeCopied": "Copied!",
+      "scheduleFreqLabel": "Scan frequency",
+      "scheduleDaily": "Daily",
+      "scheduleWeekly": "Weekly",
+      "scheduleMonthly": "Monthly",
+      "scheduleApply": "Apply",
+      "scheduleExplain": "Scheduled scans run automatically around 3 AM KST each day, checking only domains whose interval has elapsed. A specific time of day is not configurable."
     },
     "recent": {
       "title": "Recent audits",
