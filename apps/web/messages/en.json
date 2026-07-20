@@ -303,7 +303,8 @@
     },
     "recent": {
       "title": "Recent audits",
-      "empty": "No audits yet — start your first one above.",
+      "empty": "No audits yet — enter a site URL and get your first accessibility report in a minute or two.",
+      "emptyCta": "Start your first audit",
       "viewReport": "View report",
       "viewProgress": "View progress"
     },
@@ -892,7 +893,11 @@
   "errors": {
     "notFoundTitle": "Page not found",
     "notFoundDesc": "The address may have changed or the page was removed.",
-    "goHome": "Go home"
+    "goHome": "Go home",
+    "title": "Something went wrong",
+    "desc": "A temporary error kept this page from loading. Please try again in a moment.",
+    "retry": "Try again",
+    "loading": "Loading…"
   },
   "about": {
     "title": "About",

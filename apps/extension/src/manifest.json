@@ -10,8 +10,8 @@
     "sidePanel"
   ],
   "host_permissions": [
-    "http://*/*",
-    "https://*/*"
+    "https://www.a11ychk.com/*",
+    "https://a11ychk.com/*"
   ],
   "background": {
     "service_worker": "background.js"

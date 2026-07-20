@@ -213,12 +213,58 @@ export function clearOverlayInPage(): void {
   document.getElementById("a11ychk-linearize")?.remove();
 }
 
+/**
+ * 오버레이 마커가 스크롤·리사이즈·리플로우를 따라가도록 실시간 재배치한다.
+ * ⚠️ executeScript가 함수 소스만 직렬화하므로 이 헬퍼는 각 오버레이 함수 내부에
+ * 그대로 중첩(inline)해야 한다 — 외부 참조 불가.
+ *   function trackReposition(overlay, pairs) {
+ *     let raf = 0;
+ *     const onChange = () => {
+ *       if (!overlay.isConnected) { window.removeEventListener("scroll", onChange, true);
+ *         window.removeEventListener("resize", onChange); if (raf) cancelAnimationFrame(raf); return; }
+ *       if (raf) return;
+ *       raf = requestAnimationFrame(() => { raf = 0;
+ *         for (const [el, box] of pairs) { const r = el.getBoundingClientRect();
+ *           box.style.left = `${r.left + window.scrollX}px`; box.style.top = `${r.top + window.scrollY}px`;
+ *           box.style.width = `${Math.max(r.width, 4)}px`; box.style.height = `${Math.max(r.height, 4)}px`; } });
+ *     };
+ *     window.addEventListener("scroll", onChange, { passive: true, capture: true });
+ *     window.addEventListener("resize", onChange, { passive: true });
+ *   }
+ */
+
 /** 위반/구조 마커를 그린다. 기존 오버레이는 지우고 새로 그림 */
 export function overlayMarkersInPage(markers: { selector: string; color: string; label: string }[]): number {
   document.getElementById("a11ychk-overlay")?.remove();
+  // 스크롤·리사이즈 추종 (헤더 주석 참조 — 자기 완결 위해 중첩)
+  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
+    let raf = 0;
+    const onChange = () => {
+      if (!overlay.isConnected) {
+        window.removeEventListener("scroll", onChange, true);
+        window.removeEventListener("resize", onChange);
+        if (raf) cancelAnimationFrame(raf);
+        return;
+      }
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        for (const [el, box] of tracked) {
+          const r = el.getBoundingClientRect();
+          box.style.left = `${r.left + window.scrollX}px`;
+          box.style.top = `${r.top + window.scrollY}px`;
+          box.style.width = `${Math.max(r.width, 4)}px`;
+          box.style.height = `${Math.max(r.height, 4)}px`;
+        }
+      });
+    };
+    window.addEventListener("scroll", onChange, { passive: true, capture: true });
+    window.addEventListener("resize", onChange, { passive: true });
+  }
   const c = document.createElement("div");
   c.id = "a11ychk-overlay";
   c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  const pairs: [Element, HTMLElement][] = [];
   let drawn = 0;
   for (const m of markers) {
     let el: Element | null = null;
@@ -244,15 +290,42 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
       `background:${m.color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
     box.appendChild(tag);
     c.appendChild(box);
+    pairs.push([el, box]);
   }
   document.body.appendChild(c);
+  trackReposition(c, pairs);
   return drawn;
 }
 
 /** 구조 시각화 (headings/landmarks/focus)를 페이지에서 계산해 마커 배열 반환 → 그리기 */
 export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus", skippedLabel: string): number {
   document.getElementById("a11ychk-overlay")?.remove();
-  const markers: { rect: DOMRect; color: string; label: string }[] = [];
+  // 스크롤·리사이즈 추종 (overlayMarkersInPage 상단 주석 참조 — 자기 완결 위해 중첩)
+  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
+    let raf = 0;
+    const onChange = () => {
+      if (!overlay.isConnected) {
+        window.removeEventListener("scroll", onChange, true);
+        window.removeEventListener("resize", onChange);
+        if (raf) cancelAnimationFrame(raf);
+        return;
+      }
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        for (const [el, box] of tracked) {
+          const r = el.getBoundingClientRect();
+          box.style.left = `${r.left + window.scrollX}px`;
+          box.style.top = `${r.top + window.scrollY}px`;
+          box.style.width = `${Math.max(r.width, 4)}px`;
+          box.style.height = `${Math.max(r.height, 4)}px`;
+        }
+      });
+    };
+    window.addEventListener("scroll", onChange, { passive: true, capture: true });
+    window.addEventListener("resize", onChange, { passive: true });
+  }
+  const markers: { el: Element; color: string; label: string }[] = [];
   if (kind === "headings") {
     const hs = document.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading]");
     let prev = 0;
@@ -261,7 +334,7 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
       const n = Number(lvl);
       const skip = prev > 0 && n > prev + 1;
       markers.push({
-        rect: h.getBoundingClientRect(),
+        el: h,
         color: skip ? "#e0533d" : "#0b6b5e",
         label: `H${lvl}${skip ? skippedLabel : ""}`,
       });
@@ -272,7 +345,7 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
     document.querySelectorAll(sel).forEach((el) => {
       const role = el.getAttribute("role") || el.tagName.toLowerCase();
       const name = el.getAttribute("aria-label") || el.getAttribute("aria-labelledby") || "";
-      markers.push({ rect: el.getBoundingClientRect(), color: "#7a5cff", label: name ? `${role}: ${name}` : role });
+      markers.push({ el, color: "#7a5cff", label: name ? `${role}: ${name}` : role });
     });
   } else {
     const focusables = document.querySelectorAll<HTMLElement>(
@@ -283,14 +356,15 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
       const r = f.getBoundingClientRect();
       if (r.width <= 0 && r.height <= 0) return;
       i++;
-      markers.push({ rect: r, color: "#c9761b", label: String(i) });
+      markers.push({ el: f, color: "#c9761b", label: String(i) });
     });
   }
   const c = document.createElement("div");
   c.id = "a11ychk-overlay";
   c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  const pairs: [Element, HTMLElement][] = [];
   for (const m of markers) {
-    const r = m.rect;
+    const r = m.el.getBoundingClientRect();
     const box = document.createElement("div");
     box.style.cssText =
       "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
@@ -303,8 +377,10 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
       `background:${m.color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
     box.appendChild(tag);
     c.appendChild(box);
+    pairs.push([m.el, box]);
   }
   document.body.appendChild(c);
+  trackReposition(c, pairs);
   return markers.length;
 }
 
@@ -351,12 +427,38 @@ export function linearizeInPage(on: boolean): void {
 /** 클릭·터치 대상 크기 오버레이 — 각 타깃에 px 크기 표시, 24×24 미만은 빨간색 (WCAG 2.5.8) */
 export function overlayTargetSizeInPage(): number {
   document.getElementById("a11ychk-overlay")?.remove();
+  // 스크롤·리사이즈 추종 (overlayMarkersInPage 상단 주석 참조 — 자기 완결 위해 중첩)
+  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
+    let raf = 0;
+    const onChange = () => {
+      if (!overlay.isConnected) {
+        window.removeEventListener("scroll", onChange, true);
+        window.removeEventListener("resize", onChange);
+        if (raf) cancelAnimationFrame(raf);
+        return;
+      }
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        for (const [el, box] of tracked) {
+          const r = el.getBoundingClientRect();
+          box.style.left = `${r.left + window.scrollX}px`;
+          box.style.top = `${r.top + window.scrollY}px`;
+          box.style.width = `${Math.max(r.width, 4)}px`;
+          box.style.height = `${Math.max(r.height, 4)}px`;
+        }
+      });
+    };
+    window.addEventListener("scroll", onChange, { passive: true, capture: true });
+    window.addEventListener("resize", onChange, { passive: true });
+  }
   const c = document.createElement("div");
   c.id = "a11ychk-overlay";
   c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
   const targets = document.querySelectorAll<HTMLElement>(
     "a[href],button,input:not([type=hidden]),select,textarea,[role=button],[tabindex]:not([tabindex^='-'])",
   );
+  const pairs: [Element, HTMLElement][] = [];
   let n = 0;
   targets.forEach((el) => {
     const st = getComputedStyle(el);
@@ -378,14 +480,41 @@ export function overlayTargetSizeInPage(): number {
       `background:${color};color:#fff;padding:0 4px;white-space:nowrap;border-radius:2px;`;
     box.appendChild(tag);
     c.appendChild(box);
+    pairs.push([el, box]);
   });
   document.body.appendChild(c);
+  trackReposition(c, pairs);
   return n;
 }
 
 /** 선택자에 맞는 모든 요소를 강조 (수동 점검 항목별 맞춤 강조용) */
 export function overlayQueryInPage(selector: string, tagSome: string, tagNone: string): number {
   document.getElementById("a11ychk-overlay")?.remove();
+  // 스크롤·리사이즈 추종 (overlayMarkersInPage 상단 주석 참조 — 자기 완결 위해 중첩)
+  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
+    let raf = 0;
+    const onChange = () => {
+      if (!overlay.isConnected) {
+        window.removeEventListener("scroll", onChange, true);
+        window.removeEventListener("resize", onChange);
+        if (raf) cancelAnimationFrame(raf);
+        return;
+      }
+      if (raf) return;
+      raf = requestAnimationFrame(() => {
+        raf = 0;
+        for (const [el, box] of tracked) {
+          const r = el.getBoundingClientRect();
+          box.style.left = `${r.left + window.scrollX}px`;
+          box.style.top = `${r.top + window.scrollY}px`;
+          box.style.width = `${Math.max(r.width, 4)}px`;
+          box.style.height = `${Math.max(r.height, 4)}px`;
+        }
+      });
+    };
+    window.addEventListener("scroll", onChange, { passive: true, capture: true });
+    window.addEventListener("resize", onChange, { passive: true });
+  }
   const c = document.createElement("div");
   c.id = "a11ychk-overlay";
   c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
@@ -395,6 +524,7 @@ export function overlayQueryInPage(selector: string, tagSome: string, tagNone: s
   } catch {
     els = [];
   }
+  const pairs: [Element, HTMLElement][] = [];
   let n = 0;
   els.forEach((el) => {
     const r = el.getBoundingClientRect();
@@ -407,6 +537,7 @@ export function overlayQueryInPage(selector: string, tagSome: string, tagNone: s
       `left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
       `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
     c.appendChild(box);
+    pairs.push([el, box]);
   });
   const tag = document.createElement("div");
   // tagSome은 "{n}" 자리에 개수를 치환하는 로컬라이즈된 템플릿 (페이지 컨텍스트라 chrome.i18n 미사용)
@@ -416,5 +547,6 @@ export function overlayQueryInPage(selector: string, tagSome: string, tagNone: s
     "font:700 12px sans-serif;padding:5px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);";
   c.appendChild(tag);
   document.body.appendChild(c);
+  trackReposition(c, pairs);
   return n;
 }

@@ -26,6 +26,18 @@
   "scanning": {
     "message": "Scanning…"
   },
+  "scanningNote": {
+    "message": "Analyzing the current page. This can take a few seconds."
+  },
+  "introTitle": {
+    "message": "Check the page you're on"
+  },
+  "introDesc": {
+    "message": "Press “Scan this page” below to audit the current page against WCAG and KWCAG, with violations marked right on the page."
+  },
+  "errNeedActivation": {
+    "message": "To scan this tab, click the extension icon on this page once to grant access."
+  },
   "autoScoreLabel": {
     "message": "Automated compliance"
   },

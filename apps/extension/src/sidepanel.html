@@ -24,7 +24,16 @@
 
       <!-- ─────────── 검사 탭 ─────────── -->
       <section id="tab-scan" role="tabpanel" aria-label="검사" data-i18n-aria-label="tabScanAria">
+        <section id="intro" class="intro">
+          <h2 data-i18n="introTitle">지금 보고 있는 페이지를 바로 점검</h2>
+          <p data-i18n="introDesc">아래 ‘이 페이지 검사’를 누르면 현재 페이지를 WCAG·KWCAG 기준으로 자동 점검하고, 위반 위치를 페이지 위에 표시해 드립니다.</p>
+        </section>
+
         <button id="scan" class="btn btn-primary" type="button" data-i18n="scanBtn">이 페이지 검사</button>
+        <p id="scanStatus" class="scan-status" role="status" aria-live="polite" hidden>
+          <span class="spinner" aria-hidden="true"></span>
+          <span id="scanStatusText" data-i18n="scanningNote">현재 페이지를 분석하고 있어요. 몇 초 걸릴 수 있습니다.</span>
+        </p>
         <p id="usage" class="usage" role="status" aria-live="polite"></p>
 
         <section id="result" hidden aria-live="polite">

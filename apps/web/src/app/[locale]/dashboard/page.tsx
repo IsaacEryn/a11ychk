@@ -381,9 +381,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
           {t("recent.title")}
         </h2>
         {!scans || scans.length === 0 ? (
-          <p className="mt-4 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-[var(--color-ink-faint)]">
-            {t("recent.empty")}
-          </p>
+          <div className="mt-4 flex flex-col items-start gap-4 border-[1.5px] border-dashed border-[var(--color-line)] p-6">
+            <p className="text-[var(--color-ink-soft)]">{t("recent.empty")}</p>
+            <Link
+              href="/scan"
+              className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)]"
+            >
+              {t("recent.emptyCta")}
+            </Link>
+          </div>
         ) : (
           <ul className="mt-4 divide-y divide-[var(--color-line)] border-y-[1.5px] border-[var(--color-ink)]">
             {scans.map((s) => (

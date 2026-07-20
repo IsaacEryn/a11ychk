@@ -748,3 +748,56 @@ h2 {
   gap: 8px;
   flex-wrap: wrap;
 }
+
+/* 첫 진입 온보딩 카드 (첫 검사 전) */
+.intro {
+  border: 1.5px solid var(--line);
+  border-left: 3px solid var(--seal);
+  background: var(--seal-tint);
+  border-radius: 8px;
+  padding: 12px 14px;
+  margin: 0 0 12px;
+}
+.intro h2 {
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--ink);
+}
+.intro p {
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+  margin: 0;
+}
+
+/* 검사 진행 상태 (버튼 아래) */
+.scan-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--ink-soft);
+  margin: 8px 0 0;
+}
+.spinner {
+  width: 13px;
+  height: 13px;
+  flex: none;
+  border: 2px solid var(--line);
+  border-top-color: var(--seal);
+  border-radius: 50%;
+  animation: a11y-spin 0.7s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+    border-top-color: var(--seal);
+    opacity: 0.7;
+  }
+}
+@keyframes a11y-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

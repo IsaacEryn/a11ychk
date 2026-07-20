@@ -193,6 +193,7 @@ async function scan() {
 
   scanBtn.disabled = true;
   scanBtn.textContent = msg("scanning");
+  $("scanStatus").hidden = false;
   try {
     // 1) axe 라이브러리 주입 (MAIN world)
     await chrome.scripting.executeScript({
@@ -253,9 +254,14 @@ async function scan() {
     target.textContent = "";
     const err = document.createElement("span");
     err.className = "err";
-    err.textContent = msg("errScanFailed", [(e as Error).message]);
+    // host_permissions를 activeTab 위주로 좁혔으므로, 아이콘으로 열지 않은 탭은
+    // 접근 권한이 없어 주입이 실패한다 → 아이콘 재클릭 안내로 전환.
+    const em = (e as Error).message || "";
+    const needsActivation = /access|permission|cannot be scripted|host permission/i.test(em);
+    err.textContent = needsActivation ? msg("errNeedActivation") : msg("errScanFailed", [em]);
     target.appendChild(err);
   } finally {
+    $("scanStatus").hidden = true;
     scanBtn.disabled = false;
     scanBtn.textContent = msg("rescan");
   }
@@ -270,6 +276,7 @@ function renderResult(
   url: string,
 ) {
   lastPage = page;
+  $("intro").hidden = true;
   $("result").hidden = false;
   $("rate").textContent = String(summary.complianceRate);
 
