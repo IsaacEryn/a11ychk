@@ -322,7 +322,7 @@ export default async function ReportPage({
             })}
           </p>
           <div className="mt-3 overflow-x-auto">
-            <table className="w-full border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
+            <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
               <caption className="sr-only">{t("pages.title")}</caption>
               <thead>
                 <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
@@ -605,7 +605,7 @@ export default async function ReportPage({
           </h2>
           <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("wcag.desc")}</p>
           <div className="mt-4 overflow-x-auto">
-            <table className="w-full border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
+            <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
               <caption className="sr-only">{t("wcag.title")}</caption>
               <thead>
                 <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
@@ -736,7 +736,7 @@ export default async function ReportPage({
         </h2>
         <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("kwcag.desc")}</p>
         <div className="mt-4 overflow-x-auto">
-          <table className="w-full border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
+          <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
             <caption className="sr-only">{t("kwcag.title")}</caption>
             <thead>
               <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
