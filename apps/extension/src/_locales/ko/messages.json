@@ -47,6 +47,15 @@
   "clearOverlay": {
     "message": "모두 지우기"
   },
+  "aiFixExport": {
+    "message": "AI 수정요청 내보내기"
+  },
+  "aiFixEmpty": {
+    "message": "내보낼 위반이 없습니다."
+  },
+  "aiFixIntro": {
+    "message": "아래는 웹 접근성 자동 점검에서 발견된 위반입니다. 각 항목의 원인과 위치를 참고해, WCAG 2.2·KWCAG 2.2를 충족하도록 코드 수정안을 제시해 주세요."
+  },
   "procLabel": {
     "message": "이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)"
   },
@@ -75,6 +84,9 @@
         "content": "$1"
       }
     }
+  },
+  "errScanTimeout": {
+    "message": "검사 시간이 초과되었습니다. 페이지가 매우 크거나 응답하지 않을 수 있어요. 다시 시도해 주세요."
   },
   "errUnscannable": {
     "message": "이 페이지는 검사할 수 없습니다 (http/https 페이지에서 실행하세요)."

@@ -40,6 +40,20 @@ interface StoredSession {
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+/** axe 실행 최대 대기 시간 — 초과 시 친화적 오류로 전환(무한 대기 방지) */
+const AXE_TIMEOUT_MS = 30_000;
+
+/** 프라미스에 타임아웃을 건다. 초과하면 message로 reject. */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (v) => { clearTimeout(timer); resolve(v); },
+      (e) => { clearTimeout(timer); reject(e); },
+    );
+  });
+}
+
 async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -195,27 +209,32 @@ async function scan() {
   scanBtn.textContent = msg("scanning");
   $("scanStatus").hidden = false;
   try {
-    // 1) axe 라이브러리 주입 (MAIN world)
+    // 1) axe 라이브러리 주입 (MAIN world) — allFrames로 접근 가능한 하위 프레임에도 주입해
+    //    axe가 프레임 경계를 넘어 검사하도록 한다(권한 있는 프레임 한정). 상위 프레임만 실행.
     await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
+      target: { tabId: tab.id, allFrames: true },
       world: "MAIN",
       files: ["vendor/axe.min.js"],
     });
     if (!isEnglish()) {
       await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
+        target: { tabId: tab.id, allFrames: true },
         world: "MAIN",
         args: [axeKoLocale],
         func: configureAxeLocaleInPage,
       });
     }
-    // 2) axe 실행
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: tab.id },
-      world: "MAIN",
-      args: [AXE_RUN_TAGS],
-      func: runAxeInPage,
-    });
+    // 2) axe 실행 — 무거운 페이지에서 무한 대기하지 않도록 타임아웃(멈춘 듯한 UX 방지)
+    const results = await withTimeout(
+      chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        world: "MAIN",
+        args: [AXE_RUN_TAGS],
+        func: runAxeInPage,
+      }),
+      AXE_TIMEOUT_MS,
+      msg("errScanTimeout"),
+    );
     const raw = results[0]?.result as AxeRunResults | undefined;
     if (!raw) throw new Error(msg("errFetchResults"));
     const page = normalizeAxeResults(tab.url, raw);
@@ -758,10 +777,62 @@ function syncToolButtons() {
   }
 }
 
+/** AI 수정요청 프롬프트에 규칙당 포함할 최대 발생 위치 */
+const MAX_AIFIX_NODES = 10;
+
+/**
+ * 로컬 검사 결과를 AI 도구(Claude/ChatGPT/Copilot)에 붙여넣을 자기완결 마크다운으로 변환.
+ * 웹 보고서의 ai-fix 내보내기와 동일한 목적 — 확장에서도 "점검→즉시 수정"이 완결되게 한다.
+ */
+function buildAiFixMarkdown(page: NonNullable<typeof lastPage>): string {
+  const sorted = [...page.violations].sort((a, b) => IMPACTS.indexOf(a.impact) - IMPACTS.indexOf(b.impact));
+  const lines: string[] = [`# A11Y Check — ${msg("aiFixExport")}`, "", `- URL: ${page.url}`, `- ${msg("aiFixIntro")}`, ""];
+  let i = 0;
+  for (const v of sorted) {
+    i++;
+    const entry = getRuleEntry(v.ruleId, v.tags);
+    const tags = [
+      entry.wcag.length ? `WCAG ${entry.wcag.join(", ")}` : "",
+      entry.kwcag.length ? `KWCAG ${entry.kwcag.join(", ")}` : "",
+    ].filter(Boolean).join(" · ");
+    lines.push(`## ${i}. [${IMPACT_LABEL[v.impact]}] ${pick(entry.title)}`);
+    lines.push(`- ${[tags, msg("nodeCount", [v.nodes.length])].filter(Boolean).join(" · ")}`);
+    const guide = pick(entry.guide).split("\n\n")[0]?.trim();
+    if (guide) lines.push("", guide);
+    lines.push("");
+    for (const node of v.nodes.slice(0, MAX_AIFIX_NODES)) {
+      lines.push(`- \`${node.selector}\``, "  ```html", "  " + node.html.replace(/\n/g, "\n  "), "  ```");
+      if (node.failureSummary) lines.push(`  - ${node.failureSummary.replace(/\s*\n\s*/g, " ")}`);
+    }
+    if (v.nodes.length > MAX_AIFIX_NODES) lines.push(`- ${msg("moreNodes", [v.nodes.length - MAX_AIFIX_NODES])}`);
+    lines.push("");
+  }
+  return lines.join("\n");
+}
+
+/** AI 수정요청 마크다운 파일 다운로드 (Blob + anchor — downloads 권한 불필요) */
+function exportAiFix() {
+  const msgEl = $("saveMsg");
+  if (!lastPage || lastPage.violations.length === 0) {
+    msgEl.textContent = msg("aiFixEmpty");
+    return;
+  }
+  const md = buildAiFixMarkdown(lastPage);
+  let host = "page";
+  try { host = new URL(lastPage.url).hostname; } catch { /* about:blank 등 */ }
+  const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `a11ychk-ai-fix-${host}.md`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
 function wireVisualTools() {
   $("toggleIssues").addEventListener("click", () => setIssuesView(currentView !== "issues"));
   $("clearOverlay").addEventListener("click", clearAll);
   $("clearOverlay2").addEventListener("click", clearAll);
+  $("exportAiFix").addEventListener("click", exportAiFix);
 
   document.querySelectorAll<HTMLButtonElement>("[data-struct]").forEach((btn) => {
     const kind = btn.dataset.struct!;

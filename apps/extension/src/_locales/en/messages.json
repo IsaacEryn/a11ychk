@@ -47,6 +47,15 @@
   "clearOverlay": {
     "message": "Clear all"
   },
+  "aiFixExport": {
+    "message": "Export AI fix request"
+  },
+  "aiFixEmpty": {
+    "message": "No violations to export."
+  },
+  "aiFixIntro": {
+    "message": "Below are violations found by automated web accessibility checks. Using each item's cause and location, propose code fixes that satisfy WCAG 2.2 and KWCAG 2.2."
+  },
   "procLabel": {
     "message": "Mark this page as a step in a multi-step process (WCAG-EM)"
   },
@@ -75,6 +84,9 @@
         "content": "$1"
       }
     }
+  },
+  "errScanTimeout": {
+    "message": "The scan timed out. The page may be very large or unresponsive. Please try again."
   },
   "errUnscannable": {
     "message": "This page can't be scanned (use an http/https page)."
