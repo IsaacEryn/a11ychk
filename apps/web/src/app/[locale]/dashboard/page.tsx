@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCachedUser } from "@/lib/supabase/user";
 import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicListing, verifyDomain } from "@/lib/actions";
@@ -22,11 +23,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const format = await getFormatter();
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 렌더 스코프 캐시 — 헤더와 getUser 왕복 공유
+  const user = await getCachedUser();
   if (!user) redirect(`/${locale}/login`);
+  const supabase = await createClient();
 
   const [{ data: profile }, { data: domains }, { data: scans }, { data: trendRows }] = await Promise.all([
     supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),

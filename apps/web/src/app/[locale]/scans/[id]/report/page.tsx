@@ -22,8 +22,7 @@ import { ReportMetaForm } from "./ReportMetaForm";
 import { MatrixDetail } from "./MatrixDetail";
 import { RerunScanButton, RescanPageButton } from "./RescanButtons";
 import { ShareLinkButton } from "./ShareLinkButton";
-import { ViewToggle } from "./ViewToggle";
-import { StandardToggle } from "./StandardToggle";
+import { ReportControls } from "./ReportControls";
 import { CompareSelect } from "./CompareSelect";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
@@ -90,10 +89,10 @@ export default async function ReportPage({
   const wcagManualDone = wcagManualRows.filter((r) => wcagReviews.has(r.scId)).length;
   const kwcagManualRows = (summary.kwcagMatrix ?? []).filter((r) => r.status === "manual" || r.status === "review");
   const kwcagManualDone = kwcagManualRows.filter((r) => kwcagReviews.has(r.itemId)).length;
-  // 우선 표준이 먼저 오고, 단일 표준 보기에서는 해당 표준만 표시
+  // 우선 표준이 먼저 오도록 정렬. 단일 표준 보기(std) 필터는 CSS(data-std-item)가 담당 —
+  // 양쪽을 모두 렌더해 std 토글이 서버 재페치 없이 즉시 반영되게 한다.
   const stdOrder: ("kwcag" | "wcag")[] = preferred === "wcag" ? ["wcag", "kwcag"] : ["kwcag", "wcag"];
   const manualProgress: { key: string; label: string; done: number; total: number }[] = stdOrder
-    .filter((s) => std === "both" || std === s)
     .map((s) =>
       s === "kwcag"
         ? { key: "kwcag", label: "KWCAG 2.2", done: kwcagManualDone, total: kwcagManualRows.length }
@@ -111,23 +110,37 @@ export default async function ReportPage({
     );
   const maxImpact = Math.max(1, ...IMPACT_ORDER.map((k) => summary.byImpact[k]));
 
-  // 출력 범위 필터 — 점검자 판정이 있으면 그것을 우선한다 (매트릭스 표시 규칙과 동일)
-  const wcagRowVisible = (outcome: WcagOutcome, review: { outcome: string } | null): boolean => {
-    if (view === "all") return true;
+  // 출력 범위 필터 — 점검자 판정이 있으면 그것을 우선한다 (매트릭스 표시 규칙과 동일).
+  // view별 가시성을 각 행에 data 속성으로 새겨 CSS가 즉시 필터하게 한다(서버 재페치 제거).
+  const wcagRowVisible = (v: "all" | "auto" | "done" | "issues", outcome: WcagOutcome, review: { outcome: string } | null): boolean => {
+    if (v === "all") return true;
     // auto: 자동 도구가 판정을 낸 항목만 (notChecked = 수동 필요 → 제외). 점검자 판정과 무관
-    if (view === "auto") return outcome !== "notChecked";
+    if (v === "auto") return outcome !== "notChecked";
     const effective = (review?.outcome as WcagOutcome | undefined) ?? outcome;
-    if (view === "issues") return effective === "failed";
+    if (v === "issues") return effective === "failed";
     // done: 점검자가 판정했거나 자동으로 확정 판정된 항목
     return review !== null || effective === "passed" || effective === "failed" || effective === "cannotTell";
   };
-  const kwcagRowVisible = (status: string, review: { outcome: string } | null): boolean => {
-    if (view === "all") return true;
-    if (view === "auto") return status !== "manual";
-    if (review) return view === "issues" ? review.outcome === "failed" : true;
-    if (view === "issues") return status === "fail";
+  const kwcagRowVisible = (v: "all" | "auto" | "done" | "issues", status: string, review: { outcome: string } | null): boolean => {
+    if (v === "all") return true;
+    if (v === "auto") return status !== "manual";
+    if (review) return v === "issues" ? review.outcome === "failed" : true;
+    if (v === "issues") return status === "fail";
     return status === "pass" || status === "fail" || status === "review";
   };
+  /** 행에 붙일 view 가시성 data 속성 (all은 항상 보이므로 생략). undefined면 React가 속성 미출력 */
+  const wcagRowData = (outcome: WcagOutcome, review: { outcome: string } | null) => ({
+    "data-row": "",
+    "data-v-auto": wcagRowVisible("auto", outcome, review) ? "" : undefined,
+    "data-v-done": wcagRowVisible("done", outcome, review) ? "" : undefined,
+    "data-v-issues": wcagRowVisible("issues", outcome, review) ? "" : undefined,
+  });
+  const kwcagRowData = (status: string, review: { outcome: string } | null) => ({
+    "data-row": "",
+    "data-v-auto": kwcagRowVisible("auto", status, review) ? "" : undefined,
+    "data-v-done": kwcagRowVisible("done", status, review) ? "" : undefined,
+    "data-v-issues": kwcagRowVisible("issues", status, review) ? "" : undefined,
+  });
 
   const statusStyle: Record<string, string> = {
     pass: "bg-[var(--color-seal-tint)] text-[var(--color-pass)] border-[var(--color-seal)]",
@@ -145,74 +158,55 @@ export default async function ReportPage({
     notPresent: "text-[var(--color-ink-faint)] border-[var(--color-line)]",
   };
 
+  const exportMenu = (
+    <details className="relative">
+      <summary className="cursor-pointer list-none rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]">
+        {t("export.menu")} ▾
+      </summary>
+      <ul className="absolute right-0 z-10 mt-1 w-72 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] py-1 shadow-[4px_4px_0_0_var(--color-line)]">
+        {[
+          { href: `/api/scans/${scan.id}/csv?type=findings&lang=${locale}`, label: t("export.csvFindings") },
+          { href: `/api/scans/${scan.id}/csv?type=kwcag&lang=${locale}`, label: t("export.csvKwcag") },
+          { href: `/api/scans/${scan.id}/ai-fix?lang=${locale}`, label: t("downloadAiFix") },
+          { href: `/api/scans/${scan.id}/ai-fix?format=json&lang=${locale}`, label: t("export.aiFixJson") },
+          { href: `/api/scans/${scan.id}/earl`, label: t("downloadEarl") },
+          { href: `/api/scans/${scan.id}/report-tool`, label: t("downloadReportTool") },
+        ].map((item) => (
+          <li key={item.href}>
+            <a href={item.href} className="block px-4 py-2 text-sm font-semibold hover:bg-[var(--color-paper-warm)]">
+              {item.label}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
-      {/* 액션 바 */}
-      <div className="no-print mb-8 flex flex-wrap items-center justify-between gap-2">
-        <div>{canEdit && <ShareLinkButton scanId={scan.id} initialToken={(scan.share_token as string | null) ?? null} />}</div>
-        <div className="flex flex-wrap items-center justify-end gap-2">
-        {canEdit && <RerunScanButton scanId={scan.id} />}
-        <PrintButton label={t("print")} />
-        {/* 내보내기 묶음 — 형식이 많아져 드롭다운으로 정리 (details = JS 없이 동작) */}
-        <details className="relative">
-          <summary className="cursor-pointer list-none rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]">
-            {t("export.menu")} ▾
-          </summary>
-          <ul className="absolute right-0 z-10 mt-1 w-72 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] py-1 shadow-[4px_4px_0_0_var(--color-line)]">
-            {[
-              { href: `/api/scans/${scan.id}/csv?type=findings&lang=${locale}`, label: t("export.csvFindings") },
-              { href: `/api/scans/${scan.id}/csv?type=kwcag&lang=${locale}`, label: t("export.csvKwcag") },
-              { href: `/api/scans/${scan.id}/ai-fix?lang=${locale}`, label: t("downloadAiFix") },
-              { href: `/api/scans/${scan.id}/ai-fix?format=json&lang=${locale}`, label: t("export.aiFixJson") },
-              { href: `/api/scans/${scan.id}/earl`, label: t("downloadEarl") },
-              { href: `/api/scans/${scan.id}/report-tool`, label: t("downloadReportTool") },
-            ].map((item) => (
-              <li key={item.href}>
-                <a href={item.href} className="block px-4 py-2 text-sm font-semibold hover:bg-[var(--color-paper-warm)]">
-                  {item.label}
-                </a>
-              </li>
-            ))}
-          </ul>
-        </details>
-        <a
-          href={`/api/scans/${scan.id}/pdf?view=${view}&lang=${locale}${compareParam ? `&compare=${compareParam}` : ""}${
-            std !== "both" ? `&std=${std}` : `&pref=${preferred}`
-          }`}
-          className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
-        >
-          {t("downloadPdf")}
-        </a>
-        </div>
-      </div>
-
-      {/* ─── 출력 범위·표시 표준 (화면 전용 토글 + 인쇄 포함 안내문) ─── */}
-      <ViewToggle
-        view={view}
-        labels={{ legend: t("view.legend"), all: t("view.all"), auto: t("view.auto"), done: t("view.done"), issues: t("view.issues") }}
-      />
-      {hasWcag && (
-        <StandardToggle
-          std={std}
-          labels={{ legend: t("std.legend"), both: t("std.both"), wcag: t("std.wcag"), kwcag: t("std.kwcag") }}
-        />
-      )}
-      {view !== "all" && (
-        <p
-          role="note"
-          className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
-        >
-          {t(`view.notice.${view}`)}
-        </p>
-      )}
-      {hasWcag && std !== "both" && (
-        <p
-          role="note"
-          className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
-        >
-          {t(`std.notice.${std}`)}
-        </p>
-      )}
+      {/* 출력 범위(view)·표시 표준(std) 토글 — 클라이언트 상태로 서버 재페치 없이 CSS 필터 */}
+      <ReportControls
+        initialView={view}
+        initialStd={std}
+        preferred={preferred}
+        hasWcag={hasWcag}
+        pdfBase={{ scanId: scan.id, locale, compareParam }}
+        labels={{
+          view: { legend: t("view.legend"), all: t("view.all"), auto: t("view.auto"), done: t("view.done"), issues: t("view.issues") },
+          std: { legend: t("std.legend"), both: t("std.both"), wcag: t("std.wcag"), kwcag: t("std.kwcag") },
+          viewNotice: { auto: t("view.notice.auto"), done: t("view.notice.done"), issues: t("view.notice.issues") },
+          stdNotice: { wcag: t("std.notice.wcag"), kwcag: t("std.notice.kwcag") },
+          downloadPdf: t("downloadPdf"),
+        }}
+        leftActions={canEdit && <ShareLinkButton scanId={scan.id} initialToken={(scan.share_token as string | null) ?? null} />}
+        rightActions={
+          <>
+            {canEdit && <RerunScanButton scanId={scan.id} />}
+            <PrintButton label={t("print")} />
+            {exportMenu}
+          </>
+        }
+      >
 
       {/* ─── 보고서 정보 입력 (점검자, 화면 전용) ─── */}
       {canEdit && <ReportMetaForm scanId={scan.id} meta={meta} />}
@@ -607,7 +601,7 @@ export default async function ReportPage({
             {manualProgress.map((x) => {
               const pct = Math.round((x.done / x.total) * 100);
               return (
-                <div key={x.key}>
+                <div key={x.key} data-std-item={x.key}>
                   <div className="flex items-baseline justify-between gap-3">
                     <span className="text-sm font-bold">{x.label}</span>
                     <span className="text-sm tabular-nums text-[var(--color-ink-soft)]">
@@ -635,7 +629,7 @@ export default async function ReportPage({
       {(() => {
         // WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4)
         const wcagBlock = hasWcag ? (
-        <section aria-labelledby="wcag-heading" className="print-break-before mt-10">
+        <section data-block="wcag" aria-labelledby="wcag-heading" className="print-break-before mt-10">
           <h2 id="wcag-heading" className="font-display text-2xl font-bold">
             {t("wcag.title")}
           </h2>
@@ -659,10 +653,9 @@ export default async function ReportPage({
                   const c = WCAG_BY_ID.get(row.scId);
                   if (!c) return null;
                   const review = wcagReviews.get(row.scId) ?? null;
-                  if (!wcagRowVisible(row.outcome, review)) return null;
                   const effective = (review?.outcome as WcagOutcome | undefined) ?? row.outcome;
                   return (
-                    <tr key={row.scId} className="border-b border-[var(--color-line)] align-top">
+                    <tr key={row.scId} {...wcagRowData(row.outcome, review)} className="border-b border-[var(--color-line)] align-top">
                       <th scope="row" className="py-2 pr-3 text-left font-medium">
                         <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
                         {pick(c.name, locale)}
@@ -718,7 +711,7 @@ export default async function ReportPage({
 
         // KWCAG 블록 — 인증 준비 요약(KWCAG 인증 기준 귀속)과 33항목 매트릭스
         const kwcagBlock = (
-        <>
+        <div data-block="kwcag">
         {/* ─── 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 ─── */}
         {cert.averageRate != null && (
         <section aria-labelledby="cert-heading" className="print-avoid-break mt-10 doc-card p-6">
@@ -799,9 +792,8 @@ export default async function ReportPage({
                 const item = KWCAG_BY_ID.get(row.itemId);
                 if (!item) return null;
                 const review = kwcagReviews.get(row.itemId) ?? null;
-                if (!kwcagRowVisible(row.status, review)) return null;
                 return (
-                  <tr key={row.itemId} className="border-b border-[var(--color-line)] align-top">
+                  <tr key={row.itemId} {...kwcagRowData(row.status, review)} className="border-b border-[var(--color-line)] align-top">
                     <th scope="row" className="py-2 pr-3 text-left font-medium">
                       <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
                       {pick(item.name, locale)}
@@ -872,20 +864,19 @@ export default async function ReportPage({
         </div>
         <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("kwcag.certNote")}</p>
         </section>
-        </>
+        </div>
         );
 
-        const first = std !== "kwcag" ? wcagBlock : null;
-        const second = std !== "wcag" ? kwcagBlock : null;
+        // 두 블록을 항상 렌더(우선 표준 순서)하고, std 단일 보기 숨김은 CSS(data-std)가 담당.
         return preferred === "wcag" ? (
           <>
-            {first}
-            {second}
+            {wcagBlock}
+            {kwcagBlock}
           </>
         ) : (
           <>
-            {second}
-            {first}
+            {kwcagBlock}
+            {wcagBlock}
           </>
         );
       })()}
@@ -1045,8 +1036,9 @@ export default async function ReportPage({
       </section>
 
       {/* ─── 확인용 수집 자료 — 값은 존재하나 품질은 사람이 확증 (1.1.1·2.4.4·3.3.2 등) ─── */}
-      {view === "all" && reviewPages.length > 0 && (
-        <section aria-labelledby="review-data-heading" className="print-break-before mt-12">
+      {/* view=all 전용 — 숨김은 CSS(data-only-all)가 담당해 토글 즉시 반영 */}
+      {reviewPages.length > 0 && (
+        <section data-only-all aria-labelledby="review-data-heading" className="print-break-before mt-12">
           <h2 id="review-data-heading" className="font-display text-2xl font-bold">
             {t("reviewData.title")}
           </h2>
@@ -1085,9 +1077,8 @@ export default async function ReportPage({
         </section>
       )}
 
-      {/* ─── 수동 검사 항목 (출력 범위 all일 때만) ─── */}
-      {view === "all" && (
-      <section aria-labelledby="manual-heading" className="print-break-before mt-12">
+      {/* ─── 수동 검사 항목 (출력 범위 all일 때만 — 숨김은 CSS data-only-all) ─── */}
+      <section data-only-all aria-labelledby="manual-heading" className="print-break-before mt-12">
         <h2 id="manual-heading" className="font-display text-2xl font-bold">
           {t("manual.title")}
         </h2>
@@ -1108,7 +1099,6 @@ export default async function ReportPage({
           ))}
         </ul>
       </section>
-      )}
 
       {/* ─── WCAG-EM 적합성 진술 (Step 5.c) ─── */}
       <section aria-labelledby="statement-heading" className="print-avoid-break mt-12 border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] p-6">
@@ -1123,6 +1113,7 @@ export default async function ReportPage({
         <p>{t("disclaimer")}</p>
         <p className="mt-2">{t("generatedBy")}</p>
       </footer>
+      </ReportControls>
     </div>
   );
 }

@@ -70,7 +70,7 @@
     "honestyTitle": "Honest automation",
     "honestyDesc": "Automated tools can only find part of all accessibility issues. A11Y Check states its limits clearly and guides you through the checks that require a human.",
     "openSourceTitle": "Built in the open",
-    "openSourceDesc": "The audit engine and rule catalog are MIT-licensed. Contributions to the guides are welcome.",
+    "openSourceDesc": "The audit engine and rule catalog are Apache-2.0 licensed. Contributions to the guides are welcome.",
     "demo": {
       "title": "Web Accessibility Audit Report",
       "rate": "% automated compliance",
@@ -961,7 +961,7 @@
     "honestyTitle": "Honest automation",
     "honestyDesc": "Automated tools can only find a portion of accessibility issues. We state that limit in the report itself, not in fine print, and mark everything requiring human judgment as a manual check with testing instructions. Our automated results alone cannot support a conformance claim — and you should be skeptical of any tool that says otherwise.",
     "openTitle": "Open source",
-    "openDesc": "The scan engine, the WCAG/KWCAG mapping, and the Korean remediation guides are all MIT-licensed. If a verdict looks wrong, open the code and check the reasoning — or fix it and send a pull request.",
+    "openDesc": "The scan engine, the WCAG/KWCAG mapping, and the Korean remediation guides are all Apache-2.0 licensed. If a verdict looks wrong, open the code and check the reasoning — or fix it and send a pull request.",
     "ctaScan": "Start an audit",
     "ctaContact": "Contact",
     "name": {
@@ -1003,7 +1003,7 @@
     },
     "oss": {
       "title": "Open source",
-      "desc": "The audit engine and the full Korean-language KWCAG 2.2 rule catalog are MIT-licensed. Anyone can verify and contribute.",
+      "desc": "The audit engine and the full Korean-language KWCAG 2.2 rule catalog are Apache-2.0 licensed. Anyone can verify and contribute.",
       "link": "View on GitHub →",
       "traffic": "Since {since}: {views} repository views ({visitors} visitors) · {clones} clones"
     },

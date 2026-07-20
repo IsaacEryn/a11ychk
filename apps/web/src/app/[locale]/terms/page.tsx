@@ -69,7 +69,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
       {
         heading: "제8조 (오픈소스)",
         body: [
-          "서비스의 검사 엔진과 규칙 카탈로그는 MIT 라이선스로 공개되어 있으며, 라이선스 조건에 따라 자유롭게 이용할 수 있습니다.",
+          "서비스의 검사 엔진과 규칙 카탈로그는 Apache-2.0 라이선스로 공개되어 있으며, 라이선스 조건에 따라 자유롭게 이용할 수 있습니다.",
         ],
       },
       {
@@ -128,7 +128,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
       },
       {
         heading: "7. Open source",
-        body: ["The audit engine and rule catalog are published under the MIT license."],
+        body: ["The audit engine and rule catalog are published under the Apache-2.0 license."],
       },
       {
         heading: "8. Changes",

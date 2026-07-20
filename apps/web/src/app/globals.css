@@ -240,6 +240,26 @@ button:not(:disabled):active {
   animation: pulse-dot 1.4s ease-in-out infinite;
 }
 
+/* ═══════════ 보고서 출력 범위(view)·표시 표준(std) 클라이언트 필터 ═══════════ */
+/* ReportControls가 최상위 data-view/data-std만 바꾸면 CSS가 즉시 행·블록을 필터한다.
+   화면·인쇄(PDF) 공통 규칙 — @media 밖에 둔다. all/both는 규칙이 없어 전부 표시. */
+[data-view="auto"] [data-row]:not([data-v-auto]),
+[data-view="done"] [data-row]:not([data-v-done]),
+[data-view="issues"] [data-row]:not([data-v-issues]) {
+  display: none;
+}
+[data-view="auto"] [data-only-all],
+[data-view="done"] [data-only-all],
+[data-view="issues"] [data-only-all] {
+  display: none;
+}
+[data-std="wcag"] [data-block="kwcag"],
+[data-std="wcag"] [data-std-item="kwcag"],
+[data-std="kwcag"] [data-block="wcag"],
+[data-std="kwcag"] [data-std-item="wcag"] {
+  display: none;
+}
+
 /* ═══════════ 인쇄(보고서 PDF) 스타일 ═══════════ */
 @media print {
   html, body {

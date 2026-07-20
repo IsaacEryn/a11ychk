@@ -1,5 +1,6 @@
 import "server-only";
 import { notFound, redirect } from "next/navigation";
+import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getRuleEntry,
@@ -10,9 +11,41 @@ import {
 } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { getCachedUser } from "@/lib/supabase/user";
 import { verifyReportToken } from "@/lib/reportToken";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
 import type { ReviewValue } from "./ReviewCell";
+
+/**
+ * 스캔의 대량·열람자 무관 데이터(페이지·위반 전량)를 (scanId, version) 키로 캐시한다.
+ * findings 전량 페이지네이션이 보고서 로딩의 지배적 비용이라, view/std/compare
+ * 토글마다 재페치되던 것을 캐시로 없앤다. 소유권 검증은 상위(loadReport)의 RLS
+ * scan 조회가 이미 담당하므로, 여기서는 admin으로 조회해도 안전하다.
+ *
+ * version에는 scan.finished_at을 넘긴다 — rescanPage→reaggregate가 재검사 때마다
+ * finished_at을 갱신하므로 findings가 바뀌면 캐시 키가 달라져 자동으로 재조회된다
+ * (별도 revalidateTag 불필요). 이전 버전 키 항목은 자연히 LRU로 밀려난다.
+ */
+function loadScanBulk(scanId: string, version: string): Promise<{ pages: PageRow[]; findings: FindingRow[] }> {
+  return unstable_cache(
+    async () => {
+      const admin = createAdminClient();
+      const { data: pagesData } = await admin.from("scan_pages").select("*").eq("scan_id", scanId).order("url");
+      const pages = (pagesData ?? []) as PageRow[];
+      const findings = (await fetchAllRows((from, to) =>
+        admin
+          .from("findings")
+          .select("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)")
+          .in("scan_page_id", pages.map((p) => p.id))
+          .order("id")
+          .range(from, to),
+      )) as unknown as FindingRow[];
+      return { pages, findings };
+    },
+    ["report-bulk", scanId, version],
+    { revalidate: false },
+  )();
+}
 
 export interface FindingRow {
   rule_id: string;
@@ -73,11 +106,10 @@ export async function loadReport(locale: string, id: string, token: string | und
   } else if (token && (await matchesShareToken(id, token))) {
     db = createAdminClient();
   } else {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
+    // 렌더 스코프 캐시 — 헤더와 getUser 왕복 공유
+    const user = await getCachedUser();
     if (!user) redirect(`/${locale}/login`);
+    const supabase = await createClient();
     db = supabase as unknown as SupabaseClient;
     canEdit = true; // RLS 통과 = 소유자 또는 관리자
     // migration 0017 미적용 시 컬럼 부재로 실패 → null 관용
@@ -120,18 +152,10 @@ export async function loadReport(locale: string, id: string, token: string | und
     target.set(r.item_id, { outcome: r.outcome, note: r.note, pages });
   }
 
-  const { data: pagesData } = await db.from("scan_pages").select("*").eq("scan_id", id).order("url");
-  const pages = (pagesData ?? []) as PageRow[];
-
-  // 이미 로드한 pages의 id 재사용 + 페이지네이션 전량 조회 (절단 방지)
-  const findings = (await fetchAllRows((from, to) =>
-    db
-      .from("findings")
-      .select("rule_id, impact, tags, help_url, selector, html_snippet, failure_summary, scan_pages(url)")
-      .in("scan_page_id", pages.map((p) => p.id))
-      .order("id")
-      .range(from, to),
-  )) as unknown as FindingRow[];
+  // 대량·열람자 무관 데이터(페이지·위반 전량)는 (scanId, finished_at) 키로 캐시 —
+  // 토글마다 재페치 방지. 소유권은 위 scan 조회(RLS)가 이미 검증하므로 admin 조회 안전.
+  const version = String(scan.finished_at ?? scan.created_at ?? "");
+  const { pages, findings } = await loadScanBulk(id, version);
 
   // 규칙별 그룹화 (심각도순)
   const byRule = new Map<string, FindingRow[]>();

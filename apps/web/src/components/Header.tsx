@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getCachedUser } from "@/lib/supabase/user";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { NavMenu } from "./NavMenu";
 import { ThemeToggle } from "./ThemeToggle";
@@ -8,13 +9,12 @@ import { signOut } from "@/lib/actions";
 
 export async function Header() {
   const t = await getTranslations("common");
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // 렌더 스코프 캐시 — 같은 요청의 페이지 컴포넌트와 getUser 왕복을 공유
+  const user = await getCachedUser();
 
   let isAdmin = false;
   if (user) {
+    const supabase = await createClient();
     const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
     isAdmin = profile?.role === "admin";
   }

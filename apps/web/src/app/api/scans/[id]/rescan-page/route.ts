@@ -44,5 +44,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   if (!result.ok) {
     return NextResponse.json({ error: result.error }, { status: 422 });
   }
+  // findings·summary가 바뀌면 scan.finished_at도 갱신되어(reaggregate) 보고서
+  // 대량 데이터 캐시 키가 자동으로 달라진다 — 별도 무효화 불필요.
   return NextResponse.json({ ok: true });
 }
