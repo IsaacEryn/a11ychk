@@ -272,8 +272,25 @@ button:not(:disabled):active {
   display: none;
 }
 
+/* ═══════════ 가로 스크롤 가능 표 — 스크롤 가능함을 알리는 좌/우 그림자 ═══════════ */
+/* 순수 CSS 스크롤 섀도(Lea Verou 기법): 커버(paper 페이드)가 끝을 가리고, 그림자는
+   콘텐츠가 더 있는 쪽에만 드러난다(오른쪽에 더 있으면 오른쪽 그림자 → 끝까지 가면 사라짐).
+   그림자 색은 --color-ink 혼합이라 라이트=어두운 그림자 / 다크=밝은 글로우로 양쪽 테마 대응.
+   인쇄에는 불필요하므로 @media print에서 제거. */
+.table-scroll {
+  background:
+    linear-gradient(to right, var(--color-paper) 30%, transparent) 0 0 / 44px 100% no-repeat local,
+    linear-gradient(to left, var(--color-paper) 30%, transparent) 100% 0 / 44px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, color-mix(in srgb, var(--color-ink) 32%, transparent), transparent) 0 0 / 16px 100% no-repeat,
+    radial-gradient(farthest-side at 100% 50%, color-mix(in srgb, var(--color-ink) 32%, transparent), transparent) 100% 0 / 16px 100% no-repeat;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .table-scroll { scroll-behavior: smooth; }
+}
+
 /* ═══════════ 인쇄(보고서 PDF) 스타일 ═══════════ */
 @media print {
+  .table-scroll { background: none; }
   html, body {
     background: #fff !important;
     color: #111 !important;

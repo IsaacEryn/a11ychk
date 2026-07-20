@@ -321,7 +321,7 @@ export default async function ReportPage({
               failed: failedPages.length,
             })}
           </p>
-          <div className="mt-3 overflow-x-auto">
+          <div className="table-scroll mt-3 overflow-x-auto">
             <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
               <caption className="sr-only">{t("pages.title")}</caption>
               <thead>
@@ -604,7 +604,7 @@ export default async function ReportPage({
             {t("wcag.title")}
           </h2>
           <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("wcag.desc")}</p>
-          <div className="mt-4 overflow-x-auto">
+          <div className="table-scroll mt-4 overflow-x-auto">
             <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
               <caption className="sr-only">{t("wcag.title")}</caption>
               <thead>
@@ -735,7 +735,7 @@ export default async function ReportPage({
           {t("kwcag.title")}
         </h2>
         <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("kwcag.desc")}</p>
-        <div className="mt-4 overflow-x-auto">
+        <div className="table-scroll mt-4 overflow-x-auto">
           <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
             <caption className="sr-only">{t("kwcag.title")}</caption>
             <thead>
