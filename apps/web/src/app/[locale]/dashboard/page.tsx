@@ -7,12 +7,13 @@ import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { checkQuota, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
-import { addDomain, deleteDomain, toggleAutoScan, toggleNotify, togglePublicListing } from "@/lib/actions";
+import { addDomain, deleteDomain, toggleAutoScan, toggleNotify } from "@/lib/actions";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
 import { DomainVerify } from "./DomainVerify";
 import { BadgeEmbed } from "./BadgeEmbed";
 import { ScanScheduleControl } from "./ScanScheduleControl";
+import { PublicReportControl } from "./PublicReportControl";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -43,7 +44,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     // 추이용 — summary 전체 대신 점수만 뽑아 가볍게 (최근 완료 검사 60건)
     supabase
       .from("scans")
-      .select("id, root_url, created_at, combined:summary->scores->combined->>rate, auto:summary->>complianceRate, nodes:summary->>totalViolationNodes")
+      .select("id, root_url, created_at, title:report_meta->>title, combined:summary->scores->combined->>rate, auto:summary->>complianceRate, nodes:summary->>totalViolationNodes")
       .eq("user_id", user.id)
       .eq("status", "done")
       .order("created_at", { ascending: false })
@@ -97,6 +98,28 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     }
   }
   const overview = [...latestByHost.values()].sort((a, b) => a.host.localeCompare(b.host));
+
+  // ── 공개 보고서 선택용 — 호스트별 완료 검사 목록 (trendRows 재사용, 도메인당 최근 15건) ──
+  const reportsByHost = new Map<string, { id: string; date: string; rate: number; title: string | null }[]>();
+  for (const row of trendRows ?? []) {
+    const rate = Number(row.combined ?? row.auto);
+    if (!Number.isFinite(rate)) continue;
+    try {
+      const host = foldHost(new URL(row.root_url as string).hostname);
+      const list = reportsByHost.get(host) ?? [];
+      if (list.length < 15) {
+        list.push({
+          id: row.id as string,
+          date: row.created_at as string,
+          rate: Math.round(rate * 10) / 10,
+          title: (row.title as string | null) ?? null,
+        });
+      }
+      reportsByHost.set(host, list);
+    } catch {
+      /* 건너뜀 */
+    }
+  }
   const autoScanHosts = new Set(
     (domains ?? []).filter((d) => d.auto_scan).map((d) => foldHost((d.hostname as string).toLowerCase())),
   );
@@ -363,24 +386,15 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 {d.verified && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
                     <p className="mb-2 font-semibold">{t("domains.badgeTitle")}</p>
-                    {/* 공개 배지 발행 + 디렉터리 등재 opt-in */}
-                    <form action={togglePublicListing} className="mb-3 flex flex-wrap items-center gap-2">
-                      <input type="hidden" name="id" value={d.id} />
-                      <input type="hidden" name="enabled" value={String(d.public_listed === true)} />
-                      <button
-                        type="submit"
-                        aria-pressed={d.public_listed === true}
-                        className={`rounded border-[1.5px] px-3 py-1 text-sm font-semibold ${
-                          d.public_listed === true
-                            ? "border-[var(--color-seal)] bg-[var(--color-seal-tint)] text-[var(--color-seal)]"
-                            : "border-[var(--color-line)] text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
-                        }`}
-                      >
-                        {d.public_listed === true ? t("domains.listedOn") : t("domains.listedOff")}
-                      </button>
-                      <span className="text-xs text-[var(--color-ink-faint)]">{t("domains.listedHint")}</span>
-                    </form>
-                    {/* 배지 미리보기 + HTML/Markdown 코드 + 복사 (공개 등재 시 공개 보고서로 링크) */}
+                    {/* 공개 보고서 지정 — 공개 여부·디렉터리 등재·배지 링크 대상을 한 컨트롤로 */}
+                    <PublicReportControl
+                      domainId={d.id}
+                      publicListed={d.public_listed === true}
+                      publicScanId={(d.public_scan_id as string | null) ?? null}
+                      reports={reportsByHost.get(foldHost((d.hostname as string).toLowerCase())) ?? []}
+                      locale={locale}
+                    />
+                    {/* 배지 미리보기 + HTML/Markdown 코드 + 복사 (공개 지정 시 지정 보고서로 링크) */}
                     <BadgeEmbed
                       siteUrl={siteUrl}
                       hostname={d.hostname}

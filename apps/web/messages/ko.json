@@ -336,7 +336,13 @@
       "scheduleWeekly": "매주",
       "scheduleMonthly": "매월",
       "scheduleApply": "적용",
-      "scheduleExplain": "정기 검사는 매일 새벽 3시경(한국 시간)에 자동 실행되며, 선택한 주기가 지난 도메인만 검사합니다. 정확한 시각 지정은 지원하지 않습니다."
+      "scheduleExplain": "정기 검사는 매일 새벽 3시경(한국 시간)에 자동 실행되며, 선택한 주기가 지난 도메인만 검사합니다. 정확한 시각 지정은 지원하지 않습니다.",
+      "publicLabel": "공개 보고서",
+      "publicOff": "공개 안 함",
+      "publicLatest": "최신 검사 (자동)",
+      "publicPickReport": "특정 보고서 지정",
+      "publicHintOn": "공개 목록에 등재되고, 배지가 이 보고서로 링크됩니다.",
+      "publicHintOff": "비공개 — 배지 이미지는 넣을 수 있지만 링크·목록 등재는 되지 않습니다."
     },
     "recent": {
       "title": "최근 검사",

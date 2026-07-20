@@ -1,6 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findLatestDoneScanForHost } from "@/lib/host";
+import { getDomainPublicScan } from "@/lib/host";
 import { gradeOf, DIRECTORY_MIN_RATE, type Grade } from "@/lib/badgeGrade";
 import type { ScanSummary } from "@a11ychk/core";
 
@@ -22,7 +22,7 @@ export async function collectListedSites(): Promise<ListedSite[]> {
   const admin = createAdminClient();
   const { data: domains } = await admin
     .from("domains")
-    .select("id, hostname, user_id")
+    .select("id, hostname, user_id, public_scan_id")
     .eq("verified", true)
     .eq("public_listed", true)
     .then((r) => r, () => ({ data: null }));
@@ -31,13 +31,17 @@ export async function collectListedSites(): Promise<ListedSite[]> {
 
   const sites: ListedSite[] = [];
   for (const d of domains) {
-    // www/apex 무관 최신 완료 검사 (domain_id가 과거 불일치로 null인 검사도 root_url로 매칭)
-    const scan = await findLatestDoneScanForHost<{
+    // 공개 지정 검사(있으면) 또는 www/apex 무관 최신 완료 검사
+    const scan = await getDomainPublicScan<{
       summary: unknown;
       finished_at: string | null;
       title: string | null;
       root_url: string | null;
-    }>(admin, d.user_id as string, d.hostname as string, "summary, finished_at, root_url, title:report_meta->>title");
+    }>(
+      admin,
+      { user_id: d.user_id as string, hostname: d.hostname as string, public_scan_id: d.public_scan_id as string | null },
+      "summary, finished_at, root_url, title:report_meta->>title",
+    );
     const summary = scan?.summary as ScanSummary | null;
     if (!summary) continue;
     const rate = summary.complianceRate;

@@ -14,6 +14,7 @@ import { requireScanOwner } from "@/lib/apiAuth";
 import { isImpersonatingNickname } from "@/lib/nickname";
 import { MAX_PAGES_PER_SCAN, PLAN_IDS, getVerifiedDomainLimit } from "@/lib/quota";
 import { setupCloudflareTxt } from "@/lib/cloudflare";
+import { scanUrlMatchesHost } from "@/lib/host";
 import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction } from "@/lib/logs";
 
@@ -117,30 +118,61 @@ export async function setScanFrequency(formData: FormData): Promise<void> {
 }
 
 /**
- * 공개 배지 발행 + 디렉터리 등재 opt-in 토글 (domains.public_listed — migration 0018).
- * 소유 확인된 도메인만 등재 가능. 끄면 즉시 공개 목록·배지 링크에서 회수한다.
+ * 공개 보고서 지정 — 단일 컨트롤로 공개 여부·디렉터리 등재·배지가 가리킬 보고서를 함께 정한다.
+ * value: "off"(비공개) | "latest"(최신 검사 자동) | <scanId>(특정 보고서 고정).
+ * 소유 확인된 도메인만 공개 가능. 특정 scan은 소유자·done·같은 호스트인지 검증한다.
+ * (domains.public_listed 0018 + public_scan_id 0022)
  */
-export async function togglePublicListing(formData: FormData): Promise<void> {
+export async function setPublicReport(formData: FormData): Promise<void> {
   const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
-  const enabled = formData.get("enabled") === "true";
+  const value = String(formData.get("value") ?? "");
   if (!id.success) return;
-  // domains에는 UPDATE RLS 정책이 없어 admin 클라이언트로 갱신(소유자 필터 명시)
+
   const admin = createAdminClient();
   const { data: domain } = await admin
     .from("domains")
-    .select("verified")
+    .select("verified, hostname")
     .eq("id", id.data)
     .eq("user_id", user.id)
     .maybeSingle();
   if (!domain) return; // 타인 도메인/부재
-  const next = !enabled;
-  if (next && !domain.verified) return; // 미확인 도메인은 공개 등재 불가
-  await admin
-    .from("domains")
-    .update({ public_listed: next, listed_at: next ? new Date().toISOString() : null })
-    .eq("id", id.data)
-    .eq("user_id", user.id);
+
+  // 0022(public_scan_id) 미적용 환경에서도 공개 등재는 동작하도록: 컬럼 포함 업데이트가
+  // 실패하면 public_scan_id를 빼고 재시도한다(등재는 유지, 특정 보고서 고정만 적용 유보).
+  const applyUpdate = async (fields: { public_listed: boolean; listed_at: string | null; public_scan_id: string | null }) => {
+    const { error } = await admin.from("domains").update(fields).eq("id", id.data).eq("user_id", user.id);
+    if (error) {
+      const { public_scan_id: _omit, ...rest } = fields;
+      await admin.from("domains").update(rest).eq("id", id.data).eq("user_id", user.id);
+    }
+  };
+
+  // 비공개
+  if (value === "off") {
+    await applyUpdate({ public_listed: false, listed_at: null, public_scan_id: null });
+    revalidateLocalized("/dashboard", "/directory");
+    return;
+  }
+
+  if (!domain.verified) return; // 미확인 도메인은 공개 불가
+
+  // 특정 보고서 고정 — 소유자·done·같은 호스트 검증(무효면 최신 자동으로 처리)
+  let publicScanId: string | null = null;
+  if (value !== "latest" && z.string().uuid().safeParse(value).success) {
+    const { data: scan } = await admin
+      .from("scans")
+      .select("id, root_url")
+      .eq("id", value)
+      .eq("user_id", user.id)
+      .eq("status", "done")
+      .maybeSingle();
+    if (scan && scanUrlMatchesHost(scan.root_url as string, domain.hostname as string)) {
+      publicScanId = scan.id as string;
+    }
+  }
+
+  await applyUpdate({ public_listed: true, listed_at: new Date().toISOString(), public_scan_id: publicScanId });
   revalidateLocalized("/dashboard", "/directory");
 }
 

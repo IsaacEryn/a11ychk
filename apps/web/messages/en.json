@@ -336,7 +336,13 @@
       "scheduleWeekly": "Weekly",
       "scheduleMonthly": "Monthly",
       "scheduleApply": "Apply",
-      "scheduleExplain": "Scheduled scans run automatically around 3 AM KST each day, checking only domains whose interval has elapsed. A specific time of day is not configurable."
+      "scheduleExplain": "Scheduled scans run automatically around 3 AM KST each day, checking only domains whose interval has elapsed. A specific time of day is not configurable.",
+      "publicLabel": "Public report",
+      "publicOff": "Not public",
+      "publicLatest": "Latest scan (auto)",
+      "publicPickReport": "Pick a specific report",
+      "publicHintOn": "Listed in the public directory; the badge links to this report.",
+      "publicHintOff": "Private — the badge image works, but no link or directory listing."
     },
     "recent": {
       "title": "Recent audits",

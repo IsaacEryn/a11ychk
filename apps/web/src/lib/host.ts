@@ -44,3 +44,28 @@ export async function findLatestDoneScanForHost<T extends { root_url?: string | 
   }
   return null;
 }
+
+/**
+ * 도메인의 "공개 대상 검사"를 반환한다.
+ * public_scan_id가 지정돼 있으면 그 검사(소유자·done 확인)를, 없거나 무효(삭제·미완료)면
+ * 최신 완료 검사로 폴백한다. 배지·/site·디렉터리 공용.
+ */
+export async function getDomainPublicScan<T extends { root_url?: string | null }>(
+  admin: SupabaseClient,
+  domain: { user_id: string; hostname: string; public_scan_id?: string | null },
+  columns: string,
+): Promise<T | null> {
+  if (domain.public_scan_id) {
+    const { data } = await admin
+      .from("scans")
+      .select(columns)
+      .eq("id", domain.public_scan_id)
+      .eq("user_id", domain.user_id)
+      .eq("status", "done")
+      .maybeSingle()
+      .then((r) => r, () => ({ data: null }));
+    if (data) return (data as unknown) as T;
+    // 지정 검사가 삭제/미완료 → 최신으로 폴백
+  }
+  return findLatestDoneScanForHost<T>(admin, domain.user_id, domain.hostname, columns);
+}

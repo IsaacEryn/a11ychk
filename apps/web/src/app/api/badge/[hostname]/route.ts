@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findLatestDoneScanForHost } from "@/lib/host";
+import { getDomainPublicScan } from "@/lib/host";
 import { gradeOf, gradeColor } from "@/lib/badgeGrade";
 import type { ScanSummary } from "@a11ychk/core";
 
@@ -50,7 +50,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
   // 소유 확인된 도메인만 배지 제공 (사칭·오용 방지)
   const { data: domain } = await admin
     .from("domains")
-    .select("id, user_id, verified")
+    .select("id, user_id, verified, public_scan_id")
     .eq("hostname", hostname)
     .eq("verified", true)
     .maybeSingle();
@@ -59,11 +59,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
     return svgResponse(badgeSvg("A11Y Check", "N/A", "#9e9e9e"));
   }
 
-  // www/apex 무관 최신 완료 검사 (domain_id는 과거 불일치로 null일 수 있어 root_url 호스트로 매칭)
-  const scan = await findLatestDoneScanForHost<{ summary: unknown; root_url: string | null }>(
+  // 공개 지정 검사(있으면) 또는 www/apex 무관 최신 완료 검사
+  const scan = await getDomainPublicScan<{ summary: unknown; root_url: string | null }>(
     admin,
-    domain.user_id as string,
-    hostname,
+    { user_id: domain.user_id as string, hostname, public_scan_id: domain.public_scan_id as string | null },
     "summary, root_url",
   );
 

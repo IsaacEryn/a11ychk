@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { findLatestDoneScanForHost } from "@/lib/host";
+import { getDomainPublicScan } from "@/lib/host";
 
 export const runtime = "nodejs";
 
@@ -28,7 +28,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ hostname
   // 공개 등재 + 소유확인된 도메인만 (0018 미적용이면 public_listed 컬럼 부재 → 안전하게 미노출)
   const { data: domain } = await admin
     .from("domains")
-    .select("id, user_id, verified, public_listed")
+    .select("id, user_id, verified, public_listed, public_scan_id")
     .eq("hostname", hostname)
     .eq("verified", true)
     .eq("public_listed", true)
@@ -39,11 +39,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ hostname
     return NextResponse.redirect(`${siteUrl}/${locale}/directory`, { status: 302 });
   }
 
-  // www/apex 무관 최신 완료 검사 (domain_id는 과거 불일치로 null일 수 있어 root_url 호스트로 매칭)
-  const scan = await findLatestDoneScanForHost<{ id: string; share_token: string | null; root_url: string | null }>(
+  // 공개 지정 검사(있으면) 또는 www/apex 무관 최신 완료 검사
+  const scan = await getDomainPublicScan<{ id: string; share_token: string | null; root_url: string | null }>(
     admin,
-    domain.user_id as string,
-    hostname,
+    { user_id: domain.user_id as string, hostname, public_scan_id: domain.public_scan_id as string | null },
     "id, share_token, root_url",
   );
 
