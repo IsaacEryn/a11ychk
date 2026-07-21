@@ -118,22 +118,27 @@ async function renderAccount() {
   }
 }
 
-/** 비로그인 일일 무료 검사 횟수 (로컬 집계 — 가입 유도) */
-const ANON_DAILY_LIMIT = 3;
+/** 비로그인 주간 무료 검사 횟수 (로컬 집계 — 가입 유도) */
+const ANON_WEEKLY_LIMIT = 3;
 
-function todayKey(): string {
-  return new Date().toISOString().slice(0, 10);
+/** 이번 주 월요일 날짜(YYYY-MM-DD) — 주가 바뀌면 카운트가 자연 리셋된다 */
+function weekKey(): string {
+  const d = new Date();
+  const day = d.getDay(); // 0=일
+  d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+  return d.toISOString().slice(0, 10);
 }
 
 async function getAnonUsage(): Promise<number> {
   const { anon_usage } = await chrome.storage.local.get("anon_usage");
   const u = anon_usage as { day: string; count: number } | undefined;
-  return u && u.day === todayKey() ? u.count : 0;
+  // day 필드에 주 시작일을 저장(키 이름은 기존 데이터 호환을 위해 유지 — 구 일일 키는 불일치로 자연 리셋)
+  return u && u.day === weekKey() ? u.count : 0;
 }
 
 async function bumpAnonUsage(): Promise<number> {
   const next = (await getAnonUsage()) + 1;
-  await chrome.storage.local.set({ anon_usage: { day: todayKey(), count: next } });
+  await chrome.storage.local.set({ anon_usage: { day: weekKey(), count: next } });
   return next;
 }
 
@@ -174,7 +179,7 @@ async function scan() {
   currentTabId = tab.id;
   const scanBtn = $<HTMLButtonElement>("scan");
 
-  // ── 사용량 확인: 로그인 = 서버 확장 한도(웹 검사와 분리) / 비로그인 = 로컬 3회·가입 유도 ──
+  // ── 사용량 확인: 로그인 = 서버 확장 한도(웹 검사와 분리) / 비로그인 = 로컬 주 3회·가입 유도 ──
   const session = await getSession();
   if (session) {
     try {
@@ -195,9 +200,9 @@ async function scan() {
     }
   } else {
     const used = await getAnonUsage();
-    if (used >= ANON_DAILY_LIMIT) {
+    if (used >= ANON_WEEKLY_LIMIT) {
       setUsageNote({
-        text: msg("anonLimitReached", [ANON_DAILY_LIMIT]),
+        text: msg("anonLimitReached", [ANON_WEEKLY_LIMIT]),
         cta: true,
         err: true,
       });
@@ -263,7 +268,7 @@ async function scan() {
     if (!session) {
       const used = await bumpAnonUsage();
       setUsageNote({
-        text: msg("anonUsage", [used, ANON_DAILY_LIMIT]),
+        text: msg("anonUsage", [used, ANON_WEEKLY_LIMIT]),
         cta: true,
       });
     }

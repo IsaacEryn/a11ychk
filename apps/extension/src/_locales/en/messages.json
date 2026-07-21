@@ -166,7 +166,7 @@
     "message": "You've used today's extension scan limit."
   },
   "anonUsage": {
-    "message": "Free scans today: $1/$2 · Sign up for 30/day plus saved reports and site-level tracking.",
+    "message": "Free scans this week: $1/$2 · Sign up for 30/day plus saved reports and site-level tracking.",
     "placeholders": {
       "used": {
         "content": "$1"
@@ -177,7 +177,7 @@
     }
   },
   "anonLimitReached": {
-    "message": "You've used all $1 free scans today. Sign up for 30 scans per day plus saved reports.",
+    "message": "You've used all $1 free scans this week. Sign up for 30 scans per day plus saved reports.",
     "placeholders": {
       "limit": {
         "content": "$1"
