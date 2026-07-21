@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "A11y Check — 웹 접근성 점검"
+    "message": "A11y Check — 웹 접근성 점검 도구"
   },
   "extDesc": {
     "message": "WCAG 2.2·KWCAG 2.2 기준 검사 + 페이지 위 시각 점검(위반 표시·구조·시뮬레이션·명도대비) + 전문가 판정. 로그인 필요 페이지도 검사합니다."

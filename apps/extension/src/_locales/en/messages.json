@@ -1,6 +1,6 @@
 {
   "extName": {
-    "message": "A11y Check — Web Accessibility Audit"
+    "message": "A11y Check — Web Accessibility Audit Tool"
   },
   "extDesc": {
     "message": "WCAG 2.2 & KWCAG 2.2 audits + on-page visual tools (violation markers, structure, simulations, contrast) + expert review. Works on login-required pages too."
