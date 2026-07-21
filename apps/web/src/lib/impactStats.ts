@@ -1,5 +1,44 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { foldHost } from "@/lib/host";
+
+export interface HostSeries {
+  firstRate: number;
+  lastRate: number;
+  count: number;
+}
+
+/**
+ * 사이트 개선 판정 — **준수율(%)만** 사용한다 (순수 함수, 테스트 대상).
+ *
+ * 위반 노드 수(lastNodes < firstNodes)는 표본 페이지 수가 줄면 자연 감소해
+ * 허위 "개선"으로 집계될 수 있어 제외한다. 준수율은 페이지·항목 단위로 정규화된
+ * 지표라 표본 크기 변화에 강건하다. 부동소수 잡음 방지로 +0.1%p 이상만 개선으로 인정.
+ * (공적 지표로 쓰이는 수치 — 과대 집계 금지)
+ */
+export function summarizeImprovement(hosts: Iterable<HostSeries>): {
+  improvedSites: number;
+  rescannedSites: number;
+  avgRateGain: number;
+} {
+  let improvedSites = 0;
+  let rescannedSites = 0;
+  let rateGainSum = 0;
+  for (const v of hosts) {
+    if (v.count < 2) continue;
+    rescannedSites += 1;
+    const gain = v.lastRate - v.firstRate;
+    if (gain >= 0.1) {
+      improvedSites += 1;
+      rateGainSum += gain;
+    }
+  }
+  return {
+    improvedSites,
+    rescannedSites,
+    avgRateGain: improvedSites === 0 ? 0 : Math.round((rateGainSum / improvedSites) * 10) / 10,
+  };
+}
 
 export interface ImpactStats {
   scans: number;
@@ -39,42 +78,30 @@ export async function collectImpactStats(): Promise<ImpactStats> {
       .gte("created_at", thirtyDaysAgo),
     admin
       .from("scans")
-      .select("root_url, created_at, rate:summary->complianceRate, nodes:summary->totalViolationNodes")
+      .select("root_url, created_at, rate:summary->complianceRate")
       .eq("status", "done")
       .order("created_at", { ascending: true })
       .limit(5000),
   ]);
 
-  // 사이트(호스트) 단위 집계 + 개선 확인 (같은 사이트의 첫 검사 vs 최신 검사)
-  const byHost = new Map<string, { firstRate: number; firstNodes: number; lastRate: number; lastNodes: number; count: number }>();
+  // 사이트(호스트) 단위 집계 — www/apex를 접어 같은 사이트로 취급(대시보드·배지와 일관)
+  const byHost = new Map<string, HostSeries>();
   for (const s of scanRows.data ?? []) {
     let host: string;
     try {
-      host = new URL(s.root_url as string).hostname;
+      host = foldHost(new URL(s.root_url as string).hostname);
     } catch {
       continue;
     }
     const rate = typeof s.rate === "number" ? s.rate : Number(s.rate ?? 0);
-    const nodes = typeof s.nodes === "number" ? s.nodes : Number(s.nodes ?? 0);
     const cur = byHost.get(host);
-    if (!cur) byHost.set(host, { firstRate: rate, firstNodes: nodes, lastRate: rate, lastNodes: nodes, count: 1 });
+    if (!cur) byHost.set(host, { firstRate: rate, lastRate: rate, count: 1 });
     else {
       cur.lastRate = rate;
-      cur.lastNodes = nodes;
       cur.count += 1;
     }
   }
-  let improvedSites = 0;
-  let rescannedSites = 0;
-  let rateGainSum = 0;
-  for (const v of byHost.values()) {
-    if (v.count < 2) continue;
-    rescannedSites += 1;
-    if (v.lastNodes < v.firstNodes || v.lastRate > v.firstRate) {
-      improvedSites += 1;
-      rateGainSum += Math.max(0, v.lastRate - v.firstRate);
-    }
-  }
+  const { improvedSites, rescannedSites, avgRateGain } = summarizeImprovement(byHost.values());
 
   // 저장소 누적 트래픽 (repo-stats 크론이 쌓은 일별 데이터 합산 — 테이블 미적용 시 생략)
   let traffic: ImpactStats["traffic"] = null;
@@ -132,7 +159,7 @@ export async function collectImpactStats(): Promise<ImpactStats> {
     scans30d: scans30d.count ?? 0,
     improvedSites,
     rescannedSites,
-    avgRateGain: improvedSites === 0 ? 0 : Math.round((rateGainSum / improvedSites) * 10) / 10,
+    avgRateGain,
     github,
     traffic,
     sharedReports: sharedCount ?? 0,

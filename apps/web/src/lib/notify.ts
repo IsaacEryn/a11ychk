@@ -1,4 +1,6 @@
 import "server-only";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { logAppError } from "@/lib/logs";
 
 /**
  * 정기 스캔 결과 알림 이메일 (Resend).
@@ -50,11 +52,46 @@ export async function sendScanAlert(alert: ScanAlert): Promise<boolean> {
   </td></tr>
 </table>`;
 
+  const ok = await sendEmail({ to: alert.to, subject, html });
+  if (!ok) {
+    // 회귀 알림 유실은 운영자가 인지해야 함 — app_errors에 흔적 (수신자 노출 없이 호스트만)
+    await logAppError(createAdminClient(), `scan alert send failed: ${alert.hostname}`, {
+      path: "notify.sendScanAlert",
+    });
+  }
+  return ok;
+}
+
+/**
+ * 신규 문의 관리자 알림 — 사용자가 문의를 남기면 ADMIN_ALERT_EMAIL로 즉시 통지한다.
+ * (기존엔 관리자 패널을 열어야만 새 문의를 인지할 수 있었음.) best-effort.
+ */
+export async function sendAdminInquiryAlert(title: string, nickname: string | null): Promise<boolean> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) return false;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
+  const html = `
+<p style="font-family:sans-serif;font-size:14px;line-height:1.6">
+  새 문의가 접수되었습니다.<br/>
+  <b>${escapeHtml(title)}</b>${nickname ? ` — ${escapeHtml(nickname)}` : ""}<br/>
+  <a href="${siteUrl}/ko/admin/inquiries">관리자에서 확인</a>
+</p>`;
+  const ok = await sendEmail({ to, subject: `[A11y Check] 새 문의: ${title.slice(0, 60)}`, html });
+  if (!ok) {
+    await logAppError(createAdminClient(), "admin inquiry alert send failed", { path: "notify.sendAdminInquiryAlert" });
+  }
+  return ok;
+}
+
+/** Resend 발송 공통부 — 키 미설정 시 false(no-op) */
+async function sendEmail(msg: { to: string; subject: string; html: string }): Promise<boolean> {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) return false;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: "A11y Check <noreply@a11ychk.com>", to: alert.to, subject, html }),
+      body: JSON.stringify({ from: "A11y Check <noreply@a11ychk.com>", to: msg.to, subject: msg.subject, html: msg.html }),
     });
     return res.ok;
   } catch {

@@ -71,9 +71,10 @@ export default async function DirectoryPage({ params }: { params: Promise<{ loca
         </ul>
       )}
 
+      {/* 비로그인 방문자 전환 마찰 완화 — 로그인 게이트(dashboard) 대신 서비스 소개 랜딩으로 */}
       <p className="mt-8 text-sm text-[var(--color-ink-soft)]">
         {t("cta")}{" "}
-        <Link href="/dashboard" className="font-bold text-[var(--color-seal)] underline underline-offset-4">
+        <Link href="/" className="font-bold text-[var(--color-seal)] underline underline-offset-4">
           {t("ctaLink")}
         </Link>
       </p>

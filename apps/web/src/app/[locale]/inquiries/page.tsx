@@ -1,5 +1,5 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { redirect } from "next/navigation";
+import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InquiryForm } from "./InquiryForm";
 
@@ -19,7 +19,37 @@ export default async function InquiriesPage({ params }: { params: Promise<{ loca
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(`/${locale}/login`);
+
+  // 비로그인 — 로그인으로 튕기는 대신 문의 방법을 안내한다(막다른 리다이렉트 제거).
+  // 익명 채널로는 공개 GitHub Issues를 제공(스팸 없이 실재하는 공개 창구).
+  if (!user) {
+    return (
+      <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+        <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
+        <p className="mt-2 text-[var(--color-ink-soft)]">{t("desc")}</p>
+        <div className="doc-card mt-6 p-6">
+          <p className="font-semibold">{t("anonTitle")}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-[var(--color-ink-soft)]">{t("anonDesc")}</p>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Link
+              href="/login"
+              className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
+            >
+              {t("anonLogin")}
+            </Link>
+            <a
+              href="https://github.com/IsaacEryn/a11ychk/issues"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-[var(--color-seal)] underline underline-offset-4"
+            >
+              {t("anonGithub")}
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const { data: inquiries } = await supabase
     .from("inquiries")

@@ -17,6 +17,7 @@ import { setupCloudflareTxt } from "@/lib/cloudflare";
 import { scanUrlMatchesHost } from "@/lib/host";
 import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction } from "@/lib/logs";
+import { sendAdminInquiryAlert } from "@/lib/notify";
 
 /** 전 경로 캐시 무효화 — 인증 상태처럼 모든 페이지에 영향이 있을 때만 사용 */
 function revalidateAll() {
@@ -438,6 +439,9 @@ export async function createInquiry(_prev: SaveState, formData: FormData): Promi
   if ((count ?? 0) >= 5) return { error: "rateLimited" };
   const { error } = await supabase.from("inquiries").insert({ user_id: user.id, ...parsed.data });
   if (error) return { error: "failed" };
+  // 관리자 즉시 통지 (best-effort — 실패해도 문의 접수는 성공)
+  const { data: profile } = await supabase.from("profiles").select("nickname").eq("id", user.id).maybeSingle();
+  sendAdminInquiryAlert(parsed.data.title as string, (profile?.nickname as string | null) ?? null).catch(() => undefined);
   revalidateLocalized("/contact", "/inquiries", "/admin/inquiries");
   return { ok: true };
 }

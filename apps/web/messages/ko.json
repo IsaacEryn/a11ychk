@@ -699,7 +699,13 @@
     "savePublic": "이 표시로 공개 저장",
     "savePublicHint": "공유 링크·배지로 보는 사람에게 현재 표시 모드가 적용됩니다.",
     "savedPublic": "✓ 공개 보기로 저장됨",
-    "displayGroup": "표시 설정 (공유 보기)"
+    "displayGroup": "표시 설정 (공유 보기)",
+    "viewerCta": {
+      "title": "이 보고서는 A11y Check로 생성되었습니다",
+      "desc": "A11y Check는 WCAG 2.2·KWCAG 2.2 기준으로 웹 접근성을 자동 점검하고 한국어 개선 가이드를 제공하는 무료 오픈소스 서비스입니다.",
+      "primary": "무료로 내 사이트 검사하기",
+      "secondary": "공개 사이트 목록 보기"
+    }
   },
   "mypage": {
     "title": "마이페이지",
@@ -769,7 +775,11 @@
         "closed": "종료"
       },
       "adminReply": "운영자 답변"
-    }
+    },
+    "anonTitle": "문의를 남기려면 로그인이 필요합니다",
+    "anonDesc": "로그인하면 문의를 남기고 답변을 받을 수 있습니다. 버그 제보나 기능 제안은 로그인 없이 GitHub 이슈로도 남길 수 있습니다.",
+    "anonLogin": "로그인하고 문의하기",
+    "anonGithub": "GitHub 이슈로 제보하기"
   },
   "admin": {
     "title": "관리자 콘솔",
