@@ -1,0 +1,105 @@
+<!doctype html>
+<!-- 의도적 접근성 오류 데모 페이지 — A11y Check 시연·교육용.
+     html lang 누락(의도), 아래 위반들은 전부 고의입니다. 사이트 어디에도 링크되지
+     않으며(표본 제외) noindex + robots(/sample/) 차단으로 검색·크롤러에서 격리됩니다. -->
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title>모두의 원두 — 여름 시즌 세일</title>
+  <style>
+    * { margin: 0; box-sizing: border-box; }
+    body { font-family: "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; color: #333; background: #fff; }
+    .demo-note { background: #fff8e1; border-bottom: 1px solid #e0c96a; padding: 10px 20px; font-size: 14px; color: #6b5900; }
+    header { background: linear-gradient(120deg, #6b4f2a, #a97c50); color: #fff; padding: 48px 24px; }
+    header h1 { font-size: 34px; }
+    header p { margin-top: 10px; opacity: .55; } /* 저대비(의도) */
+    nav { display: flex; gap: 18px; padding: 14px 24px; border-bottom: 1px solid #eee; align-items: center; }
+    nav a { color: #8a8a8a; text-decoration: none; font-size: 14px; } /* 저대비 링크(의도) */
+    main { max-width: 860px; margin: 0 auto; padding: 32px 24px 64px; }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-top: 18px; }
+    .card { border: 1px solid #e5e0d8; border-radius: 10px; overflow: hidden; }
+    .card img { width: 100%; height: 120px; object-fit: cover; display: block; }
+    .card .body { padding: 14px; }
+    .card h4 { font-size: 16px; }
+    .price { color: #b5b5b5; font-size: 13px; margin-top: 6px; } /* 저대비(의도) */
+    .buy { margin-top: 10px; font-size: 11px; padding: 2px 6px; border: 1px solid #c9a; background: #f7f1ea; cursor: pointer; } /* 작은 타깃(의도) */
+    .sub { margin-top: 40px; padding: 22px; background: #f4efe8; border-radius: 12px; }
+    .sub input { padding: 10px; border: 1px solid #ccc; border-radius: 6px; width: 240px; }
+    .sub button { padding: 10px 12px; border: 0; border-radius: 6px; background: #6b4f2a; color: #fff; cursor: pointer; }
+    .req { color: #d33; } /* 색으로만 필수 표시(의도) */
+    footer { border-top: 1px solid #eee; padding: 20px 24px; font-size: 12px; color: #c0c0c0; } /* 저대비(의도) */
+  </style>
+</head>
+<body>
+  <!-- 시연 안내 배너 — 이 페이지의 유일한 '정상' 요소 -->
+  <p class="demo-note">⚠️ 이 페이지는 <strong>의도적으로 접근성 오류를 심어 둔 데모</strong>입니다 — A11y Check 시연·교육용이며 실제 판매 페이지가 아닙니다.</p>
+
+  <header>
+    <h1>모두의 원두</h1>
+    <p>여름 시즌 한정 — 신선한 원두를 집 앞까지</p>
+  </header>
+
+  <nav>
+    <!-- 텍스트 없는 아이콘 링크(의도: 링크 이름 없음) -->
+    <a href="#"><svg width="18" height="18" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="#a97c50"/></svg></a>
+    <a href="#">원두</a>
+    <a href="#">드리퍼</a>
+    <a href="#">구독</a>
+    <!-- 양수 tabindex(의도) -->
+    <a href="#" tabindex="3">이벤트</a>
+  </nav>
+
+  <main>
+    <!-- 제목 레벨 건너뜀(의도: h1 → h4) -->
+    <h4 id="section">이번 주 추천 원두</h4>
+
+    <div class="cards">
+      <div class="card">
+        <!-- 대체 텍스트 누락(의도) -->
+        <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='120'%3E%3Crect width='300' height='120' fill='%23a97c50'/%3E%3Ccircle cx='60' cy='60' r='34' fill='%236b4f2a'/%3E%3C/svg%3E" />
+        <div class="body">
+          <h4>에티오피아 예가체프</h4>
+          <p class="price">12,900원 / 200g</p>
+          <button class="buy">담기</button>
+        </div>
+      </div>
+      <div class="card">
+        <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='120'%3E%3Crect width='300' height='120' fill='%23c9a227'/%3E%3Crect x='40' y='30' width='60' height='60' fill='%236b4f2a'/%3E%3C/svg%3E" />
+        <div class="body">
+          <!-- 중복 id(의도) -->
+          <h4 id="section">콜롬비아 수프리모</h4>
+          <p class="price">11,500원 / 200g</p>
+          <button class="buy">담기</button>
+        </div>
+      </div>
+      <div class="card">
+        <img src="data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='120'%3E%3Crect width='300' height='120' fill='%237e9c6f'/%3E%3Cpath d='M30 90 L90 30 L150 90 Z' fill='%234c6b3c'/%3E%3C/svg%3E" />
+        <div class="body">
+          <h4>과테말라 안티구아</h4>
+          <p class="price">13,800원 / 200g</p>
+          <!-- 이름 없는 아이콘 버튼(의도) -->
+          <button class="buy">♥</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 모호한 링크 텍스트(의도) -->
+    <p style="margin-top:20px">배송 정책이 변경되었습니다. 자세한 내용은 <a href="#">여기</a>를 클릭하세요.</p>
+
+    <section class="sub">
+      <!-- 제목 레벨 역행(의도: h4 다음 h2) -->
+      <h2>뉴스레터 구독</h2>
+      <p style="margin:8px 0 14px">매주 새 원두 소식을 보내드립니다. <span class="req">*</span> 표시는 필수 항목</p>
+      <!-- 라벨 없는 입력(의도: label·aria-label 없음, placeholder만) -->
+      <input type="email" placeholder="이메일 주소 *" />
+      <button>구독</button>
+    </section>
+  </main>
+
+  <footer>
+    © 2026 모두의 원두 · 본 페이지는 A11y Check 접근성 데모입니다
+  </footer>
+</body>
+</html>
