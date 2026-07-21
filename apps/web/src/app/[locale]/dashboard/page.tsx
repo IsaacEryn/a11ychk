@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
+import { foldHost } from "@/lib/host";
 import { checkQuota, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { toggleAutoScan, toggleNotify } from "@/lib/actions";
@@ -57,9 +58,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const verifiedCount = (domains ?? []).filter((d) => d.verified).length;
   const atVerifyLimit = verifiedCount >= verifyLimit;
 
-  // 호스트별 준수율 추이 (오래된 → 최신, 도메인당 최근 12회)
-  // 등록 도메인(codeslog.com)과 검사 URL(www.codeslog.com)을 잇도록 www.은 접어서 비교
-  const foldHost = (h: string) => h.replace(/^www\./, "");
+  // 등록 도메인(codeslog.com)과 검사 URL(www.codeslog.com)을 잇도록 www.은 접어서 비교 (lib/host 공용)
   const trendByHost = new Map<string, { date: string; rate: number }[]>();
   for (const row of trendRows ?? []) {
     const rate = Number(row.combined ?? row.auto);

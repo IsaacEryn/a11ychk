@@ -5,24 +5,13 @@ import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota
 import { getPlansActive } from "@/lib/appSettings";
 import { drainQueue } from "@/lib/scan/drain";
 import { isAuthorizedCron } from "@/lib/cronAuth";
+import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
 
 export const maxDuration = 300;
 
 // 한 번의 크론 실행에서 처리할 최대 도메인 수 (함수 시간 제한 보호)
 const BATCH = 3;
 
-/**
- * 주기별 "검사 실행 간격"(시간). 하루 1회 크론이 이 간격 이상 지난 도메인만 검사한다.
- * 주기보다 살짝 짧게 잡아 드리프트로 하루씩 밀리는 것을 방지(예: weekly는 6.5일 후 검사).
- * 미적용(컬럼 없음)·미지정 도메인은 daily로 폴백.
- */
-const FREQUENCY_HOURS: Record<string, number> = {
-  daily: 20,
-  weekly: 6.5 * 24,
-  monthly: 27 * 24,
-};
-const dueIntervalHours = (freq: unknown): number =>
-  FREQUENCY_HOURS[typeof freq === "string" ? freq : "daily"] ?? FREQUENCY_HOURS.daily;
 
 /**
  * 정기 스캔 크론 (Vercel Cron, 하루 1회).

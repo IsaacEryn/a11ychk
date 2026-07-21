@@ -1,15 +1,10 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { negotiateLocale } from "@/lib/negotiateLocale";
 
 export const runtime = "nodejs";
 
-/** 배지·공유 링크처럼 방문자의 Accept-Language로 ko/en 협상 */
-function negotiateLocale(req: Request): "ko" | "en" {
-  const header = req.headers.get("accept-language") ?? "";
-  const first = header.split(",")[0]?.trim().toLowerCase() ?? "";
-  return first.startsWith("en") ? "en" : "ko";
-}
 
 /**
  * 랜딩의 "실제 예시 보고서" — 자체 검사(a11ychk.com) 데모를 **비로그인 사용자도** 볼 수 있게

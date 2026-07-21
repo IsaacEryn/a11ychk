@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAppError } from "@/lib/logs";
 
 /**
  * 전역 동시 실행 상한 — 동시에 running인 검사 수의 상한. 초과분은 queued로 대기한다.
@@ -55,20 +56,16 @@ export async function drainQueue(): Promise<void> {
   }
 }
 
-/** 남은 용량만큼 queued를 running으로 claim. 0020(claim_scans) 우선, 미적용 시 JS 폴백(비원자). */
+/**
+ * 남은 용량만큼 queued를 running으로 claim — claim_scans RPC(0020, advisory lock) 단독 경로.
+ * 예전의 JS 폴백(count→update)은 비원자라 동시 드레인 시 상한 초과(OOM 위험)가 가능해 제거했다.
+ * 0020은 프로덕션 적용 확정 — RPC 오류는 claim 없이 로그만 남긴다(다음 트리거가 재시도).
+ */
 async function claim(admin: SupabaseClient): Promise<string[]> {
   const { data, error } = await admin.rpc("claim_scans", { p_cap: MAX_CONCURRENT_SCANS });
-  if (!error) {
-    return ((data ?? []) as { id: string }[]).map((r) => r.id).filter(Boolean);
+  if (error) {
+    await logAppError(admin, `claim_scans rpc failed: ${error.message}`, { path: "drain.claim" });
+    return [];
   }
-  // 0020 미적용 폴백 — 원자성은 약하지만 동작 유지(저동시성 환경에서 안전)
-  const { count } = await admin.from("scans").select("id", { count: "exact", head: true }).eq("status", "running");
-  const avail = MAX_CONCURRENT_SCANS - (count ?? 0);
-  if (avail <= 0) return [];
-  const { data: rows } = await admin.from("scans").select("id").eq("status", "queued").order("created_at").limit(avail);
-  const ids = ((rows ?? []) as { id: string }[]).map((r) => r.id);
-  if (ids.length > 0) {
-    await admin.from("scans").update({ status: "running", started_at: new Date().toISOString() }).in("id", ids);
-  }
-  return ids;
+  return ((data ?? []) as { id: string }[]).map((r) => r.id).filter(Boolean);
 }
