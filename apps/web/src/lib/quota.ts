@@ -21,10 +21,10 @@ export interface PlanConfig extends ScanLimits {
  * 요금제 시행은 app_settings의 plans.active로 켜기 전까지 비활성(전원 free).
  */
 export const PLANS = {
-  free: { daily: 3, weekly: 10, monthly: 20, sampleSize: 5 },
-  pro: { daily: 20, weekly: 80, monthly: 300, sampleSize: 20 },
-  // enterprise sampleSize 40은 MAX_PAGES_PER_SCAN(30)으로 클램프되어 실효 30
-  enterprise: { daily: 100, weekly: 500, monthly: 2000, sampleSize: 40 },
+  // 2026-07-22 개정: 일/주/월 3중 창 + 검사당 표본 페이지 수 (소유 확인 수는 DOMAIN_VERIFY_LIMITS)
+  free: { daily: 3, weekly: 5, monthly: 10, sampleSize: 5 },
+  pro: { daily: 5, weekly: 10, monthly: 30, sampleSize: 10 },
+  enterprise: { daily: 20, weekly: 30, monthly: 100, sampleSize: 20 },
 } as const satisfies Record<string, PlanConfig>;
 
 export type PlanId = keyof typeof PLANS;

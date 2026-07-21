@@ -1,3 +1,9 @@
+/* hidden 속성이 컴포넌트의 display 지정(.scan-status의 flex 등)에 지지 않도록 전역 보강
+   — 이게 없으면 UA의 display:none이 author 스타일에 밀려 hidden이 무시된다 */
+[hidden] {
+  display: none !important;
+}
+
 :root,
 :root[data-theme="light"] {
   --paper: #faf8f3;

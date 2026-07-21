@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { PLANS, MAX_PAGES_PER_SCAN } from "@/lib/quota";
+import { PLANS, MAX_PAGES_PER_SCAN, DOMAIN_VERIFY_LIMITS } from "@/lib/quota";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -50,7 +50,9 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
             <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t(`tiers.${id}.desc`)}</p>
             <ul className="mt-4 flex-1 space-y-2 text-sm">
               <li>· {t("limits.daily", { n: plan.daily })}</li>
+              <li>· {t("limits.weekly", { n: plan.weekly })}</li>
               <li>· {t("limits.monthly", { n: plan.monthly })}</li>
+              <li>· {t("limits.verify", { n: DOMAIN_VERIFY_LIMITS[id] })}</li>
               <li>· {t("limits.pages", { n: Math.min(plan.sampleSize, MAX_PAGES_PER_SCAN) })}</li>
               <li>· {t(`tiers.${id}.extra`)}</li>
             </ul>

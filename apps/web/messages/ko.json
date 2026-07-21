@@ -1188,8 +1188,10 @@
     "badgeSoon": "준비 중",
     "limits": {
       "daily": "일 {n}회 검사",
+      "weekly": "주 {n}회 검사",
       "monthly": "월 {n}회 검사",
-      "pages": "검사당 최대 {n}페이지 표본"
+      "pages": "검사당 최대 {n}페이지 표본",
+      "verify": "소유권 확인 {n}개 사이트"
     },
     "tiers": {
       "free": {

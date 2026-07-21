@@ -1188,8 +1188,10 @@
     "badgeSoon": "Coming soon",
     "limits": {
       "daily": "{n} scans / day",
+      "weekly": "{n} scans per week",
       "monthly": "{n} scans / month",
-      "pages": "Up to {n} pages per scan"
+      "pages": "Up to {n} pages per scan",
+      "verify": "Ownership verification for {n} site(s)"
     },
     "tiers": {
       "free": {
