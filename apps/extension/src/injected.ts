@@ -193,7 +193,7 @@ export function highlightInPage(selector: string): boolean {
   // 엉뚱한 요소가 강조된다 — 매치 전부(상한 10)를 강조하고 첫 요소로 스크롤.
   let els: HTMLElement[] = [];
   try {
-    els = [...document.querySelectorAll<HTMLElement>(selector)].slice(0, 10);
+    els = Array.from(document.querySelectorAll<HTMLElement>(selector)).slice(0, 10);
   } catch {
     els = [];
   }
@@ -283,7 +283,7 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
   for (const m of markers) {
     let els: Element[] = [];
     try {
-      els = [...document.querySelectorAll(m.selector)];
+      els = Array.from(document.querySelectorAll(m.selector));
     } catch {
       els = [];
     }
