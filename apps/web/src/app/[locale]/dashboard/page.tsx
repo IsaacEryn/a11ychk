@@ -7,7 +7,8 @@ import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { checkQuota, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
-import { addDomain, deleteDomain, toggleAutoScan, toggleNotify } from "@/lib/actions";
+import { toggleAutoScan, toggleNotify } from "@/lib/actions";
+import { AddDomainForm, DeleteDomainButton } from "./DomainForms";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
 import { DomainVerify } from "./DomainVerify";
@@ -242,28 +243,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
           )}
         </p>
 
-        <form action={addDomain} className="mt-4 flex max-w-lg flex-wrap items-end gap-2">
-          <div className="min-w-52 flex-1">
-            <label htmlFor="hostname" className="mb-1 block text-sm font-semibold">
-              {t("domains.hostnameLabel")}
-            </label>
-            <input
-              id="hostname"
-              name="hostname"
-              type="text"
-              required
-              autoComplete="off"
-              inputMode="url"
-              className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2"
-            />
-          </div>
-          <button
-            type="submit"
-            className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
-          >
-            {t("domains.add")}
-          </button>
-        </form>
+        {/* 도메인 추가 — 검증 실패(형식·중복) 피드백 포함 (클라이언트 컴포넌트) */}
+        <AddDomainForm />
 
         {!domains || domains.length === 0 ? (
           <p className="mt-4 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-[var(--color-ink-faint)]">
@@ -317,13 +298,8 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         </button>
                       </form>
                     )}
-                    {/* 파괴적 삭제는 ml-auto로 나머지 액션과 떨어뜨려 오탭 방지 */}
-                    <form action={deleteDomain} className="ml-auto">
-                      <input type="hidden" name="id" value={d.id} />
-                      <button type="submit" className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink-faint)] hover:border-[var(--color-crit)] hover:text-[var(--color-crit)]">
-                        {t("domains.delete")}
-                      </button>
-                    </form>
+                    {/* 파괴적 삭제 — 확인 단계 포함, ml-auto로 오탭 방지 */}
+                    <DeleteDomainButton domainId={d.id} hostname={d.hostname as string} />
                   </div>
                 </div>
                 {/* 정기 검사 주기 설정 + 실행 시점 안내 (자동 검사 켜짐일 때만) */}

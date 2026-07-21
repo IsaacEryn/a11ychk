@@ -274,7 +274,7 @@
       "unverified": "미확인",
       "verify": "소유 확인",
       "delete": "삭제",
-      "deleteConfirm": "이 도메인을 삭제할까요?",
+      "deleteConfirm": "{host} 도메인을 삭제할까요? 소유 확인·공개 등재·배지 설정이 함께 사라집니다.",
       "empty": "등록된 도메인이 없습니다. 도메인을 등록하고 소유 확인을 하면 검사 페이지 수가 늘어납니다.",
       "verifyTitle": "도메인 소유 확인 방법",
       "verifyFailed": "확인에 실패했습니다. 설정 반영까지 몇 분 걸릴 수 있습니다.",
@@ -342,7 +342,12 @@
       "publicLatest": "최신 검사 (자동)",
       "publicPickReport": "특정 보고서 지정",
       "publicHintOn": "공개 목록에 등재되고, 배지가 이 보고서로 링크됩니다.",
-      "publicHintOff": "비공개 — 배지 이미지는 넣을 수 있지만 링크·목록 등재는 되지 않습니다."
+      "publicHintOff": "비공개 — 배지 이미지는 넣을 수 있지만 링크·목록 등재는 되지 않습니다. 비공개로 전환하면 기존 공개 링크도 무효화됩니다.",
+      "settingSaved": "저장됨",
+      "settingFailed": "저장하지 못했습니다. 다시 시도해 주세요.",
+      "addInvalid": "올바른 도메인 형식이 아닙니다. 예: example.com",
+      "addDuplicate": "이미 등록된 도메인입니다.",
+      "copyFailed": "복사하지 못했습니다. 주소를 직접 선택해 복사해 주세요."
     },
     "recent": {
       "title": "최근 검사",
@@ -636,7 +641,8 @@
       "copied": "복사됨 ✓",
       "working": "처리 중…",
       "onDesc": "링크가 있는 누구나 이 보고서를 볼 수 있습니다 (읽기 전용).",
-      "failed": "처리에 실패했습니다."
+      "failed": "처리에 실패했습니다.",
+      "copyFailed": "복사하지 못했습니다. 주소를 직접 선택해 주세요."
     },
     "priority": {
       "title": "우선 수정 권고",

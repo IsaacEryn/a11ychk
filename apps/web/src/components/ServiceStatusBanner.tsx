@@ -82,9 +82,11 @@ export function ServiceStatusBanner() {
   const isOffline = mode === "offline";
 
   return (
+    // status/polite — assertive는 진행 중인 낭독을 강제 중단한다. 오프라인·장애 안내는
+    // 긴급하지만 사용자가 이미 체감 중인 상황이라 polite로 충분하다(WCAG 모범 관행).
     <div
-      role="alert"
-      aria-live="assertive"
+      role="status"
+      aria-live="polite"
       className="border-b-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] text-[var(--color-ink)]"
     >
       <div className="mx-auto flex max-w-5xl flex-wrap items-center gap-x-3 gap-y-1.5 px-4 py-2.5 sm:px-6">

@@ -63,15 +63,18 @@ const HostnameSchema = z
   .max(253)
   .regex(/^(?!-)[a-z0-9-]{1,63}(?<!-)(\.(?!-)[a-z0-9-]{1,63}(?<!-))+$/, "올바른 도메인 형식이 아닙니다.");
 
-export async function addDomain(formData: FormData): Promise<void> {
+/** 도메인 추가 — useActionState 시그니처. error: "invalid" | "duplicate" | "failed" */
+export async function addDomain(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
   const raw = String(formData.get("hostname") ?? "")
     .replace(/^https?:\/\//, "")
     .replace(/\/.*$/, "");
   const parsed = HostnameSchema.safeParse(raw);
-  if (!parsed.success) return;
-  await supabase.from("domains").insert({ user_id: user.id, hostname: parsed.data });
+  if (!parsed.success) return { error: "invalid" };
+  const { error } = await supabase.from("domains").insert({ user_id: user.id, hostname: parsed.data });
+  if (error) return { error: error.code === "23505" ? "duplicate" : "failed" };
   revalidateLocalized("/dashboard");
+  return { ok: true };
 }
 
 export async function deleteDomain(formData: FormData): Promise<void> {
@@ -106,15 +109,21 @@ export async function toggleNotify(formData: FormData): Promise<void> {
   revalidateLocalized("/dashboard");
 }
 
-/** 정기 검사 주기 설정 (domains.scan_frequency — migration 0021). daily/weekly/monthly */
-export async function setScanFrequency(formData: FormData): Promise<void> {
+/** 정기 검사 주기 설정 (domains.scan_frequency — migration 0021). useActionState 시그니처 */
+export async function setScanFrequency(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const freq = z.enum(["daily", "weekly", "monthly"]).safeParse(formData.get("frequency"));
-  if (!id.success || !freq.success) return;
+  if (!id.success || !freq.success) return { error: "invalid" };
   // domains에는 UPDATE RLS 정책이 없어 admin 클라이언트로 갱신(소유자 필터 명시)
-  await createAdminClient().from("domains").update({ scan_frequency: freq.data }).eq("id", id.data).eq("user_id", user.id);
+  const { error } = await createAdminClient()
+    .from("domains")
+    .update({ scan_frequency: freq.data })
+    .eq("id", id.data)
+    .eq("user_id", user.id);
+  if (error) return { error: "failed" };
   revalidateLocalized("/dashboard");
+  return { ok: true };
 }
 
 /**
@@ -123,11 +132,11 @@ export async function setScanFrequency(formData: FormData): Promise<void> {
  * 소유 확인된 도메인만 공개 가능. 특정 scan은 소유자·done·같은 호스트인지 검증한다.
  * (domains.public_listed 0018 + public_scan_id 0022)
  */
-export async function setPublicReport(formData: FormData): Promise<void> {
+export async function setPublicReport(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const value = String(formData.get("value") ?? "");
-  if (!id.success) return;
+  if (!id.success) return { error: "invalid" };
 
   const admin = createAdminClient();
   const { data: domain } = await admin
@@ -136,7 +145,7 @@ export async function setPublicReport(formData: FormData): Promise<void> {
     .eq("id", id.data)
     .eq("user_id", user.id)
     .maybeSingle();
-  if (!domain) return; // 타인 도메인/부재
+  if (!domain) return { error: "invalid" }; // 타인 도메인/부재
 
   // 0022(public_scan_id) 미적용 환경에서도 공개 등재는 동작하도록: 컬럼 포함 업데이트가
   // 실패하면 public_scan_id를 빼고 재시도한다(등재는 유지, 특정 보고서 고정만 적용 유보).
@@ -152,14 +161,31 @@ export async function setPublicReport(formData: FormData): Promise<void> {
     }
   };
 
-  // 비공개
+  // 비공개 — 등재 해제 + **이 도메인 검사들의 공유 토큰 철회**.
+  // /site·배지가 자동 발급한 토큰이 남아 있으면 "비공개"가 실효되지 않으므로(과거 링크 계속 유효),
+  // 호스트가 일치하는 완료 검사의 share_token을 모두 무효화한다. 보고서 개별 공유가 필요하면
+  // 소유자가 보고서 페이지에서 다시 켤 수 있다(새 토큰 발급).
   if (value === "off") {
     await applyUpdate({ public_listed: false, listed_at: null, public_scan_id: null });
+    const apex = (domain.hostname as string).toLowerCase().replace(/^www\./, "");
+    const { data: tokenScans } = await admin
+      .from("scans")
+      .select("id, root_url")
+      .eq("user_id", user.id)
+      .not("share_token", "is", null)
+      .ilike("root_url", `%${apex}%`)
+      .limit(200);
+    const revokeIds = (tokenScans ?? [])
+      .filter((s) => scanUrlMatchesHost(s.root_url as string, domain.hostname as string))
+      .map((s) => s.id as string);
+    if (revokeIds.length > 0) {
+      await admin.from("scans").update({ share_token: null }).in("id", revokeIds);
+    }
     revalidateLocalized("/dashboard", "/directory");
-    return;
+    return { ok: true };
   }
 
-  if (!domain.verified) return; // 미확인 도메인은 공개 불가
+  if (!domain.verified) return { error: "invalid" }; // 미확인 도메인은 공개 불가
 
   // 특정 보고서 고정 — 소유자·done·같은 호스트 검증(무효면 최신 자동으로 처리)
   let publicScanId: string | null = null;
@@ -178,6 +204,7 @@ export async function setPublicReport(formData: FormData): Promise<void> {
 
   await applyUpdate({ public_listed: true, listed_at: new Date().toISOString(), public_scan_id: publicScanId });
   revalidateLocalized("/dashboard", "/directory");
+  return { ok: true };
 }
 
 /**

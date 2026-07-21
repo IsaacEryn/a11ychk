@@ -3,6 +3,8 @@ import { z } from "zod";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 import { runScan } from "@/lib/scan/runScan";
 import { drainQueue } from "@/lib/scan/drain";
+import { sendAutoAlertIfNeeded } from "@/lib/scan/autoAlert";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 export const maxDuration = 300;
 
@@ -29,10 +31,12 @@ export async function POST(request: Request) {
   }
   const { id } = parsed.data;
 
-  // 응답 후 백그라운드: 이 검사 실행 → 완료되면 슬롯이 비므로 재드레인(다음 queued 시작)
+  // 응답 후 백그라운드: 이 검사 실행 → 완료되면 슬롯이 비므로 재드레인(다음 queued 시작).
+  // 자동(크론) 검사면 완료 직후 회귀 알림도 여기서 보낸다(크론은 큐 등록만 하므로).
   after(async () => {
     try {
       await runScan(id);
+      await sendAutoAlertIfNeeded(createAdminClient(), id).catch(() => undefined);
     } finally {
       await drainQueue();
     }

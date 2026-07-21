@@ -4,14 +4,21 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { drainQueue } from "./drain";
 
 /**
- * 좀비 검사 판정 임계(분). 오케스트레이터(runScan)의 maxDuration이 300s이므로,
- * 그보다 오래 running/queued에 머문 검사는 함수 타임아웃·인스턴스 회수로 죽은 것으로
- * 간주한다(여유를 둬 10분). 정상 검사는 5분 안에 done/failed로 전이된다.
+ * 좀비 검사 판정 임계(분) — 상태별 분리.
+ *
+ * - running: 실행 시작(started_at) 후 10분. maxDuration 300s + 여유 — 이보다 오래 running이면
+ *   함수 타임아웃·인스턴스 회수로 죽은 것.
+ * - queued: 생성(created_at) 후 30분. 전역 동시 상한(기본 3) 때문에 큐 대기 10분은 **정상**이라
+ *   running과 같은 임계를 쓰면 부하 시 정상 대기 검사를 자가 파괴한다. 30분(약 25건 이상
+ *   백로그)이 지나도 시작을 못 했다면 드레인 트리거가 유실된 비정상으로 보고 회수한다.
  */
-export const STALE_SCAN_MINUTES = 10;
+export const STALE_RUNNING_MINUTES = 10;
+export const STALE_QUEUED_MINUTES = 30;
 
-const STALE_ERROR =
+const STALE_RUNNING_ERROR =
   "검사가 제한 시간 내 완료되지 않아 자동 중단되었습니다. 페이지가 많은 사이트일 수 있어요. 다시 시도해 주세요.";
+const STALE_QUEUED_ERROR =
+  "대기 시간이 너무 길어져 검사가 자동 취소되었습니다. 잠시 후 다시 시도해 주세요.";
 
 /**
  * running/queued에 멈춘 좀비 검사를 failed로 회수한다.
@@ -29,16 +36,32 @@ export async function reclaimStaleScans(
   admin: SupabaseClient,
   opts: { userId?: string; scanId?: string } = {},
 ): Promise<number> {
-  const cutoff = new Date(Date.now() - STALE_SCAN_MINUTES * 60_000).toISOString();
-  let q = admin
+  const now = Date.now();
+  const finishedAt = new Date(now).toISOString();
+
+  // running 좀비 — 실행 시작 후 10분 초과 (started_at 없으면 created_at 폴백: 구형 행 방어)
+  const runningCutoff = new Date(now - STALE_RUNNING_MINUTES * 60_000).toISOString();
+  let qRunning = admin
     .from("scans")
-    .update({ status: "failed", error: STALE_ERROR, finished_at: new Date().toISOString() })
-    .in("status", ["queued", "running"])
-    .lt("created_at", cutoff);
-  if (opts.userId) q = q.eq("user_id", opts.userId);
-  if (opts.scanId) q = q.eq("id", opts.scanId);
-  const { data } = await q.select("id").then((r) => r, () => ({ data: null }));
-  const reclaimed = data?.length ?? 0;
+    .update({ status: "failed", error: STALE_RUNNING_ERROR, finished_at: finishedAt })
+    .eq("status", "running")
+    .or(`started_at.lt.${runningCutoff},and(started_at.is.null,created_at.lt.${runningCutoff})`);
+  if (opts.userId) qRunning = qRunning.eq("user_id", opts.userId);
+  if (opts.scanId) qRunning = qRunning.eq("id", opts.scanId);
+  const { data: deadRunning } = await qRunning.select("id").then((r) => r, () => ({ data: null }));
+
+  // queued 좀비 — 생성 후 30분 초과(트리거 유실). 정상 큐 대기(≤30분)는 건드리지 않는다.
+  const queuedCutoff = new Date(now - STALE_QUEUED_MINUTES * 60_000).toISOString();
+  let qQueued = admin
+    .from("scans")
+    .update({ status: "failed", error: STALE_QUEUED_ERROR, finished_at: finishedAt })
+    .eq("status", "queued")
+    .lt("created_at", queuedCutoff);
+  if (opts.userId) qQueued = qQueued.eq("user_id", opts.userId);
+  if (opts.scanId) qQueued = qQueued.eq("id", opts.scanId);
+  const { data: deadQueued } = await qQueued.select("id").then((r) => r, () => ({ data: null }));
+
+  const reclaimed = (deadRunning?.length ?? 0) + (deadQueued?.length ?? 0);
 
   // 좀비 회수로 슬롯이 비었으면 드레인 킥 — 대기 중이던 queued가 자동 시작(트리거 유실 자가치유).
   // 상시 워커 없이 기존 트래픽(생성·상태조회)에 편승해 큐가 빠진다.

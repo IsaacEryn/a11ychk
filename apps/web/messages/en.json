@@ -274,7 +274,7 @@
       "unverified": "Unverified",
       "verify": "Verify",
       "delete": "Delete",
-      "deleteConfirm": "Delete this domain?",
+      "deleteConfirm": "Delete {host}? Ownership verification, public listing, and badge settings will be removed.",
       "empty": "No domains yet. Register and verify a domain to audit more pages per scan.",
       "verifyTitle": "How to verify ownership",
       "verifyFailed": "Verification failed. DNS/deploy changes can take a few minutes.",
@@ -342,7 +342,12 @@
       "publicLatest": "Latest scan (auto)",
       "publicPickReport": "Pick a specific report",
       "publicHintOn": "Listed in the public directory; the badge links to this report.",
-      "publicHintOff": "Private — the badge image works, but no link or directory listing."
+      "publicHintOff": "Private — the badge image works, but no link or directory listing. Switching to private also invalidates existing public links.",
+      "settingSaved": "Saved",
+      "settingFailed": "Could not save. Please try again.",
+      "addInvalid": "Not a valid domain. Example: example.com",
+      "addDuplicate": "This domain is already registered.",
+      "copyFailed": "Copy failed. Please select and copy the code manually."
     },
     "recent": {
       "title": "Recent audits",
@@ -636,7 +641,8 @@
       "copied": "Copied ✓",
       "working": "Working…",
       "onDesc": "Anyone with the link can view this report (read-only).",
-      "failed": "Something went wrong."
+      "failed": "Something went wrong.",
+      "copyFailed": "Copy failed. Please select the URL manually."
     },
     "priority": {
       "title": "Top fixes",

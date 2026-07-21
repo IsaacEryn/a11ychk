@@ -1,12 +1,9 @@
 import { NextResponse } from "next/server";
 import { assertPublicHttpUrl } from "@a11ychk/core";
-import { getRuleEntry, type ScanSummary } from "@a11ychk/core/catalog";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
-import { runScan } from "@/lib/scan/runScan";
 import { drainQueue } from "@/lib/scan/drain";
-import { sendScanAlert } from "@/lib/notify";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 
 export const maxDuration = 300;
@@ -124,70 +121,16 @@ export async function GET(request: Request) {
       continue;
     }
 
-    // 순차 실행 (배치가 작아 함수 시간 내 처리)
-    await runScan(scan.id);
-    results.push({ hostname: d.hostname, status: "scanned" });
-
-    // 회귀 알림 — 직전 완료 검사 대비 준수율 하락 또는 새 위반 발견 시 (best-effort)
-    if (d.notify !== false) {
-      try {
-        await maybeSendAlert(admin, scan.id, d.user_id as string, d.hostname as string, rootUrl);
-      } catch {
-        // 알림 실패는 스캔 성공에 영향 없음
-      }
-    }
+    // 직접 실행하지 않고 큐에 남긴다(queued 상태로 생성됨) — 예전엔 배치 3건을 이 함수에서
+    // 순차 runScan 했는데 검사당 ~3.5분 × 3 > maxDuration 300s라 타임아웃·좀비가 상시 발생했다.
+    // 아래 drainQueue가 전역 상한 내에서 분리 인보케이션으로 소진하고, 회귀 알림은 각 검사
+    // 완료 시 run-scan 엔드포인트가 sendAutoAlertIfNeeded로 보낸다.
+    results.push({ hostname: d.hostname, status: "enqueued" });
   }
 
-  // 백스톱: 트리거(생성·완료·좀비회수)를 모두 놓친 정지 큐를 최후로 소진.
-  // 트래픽 없는 조용한 큐도 하루 1회 크론이 반드시 흘려보낸다.
+  // 등록한 자동 검사 + 트리거를 놓친 정지 큐를 전역 상한 내에서 소진 시작.
+  // 상한 초과분은 각 검사 완료 시 run-scan 엔드포인트의 재드레인이 이어서 처리한다.
   await drainQueue();
 
   return NextResponse.json({ processed: results.length, results, cleaned });
-}
-
-/** 새 검사가 직전 검사보다 나빠졌으면 소유자에게 이메일 알림 */
-async function maybeSendAlert(
-  admin: ReturnType<typeof createAdminClient>,
-  scanId: string,
-  userId: string,
-  hostname: string,
-  rootUrl: string,
-): Promise<void> {
-  const { data: cur } = await admin.from("scans").select("status, summary, created_at").eq("id", scanId).single();
-  const curSummary = (cur?.summary ?? null) as ScanSummary | null;
-  if (cur?.status !== "done" || !curSummary) return;
-
-  const { data: prev } = await admin
-    .from("scans")
-    .select("summary")
-    .eq("user_id", userId)
-    .eq("root_url", rootUrl)
-    .eq("status", "done")
-    .lt("created_at", cur.created_at)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const prevSummary = (prev?.summary ?? null) as ScanSummary | null;
-  if (!prevSummary) return; // 첫 검사 — 비교 대상 없음
-
-  const rateOf = (s: ScanSummary) => s.scores?.combined.rate ?? s.complianceRate;
-  const prevRate = rateOf(prevSummary);
-  const newRate = rateOf(curSummary);
-  const newRuleIds = Object.keys(curSummary.byRule ?? {}).filter((r) => !(prevSummary.byRule ?? {})[r]);
-  const regressed = newRate < prevRate - 0.5 || newRuleIds.length > 0;
-  if (!regressed) return;
-
-  const { data: userData } = await admin.auth.admin.getUserById(userId);
-  const email = userData?.user?.email;
-  if (!email) return;
-
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
-  await sendScanAlert({
-    to: email,
-    hostname,
-    prevRate,
-    newRate,
-    newRules: newRuleIds.map((r) => getRuleEntry(r, []).title.ko),
-    reportUrl: `${siteUrl}/ko/scans/${scanId}/report`,
-  });
 }

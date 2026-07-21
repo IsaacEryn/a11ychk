@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
+import { useCopyToClipboard } from "@/lib/useCopyToClipboard";
 
 type Fmt = "html" | "markdown";
 
@@ -22,7 +23,7 @@ export function BadgeEmbed({
 }) {
   const t = useTranslations("dashboard.domains");
   const [fmt, setFmt] = useState<Fmt>("html");
-  const [copied, setCopied] = useState(false);
+  const { status: copyStatus, copy } = useCopyToClipboard();
 
   const badgeSrc = `${siteUrl}/api/badge/${hostname}`;
   const reportUrl = `${siteUrl}/site/${hostname}`;
@@ -33,12 +34,8 @@ export function BadgeEmbed({
   const markdown = publicListed ? `[![${alt}](${badgeSrc})](${reportUrl})` : `![${alt}](${badgeSrc})`;
   const code = fmt === "html" ? html : markdown;
 
-  const onCopy = () => {
-    void navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  };
+  const onCopy = () => copy(code);
+  const copyLabel = copyStatus === "copied" ? t("badgeCopied") : copyStatus === "failed" ? t("copyFailed") : t("badgeCopy");
 
   return (
     <div>
@@ -78,8 +75,12 @@ export function BadgeEmbed({
           onClick={onCopy}
           className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-3 py-1 text-xs font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
         >
-          {copied ? t("badgeCopied") : t("badgeCopy")}
+          {copyLabel}
         </button>
+        {/* 복사 결과를 보조기술에도 알림 (버튼 라벨 변화만으로는 SR에 전달되지 않음) */}
+        <span role="status" className="sr-only">
+          {copyStatus === "copied" ? t("badgeCopied") : copyStatus === "failed" ? t("copyFailed") : ""}
+        </span>
       </div>
 
       <code className="block break-all rounded bg-[var(--color-paper-warm)] px-2 py-1.5 text-[0.8em]">{code}</code>
