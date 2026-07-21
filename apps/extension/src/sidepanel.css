@@ -437,8 +437,13 @@ h2 {
   color: #fff;
   box-shadow: inset 0 0 0 2px var(--paper), inset 0 0 0 3.5px var(--seal);
 }
-.btn-tool[aria-pressed="true"]::before {
+.btn-tool::before {
+  /* 활성 체크 표시 공간을 항상 확보 — 토글 시 폭 변화로 옆 요소가 밀리지 않게 */
   content: "✓ ";
+  opacity: 0;
+}
+.btn-tool[aria-pressed="true"]::before {
+  opacity: 1;
 }
 .btn-tool.ghost {
   color: var(--ink-soft);
@@ -454,6 +459,7 @@ h2 {
   margin: 0 0 8px;
 }
 .viz-group {
+  margin-top: 16px;
   margin-bottom: 12px;
 }
 .viz-group h3 {
@@ -486,8 +492,13 @@ h2 {
   color: #fff;
   font-weight: 700;
 }
-.chip[aria-pressed="true"]::before {
+.chip::before {
+  /* 활성 체크 표시 공간을 항상 확보 — 토글 시 폭 변화로 옆 요소가 밀리지 않게 */
   content: "✓ ";
+  opacity: 0;
+}
+.chip[aria-pressed="true"]::before {
+  opacity: 1;
 }
 
 /* ─── 전문가 판정 ─── */
@@ -620,8 +631,13 @@ h2 {
 }
 
 /* 판정 버튼에도 체크 표시 */
-.verdict[aria-pressed="true"]::before {
+.verdict::before {
+  /* 활성 체크 표시 공간을 항상 확보 — 토글 시 폭 변화로 옆 요소가 밀리지 않게 */
   content: "✓ ";
+  opacity: 0;
+}
+.verdict[aria-pressed="true"]::before {
+  opacity: 1;
 }
 
 /* ─── 상단 탭 바 (항상 고정) ─── */
@@ -745,8 +761,13 @@ h2 {
   background: var(--mark);
   color: #000;
 }
-.ri-highlight[aria-pressed="true"]::before {
+.ri-highlight::before {
+  /* 활성 체크 표시 공간을 항상 확보 — 토글 시 폭 변화로 옆 요소가 밀리지 않게 */
   content: "✓ ";
+  opacity: 0;
+}
+.ri-highlight[aria-pressed="true"]::before {
+  opacity: 1;
 }
 .ri-actions {
   display: flex;
