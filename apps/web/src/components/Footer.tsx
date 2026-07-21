@@ -36,11 +36,6 @@ export async function Footer() {
                 {t("footer.accessibility")}
               </Link>
             </li>
-            <li>
-              <Link href="/pricing" className={legalLinkCls}>
-                {t("footer.pricing")}
-              </Link>
-            </li>
           </ul>
         </div>
         <ul className="flex flex-wrap items-center gap-x-6 gap-y-2">
