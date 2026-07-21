@@ -294,6 +294,20 @@ a[data-btn] {
   display: none;
 }
 
+/* ─── 블라인드 판정 모드 — 자동 검사 결과를 가린 채 전문가 판정 기입 ───
+   목적: 판정자가 자동 결과에 영향받지 않게(판정자 편향 완화). 소유자 화면 전용
+   클라이언트 상태(data-blind)이며 저장·공유·PDF에는 영향 없음. .blind-mask는
+   숨기고 .blind-ph(placeholder)는 블라인드 중에만 나타난다. */
+[data-blind="1"] .blind-mask {
+  display: none !important;
+}
+.blind-ph {
+  display: none;
+}
+[data-blind="1"] .blind-ph {
+  display: inline-block;
+}
+
 /* ═══════════ 가로 스크롤 가능 표 — 스크롤 가능함을 알리는 좌/우 그림자 ═══════════ */
 /* 순수 CSS 스크롤 섀도(Lea Verou 기법): 커버(paper 페이드)가 끝을 가리고, 그림자는
    콘텐츠가 더 있는 쪽에만 드러난다(오른쪽에 더 있으면 오른쪽 그림자 → 끝까지 가면 사라짐).

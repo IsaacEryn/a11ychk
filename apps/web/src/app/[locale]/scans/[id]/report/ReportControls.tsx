@@ -46,6 +46,7 @@ export function ReportControls({
     savePublic: string;
     savePublicHint: string;
     savedPublic: string;
+    blind: { label: string; hint: string; notice: string };
   };
   leftActions: ReactNode;
   rightActions: ReactNode;
@@ -53,6 +54,9 @@ export function ReportControls({
 }) {
   const [view, setView] = useState<View>(initialView);
   const [std, setStd] = useState<Std>(hasWcag ? initialStd : "kwcag");
+  // 블라인드 판정 모드 — 자동 결과를 가린 채 판정 기입(판정자 편향 완화). 화면 전용
+  // 클라이언트 상태: URL·공개 보기 저장·PDF에 반영하지 않는다.
+  const [blind, setBlind] = useState(false);
   const [saveState, saveAction, saving] = useActionState(savePublicView, {} as Awaited<ReturnType<typeof savePublicView>>);
 
   // 비소유자(공유 링크·배지) — 읽기 전용: 소유자가 지정한 표시 모드로 고정, 컨트롤 없음.
@@ -83,6 +87,12 @@ export function ReportControls({
     setStd(next);
     syncUrl(view, next);
   };
+  /** 블라인드 켜기 시 출력 범위를 '전체'로 강제 — 상태별 행 필터링 자체가 자동 결과를 누설하므로 */
+  const onBlind = () => {
+    const next = !blind;
+    setBlind(next);
+    if (next && view !== "all") onView("all");
+  };
 
   const pdfHref =
     `/api/scans/${pdfBase.scanId}/pdf?view=${view}&lang=${pdfBase.locale}` +
@@ -102,7 +112,7 @@ export function ReportControls({
   ];
 
   return (
-    <div data-view={view} data-std={std} data-pref={preferred}>
+    <div data-view={view} data-std={std} data-pref={preferred} data-blind={blind ? "1" : undefined}>
       {/* 공유 링크(읽기 전용) — 자체 행. 좌우 분리(justify-between) 없이 각 행이 자연 줄바꿈해
           공유 켤 때 레이아웃이 어긋나지 않게 한다. */}
       {leftActions && <div className="no-print mb-3">{leftActions}</div>}
@@ -121,8 +131,25 @@ export function ReportControls({
           토글은 소유자 미리보기이고, 저장하면 공유 링크·배지 방문자에게 그대로 적용된다. */}
       <section aria-label={labels.displayGroup} className="no-print mb-8 rounded border-[1.5px] border-[var(--color-line)] p-4">
         <p className="mb-3 text-sm font-bold text-[var(--color-ink)]">{labels.displayGroup}</p>
-        <Segmented legend={labels.view.legend} value={view} options={viewOpts} onChange={onView} />
+        <Segmented legend={labels.view.legend} value={view} options={viewOpts} onChange={onView} disabled={blind} />
         {hasWcag && <Segmented legend={labels.std.legend} value={std} options={stdOpts} onChange={onStd} />}
+        {/* 블라인드 판정 모드 — 연구·심사 방법론용: 자동 결과를 가린 채 판정 기입 */}
+        <div className="no-print mb-6 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            role="switch"
+            aria-checked={blind}
+            onClick={onBlind}
+            className={`rounded border-[1.5px] px-4 py-2 font-semibold transition-colors ${
+              blind
+                ? "border-[var(--color-ink)] bg-[var(--color-ink)] text-[var(--color-paper)]"
+                : "border-[var(--color-ink)] text-[var(--color-ink)] hover:bg-[var(--color-paper-warm)]"
+            }`}
+          >
+            {labels.blind.label}
+          </button>
+          <span className="text-xs text-[var(--color-ink-faint)]">{labels.blind.hint}</span>
+        </div>
         {/* 공개 보기 저장 — 현재 표시 모드를 공유 링크·배지로 보는 사람에게 고정 적용 */}
         <form action={saveAction} className="mt-1 flex flex-wrap items-center gap-2">
           <input type="hidden" name="scanId" value={scanId} />
@@ -141,6 +168,12 @@ export function ReportControls({
         </form>
       </section>
 
+      {/* 블라인드 안내 — 켜져 있는 동안 자동 결과가 가려져 있음을 알린다 (화면 전용) */}
+      {blind && (
+        <p role="note" className="no-print mb-6 border-l-[3px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] px-4 py-3 text-sm font-medium">
+          {labels.blind.notice}
+        </p>
+      )}
       {/* 안내문 — 상태에 따라 표시 (인쇄·PDF 포함) */}
       {view !== "all" && (
         <p role="note" className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
@@ -158,29 +191,33 @@ export function ReportControls({
   );
 }
 
-/** 세그먼트 토글 — 상태 콜백 방식(네비게이션 없음). no-print. */
+/** 세그먼트 토글 — 상태 콜백 방식(네비게이션 없음). no-print.
+ * disabled: 블라인드 판정 모드처럼 다른 상태가 이 토글을 잠글 때(전환 불가 사유는 안내문이 설명). */
 function Segmented<T extends string>({
   legend,
   value,
   options,
   onChange,
+  disabled = false,
 }: {
   legend: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
+  disabled?: boolean;
 }) {
   return (
     <div role="group" aria-label={legend} className="no-print mb-6 flex flex-wrap items-center gap-2">
       <span className="text-sm font-bold text-[var(--color-ink-soft)]">{legend}</span>
-      <div className="flex flex-wrap gap-1.5 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] p-1">
+      <div className={`flex flex-wrap gap-1.5 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] p-1 ${disabled ? "opacity-50" : ""}`}>
         {options.map((opt) => (
           <button
             key={opt.value}
             type="button"
             aria-pressed={value === opt.value}
+            disabled={disabled}
             onClick={() => onChange(opt.value)}
-            className={`rounded-[3px] px-3 py-1.5 text-sm font-semibold transition-colors ${
+            className={`rounded-[3px] px-3 py-1.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed ${
               value === opt.value
                 ? "bg-[var(--color-seal)] text-[var(--color-paper)]"
                 : "text-[var(--color-ink-soft)] hover:bg-[var(--color-paper-warm)] hover:text-[var(--color-ink)]"

@@ -179,6 +179,7 @@ export default async function ReportPage({
           savePublic: t("savePublic"),
           savePublicHint: t("savePublicHint"),
           savedPublic: t("savedPublic"),
+          blind: { label: t("blind.label"), hint: t("blind.hint"), notice: t("blind.notice") },
         }}
         leftActions={canEdit && <ShareLinkButton scanId={scan.id} initialToken={(scan.share_token as string | null) ?? null} />}
         rightActions={
@@ -366,17 +367,20 @@ export default async function ReportPage({
                       <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.category.${category}`)}</td>
                       <td className="py-2 pr-3 text-[var(--color-ink-soft)]">{t(`pages.sample.${sampleType}`)}</td>
                       <td className="py-2 pr-3 text-right tabular-nums">
-                        {p.status === "done" ? (
-                          totalV === 0 ? (
-                            <span className="text-[var(--color-pass)]">0</span>
+                        <span className="blind-ph text-[var(--color-ink-faint)]">—</span>
+                        <span className="blind-mask">
+                          {p.status === "done" ? (
+                            totalV === 0 ? (
+                              <span className="text-[var(--color-pass)]">0</span>
+                            ) : (
+                              <span className={critSer > 0 ? "font-bold text-[var(--color-crit)]" : "text-[var(--color-ink-soft)]"}>
+                                {totalV}
+                              </span>
+                            )
                           ) : (
-                            <span className={critSer > 0 ? "font-bold text-[var(--color-crit)]" : "text-[var(--color-ink-soft)]"}>
-                              {totalV}
-                            </span>
-                          )
-                        ) : (
-                          <span className="text-[var(--color-ink-faint)]">–</span>
-                        )}
+                            <span className="text-[var(--color-ink-faint)]">–</span>
+                          )}
+                        </span>
                       </td>
                       <td className="py-2">
                         {p.status === "done" ? (
@@ -403,7 +407,7 @@ export default async function ReportPage({
       )}
 
       {/* ─── 요약: 자동/수동/통합 준수율 + 심각도별 위반 ─── */}
-      <section aria-labelledby="score-heading" className="print-avoid-break mt-8">
+      <section aria-labelledby="score-heading" className="blind-mask print-avoid-break mt-8">
         <h2 id="score-heading" className="sr-only">
           {summary.scores ? t("scores.combined") : t("score.title")}
         </h2>
@@ -501,7 +505,7 @@ export default async function ReportPage({
       {compare && (
         <section
           aria-labelledby="compare-heading"
-          className="print-avoid-break mt-6 border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] p-6"
+          className="blind-mask print-avoid-break mt-6 border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] p-6"
         >
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="compare-heading" className="font-display text-xl font-bold">
@@ -651,12 +655,17 @@ export default async function ReportPage({
                             <strong>{t("review.relatedPages")}:</strong> {review.pages.join(" · ")}
                           </p>
                         )}
-                        {/* 스크롤 없이 그 자리에서: 위반→개선 방법 / 확인 필요→확인 방법 / 수동→검사 방법 */}
+                        {/* 스크롤 없이 그 자리에서: 위반→개선 방법 / 확인 필요→확인 방법 / 수동→검사 방법
+                            위반·확인 상세는 자동 결과이므로 블라인드 판정 중 마스킹(검사 방법 안내는 유지) */}
                         {row.outcome === "failed" && row.ruleIds.length > 0 && (
-                          <MatrixDetail kind="fix" ruleIds={row.ruleIds} scId={row.scId} locale={locale} />
+                          <div className="blind-mask">
+                            <MatrixDetail kind="fix" ruleIds={row.ruleIds} scId={row.scId} locale={locale} />
+                          </div>
                         )}
                         {row.outcome === "cannotTell" && (row.reviewRuleIds?.length ?? 0) > 0 && (
-                          <MatrixDetail kind="review" ruleIds={row.reviewRuleIds} scId={row.scId} locale={locale} />
+                          <div className="blind-mask">
+                            <MatrixDetail kind="review" ruleIds={row.reviewRuleIds} scId={row.scId} locale={locale} />
+                          </div>
                         )}
                         {row.outcome === "notChecked" && (
                           <MatrixDetail kind="manual" scId={row.scId} locale={locale} />
@@ -664,17 +673,26 @@ export default async function ReportPage({
                       </th>
                       <td className="py-2 pr-3 text-[var(--color-ink-faint)]">{c.level}</td>
                       <td className="py-2 pr-3">
-                        <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[effective]}`}>
-                          {t(`wcag.outcome.${effective}`)}
-                        </span>
-                        {review && (
-                          <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
-                            {t("review.badge")}
+                        {/* 블라인드 판정 중에는 자동 판정 배지를 마스킹(점검자 자신의 판정은 유지) */}
+                        {!review && (
+                          <span className="blind-ph rounded-sm border border-[var(--color-line)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
+                            {t("blind.masked")}
                           </span>
                         )}
+                        <span className={review ? undefined : "blind-mask"}>
+                          <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[effective]}`}>
+                            {t(`wcag.outcome.${effective}`)}
+                          </span>
+                          {review && (
+                            <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
+                              {t("review.badge")}
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="py-2 pr-3 text-right font-bold tabular-nums">
-                        {row.violationCount > 0 ? row.violationCount : "—"}
+                        <span className="blind-ph font-normal text-[var(--color-ink-faint)]">—</span>
+                        <span className="blind-mask">{row.violationCount > 0 ? row.violationCount : "—"}</span>
                       </td>
                       {canEdit && (
                         <td className="no-print py-2">
@@ -696,7 +714,7 @@ export default async function ReportPage({
         <div data-block="kwcag">
         {/* ─── 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 ─── */}
         {cert.averageRate != null && (
-        <section aria-labelledby="cert-heading" className="print-avoid-break mt-10 doc-card p-6">
+        <section aria-labelledby="cert-heading" className="blind-mask print-avoid-break mt-10 doc-card p-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h2 id="cert-heading" className="font-display text-xl font-bold">
               {t("cert.title")}
@@ -793,10 +811,14 @@ export default async function ReportPage({
                         </p>
                       )}
                       {row.status === "fail" && row.ruleIds.length > 0 && (
-                        <MatrixDetail kind="fix" ruleIds={row.ruleIds} locale={locale} />
+                        <div className="blind-mask">
+                          <MatrixDetail kind="fix" ruleIds={row.ruleIds} locale={locale} />
+                        </div>
                       )}
                       {row.status === "review" && (row.reviewRuleIds?.length ?? 0) > 0 && (
-                        <MatrixDetail kind="review" ruleIds={row.reviewRuleIds} locale={locale} />
+                        <div className="blind-mask">
+                          <MatrixDetail kind="review" ruleIds={row.reviewRuleIds} locale={locale} />
+                        </div>
                       )}
                       {(row.status === "manual" || row.status === "not-applicable") && item.howToTest && (
                         <MatrixDetail kind="manual" howToTest={item.howToTest} locale={locale} />
@@ -815,23 +837,35 @@ export default async function ReportPage({
                           </span>
                         </>
                       ) : (
-                        <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${statusStyle[row.status]}`}>
-                          {t(`kwcag.status.${row.status}`)}
-                        </span>
+                        <>
+                          {/* 블라인드 판정 중에는 자동 상태 배지 마스킹 */}
+                          <span className="blind-ph rounded-sm border border-[var(--color-line)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
+                            {t("blind.masked")}
+                          </span>
+                          <span className={`blind-mask inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${statusStyle[row.status]}`}>
+                            {t(`kwcag.status.${row.status}`)}
+                          </span>
+                        </>
                       )}
                     </td>
-                    <td className="py-2 pr-3 text-right font-bold tabular-nums">{row.violationCount > 0 ? row.violationCount : "—"}</td>
+                    <td className="py-2 pr-3 text-right font-bold tabular-nums">
+                      <span className="blind-ph font-normal text-[var(--color-ink-faint)]">—</span>
+                      <span className="blind-mask">{row.violationCount > 0 ? row.violationCount : "—"}</span>
+                    </td>
                     <td className="py-2 pr-3 text-right tabular-nums">
-                      {(() => {
-                        const applicable = row.status === "pass" || row.status === "fail" || row.status === "review";
-                        const rate = kwcagRates.get(row.itemId)?.rate;
-                        if (!applicable || rate == null) return <span className="text-[var(--color-ink-faint)]">—</span>;
-                        return (
-                          <span className={rate >= 95 ? "font-bold text-[var(--color-pass)]" : "font-bold text-[var(--color-crit)]"}>
-                            {rate}%
-                          </span>
-                        );
-                      })()}
+                      <span className="blind-ph text-[var(--color-ink-faint)]">—</span>
+                      <span className="blind-mask">
+                        {(() => {
+                          const applicable = row.status === "pass" || row.status === "fail" || row.status === "review";
+                          const rate = kwcagRates.get(row.itemId)?.rate;
+                          if (!applicable || rate == null) return <span className="text-[var(--color-ink-faint)]">—</span>;
+                          return (
+                            <span className={rate >= 95 ? "font-bold text-[var(--color-pass)]" : "font-bold text-[var(--color-crit)]"}>
+                              {rate}%
+                            </span>
+                          );
+                        })()}
+                      </span>
                     </td>
                     {canEdit && (
                       <td className="no-print py-2">
@@ -866,7 +900,7 @@ export default async function ReportPage({
       {/* ─── 위반 상세 ─── */}
       {/* ─── 우선 수정 권고 — 심각도·규모 기준 상위 규칙 액션 플랜 ─── */}
       {ruleGroups.length > 0 && (
-        <section aria-labelledby="priority-heading" className="print-avoid-break mt-12">
+        <section aria-labelledby="priority-heading" className="blind-mask print-avoid-break mt-12">
           <h2 id="priority-heading" className="font-display text-2xl font-bold">
             {t("priority.title")}
           </h2>
@@ -909,7 +943,7 @@ export default async function ReportPage({
         </section>
       )}
 
-      <section aria-labelledby="violations-heading" className="print-break-before mt-12">
+      <section aria-labelledby="violations-heading" className="blind-mask print-break-before mt-12">
         <h2 id="violations-heading" className="font-display text-2xl font-bold">
           {t("violations.title")}
         </h2>
