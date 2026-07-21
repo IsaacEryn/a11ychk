@@ -12,7 +12,7 @@ interface Section {
 const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections: Section[] }> = {
   ko: {
     title: "개인정보 처리방침",
-    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정 — 학술 연구 활용, 수탁사 구체화)",
+    effective: "시행일: 2026년 7월 22일 (개정 — 웹 분석 도구(GA4) 도입 고지 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
@@ -20,7 +20,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "회원 가입 시: 이름(닉네임), 이메일 주소 — Google·GitHub 계정으로부터 제공받거나 이메일 가입 시 직접 수집합니다.",
           "서비스 이용 시: 검사 대상 URL과 검사 결과, 점검자 판정·메모, 보고서 정보(사이트 이름·평가자 등), 문의 내용.",
           "서비스 보호 목적: 로그인 기록(IP 주소 포함)과 서버 오류 로그를 수집합니다.",
-          "쿠키: 로그인 세션 유지 목적의 인증 쿠키만 사용하며, 광고·추적 쿠키는 사용하지 않습니다.",
+          "쿠키: 로그인 세션 유지 목적의 인증 쿠키와 서비스 이용 통계를 위한 웹 분석 쿠키(제5조)를 사용합니다. 광고 목적의 쿠키는 사용하지 않습니다.",
         ],
       },
       {
@@ -45,24 +45,31 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         ],
       },
       {
-        heading: "5. 제3자 제공",
+        heading: "5. 웹 분석 도구 (Google 애널리틱스)",
+        body: [
+          "서비스 이용 현황 파악과 개선을 위해 Google LLC의 Google 애널리틱스(GA4)를 사용합니다. 이 과정에서 쿠키를 통해 무작위 식별자가 생성되고, 방문 페이지, 접속 환경(브라우저·기기 유형), 대략적인 지역 정보가 Google 서버(국외)로 전송될 수 있습니다.",
+          "수집 정보는 이용자를 직접 식별하지 않으며, 서비스 이용 통계 분석 목적 외에는 사용하지 않습니다. 브라우저의 쿠키 차단 기능 또는 Google 애널리틱스 차단 브라우저 부가기능(tools.google.com/dlpage/gaoptout)으로 수집을 거부할 수 있습니다.",
+        ],
+      },
+      {
+        heading: "6. 제3자 제공",
         body: ["법령에 의한 경우를 제외하고 개인정보를 제3자에게 제공하지 않으며, 판매하지 않습니다."],
       },
       {
-        heading: "6. 이용자의 권리",
+        heading: "7. 이용자의 권리",
         body: [
           "이용자는 언제든지 마이페이지에서 자신의 정보를 열람·수정할 수 있으며, 탈퇴(계정 삭제)를 통해 개인정보 삭제를 요청할 수 있습니다.",
         ],
       },
       {
-        heading: "7. 문의처",
+        heading: "8. 문의처",
         body: ["개인정보 관련 문의: isaaceryn@gmail.com 또는 서비스 내 문의하기."],
       },
     ],
   },
   en: {
     title: "Privacy Policy",
-    effective: "Effective: July 19, 2026 (enacted July 16, 2026; research use, processors and retention clarified)",
+    effective: "Effective: July 22, 2026 (amended — web analytics (GA4) disclosure; enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Data we collect",
@@ -70,7 +77,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "On sign-up: name (nickname) and email address — provided by your Google/GitHub account, or collected directly for email sign-up.",
           "During use: audited URLs and results, evaluator judgments/notes, report details (site name, evaluator, etc.), and inquiry contents.",
           "For service protection: sign-in records (including IP address) and server error logs.",
-          "Cookies: authentication cookies for session management only — no advertising or tracking cookies.",
+          "Cookies: authentication cookies for session management, plus web-analytics cookies for usage statistics (see Section 5). No advertising cookies.",
         ],
       },
       {
@@ -94,17 +101,24 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         ],
       },
       {
-        heading: "5. Third parties",
+        heading: "5. Web analytics (Google Analytics)",
+        body: [
+          "We use Google Analytics (GA4) by Google LLC to understand and improve how the service is used. Cookies generate a random identifier, and visited pages, browsing environment (browser/device type), and approximate region may be transmitted to Google servers (outside Korea).",
+          "This data does not directly identify you and is used only for usage statistics. You can opt out by blocking cookies in your browser or with the Google Analytics opt-out add-on (tools.google.com/dlpage/gaoptout).",
+        ],
+      },
+      {
+        heading: "6. Third parties",
         body: ["We do not provide or sell personal data to third parties except as required by law."],
       },
       {
-        heading: "6. Your rights",
+        heading: "7. Your rights",
         body: [
           "You can view and edit your information on My Page at any time, and request deletion by deleting your account.",
         ],
       },
       {
-        heading: "7. Contact",
+        heading: "8. Contact",
         body: ["Privacy inquiries: isaaceryn@gmail.com or the in-service support page."],
       },
     ],
