@@ -1,0 +1,793 @@
+{
+  "summary": {
+    "generatedFrom": "packages/core/src/catalog (RULE_CATALOG, WCAG_CRITERIA, KWCAG_ITEMS)",
+    "rules": {
+      "total": 106,
+      "axe": 93,
+      "custom": 13
+    },
+    "wcag": {
+      "totalCriteria": 55,
+      "automated": 30,
+      "manualOnly": 25,
+      "automatedPct": 54.5,
+      "byLevel": [
+        {
+          "level": "A",
+          "total": 31,
+          "automated": 19,
+          "automatedPct": 61.3
+        },
+        {
+          "level": "AA",
+          "total": 24,
+          "automated": 11,
+          "automatedPct": 45.8
+        }
+      ],
+      "byPrinciple": [
+        {
+          "principle": "perceivable",
+          "total": 20,
+          "automated": 12,
+          "automatedPct": 60
+        },
+        {
+          "principle": "operable",
+          "total": 20,
+          "automated": 12,
+          "automatedPct": 60
+        },
+        {
+          "principle": "understandable",
+          "total": 13,
+          "automated": 5,
+          "automatedPct": 38.5
+        },
+        {
+          "principle": "robust",
+          "total": 2,
+          "automated": 1,
+          "automatedPct": 50
+        }
+      ]
+    },
+    "kwcag": {
+      "totalItems": 33,
+      "full": 2,
+      "partial": 19,
+      "none": 12,
+      "anyAutomationPct": 63.6
+    }
+  },
+  "wcag": [
+    {
+      "id": "1.1.1",
+      "name": "비텍스트 콘텐츠",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 8,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.2.1",
+      "name": "오디오·비디오(사전 녹화)",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.2.2",
+      "name": "자막(사전 녹화)",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.2.3",
+      "name": "음성 해설 또는 대체 미디어(사전 녹화)",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.2.4",
+      "name": "자막(실시간)",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.2.5",
+      "name": "음성 해설(사전 녹화)",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.3.1",
+      "name": "정보와 관계",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 12,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.3.2",
+      "name": "의미 있는 순서",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.3.3",
+      "name": "감각적 특성",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.3.4",
+      "name": "표시 방향",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.3.5",
+      "name": "입력 목적 식별",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.1",
+      "name": "색의 사용",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.2",
+      "name": "오디오 제어",
+      "level": "A",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.3",
+      "name": "명도 대비(최소)",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.4",
+      "name": "텍스트 크기 조정",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.5",
+      "name": "텍스트 이미지",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.4.10",
+      "name": "리플로우",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.11",
+      "name": "비텍스트 대비",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "1.4.12",
+      "name": "텍스트 간격",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "1.4.13",
+      "name": "호버·포커스 시 콘텐츠",
+      "level": "AA",
+      "principle": "perceivable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.1.1",
+      "name": "키보드",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 3,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.1.2",
+      "name": "키보드 함정 방지",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.1.4",
+      "name": "문자 키 단축키",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.2.1",
+      "name": "시간 조절 가능",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.2.2",
+      "name": "일시정지·정지·숨김",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 2,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.3.1",
+      "name": "3회 섬광 이하",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.4.1",
+      "name": "블록 건너뛰기",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 2,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.4.2",
+      "name": "페이지 제목",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 1,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.4.3",
+      "name": "초점 순서",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.4.4",
+      "name": "링크 목적(문맥 내)",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 2,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.4.5",
+      "name": "여러 방법",
+      "level": "AA",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.4.6",
+      "name": "제목과 레이블",
+      "level": "AA",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.4.7",
+      "name": "보이는 초점",
+      "level": "AA",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.4.11",
+      "name": "초점 가림 방지(최소)",
+      "level": "AA",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.5.1",
+      "name": "포인터 제스처",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.5.2",
+      "name": "포인터 취소",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.5.3",
+      "name": "레이블과 네임",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "2.5.4",
+      "name": "동작 기반 작동",
+      "level": "A",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.5.7",
+      "name": "드래그 동작",
+      "level": "AA",
+      "principle": "operable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "2.5.8",
+      "name": "대상 크기(최소)",
+      "level": "AA",
+      "principle": "operable",
+      "axeRules": 1,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "3.1.1",
+      "name": "페이지 언어",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 3,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "3.1.2",
+      "name": "부분 언어",
+      "level": "AA",
+      "principle": "understandable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "3.2.1",
+      "name": "초점 시",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.2.2",
+      "name": "입력 시",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "3.2.3",
+      "name": "일관된 내비게이션",
+      "level": "AA",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 1,
+      "coverage": "automated"
+    },
+    {
+      "id": "3.2.4",
+      "name": "일관된 식별",
+      "level": "AA",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.2.6",
+      "name": "일관된 도움말",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.3.1",
+      "name": "오류 식별",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.3.2",
+      "name": "레이블 또는 안내",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 1,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "3.3.3",
+      "name": "오류 정정 제안",
+      "level": "AA",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.3.4",
+      "name": "오류 방지(법률·금융·데이터)",
+      "level": "AA",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.3.7",
+      "name": "중복 입력",
+      "level": "A",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "3.3.8",
+      "name": "접근 가능한 인증(최소)",
+      "level": "AA",
+      "principle": "understandable",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    },
+    {
+      "id": "4.1.2",
+      "name": "네임·역할·값",
+      "level": "A",
+      "principle": "robust",
+      "axeRules": 29,
+      "customRules": 0,
+      "coverage": "automated"
+    },
+    {
+      "id": "4.1.3",
+      "name": "상태 메시지",
+      "level": "AA",
+      "principle": "robust",
+      "axeRules": 0,
+      "customRules": 0,
+      "coverage": "manual-only"
+    }
+  ],
+  "kwcag": [
+    {
+      "id": "5.1.1",
+      "name": "적절한 대체 텍스트 제공",
+      "autoCoverage": "partial",
+      "axeRules": 8,
+      "customRules": 1
+    },
+    {
+      "id": "5.2.1",
+      "name": "자막 제공",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 1
+    },
+    {
+      "id": "5.3.1",
+      "name": "색에 무관한 콘텐츠 인식",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "id": "5.3.2",
+      "name": "명확한 지시사항 제공",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "5.4.1",
+      "name": "텍스트 콘텐츠의 명도 대비",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "id": "5.4.2",
+      "name": "자동 재생 금지",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 1
+    },
+    {
+      "id": "5.4.3",
+      "name": "콘텐츠 간의 구분",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "6.1.1",
+      "name": "키보드 사용 보장",
+      "autoCoverage": "partial",
+      "axeRules": 4,
+      "customRules": 1
+    },
+    {
+      "id": "6.1.2",
+      "name": "초점 이동과 표시",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 1
+    },
+    {
+      "id": "6.1.3",
+      "name": "조작 가능",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 1
+    },
+    {
+      "id": "6.1.4",
+      "name": "문자 단축키",
+      "autoCoverage": "none",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "id": "6.2.1",
+      "name": "응답시간 조절",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "id": "6.2.2",
+      "name": "정지 기능 제공",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "id": "6.3.1",
+      "name": "깜빡임과 번쩍임 사용 제한",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "id": "6.4.1",
+      "name": "반복 영역 건너뛰기",
+      "autoCoverage": "partial",
+      "axeRules": 8,
+      "customRules": 1
+    },
+    {
+      "id": "6.4.2",
+      "name": "제목 제공",
+      "autoCoverage": "partial",
+      "axeRules": 7,
+      "customRules": 1
+    },
+    {
+      "id": "6.4.3",
+      "name": "적절한 링크 텍스트",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 1
+    },
+    {
+      "id": "6.4.4",
+      "name": "고정된 참조 위치 정보",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "6.5.1",
+      "name": "단일 포인터 입력 지원",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "6.5.2",
+      "name": "포인터 입력 취소",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "6.5.3",
+      "name": "레이블과 네임",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "id": "6.5.4",
+      "name": "동작기반 작동",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "7.1.1",
+      "name": "기본 언어 표시",
+      "autoCoverage": "full",
+      "axeRules": 4,
+      "customRules": 0
+    },
+    {
+      "id": "7.2.1",
+      "name": "사용자 요구에 따른 실행",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 1
+    },
+    {
+      "id": "7.2.2",
+      "name": "찾기 쉬운 도움 정보",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "7.3.1",
+      "name": "콘텐츠의 선형구조",
+      "autoCoverage": "partial",
+      "axeRules": 6,
+      "customRules": 0
+    },
+    {
+      "id": "7.3.2",
+      "name": "표의 구성",
+      "autoCoverage": "partial",
+      "axeRules": 5,
+      "customRules": 0
+    },
+    {
+      "id": "7.4.1",
+      "name": "레이블 제공",
+      "autoCoverage": "partial",
+      "axeRules": 9,
+      "customRules": 0
+    },
+    {
+      "id": "7.4.2",
+      "name": "오류 정정",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "7.4.3",
+      "name": "접근 가능한 인증",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "id": "7.4.4",
+      "name": "반복 입력 정보",
+      "autoCoverage": "none",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "id": "8.1.1",
+      "name": "마크업 오류 방지",
+      "autoCoverage": "full",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "id": "8.2.1",
+      "name": "웹 애플리케이션 접근성 준수",
+      "autoCoverage": "partial",
+      "axeRules": 25,
+      "customRules": 0
+    }
+  ]
+}

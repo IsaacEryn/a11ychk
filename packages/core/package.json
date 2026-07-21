@@ -11,7 +11,8 @@
   "scripts": {
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "test:e2e": "vitest run -c vitest.e2e.config.ts"
+    "test:e2e": "vitest run -c vitest.e2e.config.ts",
+    "coverage": "esbuild scripts/coverage-report.ts --bundle --platform=node --format=esm --outfile=scripts/.coverage-report.mjs --log-level=error && node scripts/.coverage-report.mjs && rm scripts/.coverage-report.mjs"
   },
   "dependencies": {
     "axe-core": "^4.10.3",
