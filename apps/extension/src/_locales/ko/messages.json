@@ -390,6 +390,12 @@
   "settingsThemeTitle": {
     "message": "화면 테마"
   },
+  "settingsLangTitle": {
+    "message": "언어"
+  },
+  "langAuto": {
+    "message": "자동(시스템)"
+  },
   "themeSystem": {
     "message": "시스템"
   },

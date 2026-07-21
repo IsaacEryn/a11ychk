@@ -136,6 +136,16 @@
         </div>
 
         <div class="viz-group">
+          <h3 data-i18n="settingsLangTitle">언어</h3>
+          <div class="chip-row" id="langRow" role="group" aria-label="언어" data-i18n-aria-label="settingsLangTitle">
+            <button class="chip" type="button" data-lang="auto" aria-pressed="true" data-i18n="langAuto">자동(시스템)</button>
+            <!-- 언어명은 해당 언어로 자기 표기 — i18n 대상 아님 -->
+            <button class="chip" type="button" data-lang="ko" aria-pressed="false" lang="ko">한국어</button>
+            <button class="chip" type="button" data-lang="en" aria-pressed="false" lang="en">English</button>
+          </div>
+        </div>
+
+        <div class="viz-group">
           <h3 data-i18n="settingsAccountTitle">계정</h3>
           <div id="account" class="account"></div>
         </div>

@@ -22,8 +22,8 @@ import {
   overlayTargetSizeInPage,
   runAxeInPage,
 } from "./injected";
-import { wireTabs, wireTheme } from "./ui";
-import { isEnglish, localizeHtml, msg, pick } from "./i18n";
+import { wireTabs, wireTheme, wireLang } from "./ui";
+import { initI18n, isEnglish, localizeHtml, msg, pick } from "./i18n";
 // axe 공식 한국어 로케일 — UI가 한국어일 때 진단 메시지를 한국어로
 import axeKoLocale from "axe-core/locales/ko.json";
 
@@ -162,12 +162,10 @@ function setUsageNote(html: { text: string; cta?: boolean; err?: boolean }) {
 }
 
 const IMPACTS: Impact[] = ["critical", "serious", "moderate", "minor"];
-const IMPACT_LABEL: Record<Impact, string> = {
-  critical: msg("impactCritical"),
-  serious: msg("impactSerious"),
-  moderate: msg("impactModerate"),
-  minor: msg("impactMinor"),
-};
+/** 심각도 라벨 — initI18n 이후에 호출되도록 지연 평가(모듈 로드 시점 msg() 금지) */
+function impactLabel(impact: Impact): string {
+  return msg({ critical: "impactCritical", serious: "impactSerious", moderate: "impactModerate", minor: "impactMinor" }[impact]);
+}
 
 /** MAIN world에서 axe 실행 — 단순 표현식이라 번들러 헬퍼 오염 위험 없음 */
 async function scan() {
@@ -309,7 +307,7 @@ function renderResult(
   for (const key of IMPACTS) {
     const li = document.createElement("li");
     const label = document.createElement("span");
-    label.textContent = IMPACT_LABEL[key];
+    label.textContent = impactLabel(key);
     const val = document.createElement("b");
     val.textContent = String(summary.byImpact[key]);
     li.append(label, val);
@@ -337,7 +335,7 @@ function renderResult(
     title.className = "vt";
     const badge = document.createElement("span");
     badge.className = "badge";
-    badge.textContent = IMPACT_LABEL[v.impact];
+    badge.textContent = impactLabel(v.impact);
     title.append(badge, document.createTextNode(pick(entry.title)));
     const meta = document.createElement("p");
     meta.className = "vmeta";
@@ -711,7 +709,7 @@ async function setIssuesView(on: boolean) {
       v.nodes.map((n) => ({
         selector: n.selector,
         color: MARKER_COLOR[v.impact],
-        label: IMPACT_LABEL[v.impact],
+        label: impactLabel(v.impact),
       })),
     );
     await runInPage(overlayMarkersInPage, markers);
@@ -800,7 +798,7 @@ function buildAiFixMarkdown(page: NonNullable<typeof lastPage>): string {
       entry.wcag.length ? `WCAG ${entry.wcag.join(", ")}` : "",
       entry.kwcag.length ? `KWCAG ${entry.kwcag.join(", ")}` : "",
     ].filter(Boolean).join(" · ");
-    lines.push(`## ${i}. [${IMPACT_LABEL[v.impact]}] ${pick(entry.title)}`);
+    lines.push(`## ${i}. [${impactLabel(v.impact)}] ${pick(entry.title)}`);
     lines.push(`- ${[tags, msg("nodeCount", [v.nodes.length])].filter(Boolean).join(" · ")}`);
     const guide = pick(entry.guide).split("\n\n")[0]?.trim();
     if (guide) lines.push("", guide);
@@ -987,8 +985,9 @@ function wireContrastPicker() {
 
 async function init() {
   // 정적 HTML 로컬라이즈 + 문서 언어 반영 (default_locale ko, en 지원)
+  // 언어 설정(자동/한국어/영어) 반영 — msg()·localizeHtml보다 먼저 로드해야 함
+  await initI18n();
   localizeHtml();
-  document.documentElement.lang = isEnglish() ? "en" : "ko";
 
   await renderAccount();
   // 웹 연결 페이지에서 로그인하면 저장소가 바뀌므로 패널을 자동 갱신
@@ -1005,6 +1004,7 @@ async function init() {
   wireVisualTools();
   wireTabs();
   await wireTheme();
+  await wireLang();
 
   await refreshActiveTab();
   // 사이드 패널은 탭을 바꿔도 떠 있으므로, 활성 탭 변경·주소 변경 시 갱신

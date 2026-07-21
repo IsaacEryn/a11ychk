@@ -60,3 +60,17 @@ export async function wireTheme() {
     });
   });
 }
+
+// ─── 언어 (자동/한국어/영어) ───
+/** 언어 칩 배선 — 선택 저장 후 패널 리로드로 전체 UI에 적용 */
+export async function wireLang() {
+  const { getLangSetting, setLangSetting } = await import("./i18n");
+  const saved = await getLangSetting();
+  document.querySelectorAll<HTMLButtonElement>("[data-lang]").forEach((btn) => {
+    btn.setAttribute("aria-pressed", String(btn.dataset.lang === saved));
+    btn.addEventListener("click", () => {
+      const lang = btn.dataset.lang as "auto" | "ko" | "en";
+      void setLangSetting(lang).then(() => location.reload());
+    });
+  });
+}

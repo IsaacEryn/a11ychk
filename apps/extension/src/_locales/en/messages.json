@@ -390,6 +390,12 @@
   "settingsThemeTitle": {
     "message": "Theme"
   },
+  "settingsLangTitle": {
+    "message": "Language"
+  },
+  "langAuto": {
+    "message": "Auto (system)"
+  },
   "themeSystem": {
     "message": "System"
   },
