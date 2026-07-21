@@ -55,8 +55,9 @@ describe("getSampleSize — 표본 크기 정책", () => {
 
   it("모든 경로가 하드 캡(MAX_PAGES_PER_SCAN)으로 클램프", () => {
     expect(getSampleSize({ override: { pages: 100 }, verified: true, plansActive: false })).toBe(MAX_PAGES_PER_SCAN);
+    // 2026-07-22 한도 개편으로 모든 요금제 sampleSize(5/10/20)가 캡(30) 이내 — 요금제 값 그대로
     expect(getSampleSize({ override: { plan: "enterprise" }, verified: false, plansActive: true })).toBe(
-      MAX_PAGES_PER_SCAN,
+      PLANS.enterprise.sampleSize,
     );
   });
 
