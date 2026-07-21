@@ -829,15 +829,17 @@
       "planLabel": "Plan",
       "plans": {
         "free": "Free",
+        "plus": "Plus",
         "pro": "Pro",
-        "enterprise": "Enterprise"
+        "enterprise": "Enterprise",
+        "unlimited": "Unlimited (operator)"
       },
       "saveLimits": "Save limits",
       "customHint": "Leave blank to use the plan default; enter a number to set a per-user limit",
       "effective": "Effective limits (daily/weekly/monthly)",
       "resetScopeLabel": "Reset scope",
       "resetScope": {
-        "all": "All (daily·weekly·monthly)",
+        "all": "All at once (daily·weekly·monthly + extension)",
         "daily": "Daily",
         "weekly": "Weekly",
         "monthly": "Monthly",

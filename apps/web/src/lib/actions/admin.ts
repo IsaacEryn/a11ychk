@@ -48,9 +48,10 @@ export interface ResetQuotaState {
 }
 
 /**
- * 검사 한도 초기화. scope: daily | weekly | monthly | all.
- * 해당 윈도우의 리셋 시각(scan_limit_override.{window}ResetAt)을 현재로 설정해
- * 그 이전 검사를 사용량 집계에서 제외한다.
+ * 검사 한도 초기화. scope: daily | weekly | monthly | extension | all.
+ * 웹 창(daily/weekly/monthly)은 리셋 시각(scan_limit_override.{window}ResetAt)을
+ * 현재로 설정해 그 이전 검사를 집계에서 제외하고, extension은 extension_usage 행을
+ * 삭제한다. all은 넷 모두 한 번에(진짜 일괄 초기화).
  */
 export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Promise<ResetQuotaState> {
   const { user: actor } = await requireAdmin();
@@ -80,6 +81,11 @@ export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Pr
     .update({ scan_limit_override: { ...current, ...patch } })
     .eq("id", id.data);
   if (error) return { error: "failed" };
+
+  // 일괄(all)은 확장 사용량까지 함께 초기화 — 실패해도 웹 창 초기화는 유지(부분 성공 허용)
+  if (scope.data === "all") {
+    await admin.from("extension_usage").delete().eq("user_id", id.data);
+  }
   await logAdminAction(admin, actor.id, "user.reset_quota", id.data, { scope: scope.data });
   revalidateLocalized("/admin/users", "/dashboard");
   return { ok: true, resetScope: scope.data };

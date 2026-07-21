@@ -22,9 +22,15 @@ export interface PlanConfig extends ScanLimits {
  */
 export const PLANS = {
   // 2026-07-22 개정: 일/주/월 3중 창 + 검사당 표본 페이지 수 (소유 확인 수는 DOMAIN_VERIFY_LIMITS)
+  // free/pro/enterprise만 요금제 페이지에 공개 — plus(우수 사용자·파트너 보상)와
+  // unlimited(운영자 전용)는 관리자 배정으로만 부여하는 내부 등급.
   free: { daily: 3, weekly: 5, monthly: 10, sampleSize: 5 },
+  plus: { daily: 5, weekly: 8, monthly: 20, sampleSize: 8 },
   pro: { daily: 5, weekly: 10, monthly: 30, sampleSize: 10 },
   enterprise: { daily: 20, weekly: 30, monthly: 100, sampleSize: 20 },
+  // 사실상 무제한 — 집계·표시 로직을 단순하게 유지하기 위해 큰 유한값 사용.
+  // sampleSize 30 = MAX_PAGES_PER_SCAN(아래 선언 — 선언 순서상 리터럴 사용)과 일치.
+  unlimited: { daily: 1000, weekly: 5000, monthly: 20000, sampleSize: 30 },
 } as const satisfies Record<string, PlanConfig>;
 
 export type PlanId = keyof typeof PLANS;
@@ -48,8 +54,10 @@ export const VERIFIED_FREE_SAMPLE_SIZE = 10;
  */
 export const DOMAIN_VERIFY_LIMITS: Record<PlanId, number> = {
   free: 1,
+  plus: 2,
   pro: 3,
   enterprise: 10,
+  unlimited: 100,
 };
 
 /**
@@ -71,8 +79,10 @@ export const MAX_PAGES_PER_SCAN = 30;
  */
 export const EXT_DAILY_LIMITS: Record<PlanId, number> = {
   free: 10,
+  plus: 15,
   pro: 20,
   enterprise: 30,
+  unlimited: 1000,
 };
 
 /** 확장 일일 한도 — 관리자 지정 개별값(scan_limit_override.extDaily) > 배정 등급 기본값 */

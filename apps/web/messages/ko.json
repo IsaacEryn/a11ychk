@@ -829,15 +829,17 @@
       "planLabel": "요금제",
       "plans": {
         "free": "무료",
+        "plus": "플러스(우수)",
         "pro": "프로",
-        "enterprise": "엔터프라이즈"
+        "enterprise": "엔터프라이즈",
+        "unlimited": "무제한(운영자)"
       },
       "saveLimits": "한도 저장",
       "customHint": "숫자를 비우면 요금제 기본값을 따르고, 입력하면 이 사용자만의 개별 한도가 됩니다",
       "effective": "현재 적용 한도(일/주/월)",
       "resetScopeLabel": "초기화 범위",
       "resetScope": {
-        "all": "전체(일·주·월)",
+        "all": "전체 일괄(일·주·월+확장)",
         "daily": "일간",
         "weekly": "주간",
         "monthly": "월간",
