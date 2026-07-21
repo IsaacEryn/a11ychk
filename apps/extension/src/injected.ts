@@ -189,17 +189,27 @@ export function collectPageSignals(): PageCheckSignals {
 
 /** 페이지에서 해당 요소를 강조 표시 (스크롤 + 3초 outline) */
 export function highlightInPage(selector: string): boolean {
-  const el = document.querySelector<HTMLElement>(selector);
-  if (!el) return false;
-  el.scrollIntoView({ behavior: "smooth", block: "center" });
-  const prevOutline = el.style.outline;
-  const prevOffset = el.style.outlineOffset;
-  el.style.outline = "3px solid #e0533d";
-  el.style.outlineOffset = "2px";
-  setTimeout(() => {
-    el.style.outline = prevOutline;
-    el.style.outlineOffset = prevOffset;
-  }, 3000);
+  // 첫 매치만 강조하면 선택자가 여러 요소에 걸리는 페이지(중복 구조·동적 클래스)에서
+  // 엉뚱한 요소가 강조된다 — 매치 전부(상한 10)를 강조하고 첫 요소로 스크롤.
+  let els: HTMLElement[] = [];
+  try {
+    els = [...document.querySelectorAll<HTMLElement>(selector)].slice(0, 10);
+  } catch {
+    els = [];
+  }
+  const first = els[0];
+  if (!first) return false;
+  first.scrollIntoView({ behavior: "smooth", block: "center" });
+  for (const el of els) {
+    const prevOutline = el.style.outline;
+    const prevOffset = el.style.outlineOffset;
+    el.style.outline = "3px solid #e0533d";
+    el.style.outlineOffset = "2px";
+    setTimeout(() => {
+      el.style.outline = prevOutline;
+      el.style.outlineOffset = prevOffset;
+    }, 3000);
+  }
   return true;
 }
 
@@ -266,14 +276,24 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
   c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
   const pairs: [Element, HTMLElement][] = [];
   let drawn = 0;
+  // 선택자당 매치 전부에 마커를 그린다(첫 매치만 그리면 중복 선택자에서 위치가 어긋남).
+  // 전체 상한은 성능 보호용 — 위반이 극단적으로 많은 페이지에서 프리즈 방지.
+  const MAX_BOXES = 300;
+  const resolved: { el: Element; color: string; label: string }[] = [];
   for (const m of markers) {
-    let el: Element | null = null;
+    let els: Element[] = [];
     try {
-      el = document.querySelector(m.selector);
+      els = [...document.querySelectorAll(m.selector)];
     } catch {
-      el = null;
+      els = [];
     }
-    if (!el) continue;
+    for (const el of els) {
+      if (resolved.length >= MAX_BOXES) break;
+      resolved.push({ el, color: m.color, label: m.label });
+    }
+  }
+  for (const m of resolved) {
+    const el = m.el;
     const r = el.getBoundingClientRect();
     if (r.width <= 0 && r.height <= 0) continue;
     drawn++;
