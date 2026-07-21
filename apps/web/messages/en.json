@@ -30,7 +30,8 @@
       "privacy": "Privacy Policy",
       "impact": "Impact",
       "accessibility": "Accessibility",
-      "sitemap": "Sitemap"
+      "sitemap": "Sitemap",
+      "pricing": "Pricing"
     },
     "localeSwitcher": "Select language",
     "menu": {
@@ -1172,5 +1173,37 @@
     "retry": "Try again",
     "checking": "Checking…",
     "dismiss": "Dismiss"
+  },
+  "pricing": {
+    "eyebrow": "Pricing",
+    "title": "Everything is free for now",
+    "desc": "All A11y Check features are currently free. Paid plans for teams and organizations that need higher limits are in preparation — until then, use the limits below freely.",
+    "badgeFree": "Free",
+    "badgeSoon": "Coming soon",
+    "limits": {
+      "daily": "{n} scans / day",
+      "monthly": "{n} scans / month",
+      "pages": "Up to {n} pages per scan"
+    },
+    "tiers": {
+      "free": {
+        "name": "Free",
+        "desc": "Ongoing checks for personal and small sites",
+        "extra": "All features: reports, badges, scheduled scans, extension"
+      },
+      "pro": {
+        "name": "Pro",
+        "desc": "Creators and teams managing multiple sites",
+        "extra": "3 verified domains · priority support (planned)"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "desc": "Accessibility management for organizations",
+        "extra": "10 verified domains · onboarding support (planned)"
+      }
+    },
+    "ctaFree": "Start for free",
+    "ctaContact": "Contact us",
+    "note": "Until paid plans launch, every account runs on Free limits. Need more? Contact us and we will review and assign limits individually. Launch timing and prices will be announced on this page."
   }
 }

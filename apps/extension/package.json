@@ -1,6 +1,6 @@
 {
   "name": "@a11ychk/extension",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "A11y Check 크롬 확장 — 현재 탭 접근성 검사 + 수동 점검, 웹 서비스 계정 연동",
   "license": "Apache-2.0",
