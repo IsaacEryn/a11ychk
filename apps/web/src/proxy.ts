@@ -15,6 +15,12 @@ const intlMiddleware = createIntlMiddleware(routing);
 function buildCsp(nonce: string): string {
   const supabase = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://*.supabase.co";
   const isDev = process.env.NODE_ENV === "development";
+  // GTM/GA4 — NEXT_PUBLIC_GTM_ID 설정 시에만 허용 목록에 추가 (셀프호스팅 기본은 미허용).
+  // 부트스트랩 스크립트는 nonce로, GTM이 로드하는 후속 스크립트(gtag 등)는 strict-dynamic으로 신뢰.
+  const gtmOn = !!process.env.NEXT_PUBLIC_GTM_ID;
+  const gaConnect = gtmOn ? " https://www.googletagmanager.com https://*.google-analytics.com https://analytics.google.com" : "";
+  const gaImg = gtmOn ? " https://www.googletagmanager.com https://*.google-analytics.com" : "";
+  const gaFrame = gtmOn ? " https://www.googletagmanager.com" : "";
   return [
     "default-src 'self'",
     // strict-dynamic: nonce 스크립트가 로드한 후속 스크립트(Next 청크·Turnstile api.js)까지 신뢰.
@@ -22,9 +28,9 @@ function buildCsp(nonce: string): string {
     `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://challenges.cloudflare.com`,
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data: blob:",
-    `connect-src 'self' ${supabase} https://challenges.cloudflare.com`,
-    "frame-src https://challenges.cloudflare.com",
+    `img-src 'self' data: blob:${gaImg}`,
+    `connect-src 'self' ${supabase} https://challenges.cloudflare.com${gaConnect}`,
+    `frame-src https://challenges.cloudflare.com${gaFrame}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",

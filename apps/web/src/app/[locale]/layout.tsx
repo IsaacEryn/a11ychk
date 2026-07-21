@@ -91,6 +91,8 @@ export default async function LocaleLayout({
   // CSP nonce — 미들웨어가 요청마다 발급 (headers() 사용으로 전 페이지 동적 렌더가 되지만,
   // nonce 기반 CSP는 요청별 값이 필수라 정적 프리렌더와 양립할 수 없다)
   const nonce = (await headers()).get("x-nonce") ?? undefined;
+  // GTM 컨테이너 ID — 미설정이면 스니펫 자체를 렌더하지 않는다 (CSP 허용 목록도 proxy에서 동일 조건)
+  const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
 
   return (
     // suppressHydrationWarning: 테마 초기화 스크립트가 hydration 전에 data-theme를
@@ -106,6 +108,30 @@ export default async function LocaleLayout({
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: themeInitScript }}
         />
+        {/* GTM(GA4) — NEXT_PUBLIC_GTM_ID 설정 시에만 삽입(셀프호스팅 기본 미포함).
+            nonce로 부트스트랩을 신뢰시키면 GTM이 로드하는 후속 스크립트는 CSP의
+            strict-dynamic이 신뢰한다. body 최상단 삽입은 테마 스크립트와 동일 패턴. */}
+        {gtmId && (
+          <>
+            {/* eslint-disable-next-line @next/next/next-script-for-ga -- @next/third-parties GoogleTagManager는 nonce 기반 CSP(strict-dynamic) 미지원, 테마 스크립트와 동일한 네이티브 script+nonce 패턴 사용 */}
+            <script
+              nonce={nonce}
+              suppressHydrationWarning
+              dangerouslySetInnerHTML={{
+                __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmId}');`,
+              }}
+            />
+            <noscript>
+              <iframe
+                src={`https://www.googletagmanager.com/ns.html?id=${gtmId}`}
+                height="0"
+                width="0"
+                style={{ display: "none", visibility: "hidden" }}
+                title="Google Tag Manager"
+              />
+            </noscript>
+          </>
+        )}
         <a href="#main" className="skip-link">
           {t("skipToMain")}
         </a>

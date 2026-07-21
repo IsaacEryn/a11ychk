@@ -29,6 +29,7 @@ INTERNAL_API_SECRET              # openssl rand -hex 32
 CRON_SECRET                      # 정기 스캔 크론 보호 (openssl rand -hex 32)
 NEXT_PUBLIC_SITE_URL=https://www.a11ychk.com
 RESEND_API_KEY                   # 이메일 발송 (정기 스캔 회귀 알림·서버 오류 알림) — 미설정 시 발송 생략
+NEXT_PUBLIC_GTM_ID                # GTM 컨테이너 ID(GA4) — 미설정 시 분석 스니펫 미삽입
 ADMIN_ALERT_EMAIL                # 서버 오류 알림 수신 주소 — 미설정 시 발송 생략
 ```
 
