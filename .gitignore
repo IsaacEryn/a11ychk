@@ -39,3 +39,4 @@ GEMINI.md
 .aider*
 .windsurfrules
 .github/copilot-instructions.md
+apps/extension/*.zip
