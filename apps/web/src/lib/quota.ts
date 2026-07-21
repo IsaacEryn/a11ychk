@@ -65,13 +65,21 @@ export function getVerifiedDomainLimit(override: unknown): number {
 /** 스캔 1회당 절대 최대 표본 페이지 수 (하드 캡) — Vercel 함수 실행 시간 한도 고려 */
 export const MAX_PAGES_PER_SCAN = 30;
 
-/** 크롬 확장 검사 기본 일일 한도 (웹 검사 한도와 분리, 로그인 사용자) */
-export const EXT_DAILY_DEFAULT = 30;
+/**
+ * 크롬 확장 검사 등급별 일일 한도 (웹 검사 한도와 분리, 로그인 사용자).
+ * 소유 확인 수와 마찬가지로 요금제 시행(plansActive) 여부와 무관하게 배정 등급으로 즉시 적용.
+ */
+export const EXT_DAILY_LIMITS: Record<PlanId, number> = {
+  free: 10,
+  pro: 20,
+  enterprise: 30,
+};
 
-/** 사용자별 확장 일일 한도 override (scan_limit_override.extDaily). 없으면 기본값 */
+/** 확장 일일 한도 — 관리자 지정 개별값(scan_limit_override.extDaily) > 배정 등급 기본값 */
 export function getExtDailyLimit(override: unknown): number {
   const v = asRecord(override).extDaily;
-  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : EXT_DAILY_DEFAULT;
+  if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
+  return EXT_DAILY_LIMITS[getPlan(override)];
 }
 
 export interface ExtUsageResult {

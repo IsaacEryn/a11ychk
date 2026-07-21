@@ -821,6 +821,7 @@
       "colNickname": "닉네임",
       "colRole": "역할",
       "colJoined": "가입일",
+      "extToday": "오늘 확장 검사 {used}/{limit}회",
       "colBlocked": "차단",
       "block": "차단",
       "unblock": "차단 해제",

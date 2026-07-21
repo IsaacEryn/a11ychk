@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_SCAN_LIMITS,
-  EXT_DAILY_DEFAULT,
+  EXT_DAILY_LIMITS,
   MAX_PAGES_PER_SCAN,
   PLANS,
   getCustomPages,
@@ -80,11 +80,13 @@ describe("getPlan / getCustomPages / getExtDailyLimit / getResets", () => {
     expect(getCustomPages({ pages: 2.5 })).toBeUndefined();
   });
 
-  it("확장 일일 한도 override — 0 허용(차단), 음수·비정수는 기본값", () => {
-    expect(getExtDailyLimit(null)).toBe(EXT_DAILY_DEFAULT);
+  it("확장 일일 한도 — 등급 기본(무료 10/프로 20/엔터 30), override 0 허용(차단), 음수·비정수는 등급 기본", () => {
+    expect(getExtDailyLimit(null)).toBe(EXT_DAILY_LIMITS.free);
+    expect(getExtDailyLimit({ plan: "pro" })).toBe(EXT_DAILY_LIMITS.pro);
+    expect(getExtDailyLimit({ plan: "enterprise" })).toBe(EXT_DAILY_LIMITS.enterprise);
     expect(getExtDailyLimit({ extDaily: 5 })).toBe(5);
     expect(getExtDailyLimit({ extDaily: 0 })).toBe(0);
-    expect(getExtDailyLimit({ extDaily: -3 })).toBe(EXT_DAILY_DEFAULT);
+    expect(getExtDailyLimit({ extDaily: -3 })).toBe(EXT_DAILY_LIMITS.free);
   });
 
   it("리셋 시각은 ISO 파싱 가능한 값만", () => {

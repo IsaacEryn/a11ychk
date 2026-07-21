@@ -3,13 +3,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlansActive } from "@/lib/appSettings";
 import { setUserLimits, toggleBlockUser } from "@/lib/actions";
 import {
-  EXT_DAILY_DEFAULT,
+  EXT_DAILY_LIMITS,
   MAX_PAGES_PER_SCAN,
   PLANS,
   PLAN_IDS,
   getCustomLimits,
   getCustomPages,
-  getExtDailyLimit,
   getPlan,
   resolveLimits,
 } from "@/lib/quota";
@@ -53,6 +52,17 @@ export default async function AdminUsersPage({
   }
   const { data: allUsers } = await query;
 
+  // 오늘 확장 검사 사용량 — 목록 사용자 대상 일괄 조회 (테이블 미적용 시 빈 맵)
+  const extUsedToday = new Map<string, number>();
+  if (allUsers && allUsers.length > 0) {
+    const { data: extRows } = await admin
+      .from("extension_usage")
+      .select("user_id, count")
+      .eq("day", new Date().toISOString().slice(0, 10))
+      .in("user_id", allUsers.map((u) => u.id));
+    for (const r of extRows ?? []) extUsedToday.set(r.user_id as string, (r.count as number) ?? 0);
+  }
+
   return (
     <section aria-labelledby="admin-users-heading" className="mt-8">
       <h2 id="admin-users-heading" className="font-display text-2xl font-bold">
@@ -95,6 +105,9 @@ export default async function AdminUsersPage({
         {(allUsers ?? []).map((u) => {
           const plan = getPlan(u.scan_limit_override);
           const limits = resolveLimits(u.scan_limit_override, plansActive);
+          // 관리자 개별 지정 확장 한도 — 없으면 undefined(등급 기본 사용)
+          const rawExt = (u.scan_limit_override as Record<string, unknown> | null)?.extDaily;
+          const extOverride = typeof rawExt === "number" && Number.isInteger(rawExt) && rawExt >= 0 ? rawExt : undefined;
           return (
             <li key={u.id} className="doc-card p-5">
               <div className="flex flex-wrap items-center gap-2">
@@ -108,6 +121,12 @@ export default async function AdminUsersPage({
                   </span>
                 )}
                 <span className="ml-auto text-xs tabular-nums text-[var(--color-ink-faint)]">
+                  {/* 오늘 확장 검사 사용량 / 유효 한도 (개별 지정 > 등급 기본) */}
+                  {t("users.extToday", {
+                    used: extUsedToday.get(u.id) ?? 0,
+                    limit: extOverride ?? EXT_DAILY_LIMITS[plan],
+                  })}
+                  {" · "}
                   {t("users.colJoined")}: {format.dateTime(new Date(u.created_at), { dateStyle: "short" })}
                 </span>
               </div>
@@ -119,13 +138,8 @@ export default async function AdminUsersPage({
                 currentPlan={plan}
                 custom={getCustomLimits(u.scan_limit_override)}
                 customPages={getCustomPages(u.scan_limit_override)}
-                customExtDaily={
-                  getExtDailyLimit(u.scan_limit_override) === EXT_DAILY_DEFAULT &&
-                  !(u.scan_limit_override as Record<string, unknown> | null)?.extDaily
-                    ? undefined
-                    : getExtDailyLimit(u.scan_limit_override)
-                }
-                extDailyDefault={EXT_DAILY_DEFAULT}
+                customExtDaily={extOverride}
+                extDailyDefault={EXT_DAILY_LIMITS[plan]}
                 effective={limits}
                 maxPages={MAX_PAGES_PER_SCAN}
                 planOptions={PLAN_IDS.map((p) => ({

@@ -821,6 +821,7 @@
       "colNickname": "Nickname",
       "colRole": "Role",
       "colJoined": "Joined",
+      "extToday": "Extension scans today: {used}/{limit}",
       "colBlocked": "Blocked",
       "block": "Block",
       "unblock": "Unblock",
