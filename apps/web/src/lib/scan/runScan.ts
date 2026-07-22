@@ -427,7 +427,8 @@ export async function runScan(scanId: string): Promise<void> {
     });
     await db
       .from("scans")
-      .update({ status: "done", summary, finished_at: new Date().toISOString() })
+      // error: null — 자동 재시도(reclaimStale의 auto-retry 마커) 후 성공하면 마커를 지운다
+      .update({ status: "done", summary, error: null, finished_at: new Date().toISOString() })
       .eq("id", scanId);
   } catch (error) {
     await db

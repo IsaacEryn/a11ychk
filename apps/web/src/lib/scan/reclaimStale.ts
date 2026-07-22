@@ -21,6 +21,15 @@ const STALE_QUEUED_ERROR =
   "대기 시간이 너무 길어져 검사가 자동 취소되었습니다. 잠시 후 다시 시도해 주세요.";
 
 /**
+ * running 좀비 1차 회수 시 error에 남기는 재시도 마커.
+ * 서버리스 콜드스타트에서 러너가 간헐적으로 즉사하는 사례(2026-07-22 새벽 정기검사 등)가
+ * 확인되어, 첫 번째 좀비 회수는 실패 처리 대신 재큐잉으로 1회 자동 재시도한다.
+ * 마커는 성공 시 runScan이 error: null로 지우고, 같은 검사가 또 좀비가 되면
+ * (마커 존재) 그때 실패로 확정한다. 별도 컬럼 없이 error 필드로 추적(마이그레이션 불요).
+ */
+const RETRY_MARKER = "auto-retry:1";
+
+/**
  * running/queued에 멈춘 좀비 검사를 failed로 회수한다.
  *
  * 함수가 강제 종료(maxDuration 초과·인스턴스 회수)되면 runScan의 try/finally 실패 기록이
@@ -41,14 +50,30 @@ export async function reclaimStaleScans(
 
   // running 좀비 — 실행 시작 후 10분 초과 (started_at 없으면 created_at 폴백: 구형 행 방어)
   const runningCutoff = new Date(now - STALE_RUNNING_MINUTES * 60_000).toISOString();
-  let qRunning = admin
+  const runningStaleCond = `started_at.lt.${runningCutoff},and(started_at.is.null,created_at.lt.${runningCutoff})`;
+
+  // 1) 이미 한 번 재시도한 running 좀비(error에 마커) → 실패 확정
+  let qRunningFail = admin
     .from("scans")
     .update({ status: "failed", error: STALE_RUNNING_ERROR, finished_at: finishedAt })
     .eq("status", "running")
-    .or(`started_at.lt.${runningCutoff},and(started_at.is.null,created_at.lt.${runningCutoff})`);
-  if (opts.userId) qRunning = qRunning.eq("user_id", opts.userId);
-  if (opts.scanId) qRunning = qRunning.eq("id", opts.scanId);
-  const { data: deadRunning } = await qRunning.select("id").then((r) => r, () => ({ data: null }));
+    .eq("error", RETRY_MARKER)
+    .or(runningStaleCond);
+  if (opts.userId) qRunningFail = qRunningFail.eq("user_id", opts.userId);
+  if (opts.scanId) qRunningFail = qRunningFail.eq("id", opts.scanId);
+  const { data: deadRunning } = await qRunningFail.select("id").then((r) => r, () => ({ data: null }));
+
+  // 2) 첫 좀비화 → 재큐잉(1회 자동 재시도). 콜드스타트 간헐 사망을 사용자 개입 없이 흡수한다.
+  //    started_at을 비워 드레인이 새로 claim하게 하고, 마커로 재시도 이력을 남긴다.
+  let qRunningRetry = admin
+    .from("scans")
+    .update({ status: "queued", started_at: null, error: RETRY_MARKER })
+    .eq("status", "running")
+    .or(`error.is.null,error.neq.${RETRY_MARKER}`)
+    .or(runningStaleCond);
+  if (opts.userId) qRunningRetry = qRunningRetry.eq("user_id", opts.userId);
+  if (opts.scanId) qRunningRetry = qRunningRetry.eq("id", opts.scanId);
+  const { data: retriedRunning } = await qRunningRetry.select("id").then((r) => r, () => ({ data: null }));
 
   // queued 좀비 — 생성 후 30분 초과(트리거 유실). 정상 큐 대기(≤30분)는 건드리지 않는다.
   const queuedCutoff = new Date(now - STALE_QUEUED_MINUTES * 60_000).toISOString();
@@ -61,9 +86,9 @@ export async function reclaimStaleScans(
   if (opts.scanId) qQueued = qQueued.eq("id", opts.scanId);
   const { data: deadQueued } = await qQueued.select("id").then((r) => r, () => ({ data: null }));
 
-  const reclaimed = (deadRunning?.length ?? 0) + (deadQueued?.length ?? 0);
+  const reclaimed = (deadRunning?.length ?? 0) + (deadQueued?.length ?? 0) + (retriedRunning?.length ?? 0);
 
-  // 좀비 회수로 슬롯이 비었으면 드레인 킥 — 대기 중이던 queued가 자동 시작(트리거 유실 자가치유).
+  // 좀비 회수·재큐잉으로 슬롯이 비거나 대기 항목이 생겼으면 드레인 킥 — 재시도 검사가 즉시 시작된다.
   // 상시 워커 없이 기존 트래픽(생성·상태조회)에 편승해 큐가 빠진다.
   if (reclaimed > 0) {
     kickDrain();
