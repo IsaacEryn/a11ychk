@@ -3,6 +3,7 @@ import { z } from "zod";
 import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, type PageScanResult } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireExtensionUser } from "@/lib/apiAuth";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { consumeExtUsage, getExtDailyLimit } from "@/lib/quota";
 import { reaggregate } from "@/lib/scan/runScan";
 
@@ -61,6 +62,7 @@ const BodySchema = z.object({
 
 /** 크롬 확장에서 이미 실행한 단일 페이지 검사 결과를 사용자 계정에 저장 */
 export async function POST(request: Request) {
+  const locale = resolveApiLocale(request);
   // 1) 인증 + 계정 상태 (공통 헬퍼)
   const auth = await requireExtensionUser(request);
   if (auth instanceof NextResponse) return auth;
@@ -71,16 +73,16 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청 형식입니다." }, { status: 400 });
+    return apiError(locale, "invalidBody", 400);
   }
   const parsed = BodySchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "잘못된 검사 데이터입니다." }, { status: 400 });
+  if (!parsed.success) return apiError(locale, "invalidScanData", 400);
 
   let url: URL;
   try {
     url = assertHttpUrl(parsed.data.page.url);
   } catch {
-    return NextResponse.json({ error: "검사 대상 URL이 올바르지 않습니다." }, { status: 400 });
+    return apiError(locale, "invalidTargetUrl", 400);
   }
 
   // 3) 확장 한도 — 웹 검사 한도와 분리된 확장 전용 한도.
@@ -89,10 +91,10 @@ export async function POST(request: Request) {
   const extLimit = getExtDailyLimit(profile.scan_limit_override);
   const usage = await consumeExtUsage(admin, user.id, extLimit);
   if (usage.error) {
-    return NextResponse.json({ error: "사용량 처리에 실패했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+    return apiError(locale, "usageFailed", 500);
   }
   if (!usage.ok) {
-    return NextResponse.json({ error: `오늘의 확장 검사 한도(${usage.limit}회)를 모두 사용했습니다.` }, { status: 429 });
+    return apiError(locale, "extQuotaExceeded", 429, { params: { limit: usage.limit } });
   }
 
   const page = parsed.data.page as PageScanResult;
@@ -132,7 +134,7 @@ export async function POST(request: Request) {
       .eq("user_id", user.id)
       .maybeSingle();
     if (!chosen) {
-      return NextResponse.json({ error: "선택한 보고서를 찾을 수 없습니다." }, { status: 404 });
+      return apiError(locale, "extReportNotFound", 404);
     }
     target = chosen;
   } else if (!requested) {
@@ -199,7 +201,7 @@ export async function POST(request: Request) {
         .single();
       pageRowId = inserted?.id ?? null;
     }
-    if (!pageRowId) return NextResponse.json({ error: "저장에 실패했습니다." }, { status: 500 });
+    if (!pageRowId) return apiError(locale, "saveFailed", 500);
     if (page.violations.length > 0) await admin.from("findings").insert(findingRowsFor(pageRowId));
 
     await saveReviews(admin, target.id, parsed.data.reviews);
@@ -224,7 +226,7 @@ export async function POST(request: Request) {
     })
     .select("id")
     .single();
-  if (scanErr || !scan) return NextResponse.json({ error: "저장에 실패했습니다." }, { status: 500 });
+  if (scanErr || !scan) return apiError(locale, "saveFailed", 500);
 
   const { data: pageRow } = await admin
     .from("scan_pages")

@@ -4,6 +4,7 @@ import { KWCAG_BY_ID, getRuleEntry, type Impact, type ScanSummary } from "@a11yc
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
  * AI 수정 요청 내보내기 — 보고서의 위반을 AI 도구(Claude/ChatGPT/Copilot)에
@@ -33,18 +34,19 @@ interface FindingRow {
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?lang= 우선, 없으면 Accept-Language 협상 — 에러·문서 언어 공통
+  const lang = resolveApiLocale(req);
   if (!IdSchema.safeParse(id).success) {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return apiError(lang, "invalidRequest", 400);
   }
   const sp = new URL(req.url).searchParams;
   const format = sp.get("format") === "json" ? "json" : "md";
-  const lang = sp.get("lang") === "en" ? "en" : "ko";
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user) return apiError(lang, "loginRequired", 401);
 
   // RLS로 소유자/관리자만 조회됨
   const { data: scan } = await supabase
@@ -53,7 +55,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .eq("id", id)
     .maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
-    return NextResponse.json({ error: "완료된 보고서를 찾을 수 없습니다." }, { status: 404 });
+    return apiError(lang, "reportNotReady", 404);
   }
   const summary = scan.summary as ScanSummary;
 

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl, checkBotAccess } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 export const maxDuration = 60;
 
@@ -27,23 +28,24 @@ function checkRate(userId: string): boolean {
 
 /** 봇 차단 검증 — 자동 검사 가능 여부와 차단 방식을 진단 (로그인 필요, 검사 한도 미차감) */
 export async function POST(request: Request) {
+  const locale = resolveApiLocale(request);
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user) return apiError(locale, "loginRequired", 401);
   if (!checkRate(user.id)) {
-    return NextResponse.json({ error: "진단 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요." }, { status: 429 });
+    return apiError(locale, "rateLimited", 429);
   }
 
   let body: unknown;
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청 형식입니다." }, { status: 400 });
+    return apiError(locale, "invalidBody", 400);
   }
   const parsed = BodySchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: "확인할 URL을 입력해 주세요." }, { status: 400 });
+  if (!parsed.success) return apiError(locale, "invalidInput", 400);
 
   try {
     const url = await assertPublicHttpUrl(parsed.data.url);
@@ -51,8 +53,12 @@ export async function POST(request: Request) {
     return NextResponse.json(result);
   } catch (e) {
     if (e instanceof UrlGuardError) {
-      return NextResponse.json({ error: e.message }, { status: 400 });
+      // UrlGuardError.code → i18n 코드 (scans 라우트와 동일 매핑) — 클라이언트가 번역
+      return NextResponse.json(
+        { error: e.message, code: `url_${e.code.replaceAll("-", "_")}` },
+        { status: 400 },
+      );
     }
-    return NextResponse.json({ error: "진단에 실패했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+    return apiError(locale, "checkFailed", 500);
   }
 }

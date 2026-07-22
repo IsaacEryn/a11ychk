@@ -2,20 +2,13 @@ import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl, isSameOrigin, normalizeUrl, type EvaluationScope } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
-import { createScanForUser } from "@/lib/scan/createScan";
+import { DEFAULT_BASELINE, createScanForUser } from "@/lib/scan/createScan";
 import { drainQueue } from "@/lib/scan/drain";
 import { MAX_PAGES_PER_SCAN } from "@/lib/quota";
 
 // Vercel Fluid Compute — after() 콜백(스캔 실행)까지 포함한 최대 실행 시간
 export const maxDuration = 300;
 
-/** 한국 기본 접근성 지원 기준 (WCAG-EM Step 1.c 프리셋) */
-const DEFAULT_BASELINE = [
-  "NVDA + Chrome (Windows)",
-  "VoiceOver + Safari (macOS/iOS)",
-  "센스리더 + Chrome (Windows)",
-  "TalkBack + Chrome (Android)",
-];
 
 const CreateScanSchema = z.object({
   url: z.string().min(1).max(2000),

@@ -9,6 +9,7 @@ import {
 } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { computeKwcagPageRates } from "@/app/[locale]/scans/[id]/report/kwcagPageRate";
 import { computeCertReadiness } from "@/app/[locale]/scans/[id]/report/certReadiness";
 import type { ReviewValue } from "@/app/[locale]/scans/[id]/report/ReviewCell";
@@ -50,18 +51,19 @@ function esc(v: string | number | null | undefined): string {
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?lang= 우선, 없으면 Accept-Language 협상 — 에러·문서 언어 공통
+  const lang = resolveApiLocale(request);
   if (!IdSchema.safeParse(id).success) {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return apiError(lang, "invalidRequest", 400);
   }
   const sp = new URL(request.url).searchParams;
   const type = sp.get("type") === "kwcag" ? "kwcag" : "findings";
-  const lang = sp.get("lang") === "en" ? "en" : "ko";
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user) return apiError(lang, "loginRequired", 401);
 
   // RLS로 소유자/관리자만 조회됨
   const { data: scan } = await supabase
@@ -70,7 +72,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     .eq("id", id)
     .maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
-    return NextResponse.json({ error: "완료된 보고서를 찾을 수 없습니다." }, { status: 404 });
+    return apiError(lang, "reportNotReady", 404);
   }
   const summary = scan.summary as ScanSummary;
 

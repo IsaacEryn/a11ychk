@@ -16,6 +16,8 @@ const VERDICT_STYLE: Record<AccessVerdict, string> = {
 
 export function AccessCheckClient() {
   const t = useTranslations("accessCheck");
+  const tScan = useTranslations("scanPage");
+  const apiErrorLabels = tScan.raw("apiErrors") as Record<string, string>;
   const [url, setUrl] = useState("");
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -32,9 +34,10 @@ export function AccessCheckClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),
       });
-      const data = (await res.json()) as AccessCheckResult & { error?: string };
+      const data = (await res.json()) as AccessCheckResult & { error?: string; code?: string };
       if (!res.ok) {
-        setError(data.error ?? t("failed"));
+        // 서버 code 우선 번역, 서버 문자열 폴백 (ScanForm 패턴)
+        setError((data.code && apiErrorLabels[data.code]) || data.error || t("failed"));
       } else {
         setResult(data);
       }

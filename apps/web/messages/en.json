@@ -163,7 +163,17 @@
       "pageOtherDomain": "A page is on a different domain or invalid: {url}",
       "pagesEmpty": "Please enter at least one page to scan.",
       "network": "A network error occurred.",
-      "generic": "The request failed."
+      "generic": "The request failed.",
+      "invalidRequest": "Invalid request.",
+      "invalidBody": "Invalid request format.",
+      "scanNotFound": "Scan not found.",
+      "reportNotFound": "Report not found.",
+      "reportNotReady": "No completed report found.",
+      "pdfNotDone": "Only completed reports can be downloaded as PDF.",
+      "pdfFailed": "Failed to generate the PDF. Please try again shortly.",
+      "rescanFailed": "Failed to re-scan the page.",
+      "rateLimited": "Too many requests. Please try again later.",
+      "checkFailed": "The check failed. Please try again shortly."
     }
   },
   "accessCheck": {

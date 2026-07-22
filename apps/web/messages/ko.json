@@ -163,7 +163,17 @@
       "pageOtherDomain": "검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: {url}",
       "pagesEmpty": "검사할 페이지를 1개 이상 입력해 주세요.",
       "network": "네트워크 오류가 발생했습니다.",
-      "generic": "요청에 실패했습니다."
+      "generic": "요청에 실패했습니다.",
+      "invalidRequest": "잘못된 요청입니다.",
+      "invalidBody": "잘못된 요청 형식입니다.",
+      "scanNotFound": "검사를 찾을 수 없습니다.",
+      "reportNotFound": "보고서를 찾을 수 없습니다.",
+      "reportNotReady": "완료된 보고서를 찾을 수 없습니다.",
+      "pdfNotDone": "검사가 완료된 보고서만 PDF로 내려받을 수 있습니다.",
+      "pdfFailed": "PDF 생성에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+      "rescanFailed": "페이지 재검사에 실패했습니다.",
+      "rateLimited": "진단 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.",
+      "checkFailed": "진단에 실패했습니다. 잠시 후 다시 시도해 주세요."
     }
   },
   "accessCheck": {

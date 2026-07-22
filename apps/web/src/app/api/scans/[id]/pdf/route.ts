@@ -3,6 +3,7 @@ import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { signReportToken } from "@/lib/reportToken";
 import { launchBrowser } from "@/lib/scan/browser";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 export const maxDuration = 300;
 
@@ -15,8 +16,10 @@ const IdSchema = z.string().uuid();
  */
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?lang= 우선, 없으면 Accept-Language 협상 — 에러·보고서 렌더 언어 공통
+  const locale = resolveApiLocale(request);
   if (!IdSchema.safeParse(id).success) {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return apiError(locale, "invalidRequest", 400);
   }
 
   // 소유자(또는 관리자) 확인 — RLS가 적용된 사용자 클라이언트로 조회
@@ -25,14 +28,14 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+    return apiError(locale, "loginRequired", 401);
   }
   const { data: scan } = await supabase.from("scans").select("id, status, root_url").eq("id", id).maybeSingle();
   if (!scan) {
-    return NextResponse.json({ error: "보고서를 찾을 수 없습니다." }, { status: 404 });
+    return apiError(locale, "reportNotFound", 404);
   }
   if (scan.status !== "done") {
-    return NextResponse.json({ error: "검사가 완료된 보고서만 PDF로 내려받을 수 있습니다." }, { status: 409 });
+    return apiError(locale, "pdfNotDone", 409);
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
@@ -41,7 +44,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   const sp = new URL(request.url).searchParams;
   const viewRaw = sp.get("view");
   const view = viewRaw === "done" || viewRaw === "issues" || viewRaw === "auto" ? viewRaw : null;
-  const lang = sp.get("lang") === "en" ? "en" : "ko";
+  const lang = locale;
   const compareRaw = sp.get("compare");
   const compare = compareRaw && IdSchema.safeParse(compareRaw).success ? compareRaw : null;
   const stdRaw = sp.get("std");
@@ -73,7 +76,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       },
     });
   } catch {
-    return NextResponse.json({ error: "PDF 생성에 실패했습니다. 잠시 후 다시 시도해 주세요." }, { status: 500 });
+    return apiError(locale, "pdfFailed", 500);
   } finally {
     await browser?.close().catch(() => undefined);
   }

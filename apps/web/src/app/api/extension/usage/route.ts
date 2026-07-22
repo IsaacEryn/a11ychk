@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { requireExtensionUser } from "@/lib/apiAuth";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { getExtUsage, getExtDailyLimit } from "@/lib/quota";
 
 /**
@@ -16,10 +17,10 @@ async function handle(request: Request) {
   const limit = getExtDailyLimit(profile.scan_limit_override);
   const usage = await getExtUsage(admin, user.id, limit);
   if (!usage.ok) {
-    return NextResponse.json(
-      { error: `오늘의 확장 검사 한도(${usage.limit}회)를 모두 사용했습니다.`, used: usage.used, limit: usage.limit },
-      { status: 429 },
-    );
+    return apiError(resolveApiLocale(request), "extQuotaExceeded", 429, {
+      params: { limit: usage.limit },
+      extra: { used: usage.used, limit: usage.limit },
+    });
   }
   return NextResponse.json({ ok: true, used: usage.used, limit: usage.limit });
 }

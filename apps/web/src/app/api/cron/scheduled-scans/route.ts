@@ -1,16 +1,18 @@
 import { NextResponse } from "next/server";
 import { assertPublicHttpUrl } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
-import { getPlansActive } from "@/lib/appSettings";
 import { drainQueue } from "@/lib/scan/drain";
+import { DEFAULT_SCOPE, createScanForUser } from "@/lib/scan/createScan";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
 
 export const maxDuration = 300;
 
-// 한 번의 크론 실행에서 처리할 최대 도메인 수 (함수 시간 제한 보호)
-const BATCH = 3;
+// 한 번의 크론 실행에서 처리할 최대 도메인 수.
+// 큐 위임 구조라 도메인당 작업은 DB 쿼리 수 회뿐 — 실행 부하는 claim_scans의
+// 전역 동시 상한이 제어하므로 후보 상한(30)에 가깝게 잡아도 안전하다.
+// (예전 3은 함수 내 순차 runScan 시절의 보호값 — 도메인 4개만 돼도 하루 주기가 밀렸다)
+const BATCH = 20;
 
 
 /**
@@ -24,7 +26,6 @@ export async function GET(request: Request) {
   }
 
   const admin = createAdminClient();
-  const plansActive = await getPlansActive(admin);
   const now = Date.now();
 
   // 후보: 최소 간격(daily=20h)을 넘긴 도메인 전부. 주기별(매주·매월) 필터는 아래 JS에서.
@@ -65,56 +66,35 @@ export async function GET(request: Request) {
     // 마지막 실행 시각을 먼저 갱신 (동시 크론 중복 방지)
     await admin.from("domains").update({ last_auto_scan_at: new Date().toISOString() }).eq("id", d.id);
 
-    // 사용자 상태·한도 확인
-    const { data: profile } = await admin
-      .from("profiles")
-      .select("blocked, scan_limit_override")
-      .eq("id", d.user_id)
-      .single();
-    if (!profile || profile.blocked) {
-      results.push({ hostname: d.hostname, status: "skipped-blocked" });
-      continue;
-    }
-    const quota = await checkQuota(
-      admin,
-      d.user_id,
-      resolveLimits(profile.scan_limit_override, plansActive),
-      getResets(profile.scan_limit_override),
-    );
-    if (!quota.ok) {
-      results.push({ hostname: d.hostname, status: "skipped-quota" });
-      continue;
-    }
-
     const rootUrl = `https://${d.hostname}/`;
+    let url: URL;
     try {
-      await assertPublicHttpUrl(rootUrl);
+      url = await assertPublicHttpUrl(rootUrl);
     } catch {
       results.push({ hostname: d.hostname, status: "skipped-unreachable" });
       continue;
     }
 
-    const { data: scan } = await admin
-      .from("scans")
-      .insert({
-        user_id: d.user_id,
-        domain_id: d.id,
-        root_url: rootUrl,
-        status: "queued",
-        page_limit: getSampleSize({ override: profile.scan_limit_override, verified: d.verified, plansActive }),
-      })
-      .select("id")
-      .single();
-    if (!scan) {
-      results.push({ hostname: d.hostname, status: "failed-create" });
+    // 신규 검사와 동일한 생성 정책 재사용 — 계정 상태·한도·좀비 회수·동시 실행 가드·
+    // 도메인 연결(hostname 정확 일치로 같은 domain_id)·표본 크기·scope 저장까지 공통 처리.
+    // 예전 직접 insert는 reclaim을 건너뛰고 유니크 충돌 시 last_auto_scan_at만 갱신돼
+    // 도메인이 한 주기 통째로 밀렸다(scope도 null로 저장됨).
+    const created = await createScanForUser(d.user_id, url, DEFAULT_SCOPE);
+    if (created.ok) {
+      // 직접 실행하지 않고 큐에 남긴다(queued 상태로 생성됨) — 아래 drainQueue가 전역 상한
+      // 내에서 분리 인보케이션으로 소진하고, 회귀 알림은 각 검사 완료 시 run-scan 엔드포인트가
+      // sendAutoAlertIfNeeded로 보낸다.
+      results.push({ hostname: d.hostname, status: "enqueued" });
       continue;
     }
-
-    // 직접 실행하지 않고 큐에 남긴다(queued 상태로 생성됨) — 예전엔 배치 3건을 이 함수에서
-    // 순차 runScan 했는데 검사당 ~3.5분 × 3 > maxDuration 300s라 타임아웃·좀비가 상시 발생했다.
-    // 아래 drainQueue가 전역 상한 내에서 분리 인보케이션으로 소진하고, 회귀 알림은 각 검사
-    // 완료 시 run-scan 엔드포인트가 sendAutoAlertIfNeeded로 보낸다.
-    results.push({ hostname: d.hostname, status: "enqueued" });
+    const status = created.code.startsWith("quota_")
+      ? "skipped-quota"
+      : created.code === "blocked"
+        ? "skipped-blocked"
+        : created.code === "concurrent"
+          ? "skipped-concurrent"
+          : "failed-create";
+    results.push({ hostname: d.hostname, status });
   }
 
   // 등록한 자동 검사 + 트리거를 놓친 정지 큐를 전역 상한 내에서 소진 시작.

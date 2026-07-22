@@ -9,6 +9,7 @@ import {
   type WcagOutcome,
 } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
  * W3C WCAG-EM Report Tool 호환 JSON export.
@@ -94,21 +95,24 @@ const OUTCOME_MAP: Record<WcagOutcome, { id: string; type: string }> = {
   notChecked: { id: "earl:untested", type: "NotTested" },
 };
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?lang= 우선, 없으면 Accept-Language 협상 — 에러·문서 prose·@language 공통
+  const lang = resolveApiLocale(req);
+  const L = (ko: string, en: string) => (lang === "en" ? en : ko);
   if (!IdSchema.safeParse(id).success) {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return apiError(lang, "invalidRequest", 400);
   }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user) return apiError(lang, "loginRequired", 401);
 
   const { data: scan } = await supabase.from("scans").select("*").eq("id", id).maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
-    return NextResponse.json({ error: "완료된 보고서를 찾을 수 없습니다." }, { status: 404 });
+    return apiError(lang, "reportNotReady", 404);
   }
 
   const summary = scan.summary as ScanSummary;
@@ -156,7 +160,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const descriptionParts: string[] = [];
     if (review?.note) descriptionParts.push(review.note);
     if (row.violationCount > 0) {
-      descriptionParts.push(`자동 검사 위반 ${row.violationCount}건 (axe 규칙: ${row.ruleIds.join(", ")})`);
+      descriptionParts.push(
+        L(
+          `자동 검사 위반 ${row.violationCount}건 (axe 규칙: ${row.ruleIds.join(", ")})`,
+          `${row.violationCount} automated-check violation(s) (axe rules: ${row.ruleIds.join(", ")})`,
+        ),
+      );
     }
     return {
       "@type": "Assertion",
@@ -182,7 +191,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   const evaluation = {
     "@context": EVALUATION_CONTEXT,
     "@type": "Evaluation",
-    "@language": "ko",
+    "@language": lang,
     reportToolVersion: "a11ychk-export-1.0",
     defineScope: {
       "@id": "_:defineScope",
@@ -214,9 +223,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       commissioner: meta?.organization ?? "",
       date: scan.finished_at ?? scan.created_at,
       evaluator: meta?.evaluatorName ?? "A11y Check (a11ychk.com)",
-      evaluationSpecifics: `자동 검사 엔진: ${summary.engine.name} ${summary.engine.axeVersion} · ${summary.sample?.method ?? ""}`,
+      evaluationSpecifics: `${L("자동 검사 엔진", "Automated engine")}: ${summary.engine.name} ${summary.engine.axeVersion} · ${summary.sample?.method ?? ""}`,
       summary: meta?.executiveSummary ?? "",
-      title: meta?.title || `${siteTitle} 웹 접근성 평가 보고서`,
+      title:
+        meta?.title ||
+        L(`${siteTitle} 웹 접근성 평가 보고서`, `${siteTitle} Web Accessibility Evaluation Report`),
     },
   };
 

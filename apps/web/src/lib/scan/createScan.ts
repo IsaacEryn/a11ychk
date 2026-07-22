@@ -23,6 +23,20 @@ interface CreateScanOptions {
   strictManualLimit?: boolean;
 }
 
+/** 한국 기본 접근성 지원 기준 (WCAG-EM Step 1.c 프리셋) — 신규 검사·정기 검사 공용 */
+export const DEFAULT_BASELINE = [
+  "NVDA + Chrome (Windows)",
+  "VoiceOver + Safari (macOS/iOS)",
+  "센스리더 + Chrome (Windows)",
+  "TalkBack + Chrome (Android)",
+];
+
+/** scope 미지정 경로(정기 검사 등)의 기본 평가 범위 */
+export const DEFAULT_SCOPE: EvaluationScope = {
+  conformanceTarget: "AA",
+  accessibilitySupportBaseline: DEFAULT_BASELINE,
+};
+
 /**
  * 스캔 생성 공통 정책 — 신규 검사와 동일 조건 재검사가 공유한다.
  * 계정 상태·한도·동시 실행을 검증하고 scans 행(queued)을 만든다.

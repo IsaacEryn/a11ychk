@@ -27,23 +27,32 @@
 
 ## 기술 부채 백로그 (2026-07 코드 리뷰에서 도출)
 
-우선순위 높은 보안·정합성 항목은 수정 완료. 아래는 남겨둔 개선 항목:
+완료된 항목:
 
-- **API 에러 메시지 국제화** — 라우트 핸들러·서버 액션의 사용자 노출 에러가
-  한국어 고정. `saveReview`처럼 에러 코드를 반환하고 클라이언트에서 next-intl로
-  번역하는 패턴으로 전환 (`/en` 사용자 경험)
-- **EARL/Report-Tool 내보내기 로케일** — 내보내는 JSON의 prose·`@language`가
-  `ko` 고정. 요청 로케일을 반영
-- **확장 다국어(_locales)** — 패널 UI가 한국어 하드코딩. `chrome.i18n` 전환
-  (주입 함수의 라벨은 args로 전달 필요, 약 1~2일 규모)
-- **CSP 헤더** — next.config 보안 헤더에 Content-Security-Policy 추가
-  (defense-in-depth)
-- **정기 스캔 큐잉** — cron이 배치 3건을 한 함수에서 순차 실행. 타임아웃 시
-  이후 도메인이 다음 주기까지 밀리는 문제 — `after()` 분산 또는 소배치화
+- ~~**API 에러 메시지 국제화**~~ — 완료 (2026-07). `lib/apiError.ts`의
+  `apiError()`/`resolveApiLocale()`로 공용화 — 다운로드 라우트는 서버측 번역
+  (`?lang=` 우선, Accept-Language 폴백), fetch 클라이언트는 code 우선 번역
+  (`scanPage.apiErrors`), 응답 계약 `{ error, code, params }` 하위 호환
+- ~~**EARL/Report-Tool 내보내기 로케일**~~ — 완료 (2026-07). `?lang=` 쿼리 반영
+  (prose·`@language`), 보고서 링크에 로케일 전달
+- ~~**확장 다국어(_locales)**~~ — 완료 (확장 0.2.1). 자체 로더(`src/i18n.ts`) +
+  `_locales` ko/en, 환경설정 언어 선택(자동/한국어/English)
+- ~~**CSP 헤더**~~ — 완료. next.config가 아닌 `src/proxy.ts`에서 요청별
+  nonce + strict-dynamic CSP를 발급한다 (unsafe-inline 제거, GTM 조건부 허용)
+- ~~**정기 스캔 큐잉**~~ — 완료. cron은 queued 행 생성만 하고 `drainQueue()`가
+  분리 인보케이션으로 소진. 2026-07 후속 개선: 생성도 `createScanForUser`
+  재사용으로 통일(좀비 회수·동시 실행 가드·scope 저장 포함), BATCH 3→20
+
+남은 항목:
+
 - **보고서 섹션 컴포넌트 분할** — 데이터 로더(loadReport.ts)는 분리 완료,
   JSX 본문(~800줄)의 섹션별 컴포넌트화 + Suspense 스트리밍은 후속
 - **EARL 내보내기의 판정 반영** — earl은 자동 판정만, report-tool은 전문가
   판정을 반영해 서로 다른 결과가 나올 수 있음. EARL 페이로드에 명시 또는 통일
+- **공용 레이트리밋 스토어** — HTTP 레이트리밋이 인메모리(access-check)뿐.
+  서버리스 인스턴스 간 공유가 안 되므로 외부 스토어 기반으로 승격 검토
+- **CI 연동(GitHub Action)** — core(Apache-2.0)를 액션으로 래핑해 PR에서
+  접근성 검사 실행 — 개발자 유입 채널
 
 ## 보고서 고도화 백로그 (2026-07)
 

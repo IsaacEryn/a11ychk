@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { WCAG_BY_ID, type EvaluationScope, type ScanSummary, type WcagOutcome } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
  * WCAG-EM Step 5.e — 기계 판독 가능 평가 결과 (EARL 정렬 JSON).
@@ -17,17 +18,20 @@ const EARL_OUTCOME: Record<WcagOutcome, string> = {
   notPresent: "earl:inapplicable",
 };
 
-export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?lang= 우선, 없으면 Accept-Language 협상 — 에러·문서 prose 언어 공통
+  const lang = resolveApiLocale(req);
+  const L = (ko: string, en: string) => (lang === "en" ? en : ko);
   if (!IdSchema.safeParse(id).success) {
-    return NextResponse.json({ error: "잘못된 요청입니다." }, { status: 400 });
+    return apiError(lang, "invalidRequest", 400);
   }
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
+  if (!user) return apiError(lang, "loginRequired", 401);
 
   // RLS로 소유자/관리자만 조회됨
   const { data: scan } = await supabase
@@ -36,7 +40,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq("id", id)
     .maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
-    return NextResponse.json({ error: "완료된 보고서를 찾을 수 없습니다." }, { status: 404 });
+    return apiError(lang, "reportNotReady", 404);
   }
 
   const summary = scan.summary as ScanSummary;
@@ -58,7 +62,10 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       engine: `${summary.engine.name} ${summary.engine.axeVersion}`,
       conformanceTarget: scope?.conformanceTarget ?? "AA",
       sample: summary.sample ?? null,
-      note: "이 결과는 자동 평가로 산출된 WCAG-EM의 자동화 가능 부분입니다. 완전한 적합성 판정에는 전문가의 수동 평가가 필요합니다.",
+      note: L(
+        "이 결과는 자동 평가로 산출된 WCAG-EM의 자동화 가능 부분입니다. 완전한 적합성 판정에는 전문가의 수동 평가가 필요합니다.",
+        "This output covers the automatable portion of WCAG-EM produced by automated evaluation. Full conformance judgment requires expert manual evaluation.",
+      ),
     },
     assertions: summary.wcagMatrix.map((row) => {
       const c = WCAG_BY_ID.get(row.scId);

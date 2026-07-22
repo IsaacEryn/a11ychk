@@ -145,8 +145,8 @@ export default async function ReportPage({
           { href: `/api/scans/${scan.id}/csv?type=kwcag&lang=${locale}`, label: t("export.csvKwcag") },
           { href: `/api/scans/${scan.id}/ai-fix?lang=${locale}`, label: t("downloadAiFix") },
           { href: `/api/scans/${scan.id}/ai-fix?format=json&lang=${locale}`, label: t("export.aiFixJson") },
-          { href: `/api/scans/${scan.id}/earl`, label: t("downloadEarl") },
-          { href: `/api/scans/${scan.id}/report-tool`, label: t("downloadReportTool") },
+          { href: `/api/scans/${scan.id}/earl?lang=${locale}`, label: t("downloadEarl") },
+          { href: `/api/scans/${scan.id}/report-tool?lang=${locale}`, label: t("downloadReportTool") },
         ].map((item) => (
           <li key={item.href}>
             <a href={item.href} className="block px-4 py-2 text-sm font-semibold hover:bg-[var(--color-paper-warm)]">
