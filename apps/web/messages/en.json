@@ -361,7 +361,15 @@
       "copyFailed": "Copy failed. Please select and copy the code manually.",
       "itemChangesTitle": "Changes by item (vs previous scan, violating elements)",
       "itemImproved": "Improved",
-      "itemWorsened": "Worsened"
+      "itemWorsened": "Worsened",
+      "rulesTitle": "Excluded rules (false-positive management)",
+      "rulesHint": "Exclude rules you consider false positives from this domain's automated scans. Applies from the next scan; reports state that rules were excluded.",
+      "rulesSelectLabel": "Select a rule to exclude",
+      "rulesAdd": "Add",
+      "rulesRemove": "Remove",
+      "rulesRemoveAria": "Stop excluding {rule}",
+      "rulesApply": "Apply",
+      "rulesNote": "Use exclusions carefully — hiding real violations makes the compliance rate diverge from reality. Up to 20 rules."
     },
     "recent": {
       "title": "Recent audits",
@@ -725,7 +733,8 @@
       "desc": "A11y Check is a free service that automatically audits web accessibility against WCAG 2.2 and KWCAG 2.2 with actionable remediation guides.",
       "primary": "Audit my site for free",
       "secondary": "Browse the public directory"
-    }
+    },
+    "excludedRulesNote": "{count} rule(s) were excluded from this scan per domain settings:"
   },
   "mypage": {
     "title": "My Page",

@@ -197,6 +197,14 @@ export default async function ReportPage({
         );
       })()}
 
+      {/* ─── 검사 제외 규칙 고지 — 도메인 오탐 관리 설정이 이 검사에 적용된 경우 (투명성) ─── */}
+      {summary.excludedRules && summary.excludedRules.length > 0 && (
+        <p className="mt-6 rounded border-l-[3px] border-[var(--color-warn)] bg-[var(--color-warn-tint)] px-3 py-2 text-sm text-[var(--color-ink)]">
+          {t("excludedRulesNote", { count: summary.excludedRules.length })}{" "}
+          <span className="text-[var(--color-ink-soft)]">{summary.excludedRules.join(", ")}</span>
+        </p>
+      )}
+
       {/* ─── 우선 수정 권고 — 심각도·규모 기준 상위 규칙 액션 플랜 ─── */}
       <PrioritySection locale={locale} ruleGroups={ruleGroups} />
 

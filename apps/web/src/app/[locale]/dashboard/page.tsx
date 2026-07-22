@@ -17,6 +17,7 @@ import { TrendChart } from "@/components/TrendChart";
 import { DomainVerify } from "./DomainVerify";
 import { BadgeEmbed } from "./BadgeEmbed";
 import { ScanScheduleControl } from "./ScanScheduleControl";
+import { DisabledRulesControl } from "./DisabledRulesControl";
 import { PublicReportControl } from "./PublicReportControl";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -358,6 +359,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 {d.auto_scan && (
                   <ScanScheduleControl domainId={d.id} frequency={(d.scan_frequency as string) ?? "daily"} />
                 )}
+                {/* 검사 제외 규칙(오탐 관리) — migration 0023 미적용 환경에서는 컬럼 부재로 빈 목록 표시 */}
+                <DisabledRulesControl
+                  domainId={d.id}
+                  disabled={Array.isArray(d.disabled_rules) ? (d.disabled_rules as string[]) : []}
+                />
                 {(trendByHost.get(foldHost(d.hostname))?.length ?? 0) >= 2 && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3">
                     <p className="text-sm font-semibold text-[var(--color-ink-soft)]">{t("domains.trendTitle")}</p>

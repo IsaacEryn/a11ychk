@@ -237,6 +237,29 @@ async function persistPageResult(
 }
 
 /**
+ * 도메인 설정의 제외 규칙 조회 — 오탐 관리 (migration 0023).
+ * 컬럼 미적용(마이그레이션 전)·도메인 미연결이면 빈 목록으로 동작한다.
+ */
+async function loadDisabledRules(db: SupabaseClient, domainId: string | null): Promise<Set<string>> {
+  if (!domainId) return new Set();
+  try {
+    const { data } = await db.from("domains").select("disabled_rules").eq("id", domainId).maybeSingle();
+    const rules = (data as { disabled_rules?: unknown } | null)?.disabled_rules;
+    return new Set(
+      Array.isArray(rules) ? rules.filter((r): r is string => typeof r === "string").slice(0, 50) : [],
+    );
+  } catch {
+    return new Set();
+  }
+}
+
+/** 제외 규칙 적용 — 해당 규칙의 위반을 결과에서 제거 (저장·집계 전에 호출) */
+function applyDisabledRules(result: PageScanResult, disabled: Set<string>): void {
+  if (disabled.size === 0) return;
+  result.violations = result.violations.filter((v) => !disabled.has(v.ruleId));
+}
+
+/**
  * 스캔 오케스트레이터.
  * POST /api/scans에서 after()로 호출된다 — 사용자 응답 이후 백그라운드 실행.
  * 실패해도 throw하지 않고 scans.status='failed'로 기록한다.
@@ -256,6 +279,8 @@ export async function runScan(scanId: string): Promise<void> {
 
   const scope = (scan.scope ?? null) as EvaluationScope | null;
   const conformanceTarget: WcagLevel | "AAA" = scope?.conformanceTarget ?? "AA";
+  // 도메인 오탐 관리 — 소유자가 제외 지정한 규칙은 이번 검사부터 위반에서 뺀다
+  const disabledRules = await loadDisabledRules(db, (scan.domain_id as string | null) ?? null);
 
   let browser: Browser | null = null;
   try {
@@ -329,6 +354,7 @@ export async function runScan(scanId: string): Promise<void> {
           PAGE_SCAN_TIMEOUT_MS,
           `페이지 검사 시간 초과 (${Math.round(PAGE_SCAN_TIMEOUT_MS / 1000)}초)`,
         );
+        applyDisabledRules(result, disabledRules);
         await persistPageResult(db, row.id, result, signature);
         results.push(result);
         if (signature) signatures.push(signature);
@@ -425,6 +451,8 @@ export async function runScan(scanId: string): Promise<void> {
       notPresentScs: computeNotPresentScs(signatures, results.length),
       reviews: await loadReviews(db, scanId),
     });
+    // 제외 규칙이 적용됐으면 보고서에 투명하게 고지할 수 있도록 기록
+    if (disabledRules.size > 0) summary.excludedRules = [...disabledRules].sort();
     await db
       .from("scans")
       // error: null — 자동 재시도(reclaimStale의 auto-retry 마커) 후 성공하면 마커를 지운다
@@ -546,6 +574,9 @@ export async function reaggregate(db: SupabaseClient, scanId: string): Promise<v
     notPresentScs: computeNotPresentScs(signatures, results.length),
     reviews: await loadReviews(db, scanId),
   });
+  // 검사 당시 적용된 제외 규칙 고지를 보존 (재집계는 저장된 findings 기준이라 동일 적용 상태)
+  const prevExcluded = (scan.summary as { excludedRules?: string[] } | null)?.excludedRules;
+  if (prevExcluded && prevExcluded.length > 0) summary.excludedRules = prevExcluded;
   await db
     .from("scans")
     .update({ status: "done", error: null, summary, finished_at: new Date().toISOString() })
@@ -574,6 +605,9 @@ export async function rescanPage(scanId: string, pageId: string): Promise<{ ok: 
     await assertPublicHttpUrl(page.url);
     browser = await launchGuardedBrowser(page.url);
     const { result, signature } = await scanSinglePage(browser, page.url);
+    // 본검사와 동일한 제외 규칙 적용 (도메인 오탐 관리)
+    const { data: scanRow } = await db.from("scans").select("domain_id").eq("id", scanId).maybeSingle();
+    applyDisabledRules(result, await loadDisabledRules(db, (scanRow?.domain_id as string | null) ?? null));
     await persistPageResult(db, pageId, result, signature);
     await reaggregate(db, scanId);
     return { ok: true };

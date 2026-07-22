@@ -265,6 +265,8 @@ export interface ScanSummary {
   engine: { name: string; axeVersion: string };
   /** WCAG-EM 표본 요약 (없을 수 있음 — 구버전 스캔 호환) */
   sample?: SampleSummary;
+  /** 검사에서 제외하도록 설정돼 적용된 규칙 id (도메인 오탐 관리) — 보고서에 투명하게 고지 */
+  excludedRules?: string[];
 }
 
 export interface CrawlOptions {

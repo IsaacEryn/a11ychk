@@ -361,7 +361,15 @@
       "copyFailed": "복사하지 못했습니다. 주소를 직접 선택해 복사해 주세요.",
       "itemChangesTitle": "항목별 변화 (직전 검사 대비, 위반 요소 수)",
       "itemImproved": "개선",
-      "itemWorsened": "악화"
+      "itemWorsened": "악화",
+      "rulesTitle": "검사 제외 규칙 (오탐 관리)",
+      "rulesHint": "잘못 검출된다고 판단한 규칙을 이 도메인의 자동 검사에서 제외합니다. 다음 검사부터 적용되며, 보고서에 제외 사실이 함께 표기됩니다.",
+      "rulesSelectLabel": "제외할 규칙 선택",
+      "rulesAdd": "추가",
+      "rulesRemove": "제거",
+      "rulesRemoveAria": "{rule} 규칙 제외 해제",
+      "rulesApply": "적용",
+      "rulesNote": "규칙 제외는 신중하게 사용하세요 — 실제 위반을 숨기면 준수율이 실태와 달라집니다. 최대 20개."
     },
     "recent": {
       "title": "최근 검사",
@@ -725,7 +733,8 @@
       "desc": "A11y Check는 WCAG 2.2·KWCAG 2.2 기준으로 웹 접근성을 자동 점검하고 한국어 개선 가이드를 제공하는 무료 서비스입니다.",
       "primary": "무료로 내 사이트 검사하기",
       "secondary": "공개 사이트 목록 보기"
-    }
+    },
+    "excludedRulesNote": "이 검사에는 도메인 설정에 따라 {count}개 규칙이 제외되었습니다:"
   },
   "mypage": {
     "title": "마이페이지",

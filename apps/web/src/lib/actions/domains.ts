@@ -82,6 +82,37 @@ export async function setScanFrequency(_prev: SaveState, formData: FormData): Pr
 }
 
 /**
+ * 검사 제외 규칙 설정 (domains.disabled_rules — migration 0023, 오탐 관리).
+ * 소유자가 오탐이라 판단한 규칙을 도메인 단위로 제외한다 — 이후 검사부터 적용되고
+ * 보고서 summary.excludedRules에 적용 사실이 기록된다. useActionState 시그니처.
+ */
+export async function setDisabledRules(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { user } = await requireUser();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return { error: "invalid" };
+  // rules: 콤마 구분 규칙 id — 카탈로그에 있는 규칙만 허용, 최대 20개 (빈 목록 = 해제)
+  const { RULE_BY_ID } = await import("@a11ychk/core/catalog");
+  const rules = [
+    ...new Set(
+      String(formData.get("rules") ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (rules.length > 20 || rules.some((r) => !RULE_BY_ID.has(r))) return { error: "invalid" };
+  // domains에는 UPDATE RLS 정책이 없어 admin 클라이언트로 갱신(소유자 필터 명시)
+  const { error } = await createAdminClient()
+    .from("domains")
+    .update({ disabled_rules: rules })
+    .eq("id", id.data)
+    .eq("user_id", user.id);
+  if (error) return { error: "failed" };
+  revalidateLocalized("/dashboard");
+  return { ok: true };
+}
+
+/**
  * 공개 보고서 지정 — 단일 컨트롤로 공개 여부·디렉터리 등재·배지가 가리킬 보고서를 함께 정한다.
  * value: "off"(비공개) | "latest"(최신 검사 자동) | <scanId>(특정 보고서 고정).
  * 소유 확인된 도메인만 공개 가능. 특정 scan은 소유자·done·같은 호스트인지 검증한다.
