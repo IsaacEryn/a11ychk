@@ -1,0 +1,67 @@
+# A11y Check — GitHub Action
+# PR·배포 파이프라인에서 지정 페이지의 자동 접근성 검사(WCAG 2.2 + KWCAG 2.2)를
+# 실행한다. 결과는 스텝 요약(Markdown)으로 남고, fail-on 기준 초과 시 잡이 실패한다.
+#
+# 사용 예:
+#   - uses: IsaacEryn/a11ychk@main
+#     with:
+#       urls: |
+#         https://example.com/
+#         https://example.com/login
+#       fail-on: serious
+name: "A11y Check"
+description: "Automated web accessibility scan (WCAG 2.2 AA + KWCAG 2.2) — axe-core plus custom rules, Korean-first reports"
+author: "A11y Check (a11ychk.com)"
+branding:
+  icon: "check-circle"
+  color: "green"
+
+inputs:
+  urls:
+    description: "검사할 페이지 URL 목록 (줄바꿈 또는 쉼표 구분, 최대 20개)"
+    required: true
+  fail-on:
+    description: "잡을 실패시킬 위반 기준: any(모든 위반) | serious(심각 이상, 기본) | critical(치명적만) | none(보고만)"
+    required: false
+    default: "serious"
+
+outputs:
+  compliance-rate:
+    description: "자동 검사 준수율 (%)"
+    value: ${{ steps.scan.outputs.compliance-rate }}
+  violation-nodes:
+    description: "위반 요소 수 (전체 페이지 합산)"
+    value: ${{ steps.scan.outputs.violation-nodes }}
+  violation-rules:
+    description: "위반 규칙 수"
+    value: ${{ steps.scan.outputs.violation-rules }}
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: "20"
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npm ci --ignore-scripts
+
+    - name: Install chromium
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: npx playwright install --with-deps chromium
+
+    - name: Scan
+      id: scan
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      env:
+        INPUT_URLS: ${{ inputs.urls }}
+        INPUT_FAIL_ON: ${{ inputs.fail-on }}
+      run: |
+        npx esbuild action/run.ts --bundle --platform=node --format=esm \
+          --external:playwright --external:axe-core --external:undici \
+          --outfile=action/.run.mjs --log-level=error
+        node action/.run.mjs

@@ -55,6 +55,7 @@ remediation guides for all 33 KWCAG 2.2 checkpoints.*
 | **개선** | 규칙별 한국어 가이드 + AI 수정 요청 문서(MD/JSON) |
 | **확장** | 크롬 MV3 사이드 패널 — 실시간 점검·구조 시각화·장애 시뮬레이션·명도대비 스포이드·전문가 판정 |
 | **운영** | 도메인 소유확인, 정기 자동 점검, 회귀 알림, 임베드 배지, 공개 점검 목록 |
+| **CI** | GitHub Action으로 PR·배포 전 자동 검사 게이트 — [docs/github-action.md](docs/github-action.md) |
 
 ## 구조 (npm workspaces 모노레포)
 
