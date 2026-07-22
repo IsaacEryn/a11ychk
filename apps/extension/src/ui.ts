@@ -1,6 +1,20 @@
 /** 패널 셸 UI — 상단 탭(ARIA Tabs 패턴)과 테마 전환 */
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
+// ─── 스크린리더 고지 (단일 라이브 리전 #srLive) ───
+let announceTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** 상태 변화를 스크린리더에 고지 — 잠시 후 비워 반복 낭독 방지 */
+export function announce(text: string) {
+  const region = document.getElementById("srLive");
+  if (!region) return;
+  // 같은 문구 연속 고지도 다시 읽히도록 한 번 비웠다가 채운다
+  region.textContent = "";
+  clearTimeout(announceTimer);
+  setTimeout(() => (region.textContent = text), 30);
+  announceTimer = setTimeout(() => (region.textContent = ""), 5000);
+}
+
 // ─── 상단 탭 전환 ───
 export function wireTabs() {
   const tabs = [...document.querySelectorAll<HTMLButtonElement>(".tab")];

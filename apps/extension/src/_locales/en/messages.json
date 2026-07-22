@@ -498,5 +498,117 @@
   },
   "ccHint": {
     "message": "Pick the background and text colors with the eyedropper to get the contrast ratio and pass/fail."
+  },
+  "srScanDone": {
+    "message": "Scan complete. Automated compliance $1%, $2 violated rules.",
+    "placeholders": {
+      "rate": {
+        "content": "$1"
+      },
+      "rules": {
+        "content": "$2"
+      }
+    }
+  },
+  "srShown": {
+    "message": "Violating elements are highlighted on the page."
+  },
+  "srNotFound": {
+    "message": "Element not found. The page may have changed."
+  },
+  "srVerdictSaved": {
+    "message": "Saved the verdict for item $1.",
+    "placeholders": {
+      "item": {
+        "content": "$1"
+      }
+    }
+  },
+  "srVerdictCleared": {
+    "message": "Cleared the verdict for item $1.",
+    "placeholders": {
+      "item": {
+        "content": "$1"
+      }
+    }
+  },
+  "filterAria": {
+    "message": "Filter by severity"
+  },
+  "filterRuleAria": {
+    "message": "Filter by rule"
+  },
+  "filterRuleAll": {
+    "message": "All rules"
+  },
+  "filterEmpty": {
+    "message": "No violations match the selected filters."
+  },
+  "cachedResultNote": {
+    "message": "Previous result scanned at $1. Re-scan if the page has changed.",
+    "placeholders": {
+      "time": {
+        "content": "$1"
+      }
+    }
+  },
+  "incompleteTitle": {
+    "message": "Needs review"
+  },
+  "incompleteHint": {
+    "message": "These items could not be judged automatically. Check them on the page, then decide."
+  },
+  "incompleteConfirmFail": {
+    "message": "Confirm violation"
+  },
+  "incompleteConfirmPass": {
+    "message": "No issue"
+  },
+  "srIncompleteFail": {
+    "message": "Confirmed as a violation. The score has been recalculated."
+  },
+  "srIncompletePass": {
+    "message": "Marked as no issue. The score has been recalculated."
+  },
+  "manualProgress": {
+    "message": "Judged $1 / $2",
+    "placeholders": {
+      "done": {
+        "content": "$1"
+      },
+      "total": {
+        "content": "$2"
+      }
+    }
+  },
+  "manualFilterUndone": {
+    "message": "Unjudged only"
+  },
+  "guidedOpen": {
+    "message": "Judge with guide"
+  },
+  "guidedStepsTitle": {
+    "message": "How to check"
+  },
+  "guidedQuestion": {
+    "message": "After following the steps above, does this item meet the requirement?"
+  },
+  "guidedYes": {
+    "message": "Yes — pass"
+  },
+  "guidedNo": {
+    "message": "No — fail"
+  },
+  "guidedUnsure": {
+    "message": "Cannot tell"
+  },
+  "focusJudgeTitle": {
+    "message": "Focus order judgment (KWCAG 6.1.2)"
+  },
+  "focusJudgeQuestion": {
+    "message": "Does the Tab focus order match the reading order and follow a logical sequence?"
+  },
+  "focusJudgeSaved": {
+    "message": "Verdict saved. It is reflected in the manual checklist on the Audit tab."
   }
 }

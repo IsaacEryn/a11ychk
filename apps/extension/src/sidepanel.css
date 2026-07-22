@@ -828,3 +828,138 @@ h2 {
     transform: rotate(360deg);
   }
 }
+
+/* 스크린리더 전용 텍스트 — 시각적으로 숨기되 낭독은 유지 (#srLive 등) */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ─── 위반 목록 필터 ─── */
+.vfilter {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 8px 0 10px;
+}
+.vfilter select {
+  width: 100%;
+  padding: 6px 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+}
+.chip-sm {
+  font-size: 11px;
+  padding: 4px 10px;
+}
+
+/* ─── 캐시 복원 안내 ─── */
+.cached-note {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1.5px dashed var(--line);
+  border-radius: 8px;
+}
+
+/* ─── 확인 필요(incomplete) 심사 ─── */
+.incomplete {
+  margin-top: 14px;
+}
+.incomplete > summary {
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 4px 0;
+}
+.inc-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+/* ─── 수동 체크리스트: 진행률·그룹 ─── */
+.manual-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 8px 0 6px;
+}
+.manual-progress {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.progress {
+  height: 5px;
+  border-radius: 3px;
+  background: var(--line);
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.progress > div {
+  height: 100%;
+  width: 0;
+  background: var(--seal);
+  border-radius: 3px;
+  transition: width 0.25s ease;
+}
+@media (prefers-reduced-motion: reduce) {
+  .progress > div { transition: none; }
+}
+.manual-list li.manual-group {
+  border-bottom: 0;
+  padding: 10px 0 2px;
+  background: none;
+}
+.manual-group h3 {
+  margin: 0;
+  font-size: 12px;
+  color: var(--ink-faint);
+  text-transform: none;
+  letter-spacing: 0.02em;
+}
+
+/* ─── 가이드형 판정 ─── */
+.ri-guide {
+  margin-top: 8px;
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 10px;
+  background: var(--paper);
+}
+.ri-guide > summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--seal);
+}
+.ri-guide .gq {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.gsteps {
+  margin: 4px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.gsteps li + li {
+  margin-top: 4px;
+}

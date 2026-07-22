@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "__MSG_extName__",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "__MSG_extDesc__",
   "permissions": [
     "activeTab",
@@ -42,16 +42,6 @@
         "content-connect.js"
       ],
       "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
-    {
-      "resources": [
-        "vendor/axe.min.js"
-      ],
-      "matches": [
-        "<all_urls>"
-      ]
     }
   ],
   "default_locale": "ko"

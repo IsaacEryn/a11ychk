@@ -1,14 +1,19 @@
 import {
   AXE_RUN_TAGS,
+  KWCAG_PRINCIPLE_LABEL,
   aggregateScan,
   customFindingsFromSignals,
   getManualCheckItems,
   getRuleEntry,
   normalizeAxeResults,
   type AxeRunResults,
+  type Finding,
   type Impact,
   type PageCheckSignals,
 } from "@a11ychk/core/catalog";
+import { getCachedScan, normalizeUrlKey, setCachedScan } from "./scan-cache";
+import { applyIncompleteDecision, deriveIncompleteFindings, type IncompleteDecision } from "./incomplete";
+import { buildGuidedSteps } from "./guided";
 import {
   applySimulationInPage,
   clearOverlayInPage,
@@ -22,7 +27,7 @@ import {
   overlayTargetSizeInPage,
   runAxeInPage,
 } from "./injected";
-import { wireTabs, wireTheme, wireLang } from "./ui";
+import { announce, wireTabs, wireTheme, wireLang } from "./ui";
 import { initI18n, isEnglish, localizeHtml, msg, pick } from "./i18n";
 // axe 공식 한국어 로케일 — UI가 한국어일 때 진단 메시지를 한국어로
 import axeKoLocale from "axe-core/locales/ko.json";
@@ -171,7 +176,12 @@ function impactLabel(impact: Impact): string {
 async function scan() {
   const tab = await getActiveTab();
   if (!tab?.id || !tab.url || !/^https?:/.test(tab.url)) {
-    $("target").innerHTML = `<span class="err">${msg("errUnscannable")}</span>`;
+    const target = $("target");
+    target.textContent = "";
+    const err = document.createElement("span");
+    err.className = "err";
+    err.textContent = msg("errUnscannable");
+    target.appendChild(err);
     return;
   }
   currentTabId = tab.id;
@@ -241,6 +251,10 @@ async function scan() {
     const raw = results[0]?.result as AxeRunResults | undefined;
     if (!raw) throw new Error(msg("errFetchResults"));
     const page = normalizeAxeResults(tab.url, raw);
+    // 확인 필요 항목 — 노드 포함 파생 (심사 흐름용), 새 검사이므로 이전 결정 초기화
+    lastIncomplete = deriveIncompleteFindings(tab.url, raw);
+    incompleteDecisions = {};
+    lastScannedAt = Date.now();
 
     // 3) 자체 커스텀 검사 (서버 스캐너와 동일 규칙 — 리플로우 제외)
     try {
@@ -261,6 +275,9 @@ async function scan() {
 
     const summary = aggregateScan([page], AXE_VERSION);
     renderResult(page, summary, tab.url);
+    updateScanCache();
+    // 완료 요약은 단일 라이브 리전으로 1회 고지 (결과 섹션 전체 낭독 방지)
+    announce(msg("srScanDone", [summary.complianceRate, page.violations.length]));
 
     // 비로그인: 로컬 사용량 증가 + 가입 유도
     if (!session) {
@@ -291,6 +308,27 @@ async function scan() {
 
 let lastPage: ReturnType<typeof normalizeAxeResults> | null = null;
 let currentTabId: number | null = null;
+/** 확인 필요(incomplete) 항목 — 노드 포함 파생 데이터 (axe 규칙만; 커스텀은 id뿐) */
+let lastIncomplete: Finding[] = [];
+/** 확인 필요 항목에 대한 심사 결정 (캐시에 함께 보존) */
+let incompleteDecisions: Record<string, IncompleteDecision> = {};
+/** 검사 실행 시각 (캐시 복원 안내용) */
+let lastScannedAt = 0;
+/** 결과가 렌더된 URL — 같은 URL 재렌더(심사 결정 등)면 필터 상태를 유지한다 */
+let lastRenderedUrl = "";
+/** 위반 목록 필터 — impacts 비어 있으면 전체, ruleId 빈 문자열이면 전체 */
+const vFilter = { impacts: new Set<Impact>(), ruleId: "" };
+
+/** 현재 결과 상태를 세션 캐시에 저장 (패널 재열기·탭 전환 대비) */
+function updateScanCache() {
+  if (!lastPage) return;
+  void setCachedScan(lastPage.url, {
+    page: lastPage,
+    incomplete: lastIncomplete,
+    decisions: incompleteDecisions,
+    scannedAt: lastScannedAt,
+  });
+}
 
 function renderResult(
   page: ReturnType<typeof normalizeAxeResults>,
@@ -300,7 +338,15 @@ function renderResult(
   lastPage = page;
   $("intro").hidden = true;
   $("result").hidden = false;
+  $("cachedNote").hidden = true;
   $("rate").textContent = String(summary.complianceRate);
+
+  // 같은 URL 재렌더(확인 필요 심사 결정 등)면 필터 상태 유지, 새 페이지면 초기화
+  if (lastRenderedUrl !== url) {
+    vFilter.impacts.clear();
+    vFilter.ruleId = "";
+  }
+  lastRenderedUrl = url;
 
   const impact = $("impact");
   impact.innerHTML = "";
@@ -314,10 +360,81 @@ function renderResult(
     impact.appendChild(li);
   }
 
+  renderViolationFilter(page, summary);
+  renderViolationList();
+  renderIncompleteSection();
+
+  // 연결돼 있으면 저장 버튼·프로세스 태그·저장 위치 선택 노출
+  getSession().then((s) => {
+    $("save").hidden = !s;
+    $("procWrap").hidden = !s;
+    $("saveDest").hidden = !s;
+    if (s) void populateSaveTargets(s.accessToken, url);
+  });
+}
+
+/** 위반 목록 필터 바 — 심각도 칩(개수)·규칙 셀렉트. 결과가 있을 때만 표시 */
+function renderViolationFilter(
+  page: ReturnType<typeof normalizeAxeResults>,
+  summary: ReturnType<typeof aggregateScan>,
+) {
+  const bar = $("vFilter");
+  const chips = $("vImpactChips");
+  const ruleSel = $<HTMLSelectElement>("vRule");
+  const hasViolations = page.violations.length > 0;
+  bar.hidden = !hasViolations;
+  if (!hasViolations) return;
+
+  chips.innerHTML = "";
+  for (const key of IMPACTS) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "chip chip-sm";
+    btn.textContent = `${impactLabel(key)} ${summary.byImpact[key]}`;
+    btn.setAttribute("aria-pressed", String(vFilter.impacts.has(key)));
+    btn.addEventListener("click", () => {
+      if (vFilter.impacts.has(key)) vFilter.impacts.delete(key);
+      else vFilter.impacts.add(key);
+      btn.setAttribute("aria-pressed", String(vFilter.impacts.has(key)));
+      renderViolationList();
+    });
+    chips.appendChild(btn);
+  }
+
+  // 규칙별 셀렉트 — 규칙 제목(요소 수)
+  ruleSel.innerHTML = "";
+  const all = document.createElement("option");
+  all.value = "";
+  all.textContent = msg("filterRuleAll");
+  ruleSel.appendChild(all);
+  const byRule = new Map<string, { count: number; title: string }>();
+  for (const v of page.violations) {
+    const prev = byRule.get(v.ruleId);
+    byRule.set(v.ruleId, {
+      count: (prev?.count ?? 0) + v.nodes.length,
+      title: prev?.title ?? pick(getRuleEntry(v.ruleId, v.tags).title),
+    });
+  }
+  for (const [ruleId, info] of byRule) {
+    const opt = document.createElement("option");
+    opt.value = ruleId;
+    opt.textContent = `${info.title} (${info.count})`;
+    ruleSel.appendChild(opt);
+  }
+  ruleSel.value = vFilter.ruleId && byRule.has(vFilter.ruleId) ? vFilter.ruleId : "";
+  vFilter.ruleId = ruleSel.value;
+  ruleSel.onchange = () => {
+    vFilter.ruleId = ruleSel.value;
+    renderViolationList();
+  };
+}
+
+/** 위반 상세 목록 렌더 — vFilter 상태를 반영해 목록만 다시 그린다 */
+function renderViolationList() {
+  const page = lastPage;
   const list = $("violations");
   list.innerHTML = "";
-  const byRule = new Map<string, number>();
-  for (const v of page.violations) byRule.set(v.ruleId, v.nodes.length);
+  if (!page) return;
   const sorted = [...page.violations].sort(
     (a, b) => IMPACTS.indexOf(a.impact) - IMPACTS.indexOf(b.impact),
   );
@@ -326,9 +443,21 @@ function renderResult(
     li.textContent = msg("noViolations");
     li.style.borderColor = "var(--seal)";
     list.appendChild(li);
+    return;
+  }
+  const filtered = sorted.filter(
+    (v) =>
+      (vFilter.impacts.size === 0 || vFilter.impacts.has(v.impact)) &&
+      (!vFilter.ruleId || v.ruleId === vFilter.ruleId),
+  );
+  if (filtered.length === 0) {
+    const li = document.createElement("li");
+    li.textContent = msg("filterEmpty");
+    list.appendChild(li);
+    return;
   }
   const tabId = currentTabId;
-  for (const v of sorted) {
+  for (const v of filtered) {
     const entry = getRuleEntry(v.ruleId, v.tags);
     const li = document.createElement("li");
     const title = document.createElement("p");
@@ -367,9 +496,13 @@ function renderResult(
               args: [node.selector],
               func: highlightInPage,
             });
-            btn.textContent = r[0]?.result ? msg("shown") : msg("notFound");
+            const found = Boolean(r[0]?.result);
+            btn.textContent = found ? msg("shown") : msg("notFound");
+            // 버튼 텍스트 교체만으로는 스크린리더에 결과가 전달되지 않음 — 라이브 리전 고지
+            announce(found ? msg("srShown") : msg("srNotFound"));
           } catch {
             btn.textContent = msg("failedShort");
+            announce(msg("srNotFound"));
           }
           setTimeout(() => (btn.textContent = msg("show")), 2500);
         });
@@ -400,15 +533,104 @@ function renderResult(
 
     list.appendChild(li);
   }
+}
 
-  // 연결돼 있으면 저장 버튼·프로세스 태그·저장 위치 선택 노출
-  getSession().then((s) => {
-    $("save").hidden = !s;
-    $("procWrap").hidden = !s;
-    $("saveDest").hidden = !s;
-    if (s) void populateSaveTargets(s.accessToken, url);
-  });
-  void url;
+/** 확인 필요(incomplete) 심사 섹션 — 항목별 확인 후 위반 확정/문제없음 결정 */
+function renderIncompleteSection() {
+  const sec = $<HTMLDetailsElement>("incompleteSec");
+  const list = $("incompleteList");
+  const page = lastPage;
+  const ids = page?.incomplete ?? [];
+  $("incompleteCount").textContent = String(ids.length);
+  sec.hidden = !page || ids.length === 0;
+  list.innerHTML = "";
+  if (!page || ids.length === 0) return;
+
+  const tabId = currentTabId;
+  for (const id of ids) {
+    const finding = lastIncomplete.find((f) => f.ruleId === id) ?? null;
+    const entry = getRuleEntry(id, finding?.tags ?? []);
+    const li = document.createElement("li");
+
+    const title = document.createElement("p");
+    title.className = "vt";
+    const badge = document.createElement("span");
+    badge.className = "badge";
+    badge.textContent = finding ? impactLabel(finding.impact) : msg("incompleteTitle");
+    title.append(badge, document.createTextNode(pick(entry.title)));
+    li.appendChild(title);
+
+    if (finding && finding.nodes.length > 0) {
+      const meta = document.createElement("p");
+      meta.className = "vmeta";
+      meta.textContent = msg("nodeCount", [finding.nodes.length]);
+      li.appendChild(meta);
+    }
+
+    // 확인 방법 힌트 — 규칙 가이드 첫 단락 (위반 목록과 동일 패턴)
+    const guideFirst = pick(entry.guide).split("\n\n")[0]?.trim();
+    if (guideFirst) {
+      const details = document.createElement("details");
+      details.className = "vguide";
+      const summaryEl = document.createElement("summary");
+      summaryEl.textContent = msg("guide");
+      const p = document.createElement("p");
+      p.textContent = guideFirst;
+      details.append(summaryEl, p);
+      li.appendChild(details);
+    }
+
+    const actions = document.createElement("div");
+    actions.className = "inc-actions";
+    if (tabId && finding && finding.nodes.length > 0) {
+      const showBtn = document.createElement("button");
+      showBtn.type = "button";
+      showBtn.className = "locate";
+      showBtn.textContent = msg("show");
+      const combined = finding.nodes.map((n) => n.selector).join(", ");
+      showBtn.addEventListener("click", async () => {
+        try {
+          const r = await chrome.scripting.executeScript({
+            target: { tabId },
+            args: [combined],
+            func: highlightInPage,
+          });
+          const found = Boolean(r[0]?.result);
+          showBtn.textContent = found ? msg("shown") : msg("notFound");
+          announce(found ? msg("srShown") : msg("srNotFound"));
+        } catch {
+          showBtn.textContent = msg("failedShort");
+        }
+        setTimeout(() => (showBtn.textContent = msg("show")), 2500);
+      });
+      actions.appendChild(showBtn);
+    }
+    const failBtn = document.createElement("button");
+    failBtn.type = "button";
+    failBtn.className = "verdict v-failed";
+    failBtn.textContent = msg("incompleteConfirmFail");
+    failBtn.addEventListener("click", () => void decideIncomplete(id, "failed"));
+    const passBtn = document.createElement("button");
+    passBtn.type = "button";
+    passBtn.className = "verdict v-passed";
+    passBtn.textContent = msg("incompleteConfirmPass");
+    passBtn.addEventListener("click", () => void decideIncomplete(id, "passed"));
+    actions.append(failBtn, passBtn);
+    li.appendChild(actions);
+
+    list.appendChild(li);
+  }
+}
+
+/** 확인 필요 항목 심사 결정 반영 — 점수 재계산 + 재렌더(같은 URL이라 필터 유지) */
+async function decideIncomplete(ruleId: string, decision: IncompleteDecision) {
+  if (!lastPage) return;
+  applyIncompleteDecision(lastPage, lastIncomplete, ruleId, decision);
+  incompleteDecisions[ruleId] = decision;
+  const summary = aggregateScan([lastPage], AXE_VERSION);
+  renderResult(lastPage, summary, lastPage.url);
+  updateScanCache();
+  announce(msg(decision === "failed" ? "srIncompleteFail" : "srIncompletePass"));
 }
 
 /** 저장 위치 셀렉트 채우기 — 새 보고서 + 사용자의 기존 보고서(같은 사이트 우선) */
@@ -506,7 +728,11 @@ async function saveToAccount() {
       void populateSaveTargets(session.accessToken, lastPage.url);
     }
   } catch {
-    msgEl.innerHTML = `<span class="err">${msg("errNetwork")}</span>`;
+    msgEl.textContent = "";
+    const err = document.createElement("span");
+    err.className = "err";
+    err.textContent = msg("errNetwork");
+    msgEl.appendChild(err);
   } finally {
     saveBtn.disabled = false;
   }
@@ -520,31 +746,15 @@ interface ReviewEntry {
 }
 type ReviewMap = Record<string, ReviewEntry>;
 
-const VERDICTS: { value: Verdict; label: string }[] = [
-  { value: "passed", label: msg("verdictPass") },
-  { value: "failed", label: msg("verdictFail") },
-  { value: "cannotTell", label: msg("verdictHold") },
+/** 판정 버튼 정의 — 라벨은 렌더 시점 msg() 호출 (initI18n 이전 모듈 로드 시점 msg() 금지) */
+const VERDICTS: { value: Verdict; labelKey: string }[] = [
+  { value: "passed", labelKey: "verdictPass" },
+  { value: "failed", labelKey: "verdictFail" },
+  { value: "cannotTell", labelKey: "verdictHold" },
 ];
 
-/**
- * 판정 저장 키용 URL 정규화 — 해시·쿼리 순서 변형·기본 포트·트레일링 슬래시로
- * 같은 페이지의 판정이 갈라지는 것을 방지한다.
- */
-function normalizeReviewUrl(raw: string): string {
-  try {
-    const u = new URL(raw);
-    u.hash = "";
-    if ((u.protocol === "http:" && u.port === "80") || (u.protocol === "https:" && u.port === "443")) u.port = "";
-    u.searchParams.sort();
-    let s = u.toString();
-    if (u.pathname === "/" && !u.search && s.endsWith("/")) s = s.slice(0, -1);
-    return s;
-  } catch {
-    return raw;
-  }
-}
-
-const reviewKey = (url: string) => `review:${normalizeReviewUrl(url)}`;
+// 판정 저장 키용 URL 정규화 — 캐시 키와 동일 규칙 공유 (scan-cache.ts)
+const reviewKey = (url: string) => `review:${normalizeUrlKey(url)}`;
 
 async function getReviewState(url: string): Promise<ReviewMap> {
   const key = reviewKey(url);
@@ -559,20 +769,21 @@ async function setReview(url: string, itemId: string, patch: Partial<ReviewEntry
   await chrome.storage.local.set({ [reviewKey(url)]: cur });
 }
 
-/** WCAG 성공기준 → 관련 요소 선택자·라벨 (수동 항목 맞춤 강조용) */
-const SC_HIGHLIGHT: Record<string, { selector: string; label: string }> = {
-  "1.1.1": { selector: "img,[role=img],input[type=image],area,svg", label: msg("hlImages") },
-  "1.2.1": { selector: "video,audio", label: msg("hlMedia") },
-  "1.2.2": { selector: "video,audio", label: msg("hlMediaCaptions") },
-  "1.2.3": { selector: "video", label: msg("hlVideoAlt") },
-  "1.3.1": { selector: "table,ul,ol,dl,fieldset", label: msg("hlStructure") },
-  "1.4.2": { selector: "video[autoplay],audio[autoplay]", label: msg("hlAutoplay") },
-  "2.1.1": { selector: "a[href],button,input,select,textarea,[onclick],[role=button]", label: msg("hlOperable") },
-  "2.4.1": { selector: "a[href^='#'],[id]", label: msg("hlSkip") },
-  "2.4.4": { selector: "a[href]", label: msg("hlLinks") },
-  "2.4.6": { selector: "h1,h2,h3,h4,h5,h6,[role=heading]", label: msg("hlHeadings") },
-  "2.5.8": { selector: "a[href],button,[role=button],input", label: msg("hlTargetSize") },
-  "3.3.2": { selector: "input:not([type=hidden]),select,textarea,label", label: msg("hlForms") },
+/** WCAG 성공기준 → 관련 요소 선택자·라벨 키 (수동 항목 맞춤 강조용).
+ *  라벨은 사용 시점 msg() 호출 — 모듈 로드 시점 msg()는 initI18n 이전이라 언어 설정을 무시한다. */
+const SC_HIGHLIGHT: Record<string, { selector: string; labelKey: string }> = {
+  "1.1.1": { selector: "img,[role=img],input[type=image],area,svg", labelKey: "hlImages" },
+  "1.2.1": { selector: "video,audio", labelKey: "hlMedia" },
+  "1.2.2": { selector: "video,audio", labelKey: "hlMediaCaptions" },
+  "1.2.3": { selector: "video", labelKey: "hlVideoAlt" },
+  "1.3.1": { selector: "table,ul,ol,dl,fieldset", labelKey: "hlStructure" },
+  "1.4.2": { selector: "video[autoplay],audio[autoplay]", labelKey: "hlAutoplay" },
+  "2.1.1": { selector: "a[href],button,input,select,textarea,[onclick],[role=button]", labelKey: "hlOperable" },
+  "2.4.1": { selector: "a[href^='#'],[id]", labelKey: "hlSkip" },
+  "2.4.4": { selector: "a[href]", labelKey: "hlLinks" },
+  "2.4.6": { selector: "h1,h2,h3,h4,h5,h6,[role=heading]", labelKey: "hlHeadings" },
+  "2.5.8": { selector: "a[href],button,[role=button],input", labelKey: "hlTargetSize" },
+  "3.3.2": { selector: "input:not([type=hidden]),select,textarea,label", labelKey: "hlForms" },
 };
 /** KWCAG 항목의 대응 WCAG SC들에서 강조 선택자 조합 */
 function highlightForItem(item: { wcag: string[] }): { selector: string; label: string } | null {
@@ -582,11 +793,44 @@ function highlightForItem(item: { wcag: string[] }): { selector: string; label: 
     const h = SC_HIGHLIGHT[sc];
     if (h) {
       parts.push(h.selector);
-      if (!label) label = h.label;
+      if (!label) label = msg(h.labelKey);
     }
   }
   if (parts.length === 0) return null;
   return { selector: [...new Set(parts.join(",").split(","))].join(","), label };
+}
+
+/** 미판정만 보기 필터 상태 */
+let manualUndoneOnly = false;
+
+/** 판정 저장·해제 공통 처리 — 저장 + 버튼 상태 동기화 + SR 고지 + 진행률 갱신 */
+async function applyVerdict(
+  url: string,
+  itemId: string,
+  group: HTMLElement,
+  value: Verdict | undefined,
+) {
+  if (value) await setReview(url, itemId, { outcome: value });
+  else {
+    const cur = await getReviewState(url);
+    delete cur[itemId];
+    await chrome.storage.local.set({ [reviewKey(url)]: cur });
+  }
+  group.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
+  if (value) {
+    group.querySelector(`.verdict.v-${value}`)?.setAttribute("aria-pressed", "true");
+  }
+  announce(value ? msg("srVerdictSaved", [itemId]) : msg("srVerdictCleared", [itemId]));
+  await updateManualProgress(url);
+}
+
+/** 판정 진행률 표시 갱신 — 목록 재렌더 없이 텍스트·진행 바만 (메모 입력 포커스 보존) */
+async function updateManualProgress(url: string) {
+  const items = getManualCheckItems();
+  const reviews = await getReviewState(url);
+  const done = items.filter((i) => reviews[i.id]?.outcome).length;
+  $("manualProgress").textContent = msg("manualProgress", [done, items.length]);
+  $("manualProgressBar").style.width = items.length ? `${Math.round((done / items.length) * 100)}%` : "0";
 }
 
 async function renderManual(url: string) {
@@ -594,7 +838,23 @@ async function renderManual(url: string) {
   const reviews = await getReviewState(url);
   const list = $("manual");
   list.innerHTML = "";
+  await updateManualProgress(url);
+
+  let lastPrinciple = "";
   for (const item of items) {
+    if (manualUndoneOnly && reviews[item.id]?.outcome) continue;
+
+    // 원칙별 그룹 헤더 (인식·운용·이해·견고)
+    if (item.principle !== lastPrinciple) {
+      lastPrinciple = item.principle;
+      const groupLi = document.createElement("li");
+      groupLi.className = "manual-group";
+      const h3 = document.createElement("h3");
+      h3.textContent = pick(KWCAG_PRINCIPLE_LABEL[item.principle]);
+      groupLi.appendChild(h3);
+      list.appendChild(groupLi);
+    }
+
     const li = document.createElement("li");
     li.className = "review-item";
 
@@ -618,19 +878,11 @@ async function renderManual(url: string) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = `verdict v-${v.value}`;
-      btn.textContent = v.label;
+      btn.textContent = msg(v.labelKey);
       btn.setAttribute("aria-pressed", String(reviews[item.id]?.outcome === v.value));
       btn.addEventListener("click", async () => {
         const already = btn.getAttribute("aria-pressed") === "true";
-        const next = already ? undefined : v.value;
-        if (next) await setReview(url, item.id, { outcome: next });
-        else {
-          const cur = await getReviewState(url);
-          delete cur[item.id];
-          await chrome.storage.local.set({ [reviewKey(url)]: cur });
-        }
-        group.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
-        if (next) btn.setAttribute("aria-pressed", "true");
+        await applyVerdict(url, item.id, group, already ? undefined : v.value);
       });
       group.appendChild(btn);
     }
@@ -649,6 +901,54 @@ async function renderManual(url: string) {
       actions.appendChild(hlBtn);
     }
     li.appendChild(actions);
+
+    // 가이드형 판정 — 확인 절차 단계 + 예/아니오/판단 불가 (자유 판정과 같은 저장소)
+    const steps = buildGuidedSteps(item);
+    if (steps.length > 0) {
+      const guide = document.createElement("details");
+      guide.className = "ri-guide";
+      const summaryEl = document.createElement("summary");
+      summaryEl.textContent = msg("guidedOpen");
+      guide.appendChild(summaryEl);
+      const stepsTitle = document.createElement("p");
+      stepsTitle.className = "gq";
+      stepsTitle.textContent = msg("guidedStepsTitle");
+      guide.appendChild(stepsTitle);
+      const ol = document.createElement("ol");
+      ol.className = "gsteps";
+      for (const s of steps) {
+        const stepLi = document.createElement("li");
+        stepLi.textContent = s;
+        ol.appendChild(stepLi);
+      }
+      guide.appendChild(ol);
+      const q = document.createElement("p");
+      q.className = "gq";
+      q.textContent = msg("guidedQuestion");
+      guide.appendChild(q);
+      const answers = document.createElement("div");
+      answers.className = "verdicts";
+      answers.setAttribute("role", "group");
+      answers.setAttribute("aria-label", msg("verdictGroupAria", [pick(item.name)]));
+      const mkAnswer = (labelKey: string, value: Verdict) => {
+        const b = document.createElement("button");
+        b.type = "button";
+        b.className = `verdict v-${value}`;
+        b.textContent = msg(labelKey);
+        b.addEventListener("click", async () => {
+          await applyVerdict(url, item.id, group, value);
+          guide.open = false;
+        });
+        return b;
+      };
+      answers.append(
+        mkAnswer("guidedYes", "passed"),
+        mkAnswer("guidedNo", "failed"),
+        mkAnswer("guidedUnsure", "cannotTell"),
+      );
+      guide.appendChild(answers);
+      li.appendChild(guide);
+    }
 
     // 메모
     const note = document.createElement("textarea");
@@ -698,6 +998,7 @@ const MARKER_COLOR: Record<Impact, string> = {
 async function clearOverlayView() {
   await runInPage(clearOverlayInPage);
   currentView = "none";
+  $("focusJudge").hidden = true;
   if (currentSim !== "none") await runInPage(applySimulationInPage, currentSim);
   if (linearizeOn) await runInPage(linearizeInPage, true);
 }
@@ -729,6 +1030,9 @@ async function setStructView(kind: StructKind, on: boolean) {
   } else {
     await clearOverlayView();
   }
+  // 초점 순서 오버레이가 켜진 동안만 6.1.2 판정 카드 노출 (확인→판정 즉시 기입)
+  $("focusJudge").hidden = !(on && kind === "focus");
+  if (on && kind === "focus") $("focusJudgeMsg").textContent = "";
   syncToolButtons();
 }
 
@@ -758,7 +1062,25 @@ async function clearAll() {
   currentSim = "none";
   linearizeOn = false;
   activeHighlightBtn = null;
+  $("focusJudge").hidden = true;
   syncToolButtons();
+}
+
+/** 초점 순서 판정 카드 배선 — 답변을 KWCAG 6.1.2 판정으로 저장 (체크리스트와 동일 저장소) */
+function wireFocusJudge() {
+  const decide = (outcome: Verdict) => async () => {
+    const tab = await getActiveTab();
+    const url = tab?.url ?? "";
+    if (!/^https?:/.test(url)) return;
+    await setReview(url, "6.1.2", { outcome });
+    $("focusJudgeMsg").textContent = msg("focusJudgeSaved");
+    announce(msg("srVerdictSaved", ["6.1.2"]));
+    // 검사 탭 체크리스트에 즉시 반영
+    await renderManual(url);
+  };
+  $("focusYes").addEventListener("click", decide("passed"));
+  $("focusNo").addEventListener("click", decide("failed"));
+  $("focusHold").addEventListener("click", decide("cannotTell"));
 }
 
 /** 버튼 aria-pressed 상태 동기화 */
@@ -931,7 +1253,15 @@ function renderContrast() {
   out.appendChild(preview);
 
   const ratioEl = document.createElement("div");
-  ratioEl.innerHTML = `${msg("ccRatioLabel")} <span class="cc-ratio">${ratio}</span> : 1 <span style="color:var(--ink-faint)">(${ccBg} / ${ccFg})</span>`;
+  ratioEl.append(`${msg("ccRatioLabel")} `);
+  const ratioVal = document.createElement("span");
+  ratioVal.className = "cc-ratio";
+  ratioVal.textContent = String(ratio);
+  ratioEl.append(ratioVal, " : 1 ");
+  const pair = document.createElement("span");
+  pair.style.color = "var(--ink-faint)";
+  pair.textContent = `(${ccBg} / ${ccFg})`;
+  ratioEl.appendChild(pair);
   out.appendChild(ratioEl);
 
   const badges = document.createElement("div");
@@ -948,15 +1278,20 @@ function renderContrast() {
   if (!aa) {
     const guide = document.createElement("div");
     guide.className = "cc-guide";
+    guide.append(msg("ccGuideFail"));
     const suggestion = suggestColor(ccBg, ccFg);
-    let html =
-      msg("ccGuideFail");
     if (suggestion) {
-      html += `<br>${msg("ccSuggestion")} <b style="color:${suggestion}">${suggestion}</b> `;
-      html += `<span style="display:inline-block;width:12px;height:12px;border-radius:3px;background:${suggestion};border:1px solid var(--line);vertical-align:middle"></span>`;
-      html += msg("ccRatioSuffix", [Math.round(ratioOf(ccBg, suggestion) * 100) / 100]);
+      guide.appendChild(document.createElement("br"));
+      guide.append(`${msg("ccSuggestion")} `);
+      const b = document.createElement("b");
+      b.style.color = suggestion;
+      b.textContent = suggestion;
+      guide.append(b, " ");
+      const swatch = document.createElement("span");
+      swatch.style.cssText = `display:inline-block;width:12px;height:12px;border-radius:3px;background:${suggestion};border:1px solid var(--line);vertical-align:middle`;
+      guide.appendChild(swatch);
+      guide.append(msg("ccRatioSuffix", [Math.round(ratioOf(ccBg, suggestion) * 100) / 100]));
     }
-    guide.innerHTML = html;
     out.appendChild(guide);
   }
 }
@@ -1002,6 +1337,17 @@ async function init() {
   $("scan").addEventListener("click", scan);
   $("save").addEventListener("click", saveToAccount);
   wireVisualTools();
+  wireFocusJudge();
+
+  // 수동 체크리스트 "미판정만 보기" 토글
+  const undoneBtn = $<HTMLButtonElement>("manualFilterUndone");
+  undoneBtn.addEventListener("click", async () => {
+    manualUndoneOnly = !manualUndoneOnly;
+    undoneBtn.setAttribute("aria-pressed", String(manualUndoneOnly));
+    const tab = await getActiveTab();
+    if (tab?.url && /^https?:/.test(tab.url)) await renderManual(tab.url);
+  });
+
   wireTabs();
   await wireTheme();
   await wireLang();
@@ -1025,6 +1371,8 @@ async function refreshActiveTab() {
   const pageChanged = prevTabId !== currentTabId || (lastPage !== null && lastPage.url !== url);
   if (pageChanged && lastPage) {
     lastPage = null;
+    lastIncomplete = [];
+    incompleteDecisions = {};
     $("result").hidden = true; // 결과 섹션(점수·위반 목록)은 lastPage 기준이므로 숨김
   }
   if (pageChanged) {
@@ -1040,8 +1388,29 @@ async function refreshActiveTab() {
   const scannable = /^https?:/.test(url);
   $("target").textContent = scannable ? url : url ? msg("errInternalPage") : msg("errNoTab");
   $<HTMLButtonElement>("scan").disabled = !scannable;
-  if (scannable) await renderManual(url);
-  else $("manual").innerHTML = "";
+  if (scannable) {
+    await renderManual(url);
+    // 이 페이지의 최근 검사 결과가 세션 캐시에 있으면 복원 ("이전 결과" 안내와 함께)
+    if (!lastPage) {
+      const cached = await getCachedScan(url);
+      if (cached && normalizeUrlKey(cached.page.url) === normalizeUrlKey(url)) {
+        lastPage = cached.page;
+        lastIncomplete = cached.incomplete;
+        incompleteDecisions = cached.decisions;
+        lastScannedAt = cached.scannedAt;
+        const summary = aggregateScan([lastPage], AXE_VERSION);
+        renderResult(lastPage, summary, lastPage.url);
+        const note = $("cachedNote");
+        const at = new Date(cached.scannedAt);
+        const hh = String(at.getHours()).padStart(2, "0");
+        const mm = String(at.getMinutes()).padStart(2, "0");
+        note.textContent = msg("cachedResultNote", [`${hh}:${mm}`]);
+        note.hidden = false;
+      }
+    }
+  } else {
+    $("manual").innerHTML = "";
+  }
 }
 
 void init();

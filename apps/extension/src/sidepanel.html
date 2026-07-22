@@ -36,7 +36,10 @@
         </p>
         <p id="usage" class="usage" role="status" aria-live="polite"></p>
 
-        <section id="result" hidden aria-live="polite">
+        <!-- 결과 섹션 전체를 라이브 리전으로 두면 대량 갱신 시 과다 낭독됨 —
+             완료 요약·상태 변화는 #srLive 단일 리전으로 고지한다 -->
+        <section id="result" hidden>
+          <p id="cachedNote" class="hint cached-note" hidden></p>
           <div class="score-row">
             <div class="score">
               <span id="rate" class="rate">–</span><span class="pct">%</span>
@@ -64,12 +67,27 @@
           <button id="save" class="btn btn-save" type="button" hidden data-i18n="saveBtn">결과를 내 계정에 저장</button>
           <p id="saveMsg" class="save-msg" role="status"></p>
           <h2 data-i18n="violationsTitle">위반 상세</h2>
+          <div class="vfilter" id="vFilter" hidden>
+            <div class="chip-row" id="vImpactChips" role="group" aria-label="심각도 필터" data-i18n-aria-label="filterAria"></div>
+            <select id="vRule" aria-label="규칙별 필터" data-i18n-aria-label="filterRuleAria"></select>
+          </div>
           <ul id="violations" class="violations"></ul>
+
+          <details id="incompleteSec" class="incomplete" hidden>
+            <summary><span data-i18n="incompleteTitle">확인 필요</span> (<span id="incompleteCount">0</span>)</summary>
+            <p class="hint" data-i18n="incompleteHint">자동으로 판정할 수 없어 사람의 확인이 필요한 항목입니다. 페이지에서 직접 확인한 뒤 결정해 주세요.</p>
+            <ul id="incompleteList" class="violations"></ul>
+          </details>
         </section>
 
         <section class="manual">
           <h2 data-i18n="manualTitle">수동 점검 · 전문가 판정</h2>
           <p class="hint" data-i18n="manualDesc">자동으로 판정할 수 없는 항목입니다.</p>
+          <div class="manual-head">
+            <p id="manualProgress" class="manual-progress"></p>
+            <button id="manualFilterUndone" class="chip chip-sm" type="button" aria-pressed="false" data-i18n="manualFilterUndone">미판정만 보기</button>
+          </div>
+          <div class="progress" aria-hidden="true"><div id="manualProgressBar"></div></div>
           <ul id="manual" class="manual-list"></ul>
         </section>
       </section>
@@ -87,6 +105,18 @@
             <button class="chip" type="button" data-struct="focus" aria-pressed="false" data-i18n="structFocus">초점 순서</button>
             <button class="chip" type="button" data-struct="linearize" aria-pressed="false" data-i18n="structLinearize">읽기 순서(선형화)</button>
           </div>
+        </div>
+
+        <!-- 초점 순서 오버레이가 켜진 동안만 노출 — 확인 결과를 KWCAG 6.1.2 판정으로 바로 기입 -->
+        <div id="focusJudge" class="viz-group" hidden>
+          <h3 data-i18n="focusJudgeTitle">초점 순서 판정 (KWCAG 6.1.2)</h3>
+          <p class="hint" data-i18n="focusJudgeQuestion">Tab 키로 이동한 초점 순서가 콘텐츠의 읽기 순서와 일치하고 논리적입니까?</p>
+          <div class="chip-row">
+            <button id="focusYes" class="chip" type="button" data-i18n="guidedYes">예 — 통과</button>
+            <button id="focusNo" class="chip" type="button" data-i18n="guidedNo">아니오 — 위반</button>
+            <button id="focusHold" class="chip" type="button" data-i18n="guidedUnsure">판단 불가</button>
+          </div>
+          <p id="focusJudgeMsg" class="hint" role="status"></p>
         </div>
 
         <div class="viz-group">
@@ -151,6 +181,9 @@
         </div>
       </section>
     </main>
+
+    <!-- 스크린리더 상태 고지 전용 단일 라이브 리전 — announce() 헬퍼가 사용 -->
+    <p id="srLive" class="visually-hidden" role="status"></p>
 
     <footer class="ft">
       <a id="guideLink" href="#" target="_blank" rel="noopener" data-i18n="footGuide">사용 가이드</a>
