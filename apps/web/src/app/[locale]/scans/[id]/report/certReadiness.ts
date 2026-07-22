@@ -12,6 +12,9 @@ import type { KwcagPageRate } from "./kwcagPageRate";
  */
 export type CertBand = "pass" | "second" | "below";
 
+/** 인증 합격선(항목 평균 준수율 %) — 대시보드 추이 목표선과 공유하는 단일 기준 */
+export const CERT_TARGET_RATE = 95;
+
 export interface CertReadiness {
   /** 평가된 항목들의 페이지 준수율 평균 (0~100, 소수 1자리). 평가 항목 없으면 null */
   averageRate: number | null;
@@ -66,8 +69,8 @@ export function computeCertReadiness(
   }
 
   const averageRate = Math.round((rated.reduce((s, r) => s + r.rate, 0) / rated.length) * 10) / 10;
-  const band: CertBand = averageRate >= 95 ? "pass" : averageRate >= 85 ? "second" : "below";
-  const belowItems = rated.filter((r) => r.rate < 95).sort((a, b) => a.rate - b.rate);
+  const band: CertBand = averageRate >= CERT_TARGET_RATE ? "pass" : averageRate >= 85 ? "second" : "below";
+  const belowItems = rated.filter((r) => r.rate < CERT_TARGET_RATE).sort((a, b) => a.rate - b.rate);
 
   return { averageRate, band, evaluatedCount: rated.length, totalCount: kwcagMatrix.length, belowItems };
 }

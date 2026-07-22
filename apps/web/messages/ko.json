@@ -358,7 +358,10 @@
       "settingFailed": "저장하지 못했습니다. 다시 시도해 주세요.",
       "addInvalid": "올바른 도메인 형식이 아닙니다. 예: example.com",
       "addDuplicate": "이미 등록된 도메인입니다.",
-      "copyFailed": "복사하지 못했습니다. 주소를 직접 선택해 복사해 주세요."
+      "copyFailed": "복사하지 못했습니다. 주소를 직접 선택해 복사해 주세요.",
+      "itemChangesTitle": "항목별 변화 (직전 검사 대비, 위반 요소 수)",
+      "itemImproved": "개선",
+      "itemWorsened": "악화"
     },
     "recent": {
       "title": "최근 검사",

@@ -358,7 +358,10 @@
       "settingFailed": "Could not save. Please try again.",
       "addInvalid": "Not a valid domain. Example: example.com",
       "addDuplicate": "This domain is already registered.",
-      "copyFailed": "Copy failed. Please select and copy the code manually."
+      "copyFailed": "Copy failed. Please select and copy the code manually.",
+      "itemChangesTitle": "Changes by item (vs previous scan, violating elements)",
+      "itemImproved": "Improved",
+      "itemWorsened": "Worsened"
     },
     "recent": {
       "title": "Recent audits",

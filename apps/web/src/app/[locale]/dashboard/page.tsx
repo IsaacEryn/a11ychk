@@ -1,6 +1,8 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
+import { KWCAG_BY_ID, type KwcagMatrixRow } from "@a11ychk/core/catalog";
 import { Link } from "@/i18n/navigation";
+import { CERT_TARGET_RATE } from "@/app/[locale]/scans/[id]/report/certReadiness";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
@@ -73,6 +75,57 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     }
   }
   for (const list of trendByHost.values()) list.reverse();
+
+  // ── KWCAG 항목별 변화 — 호스트별 최신 2개 검사의 kwcagMatrix diff (마이그레이션 불요) ──
+  // trendRows는 최신순이므로 앞의 2개가 최신·직전. 페이로드 상한: 호스트 20개(스캔 40건).
+  const latestTwoByHost = new Map<string, string[]>();
+  for (const row of trendRows ?? []) {
+    try {
+      const host = foldHost(new URL(row.root_url as string).hostname);
+      const ids = latestTwoByHost.get(host) ?? [];
+      if (ids.length < 2) ids.push(row.id as string);
+      latestTwoByHost.set(host, ids);
+    } catch {
+      /* 건너뜀 */
+    }
+  }
+  const pairHosts = [...latestTwoByHost.entries()].filter(([, ids]) => ids.length === 2).slice(0, 20);
+  interface ItemChange {
+    itemId: string;
+    name: string;
+    delta: number; // 위반 수 변화 (음수 = 개선)
+  }
+  const itemChangesByHost = new Map<string, { improved: ItemChange[]; worsened: ItemChange[] }>();
+  if (pairHosts.length > 0) {
+    const { data: matrixRows } = await supabase
+      .from("scans")
+      .select("id, matrix:summary->kwcagMatrix")
+      .in("id", pairHosts.flatMap(([, ids]) => ids));
+    const matrixById = new Map((matrixRows ?? []).map((r) => [r.id as string, r.matrix]));
+    const countsOf = (scanId: string): Map<string, number> | null => {
+      const rows = matrixById.get(scanId);
+      if (!Array.isArray(rows)) return null; // 구버전 스캔 — kwcagMatrix 부재
+      return new Map((rows as unknown as KwcagMatrixRow[]).map((r) => [r.itemId, r.violationCount ?? 0]));
+    };
+    for (const [host, [latestId, prevId]] of pairHosts) {
+      const latest = countsOf(latestId!);
+      const prevCounts = countsOf(prevId!);
+      if (!latest || !prevCounts) continue;
+      const changes: ItemChange[] = [];
+      for (const [itemId, count] of latest) {
+        const delta = count - (prevCounts.get(itemId) ?? 0);
+        if (delta === 0) continue;
+        const item = KWCAG_BY_ID.get(itemId);
+        const name = item ? (locale === "en" && item.name.en ? item.name.en : item.name.ko) : itemId;
+        changes.push({ itemId, name, delta });
+      }
+      if (changes.length === 0) continue;
+      itemChangesByHost.set(host, {
+        improved: changes.filter((c) => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3),
+        worsened: changes.filter((c) => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3),
+      });
+    }
+  }
 
   // ── 도메인 총괄 — 호스트별 최신 완료 검사 요약 (trendRows 재사용, 추가 쿼리 없음) ──
   const latestByHost = new Map<
@@ -312,7 +365,35 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                       points={trendByHost.get(foldHost(d.hostname))!}
                       label={t("domains.trendLabel", { host: d.hostname })}
                       locale={locale}
+                      target={CERT_TARGET_RATE}
                     />
+                    {(() => {
+                      const changes = itemChangesByHost.get(foldHost(d.hostname));
+                      if (!changes) return null;
+                      const fmt = (list: { name: string; delta: number }[]) =>
+                        list.map((c) => `${c.name} (${c.delta > 0 ? "+" : ""}${c.delta})`).join(" · ");
+                      return (
+                        <div className="mt-2 text-xs text-[var(--color-ink-soft)]">
+                          <p className="font-semibold">{t("domains.itemChangesTitle")}</p>
+                          {changes.improved.length > 0 && (
+                            <p className="mt-0.5">
+                              <span className="font-semibold text-[var(--color-seal)]">
+                                ▲ {t("domains.itemImproved")}
+                              </span>{" "}
+                              {fmt(changes.improved)}
+                            </p>
+                          )}
+                          {changes.worsened.length > 0 && (
+                            <p className="mt-0.5">
+                              <span className="font-semibold text-[var(--color-crit)]">
+                                ▼ {t("domains.itemWorsened")}
+                              </span>{" "}
+                              {fmt(changes.worsened)}
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 {!d.verified && (
