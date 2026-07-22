@@ -4,7 +4,7 @@
  * 실행하므로, 이 파일의 함수는 외부 모듈·클로저 변수를 참조할 수 없다.
  * 필요한 값은 전부 args로 전달할 것.
  */
-import type { AxeRunResults, PageCheckSignals } from "@a11ychk/core/catalog";
+import type { AxeRunResults } from "@a11ychk/core/catalog";
 
 /** axe 로케일 설정 (MAIN world) — 실패해도 검사는 영어로 진행 */
 export function configureAxeLocaleInPage(locale: unknown): void {
@@ -25,167 +25,12 @@ export function runAxeInPage(tags: string[]): Promise<AxeRunResults> {
 }
 
 /**
- * 자체 커스텀 검사 신호 수집 (ISOLATED world에서 실행).
- * ⚠️ 서버 스캐너의 BASE_SCRIPT(packages/core/src/scanner/customChecks.ts)와
- * 동일한 신호를 수집해야 한다 — 판정은 공용 customFindingsFromSignals가 담당.
- * 자기 완결 함수여야 함 (chrome.scripting이 함수 소스를 직렬화해 주입).
+ * 자체 커스텀 검사 신호 수집 — 정본은 core(scanner/collectSignals.ts)로 이관.
+ * 여기서 재-export해 기존 import 경로("./injected")를 유지한다.
+ * executeScript는 실제 함수 객체의 소스를 직렬화하므로 재-export여도 동작 동일.
  */
-export function collectPageSignals(): PageCheckSignals {
-  const res: PageCheckSignals = {
-    inlineClickNonInteractive: [], focusSampled: 0, focusNoOutline: 0, focusExamples: [],
-    hasMedia: false, altSampled: 0, altFilename: [], altGeneric: [], autoplay: [], genericLinks: 0,
-    smallTargets: [], targetSampled: 0, hasNav: false, skipLinkPresent: false, videoNoTrack: 0, blankNoNotice: 0,
-  };
-  function cssPath(el: Element): string {
-    try {
-      if (el.id) return "#" + el.id;
-      const parts: string[] = [];
-      let cur: Element | null = el;
-      let depth = 0;
-      while (cur && cur.nodeType === 1 && depth < 4) {
-        let sel = cur.tagName.toLowerCase();
-        const cn = cur.getAttribute("class");
-        if (cn) { const c = cn.trim().split(/\s+/)[0]; if (c) sel += "." + c; }
-        parts.unshift(sel);
-        cur = cur.parentElement;
-        depth++;
-      }
-      return parts.join(" > ");
-    } catch { return el.tagName ? el.tagName.toLowerCase() : "?"; }
-  }
-  try { res.hasMedia = !!document.querySelector("video, audio"); } catch { /* 무시 */ }
-  try {
-    // 1.1.1 — alt가 파일명(F30) 또는 의미 없는 일반어인 이미지
-    const FILE = /\.(jpe?g|png|gif|webp|svg|bmp|ico|tiff?)\s*$/i;
-    const GENERIC_ALT = /^(이미지|사진|그림|아이콘|배너|image|img|photo|picture|graphic|icon|banner|untitled|spacer|\*|-)$/i;
-    const imgs = document.querySelectorAll("img[alt]");
-    for (let ia = 0; ia < imgs.length; ia++) {
-      const img = imgs[ia];
-      if (!img) continue;
-      const alt = (img.getAttribute("alt") || "").trim();
-      if (!alt) continue;
-      res.altSampled++;
-      if (FILE.test(alt) && res.altFilename.length < 8)
-        res.altFilename.push({ selector: cssPath(img), html: img.outerHTML.slice(0, 300), alt });
-      else if (GENERIC_ALT.test(alt) && res.altGeneric.length < 8)
-        res.altGeneric.push({ selector: cssPath(img), html: img.outerHTML.slice(0, 300), alt });
-    }
-  } catch { /* 무시 */ }
-  try {
-    // 1.4.2 — 음소거 없이 자동 재생되는 미디어
-    const med = document.querySelectorAll<HTMLMediaElement>("video[autoplay], audio[autoplay]");
-    for (let m = 0; m < med.length && res.autoplay.length < 4; m++) {
-      const mediaEl = med[m];
-      if (!mediaEl || mediaEl.hasAttribute("muted") || mediaEl.muted) continue;
-      res.autoplay.push({ selector: cssPath(mediaEl), html: mediaEl.outerHTML.slice(0, 300) });
-    }
-  } catch { /* 무시 */ }
-  try {
-    // 2.4.4 — 목적을 알기 어려운 일반어 링크 텍스트
-    const GENERIC_LINK = /^(여기|여기를?\s*클릭|클릭(하세요)?|더\s*보기|더보기|자세히(\s*보기)?|바로\s*가기|바로가기|here|click\s*here|click|more|read\s*more|learn\s*more|go|link)$/i;
-    const as2 = document.querySelectorAll("a[href]");
-    for (let l = 0; l < as2.length; l++) {
-      const t2 = (as2[l]?.textContent || "").replace(/\s+/g, " ").trim();
-      if (t2 && GENERIC_LINK.test(t2)) res.genericLinks++;
-    }
-  } catch { /* 무시 */ }
-  try {
-    // 2.5.8 — 24×24px 미만 타깃 (인라인 링크 예외)
-    const targets = document.querySelectorAll("a[href], button, input:not([type=hidden]), [role=button]");
-    const limit2 = Math.min(targets.length, 60);
-    for (let s = 0; s < limit2; s++) {
-      const el2 = targets[s];
-      if (!el2) continue;
-      const st = getComputedStyle(el2);
-      if (st.display === "inline") continue;
-      const r = el2.getBoundingClientRect();
-      if (r.width <= 0 || r.height <= 0) continue;
-      res.targetSampled++;
-      if ((r.width < 24 || r.height < 24) && res.smallTargets.length < 6) {
-        res.smallTargets.push({
-          selector: cssPath(el2),
-          html: el2.outerHTML.slice(0, 200),
-          size: Math.round(r.width) + "×" + Math.round(r.height),
-        });
-      }
-    }
-  } catch { /* 무시 */ }
-  try {
-    // 2.1.1 — 인라인 onclick이 붙은 비대화형·비초점 요소
-    const NATIVE = /^(A|BUTTON|INPUT|SELECT|TEXTAREA|SUMMARY)$/;
-    const INTERACTIVE_ROLE = /^(button|link|checkbox|menuitem|menuitemcheckbox|menuitemradio|tab|switch|radio|option|slider|spinbutton|textbox)$/;
-    const clickers = document.querySelectorAll("[onclick]");
-    for (let i = 0; i < clickers.length && res.inlineClickNonInteractive.length < 8; i++) {
-      const el = clickers[i];
-      if (!el || NATIVE.test(el.tagName)) continue;
-      const role = el.getAttribute("role");
-      const ti = el.getAttribute("tabindex");
-      if ((role && INTERACTIVE_ROLE.test(role)) || ti !== null) continue;
-      res.inlineClickNonInteractive.push({ selector: cssPath(el), html: el.outerHTML.slice(0, 300) });
-    }
-  } catch { /* 무시 */ }
-  try {
-    // 2.4.7 — 초점 시 시각 변화 표본 검사 (기존 초점 복원)
-    const prevFocus = document.activeElement as HTMLElement | null;
-    const focusables = document.querySelectorAll<HTMLElement>(
-      'a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex^="-"])',
-    );
-    const limit = Math.min(focusables.length, 20);
-    for (let j = 0; j < limit; j++) {
-      const f = focusables[j];
-      if (!f) continue;
-      const b = getComputedStyle(f);
-      const boBefore = b.boxShadow;
-      const brBefore = b.borderColor;
-      const bgBefore = b.backgroundColor;
-      try { f.focus({ preventScroll: true }); } catch { continue; }
-      if (document.activeElement !== f) continue;
-      res.focusSampled++;
-      const a = getComputedStyle(f);
-      const outlineVisible = a.outlineStyle !== "none" && a.outlineWidth !== "0px";
-      const boxShadowChanged = a.boxShadow !== boBefore && a.boxShadow !== "none";
-      const borderChanged = a.borderColor !== brBefore;
-      const bgChanged = a.backgroundColor !== bgBefore;
-      if (!outlineVisible && !boxShadowChanged && !borderChanged && !bgChanged) {
-        res.focusNoOutline++;
-        if (res.focusExamples.length < 5) res.focusExamples.push({ selector: cssPath(f), html: f.outerHTML.slice(0, 200) });
-      }
-    }
-    try { (prevFocus ?? document.body)?.focus?.({ preventScroll: true }); } catch { /* 무시 */ }
-  } catch { /* 무시 */ }
-  try {
-    // 2.4.1 건너뛰기 링크 — 반복 내비게이션 유무 + 상단 앵커 링크
-    res.hasNav = !!document.querySelector("nav, [role=navigation]");
-    const links0 = document.querySelectorAll("a[href]");
-    const SKIP = /건너뛰|본문\s*바로|바로\s*가기|skip|main content/i;
-    for (let sk = 0; sk < links0.length && sk < 8; sk++) {
-      const a0 = links0[sk];
-      if (!a0) continue;
-      const h0 = a0.getAttribute("href") || "";
-      const t0 = (a0.textContent || "").trim();
-      if ((h0.charAt(0) === "#" && h0.length > 1) || SKIP.test(t0)) {
-        res.skipLinkPresent = true;
-        break;
-      }
-    }
-  } catch { /* 무시 */ }
-  try {
-    // 1.2.2 자막 track 없는 video
-    document.querySelectorAll("video").forEach((v) => {
-      if (!v.querySelector("track[kind=captions],track[kind=subtitles]")) res.videoNoTrack++;
-    });
-  } catch { /* 무시 */ }
-  try {
-    // 3.2.2 새 창 고지 없는 target=_blank
-    const NOTICE = /새\s*창|새\s*탭|팝업|new\s*window|opens?\s*in/i;
-    document.querySelectorAll("a[target=_blank]").forEach((el0) => {
-      const txt0 =
-        (el0.textContent || "") + " " + (el0.getAttribute("aria-label") || "") + " " + (el0.getAttribute("title") || "");
-      if (!NOTICE.test(txt0)) res.blankNoNotice++;
-    });
-  } catch { /* 무시 */ }
-  return res;
-}
+export { collectPageSignals } from "@a11ychk/core/catalog";
+
 
 /** 페이지에서 해당 요소를 강조 표시 (스크롤 + 3초 outline) */
 export function highlightInPage(selector: string): boolean {
@@ -223,31 +68,31 @@ export function clearOverlayInPage(): void {
   document.getElementById("a11ychk-linearize")?.remove();
 }
 
-/**
- * 오버레이 마커가 스크롤·리사이즈·리플로우를 따라가도록 실시간 재배치한다.
- * ⚠️ executeScript가 함수 소스만 직렬화하므로 이 헬퍼는 각 오버레이 함수 내부에
- * 그대로 중첩(inline)해야 한다 — 외부 참조 불가.
- *   function trackReposition(overlay, pairs) {
- *     let raf = 0;
- *     const onChange = () => {
- *       if (!overlay.isConnected) { window.removeEventListener("scroll", onChange, true);
- *         window.removeEventListener("resize", onChange); if (raf) cancelAnimationFrame(raf); return; }
- *       if (raf) return;
- *       raf = requestAnimationFrame(() => { raf = 0;
- *         for (const [el, box] of pairs) { const r = el.getBoundingClientRect();
- *           box.style.left = `${r.left + window.scrollX}px`; box.style.top = `${r.top + window.scrollY}px`;
- *           box.style.width = `${Math.max(r.width, 4)}px`; box.style.height = `${Math.max(r.height, 4)}px`; } });
- *     };
- *     window.addEventListener("scroll", onChange, { passive: true, capture: true });
- *     window.addEventListener("resize", onChange, { passive: true });
- *   }
- */
+/** 페이지 전역 오버레이 헬퍼 (타입은 컴파일 시 제거 — 직렬화와 무관) */
+export interface OverlayHelpers {
+  makeOverlay(): HTMLElement;
+  trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void;
+}
 
-/** 위반/구조 마커를 그린다. 기존 오버레이는 지우고 새로 그림 */
-export function overlayMarkersInPage(markers: { selector: string; color: string; label: string }[]): number {
-  document.getElementById("a11ychk-overlay")?.remove();
-  // 스크롤·리사이즈 추종 (헤더 주석 참조 — 자기 완결 위해 중첩)
-  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
+/**
+ * 오버레이 공용 헬퍼 설치 — 컨테이너 생성·스크롤/리사이즈 추종 재배치를 window에
+ * 1회 설치한다. ISOLATED world는 확장별로 공유되므로 이후 주입되는 오버레이
+ * 함수들이 재사용할 수 있다 (예전에는 동일 헬퍼가 함수마다 4중 복붙돼 있었다).
+ * ⚠️ 오버레이 계열 함수보다 먼저 주입할 것 — panel/tools.ts의 runOverlayInPage가 보장.
+ */
+export function installOverlayHelpersInPage(): void {
+  const w = window as unknown as { __a11ychkHelpers?: OverlayHelpers };
+  if (w.__a11ychkHelpers) return;
+  w.__a11ychkHelpers = {
+    makeOverlay(): HTMLElement {
+      document.getElementById("a11ychk-overlay")?.remove();
+      const c = document.createElement("div");
+      c.id = "a11ychk-overlay";
+      c.style.cssText =
+        "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+      return c;
+    },
+    trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
     let raf = 0;
     const onChange = () => {
       if (!overlay.isConnected) {
@@ -270,10 +115,15 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
     };
     window.addEventListener("scroll", onChange, { passive: true, capture: true });
     window.addEventListener("resize", onChange, { passive: true });
-  }
-  const c = document.createElement("div");
-  c.id = "a11ychk-overlay";
-  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+    },
+  };
+}
+
+/** 위반/구조 마커를 그린다. 기존 오버레이는 지우고 새로 그림 */
+export function overlayMarkersInPage(markers: { selector: string; color: string; label: string }[]): number {
+  const H = (window as unknown as { __a11ychkHelpers?: OverlayHelpers }).__a11ychkHelpers;
+  if (!H) return 0; // 헬퍼 미설치 — runOverlayInPage 경유 호출 필요
+  const c = H.makeOverlay();
   const pairs: [Element, HTMLElement][] = [];
   let drawn = 0;
   // 선택자당 매치 전부에 마커를 그린다(첫 매치만 그리면 중복 선택자에서 위치가 어긋남).
@@ -313,38 +163,14 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
     pairs.push([el, box]);
   }
   document.body.appendChild(c);
-  trackReposition(c, pairs);
+  H.trackReposition(c, pairs);
   return drawn;
 }
 
 /** 구조 시각화 (headings/landmarks/focus)를 페이지에서 계산해 마커 배열 반환 → 그리기 */
 export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus", skippedLabel: string): number {
-  document.getElementById("a11ychk-overlay")?.remove();
-  // 스크롤·리사이즈 추종 (overlayMarkersInPage 상단 주석 참조 — 자기 완결 위해 중첩)
-  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
-    let raf = 0;
-    const onChange = () => {
-      if (!overlay.isConnected) {
-        window.removeEventListener("scroll", onChange, true);
-        window.removeEventListener("resize", onChange);
-        if (raf) cancelAnimationFrame(raf);
-        return;
-      }
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        for (const [el, box] of tracked) {
-          const r = el.getBoundingClientRect();
-          box.style.left = `${r.left + window.scrollX}px`;
-          box.style.top = `${r.top + window.scrollY}px`;
-          box.style.width = `${Math.max(r.width, 4)}px`;
-          box.style.height = `${Math.max(r.height, 4)}px`;
-        }
-      });
-    };
-    window.addEventListener("scroll", onChange, { passive: true, capture: true });
-    window.addEventListener("resize", onChange, { passive: true });
-  }
+  const H = (window as unknown as { __a11ychkHelpers?: OverlayHelpers }).__a11ychkHelpers;
+  if (!H) return 0; // 헬퍼 미설치 — runOverlayInPage 경유 호출 필요
   const markers: { el: Element; color: string; label: string }[] = [];
   if (kind === "headings") {
     const hs = document.querySelectorAll("h1,h2,h3,h4,h5,h6,[role=heading]");
@@ -379,9 +205,7 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
       markers.push({ el: f, color: "#c9761b", label: String(i) });
     });
   }
-  const c = document.createElement("div");
-  c.id = "a11ychk-overlay";
-  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  const c = H.makeOverlay();
   const pairs: [Element, HTMLElement][] = [];
   for (const m of markers) {
     const r = m.el.getBoundingClientRect();
@@ -400,7 +224,7 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
     pairs.push([m.el, box]);
   }
   document.body.appendChild(c);
-  trackReposition(c, pairs);
+  H.trackReposition(c, pairs);
   return markers.length;
 }
 
@@ -446,35 +270,9 @@ export function linearizeInPage(on: boolean): void {
 
 /** 클릭·터치 대상 크기 오버레이 — 각 타깃에 px 크기 표시, 24×24 미만은 빨간색 (WCAG 2.5.8) */
 export function overlayTargetSizeInPage(): number {
-  document.getElementById("a11ychk-overlay")?.remove();
-  // 스크롤·리사이즈 추종 (overlayMarkersInPage 상단 주석 참조 — 자기 완결 위해 중첩)
-  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
-    let raf = 0;
-    const onChange = () => {
-      if (!overlay.isConnected) {
-        window.removeEventListener("scroll", onChange, true);
-        window.removeEventListener("resize", onChange);
-        if (raf) cancelAnimationFrame(raf);
-        return;
-      }
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        for (const [el, box] of tracked) {
-          const r = el.getBoundingClientRect();
-          box.style.left = `${r.left + window.scrollX}px`;
-          box.style.top = `${r.top + window.scrollY}px`;
-          box.style.width = `${Math.max(r.width, 4)}px`;
-          box.style.height = `${Math.max(r.height, 4)}px`;
-        }
-      });
-    };
-    window.addEventListener("scroll", onChange, { passive: true, capture: true });
-    window.addEventListener("resize", onChange, { passive: true });
-  }
-  const c = document.createElement("div");
-  c.id = "a11ychk-overlay";
-  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  const H = (window as unknown as { __a11ychkHelpers?: OverlayHelpers }).__a11ychkHelpers;
+  if (!H) return 0; // 헬퍼 미설치 — runOverlayInPage 경유 호출 필요
+  const c = H.makeOverlay();
   const targets = document.querySelectorAll<HTMLElement>(
     "a[href],button,input:not([type=hidden]),select,textarea,[role=button],[tabindex]:not([tabindex^='-'])",
   );
@@ -503,41 +301,15 @@ export function overlayTargetSizeInPage(): number {
     pairs.push([el, box]);
   });
   document.body.appendChild(c);
-  trackReposition(c, pairs);
+  H.trackReposition(c, pairs);
   return n;
 }
 
 /** 선택자에 맞는 모든 요소를 강조 (수동 점검 항목별 맞춤 강조용) */
 export function overlayQueryInPage(selector: string, tagSome: string, tagNone: string): number {
-  document.getElementById("a11ychk-overlay")?.remove();
-  // 스크롤·리사이즈 추종 (overlayMarkersInPage 상단 주석 참조 — 자기 완결 위해 중첩)
-  function trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void {
-    let raf = 0;
-    const onChange = () => {
-      if (!overlay.isConnected) {
-        window.removeEventListener("scroll", onChange, true);
-        window.removeEventListener("resize", onChange);
-        if (raf) cancelAnimationFrame(raf);
-        return;
-      }
-      if (raf) return;
-      raf = requestAnimationFrame(() => {
-        raf = 0;
-        for (const [el, box] of tracked) {
-          const r = el.getBoundingClientRect();
-          box.style.left = `${r.left + window.scrollX}px`;
-          box.style.top = `${r.top + window.scrollY}px`;
-          box.style.width = `${Math.max(r.width, 4)}px`;
-          box.style.height = `${Math.max(r.height, 4)}px`;
-        }
-      });
-    };
-    window.addEventListener("scroll", onChange, { passive: true, capture: true });
-    window.addEventListener("resize", onChange, { passive: true });
-  }
-  const c = document.createElement("div");
-  c.id = "a11ychk-overlay";
-  c.style.cssText = "all:initial;position:absolute;top:0;left:0;width:0;height:0;z-index:2147483646;pointer-events:none;";
+  const H = (window as unknown as { __a11ychkHelpers?: OverlayHelpers }).__a11ychkHelpers;
+  if (!H) return 0; // 헬퍼 미설치 — runOverlayInPage 경유 호출 필요
+  const c = H.makeOverlay();
   let els: Element[];
   try {
     els = Array.from(document.querySelectorAll(selector));
@@ -567,6 +339,6 @@ export function overlayQueryInPage(selector: string, tagSome: string, tagNone: s
     "font:700 12px sans-serif;padding:5px 11px;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.25);";
   c.appendChild(tag);
   document.body.appendChild(c);
-  trackReposition(c, pairs);
+  H.trackReposition(c, pairs);
   return n;
 }

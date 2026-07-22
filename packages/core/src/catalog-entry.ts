@@ -11,3 +11,4 @@ export * from "./manual/manualChecks";
 export * from "./report/aggregate";
 export * from "./scanner/normalize";
 export * from "./scanner/pageChecks";
+export * from "./scanner/collectSignals";

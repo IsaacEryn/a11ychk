@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { BASE_SCRIPT } from "../src/scanner/customChecks";
-import { collectPageSignals } from "../../../apps/extension/src/injected";
+import { collectPageSignals } from "../src/scanner/collectSignals";
 import type { PageCheckSignals } from "../src/scanner/pageChecks";
 
 /**
- * 드리프트 방지 골든 테스트 — 서버 스캐너(BASE_SCRIPT 문자열)와 크롬 확장
- * (collectPageSignals 함수)은 같은 DOM에서 동일한 PageCheckSignals를
- * 계산해야 한다. 한쪽만 수정하면 이 테스트가 깨진다.
+ * 드리프트 방지 골든 테스트 — 서버 스캐너(BASE_SCRIPT 문자열)와 정본 수집기
+ * (collectSignals.ts의 collectPageSignals — 크롬 확장이 그대로 import)는
+ * 같은 DOM에서 동일한 PageCheckSignals를 계산해야 한다. 한쪽만 수정하면 깨진다.
  */
 
 const FIXTURE = `
