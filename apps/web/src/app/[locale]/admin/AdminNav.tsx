@@ -6,6 +6,7 @@ interface AdminNavLabels {
   label: string;
   dashboard: string;
   users: string;
+  referrals: string;
   scans: string;
   inquiries: string;
   settings: string;
@@ -19,6 +20,7 @@ export function AdminNav({ labels }: { labels: AdminNavLabels }) {
   const items: { href: string; label: string }[] = [
     { href: "/admin", label: labels.dashboard },
     { href: "/admin/users", label: labels.users },
+    { href: "/admin/referrals", label: labels.referrals },
     { href: "/admin/scans", label: labels.scans },
     { href: "/admin/inquiries", label: labels.inquiries },
     { href: "/admin/settings", label: labels.settings },

@@ -18,6 +18,7 @@ export {
 } from "./actions/domains";
 export type { VerifyDomainState, CloudflareState } from "./actions/domains";
 
+export { submitReferralAppeal } from "./actions/referral";
 export { saveReview, saveReportMeta, savePublicView, toggleShareLink } from "./actions/reports";
 export type { ShareState } from "./actions/reports";
 
@@ -30,6 +31,9 @@ export {
   bulkSetPlan,
   bulkSetPages,
   replyInquiry,
+  approveReferral,
+  rejectReferral,
+  clearEarnedPlan,
 } from "./actions/admin";
 export type { ResetQuotaState } from "./actions/admin";
 

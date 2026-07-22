@@ -8,7 +8,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
  * 실패 시 바로 반환할 NextResponse를 돌려준다 (라우트에서 instanceof로 분기).
  */
 export async function requireExtensionUser(request: Request): Promise<
-  | { admin: SupabaseClient; user: User; profile: { blocked: boolean; scan_limit_override: unknown } }
+  | {
+      admin: SupabaseClient;
+      user: User;
+      profile: { blocked: boolean; scan_limit_override: unknown; earned_plan?: unknown; referral_daily_bonus?: unknown };
+    }
   | NextResponse
 > {
   const authz = request.headers.get("authorization") ?? "";
@@ -23,7 +27,7 @@ export async function requireExtensionUser(request: Request): Promise<
 
   const { data: profile } = await admin
     .from("profiles")
-    .select("blocked, scan_limit_override")
+    .select("blocked, scan_limit_override, earned_plan, referral_daily_bonus")
     .eq("id", userData.user.id)
     .single();
   if (!profile || profile.blocked) {

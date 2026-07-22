@@ -6,10 +6,11 @@ import {
   EXT_DAILY_LIMITS,
   MAX_PAGES_PER_SCAN,
   PLANS,
-  PLAN_IDS,
+  ASSIGNABLE_PLAN_IDS,
   getCustomLimits,
   getCustomPages,
   getPlan,
+  getEarnedPlan,
   resolveLimits,
 } from "@/lib/quota";
 import { QuotaResetForm } from "../QuotaResetForm";
@@ -41,7 +42,7 @@ export default async function AdminUsersPage({
   const plansActive = await getPlansActive(admin);
   let query = admin
     .from("profiles")
-    .select("id, nickname, role, blocked, created_at, scan_limit_override")
+    .select("id, nickname, role, blocked, created_at, scan_limit_override, earned_plan, referral_daily_bonus")
     .order("created_at", { ascending: false })
     .limit(100);
   const search = (q ?? "").trim();
@@ -104,7 +105,14 @@ export default async function AdminUsersPage({
       <ul className="mt-5 space-y-4">
         {(allUsers ?? []).map((u) => {
           const plan = getPlan(u.scan_limit_override);
-          const limits = resolveLimits(u.scan_limit_override, plansActive);
+          const earned = getEarnedPlan((u as { earned_plan?: unknown }).earned_plan);
+          const rawBonus = (u as { referral_daily_bonus?: unknown }).referral_daily_bonus;
+          const limits = resolveLimits(
+            u.scan_limit_override,
+            plansActive,
+            earned,
+            typeof rawBonus === "number" ? rawBonus : 0,
+          );
           // 관리자 개별 지정 확장 한도 — 없으면 undefined(등급 기본 사용)
           const rawExt = (u.scan_limit_override as Record<string, unknown> | null)?.extDaily;
           const extOverride = typeof rawExt === "number" && Number.isInteger(rawExt) && rawExt >= 0 ? rawExt : undefined;
@@ -118,6 +126,11 @@ export default async function AdminUsersPage({
                 {u.blocked && (
                   <span className="rounded-full bg-[var(--color-crit-tint)] px-2 py-0.5 text-xs font-bold text-[var(--color-crit)]">
                     {t("users.blockedBadge")}
+                  </span>
+                )}
+                {earned && (
+                  <span className="rounded-full bg-[var(--color-seal-tint)] px-2 py-0.5 text-xs font-bold text-[var(--color-seal)]">
+                    {t(`users.earned.${earned}`)}
                   </span>
                 )}
                 <span className="ml-auto text-xs tabular-nums text-[var(--color-ink-faint)]">
@@ -142,7 +155,7 @@ export default async function AdminUsersPage({
                 extDailyDefault={EXT_DAILY_LIMITS[plan]}
                 effective={limits}
                 maxPages={MAX_PAGES_PER_SCAN}
-                planOptions={PLAN_IDS.map((p) => ({
+                planOptions={ASSIGNABLE_PLAN_IDS.map((p) => ({
                   id: p,
                   label: t(`users.plans.${p}`),
                   limits: PLANS[p],

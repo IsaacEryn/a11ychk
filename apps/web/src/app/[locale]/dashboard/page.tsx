@@ -8,7 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { foldHost } from "@/lib/host";
-import { checkQuota, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
+import { checkQuota, getEarnedPlan, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { toggleAutoScan, toggleNotify } from "@/lib/actions";
 import { AddDomainForm, DeleteDomainButton } from "./DomainForms";
@@ -43,7 +43,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   await reclaimStaleScans(createAdminClient(), { userId: user.id });
 
   const [{ data: profile }, { data: domains }, { data: scans }, { data: trendRows }] = await Promise.all([
-    supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
+    supabase.from("profiles").select("nickname, scan_limit_override, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
     supabase.from("domains").select("*").eq("user_id", user.id).order("created_at"),
     supabase.from("scans").select("id, root_url, status, created_at, summary, title:report_meta->>title").eq("user_id", user.id).order("created_at", { ascending: false }).limit(8),
     // 추이용 — summary 전체 대신 점수만 뽑아 가볍게 (최근 완료 검사 60건)
@@ -56,8 +56,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
       .limit(60),
   ]);
 
-  // 등급별 소유 확인 도메인 수 한도 (실제 요금제 시행 전이라도 배정 등급으로 즉시 적용)
-  const verifyLimit = getVerifiedDomainLimit(profile?.scan_limit_override);
+  // 달성 등급·피초대 보너스 (migration 0024 — 컬럼 부재 시 undefined → 기본 동작)
+  const earned = getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan);
+  const rawBonus = (profile as { referral_daily_bonus?: unknown } | null)?.referral_daily_bonus;
+  const dailyBonus = typeof rawBonus === "number" ? rawBonus : 0;
+
+  // 등급별 소유 확인 도메인 수 한도 (배정·달성 등급 중 높은 쪽 즉시 적용)
+  const verifyLimit = getVerifiedDomainLimit(profile?.scan_limit_override, earned);
   const verifiedCount = (domains ?? []).filter((d) => d.verified).length;
   const atVerifyLimit = verifiedCount >= verifyLimit;
 
@@ -183,7 +188,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const quota = await checkQuota(
     admin,
     user.id,
-    resolveLimits(profile?.scan_limit_override, plansActive),
+    resolveLimits(profile?.scan_limit_override, plansActive, earned, dailyBonus),
     getResets(profile?.scan_limit_override),
   );
 

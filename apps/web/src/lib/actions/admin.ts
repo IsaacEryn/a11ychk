@@ -230,3 +230,74 @@ export async function replyInquiry(formData: FormData): Promise<void> {
   await logAdminAction(admin, actor.id, "inquiry.reply", id.data);
   revalidateLocalized("/contact", "/admin/inquiries");
 }
+
+// ─────────────── 초대 관리 (referrals — migration 0024) ───────────────
+
+/** 의심(suspect) 초대 건 승인 → valid 전환 + 목표 도달 시 승급 재평가 */
+export async function approveReferral(formData: FormData): Promise<void> {
+  const { user: actor } = await requireAdmin();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("referrals")
+    .update({ status: "valid", validated_at: new Date().toISOString(), suspect_reason: null })
+    .eq("id", id.data)
+    .eq("status", "suspect")
+    .select("referrer_id");
+  const referrerId = data?.[0]?.referrer_id as string | undefined;
+  if (referrerId) {
+    await logAdminAction(admin, actor.id, "referral.approve", id.data);
+    const { REFERRAL_VALID_GOAL } = await import("@/lib/referral/constants");
+    const { count } = await admin
+      .from("referrals")
+      .select("id", { count: "exact", head: true })
+      .eq("referrer_id", referrerId)
+      .eq("status", "valid");
+    if ((count ?? 0) >= REFERRAL_VALID_GOAL) {
+      const { maybePromoteToPlus1 } = await import("@/lib/referral/promote");
+      await maybePromoteToPlus1(admin, referrerId);
+    }
+  }
+  revalidateLocalized("/admin/referrals");
+}
+
+/** 의심 초대 건 기각 → rejected + 피초대자 가입 보너스 회수 (부정 건 베네핏 박탈) */
+export async function rejectReferral(formData: FormData): Promise<void> {
+  const { user: actor } = await requireAdmin();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("referrals")
+    .update({ status: "rejected" })
+    .eq("id", id.data)
+    .eq("status", "suspect")
+    .select("invitee_id");
+  if (data && data.length > 0) {
+    const inviteeId = data[0]?.invitee_id as string | null;
+    if (inviteeId) {
+      await admin.from("profiles").update({ referral_daily_bonus: 0 }).eq("id", inviteeId);
+    }
+    await logAdminAction(admin, actor.id, "referral.reject", id.data);
+  }
+  revalidateLocalized("/admin/referrals");
+}
+
+/** 달성 등급(earned_plan) 해제 — 어뷰즈 확정 시 제재용 */
+export async function clearEarnedPlan(formData: FormData): Promise<void> {
+  const { user: actor } = await requireAdmin();
+  const id = z.string().uuid().safeParse(formData.get("userId"));
+  if (!id.success) return;
+  const admin = createAdminClient();
+  const { data } = await admin
+    .from("profiles")
+    .update({ earned_plan: null })
+    .eq("id", id.data)
+    .not("earned_plan", "is", null)
+    .select("id");
+  if (data && data.length > 0) {
+    await logAdminAction(admin, actor.id, "referral.clearEarned", id.data);
+  }
+  revalidateLocalized("/admin/users", "/admin/referrals");
+}

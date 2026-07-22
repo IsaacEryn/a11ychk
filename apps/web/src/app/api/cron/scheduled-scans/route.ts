@@ -3,6 +3,8 @@ import { assertPublicHttpUrl } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainQueue } from "@/lib/scan/drain";
 import { DEFAULT_SCOPE, createScanForUser } from "@/lib/scan/createScan";
+import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
+import { maybePromoteToPlus2 } from "@/lib/referral/promote";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
 
@@ -101,5 +103,59 @@ export async function GET(request: Request) {
   // 상한 초과분은 각 검사 완료 시 run-scan 엔드포인트의 재드레인이 이어서 처리한다.
   await drainQueue();
 
-  return NextResponse.json({ processed: results.length, results, cleaned });
+  // ── 초대 시스템 일일 보정 (migration 0024 — 미적용 환경은 조용히 건너뜀, best-effort) ──
+  const referral = { revalidated: 0, plus2Checked: 0, ipPurged: 0 };
+  try {
+    // 1) velocity로 미뤄진 pending 재처리 — 이미 검사를 실행한 피초대자만 성립 재시도
+    const { data: pendings } = await admin
+      .from("referrals")
+      .select("invitee_id")
+      .eq("status", "pending")
+      .not("invitee_id", "is", null)
+      .limit(50);
+    for (const p of pendings ?? []) {
+      const inviteeId = p.invitee_id as string;
+      const { count } = await admin
+        .from("scans")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", inviteeId);
+      if ((count ?? 0) > 0) {
+        await markReferralValidOnFirstScan(admin, inviteeId);
+        referral.revalidated++;
+      }
+    }
+
+    // 2) plus2 조건 보정 — 훅 누락(레이스·과거 데이터) 대비 일일 재평가
+    const { data: publicDomains } = await admin
+      .from("domains")
+      .select("user_id")
+      .eq("verified", true)
+      .eq("public_listed", true)
+      .limit(200);
+    const ownerIds = [...new Set((publicDomains ?? []).map((d) => d.user_id as string))];
+    if (ownerIds.length > 0) {
+      const { data: owners } = await admin
+        .from("profiles")
+        .select("id, earned_plan")
+        .in("id", ownerIds)
+        .or("earned_plan.is.null,earned_plan.eq.plus1");
+      for (const o of owners ?? []) {
+        await maybePromoteToPlus2(admin, o.id as string);
+        referral.plus2Checked++;
+      }
+    }
+
+    // 3) 가입 IP 스냅샷 90일 파기 — 판정 근거 보존 기간 종료(개인정보처리방침과 일관)
+    const { data: purged } = await admin
+      .from("referrals")
+      .update({ signup_ip: null })
+      .lt("created_at", logCutoff)
+      .not("signup_ip", "is", null)
+      .select("id");
+    referral.ipPurged = purged?.length ?? 0;
+  } catch {
+    // 테이블 부재(0024 미적용) 등 — 다음 크론에서 재시도
+  }
+
+  return NextResponse.json({ processed: results.length, results, cleaned, referral });
 }

@@ -25,6 +25,11 @@ export const PLANS = {
   // free/pro/enterprise만 요금제 페이지에 공개 — plus(우수 사용자·파트너 보상)와
   // unlimited(운영자 전용)는 관리자 배정으로만 부여하는 내부 등급.
   free: { daily: 3, weekly: 5, monthly: 10, sampleSize: 5 },
+  // plus1/plus2 — 초대·활동으로 자동 달성하는 등급(profiles.earned_plan).
+  // 관리자 배정(plan 키) 대상이 아니므로 ASSIGNABLE_PLAN_IDS에서 제외된다.
+  plus1: { daily: 5, weekly: 6, monthly: 15, sampleSize: 5 },
+  plus2: { daily: 5, weekly: 8, monthly: 20, sampleSize: 8 },
+  // plus — 관리자 배정용 내부 등급(한도는 plus2와 동일, 하위 호환 유지)
   plus: { daily: 5, weekly: 8, monthly: 20, sampleSize: 8 },
   pro: { daily: 5, weekly: 10, monthly: 30, sampleSize: 10 },
   enterprise: { daily: 20, weekly: 30, monthly: 100, sampleSize: 20 },
@@ -36,6 +41,22 @@ export const PLANS = {
 export type PlanId = keyof typeof PLANS;
 export const PLAN_IDS = Object.keys(PLANS) as PlanId[];
 export const DEFAULT_PLAN: PlanId = "free";
+
+/** 초대·활동으로 달성하는 등급 (profiles.earned_plan) — plansActive와 무관하게 항상 적용 */
+export const EARNED_PLAN_IDS = ["plus1", "plus2"] as const;
+export type EarnedPlanId = (typeof EARNED_PLAN_IDS)[number];
+
+/** profiles.earned_plan 값 검증 — 그 외 값(구 'plus' 포함)은 null */
+export function getEarnedPlan(value: unknown): EarnedPlanId | null {
+  return typeof value === "string" && (EARNED_PLAN_IDS as readonly string[]).includes(value)
+    ? (value as EarnedPlanId)
+    : null;
+}
+
+/** 관리자 배정 select용 등급 목록 — 달성 전용(plus1/plus2)은 제외 */
+export const ASSIGNABLE_PLAN_IDS = PLAN_IDS.filter(
+  (p) => !(EARNED_PLAN_IDS as readonly string[]).includes(p),
+);
 
 /** 기본 한도 = free 요금제 */
 export const DEFAULT_SCAN_LIMITS: ScanLimits = {
@@ -54,6 +75,8 @@ export const VERIFIED_FREE_SAMPLE_SIZE = 10;
  */
 export const DOMAIN_VERIFY_LIMITS: Record<PlanId, number> = {
   free: 1,
+  plus1: 1,
+  plus2: 2,
   plus: 2,
   pro: 3,
   enterprise: 10,
@@ -62,12 +85,14 @@ export const DOMAIN_VERIFY_LIMITS: Record<PlanId, number> = {
 
 /**
  * 사용자가 소유 확인할 수 있는 도메인 수.
- * 우선순위: 관리자 지정 개별 숫자(scan_limit_override.verifiedDomains) > 배정 등급 기본값.
+ * 우선순위: 관리자 지정 개별 숫자(scan_limit_override.verifiedDomains)
+ * > max(배정 등급 기본값, 달성 등급(earned) 기본값 — plansActive 무관 항상 적용).
  */
-export function getVerifiedDomainLimit(override: unknown): number {
+export function getVerifiedDomainLimit(override: unknown, earned: EarnedPlanId | null = null): number {
   const v = asRecord(override).verifiedDomains;
   if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
-  return DOMAIN_VERIFY_LIMITS[getPlan(override)];
+  const base = DOMAIN_VERIFY_LIMITS[getPlan(override)];
+  return earned ? Math.max(base, DOMAIN_VERIFY_LIMITS[earned]) : base;
 }
 
 /** 스캔 1회당 절대 최대 표본 페이지 수 (하드 캡) — Vercel 함수 실행 시간 한도 고려 */
@@ -79,17 +104,20 @@ export const MAX_PAGES_PER_SCAN = 30;
  */
 export const EXT_DAILY_LIMITS: Record<PlanId, number> = {
   free: 10,
+  plus1: 12,
+  plus2: 15,
   plus: 15,
   pro: 20,
   enterprise: 30,
   unlimited: 1000,
 };
 
-/** 확장 일일 한도 — 관리자 지정 개별값(scan_limit_override.extDaily) > 배정 등급 기본값 */
-export function getExtDailyLimit(override: unknown): number {
+/** 확장 일일 한도 — 관리자 지정 개별값(scan_limit_override.extDaily) > max(배정, 달성 등급) */
+export function getExtDailyLimit(override: unknown, earned: EarnedPlanId | null = null): number {
   const v = asRecord(override).extDaily;
   if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
-  return EXT_DAILY_LIMITS[getPlan(override)];
+  const base = EXT_DAILY_LIMITS[getPlan(override)];
+  return earned ? Math.max(base, EXT_DAILY_LIMITS[earned]) : base;
 }
 
 export interface ExtUsageResult {
@@ -153,12 +181,21 @@ export function getCustomPages(override: unknown): number | undefined {
  * 3. free 기본 — 소유확인 10p / 그 외 5p (현행 유지)
  * 모두 MAX_PAGES_PER_SCAN(30)으로 클램프.
  */
-export function getSampleSize(opts: { override: unknown; verified: boolean; plansActive: boolean }): number {
+export function getSampleSize(opts: {
+  override: unknown;
+  verified: boolean;
+  plansActive: boolean;
+  /** 달성 등급 — plansActive 무관하게 max로 병합 (free 소유확인 10p vs plus1 5p 등은 max가 자연 해결) */
+  earned?: EarnedPlanId | null;
+}): number {
   const pages = getCustomPages(opts.override);
   let size: number;
   if (pages !== undefined) size = opts.verified ? pages * 2 : pages;
-  else if (opts.plansActive) size = PLANS[getPlan(opts.override)].sampleSize;
-  else size = opts.verified ? VERIFIED_FREE_SAMPLE_SIZE : PLANS.free.sampleSize;
+  else {
+    if (opts.plansActive) size = PLANS[getPlan(opts.override)].sampleSize;
+    else size = opts.verified ? VERIFIED_FREE_SAMPLE_SIZE : PLANS.free.sampleSize;
+    if (opts.earned) size = Math.max(size, PLANS[opts.earned].sampleSize);
+  }
   return Math.min(size, MAX_PAGES_PER_SCAN);
 }
 
@@ -172,14 +209,26 @@ export function getPlan(override: unknown): PlanId {
 }
 
 /**
- * 최종 한도 계산 (우선순위): 사용자별 개별 숫자 override > 요금제 한도 > 기본값.
- * 요금제가 비활성(plansActive=false, 기본)이면 배정 요금제를 무시하고 free 한도를 쓰되,
- * 관리자가 지정한 개별 숫자 override는 항상 적용된다.
+ * 최종 한도 계산 (우선순위): 사용자별 개별 숫자 override > 요금제/달성 등급 한도 > 기본값.
+ * - 배정 요금제는 plansActive=false(기본)면 무시(free) — 유료화 전 게이트
+ * - 달성 등급(earned — 초대·활동 자동 승급)은 plansActive와 무관하게 항상 창별 max로 병합
+ * - dailyBonus(초대받은 가입 보너스)는 daily에만 가산 — 단 daily 개별 override가 있으면
+ *   관리자 명시값을 존중해 가산하지 않는다
  */
-export function resolveLimits(override: unknown, plansActive = false): ScanLimits {
+export function resolveLimits(
+  override: unknown,
+  plansActive = false,
+  earned: EarnedPlanId | null = null,
+  dailyBonus = 0,
+): ScanLimits {
   const o = asRecord(override);
   const plan = plansActive ? PLANS[getPlan(override)] : PLANS.free;
   const base: ScanLimits = { daily: plan.daily, weekly: plan.weekly, monthly: plan.monthly };
+  if (earned) {
+    const e = PLANS[earned];
+    for (const key of QUOTA_WINDOWS) base[key] = Math.max(base[key], e[key]);
+  }
+  if (dailyBonus > 0) base.daily += dailyBonus;
   for (const key of QUOTA_WINDOWS) {
     const v = o[key];
     if (typeof v === "number" && Number.isFinite(v) && v >= 0) base[key] = v;

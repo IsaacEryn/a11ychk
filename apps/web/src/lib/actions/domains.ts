@@ -5,7 +5,8 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardedFetch } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getVerifiedDomainLimit } from "@/lib/quota";
+import { getEarnedPlan, getVerifiedDomainLimit } from "@/lib/quota";
+import { maybePromoteToPlus2 } from "@/lib/referral/promote";
 import { setupCloudflareTxt } from "@/lib/cloudflare";
 import { scanUrlMatchesHost } from "@/lib/host";
 import { requireUser, revalidateLocalized, type SaveState } from "./shared";
@@ -181,6 +182,8 @@ export async function setPublicReport(_prev: SaveState, formData: FormData): Pro
   }
 
   if (!(await applyUpdate({ public_listed: true, listed_at: new Date().toISOString(), public_scan_id: publicScanId }))) return { error: "failed" };
+  // 달성 등급(plus2) 조건 검사 — 소유확인+보고서 공개 (best-effort)
+  await maybePromoteToPlus2(admin, user.id);
   revalidateLocalized("/dashboard", "/directory");
   return { ok: true };
 }
@@ -207,10 +210,13 @@ async function checkVerifyCapacity(
 ): Promise<{ limit: number } | null> {
   const { data: profile } = await supabase
     .from("profiles")
-    .select("scan_limit_override")
+    .select("scan_limit_override, earned_plan")
     .eq("id", userId)
     .single();
-  const limit = getVerifiedDomainLimit(profile?.scan_limit_override);
+  const limit = getVerifiedDomainLimit(
+    profile?.scan_limit_override,
+    getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan),
+  );
   const { count } = await supabase
     .from("domains")
     .select("id", { count: "exact", head: true })
@@ -242,7 +248,10 @@ export async function verifyDomain(_prev: VerifyDomainState, formData: FormData)
   if (!method) return { status: "failed" };
 
   // verified 갱신은 service role로 (domains에 UPDATE RLS 없음, 소유자 필터 명시)
-  await createAdminClient().from("domains").update({ verified: true, verify_method: method }).eq("id", domain.id);
+  const verifiedAdmin = createAdminClient();
+  await verifiedAdmin.from("domains").update({ verified: true, verify_method: method }).eq("id", domain.id);
+  // 달성 등급(plus2) 조건 검사 — 소유확인+보고서 공개 (best-effort)
+  await maybePromoteToPlus2(verifiedAdmin, user.id);
   revalidateLocalized("/dashboard", "/scan");
   return { status: "verified", method };
 }
@@ -334,7 +343,10 @@ export async function setupCloudflareDns(_prev: CloudflareState, formData: FormD
   try {
     const records = await resolveTxt(recordName);
     if (records.some((chunks) => chunks.join("").trim() === domain.verify_token)) {
-      await createAdminClient().from("domains").update({ verified: true, verify_method: "dns_txt" }).eq("id", domain.id);
+      const cfAdmin = createAdminClient();
+      await cfAdmin.from("domains").update({ verified: true, verify_method: "dns_txt" }).eq("id", domain.id);
+      // 달성 등급(plus2) 조건 검사 (best-effort)
+      await maybePromoteToPlus2(cfAdmin, user.id);
       revalidateLocalized("/dashboard", "/scan");
       return { status: "verified" };
     }

@@ -1,14 +1,18 @@
 import { describe, expect, it } from "vitest";
 import {
+  ASSIGNABLE_PLAN_IDS,
   DEFAULT_SCAN_LIMITS,
+  DOMAIN_VERIFY_LIMITS,
   EXT_DAILY_LIMITS,
   MAX_PAGES_PER_SCAN,
   PLANS,
   getCustomPages,
+  getEarnedPlan,
   getExtDailyLimit,
   getPlan,
   getResets,
   getSampleSize,
+  getVerifiedDomainLimit,
   resolveLimits,
 } from "../src/lib/quota";
 
@@ -40,6 +44,32 @@ describe("resolveLimits — 우선순위: 개별 override > 요금제 > 기본",
     expect(resolveLimits({ daily: -1 }).daily).toBe(DEFAULT_SCAN_LIMITS.daily);
     expect(resolveLimits({ daily: "10" }).daily).toBe(DEFAULT_SCAN_LIMITS.daily);
   });
+
+  it("달성 등급(earned)은 요금제 비활성에도 항상 적용 — plus1 = 5/6/15", () => {
+    expect(resolveLimits(null, false, "plus1")).toEqual({ daily: 5, weekly: 6, monthly: 15 });
+    expect(resolveLimits(null, false, "plus2")).toEqual({ daily: 5, weekly: 8, monthly: 20 });
+  });
+
+  it("배정 등급과 earned는 창별 max로 병합 (pro 활성 + plus1 → pro)", () => {
+    expect(resolveLimits({ plan: "pro" }, true, "plus1")).toEqual({
+      daily: PLANS.pro.daily,
+      weekly: PLANS.pro.weekly,
+      monthly: PLANS.pro.monthly,
+    });
+  });
+
+  it("개별 override는 earned보다도 우선 (0 포함)", () => {
+    expect(resolveLimits({ daily: 1 }, false, "plus2").daily).toBe(1);
+    expect(resolveLimits({ daily: 0 }, false, "plus2").daily).toBe(0);
+    expect(resolveLimits({ daily: 1 }, false, "plus2").weekly).toBe(PLANS.plus2.weekly);
+  });
+
+  it("피초대 보너스는 daily에만 +1, daily override가 있으면 미가산", () => {
+    expect(resolveLimits(null, false, null, 1)).toEqual({ daily: 4, weekly: 5, monthly: 10 });
+    expect(resolveLimits(null, false, "plus1", 1).daily).toBe(6); // earned와 조합
+    expect(resolveLimits({ daily: 7 }, false, null, 1).daily).toBe(7); // 관리자 명시값 존중
+    expect(resolveLimits(null, false, null, 1).weekly).toBe(DEFAULT_SCAN_LIMITS.weekly);
+  });
 });
 
 describe("getSampleSize — 표본 크기 정책", () => {
@@ -65,6 +95,13 @@ describe("getSampleSize — 표본 크기 정책", () => {
     expect(getSampleSize({ override: { plan: "pro" }, verified: false, plansActive: true })).toBe(
       PLANS.pro.sampleSize,
     );
+  });
+
+  it("earned는 max로 병합 — plus2 미확인 8p, free 소유확인 10p vs plus1 5p는 10p 유지", () => {
+    expect(getSampleSize({ override: null, verified: false, plansActive: false, earned: "plus2" })).toBe(8);
+    expect(getSampleSize({ override: null, verified: true, plansActive: false, earned: "plus1" })).toBe(10);
+    // pages override는 earned보다 우선
+    expect(getSampleSize({ override: { pages: 3 }, verified: false, plansActive: false, earned: "plus2" })).toBe(3);
   });
 });
 
@@ -93,5 +130,36 @@ describe("getPlan / getCustomPages / getExtDailyLimit / getResets", () => {
     const iso = new Date().toISOString();
     expect(getResets({ dailyResetAt: iso })).toEqual({ daily: iso });
     expect(getResets({ dailyResetAt: "not-a-date" })).toEqual({});
+  });
+});
+
+describe("달성 등급(earned) — getEarnedPlan / 확장·소유확인 한도 병합", () => {
+  it("getEarnedPlan은 plus1/plus2만 인정 (구 plus·임의값은 null)", () => {
+    expect(getEarnedPlan("plus1")).toBe("plus1");
+    expect(getEarnedPlan("plus2")).toBe("plus2");
+    expect(getEarnedPlan("plus")).toBeNull();
+    expect(getEarnedPlan("vip")).toBeNull();
+    expect(getEarnedPlan(null)).toBeNull();
+    expect(getEarnedPlan(undefined)).toBeNull();
+  });
+
+  it("관리자 배정 목록에는 달성 전용 등급이 없다", () => {
+    expect(ASSIGNABLE_PLAN_IDS).not.toContain("plus1");
+    expect(ASSIGNABLE_PLAN_IDS).not.toContain("plus2");
+    expect(ASSIGNABLE_PLAN_IDS).toContain("free");
+    expect(ASSIGNABLE_PLAN_IDS).toContain("plus");
+  });
+
+  it("확장 일일 한도 — earned와 배정 중 max, 개별 override 우선", () => {
+    expect(getExtDailyLimit(null, "plus1")).toBe(EXT_DAILY_LIMITS.plus1);
+    expect(getExtDailyLimit({ plan: "enterprise" }, "plus1")).toBe(EXT_DAILY_LIMITS.enterprise);
+    expect(getExtDailyLimit({ extDaily: 5 }, "plus2")).toBe(5);
+  });
+
+  it("소유확인 도메인 수 — earned=plus2면 2, 배정이 더 크면 배정", () => {
+    expect(getVerifiedDomainLimit(null)).toBe(DOMAIN_VERIFY_LIMITS.free);
+    expect(getVerifiedDomainLimit(null, "plus2")).toBe(2);
+    expect(getVerifiedDomainLimit({ plan: "enterprise" }, "plus2")).toBe(DOMAIN_VERIFY_LIMITS.enterprise);
+    expect(getVerifiedDomainLimit({ verifiedDomains: 1 }, "plus2")).toBe(1);
   });
 });

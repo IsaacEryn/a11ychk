@@ -83,6 +83,64 @@ export async function sendAdminInquiryAlert(title: string, nickname: string | nu
   return ok;
 }
 
+/**
+ * 등급 자동 승급 알림 — 초대 목표 달성(plus1)·도메인 소유확인+보고서 공개(plus2) 시 1통.
+ * best-effort: 실패해도 승급 자체는 유지(마이페이지 배지로 확인 가능).
+ */
+export async function sendPlanUpgradeEmail(
+  to: string,
+  plan: "plus1" | "plus2",
+  locale: "ko" | "en" = "ko",
+): Promise<boolean> {
+  const en = locale === "en";
+  const planLabel = plan === "plus1" ? (en ? "Plus 1" : "플러스1") : en ? "Plus 2" : "플러스2";
+  const reason =
+    plan === "plus1"
+      ? en
+        ? "You reached 5 valid invitations."
+        : "유효 초대 5명을 달성했습니다."
+      : en
+        ? "You verified a domain and published a report."
+        : "도메인 소유확인과 보고서 공개를 완료했습니다.";
+  const perks =
+    plan === "plus1"
+      ? en
+        ? "Daily 5 · Weekly 6 · Monthly 15 scans, 12 extension scans/day"
+        : "검사 일 5회 · 주 6회 · 월 15회, 확장 검사 일 12회"
+      : en
+        ? "Daily 5 · Weekly 8 · Monthly 20 scans, 8 pages per scan, 2 verified domains, 15 extension scans/day"
+        : "검사 일 5회 · 주 8회 · 월 20회, 검사당 8페이지, 소유확인 2개, 확장 검사 일 15회";
+  const subject = en
+    ? `[A11y Check] Your plan is upgraded to ${planLabel}`
+    : `[A11y Check] ${planLabel} 등급으로 승급되었습니다`;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
+
+  const html = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:24px 0">
+  <tr><td align="center">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422">
+      <tr><td style="padding:28px 32px 8px"><img src="https://www.a11ychk.com/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
+      <tr><td style="padding:8px 32px">
+        <p style="margin:0;font-size:16px;font-weight:700">${en ? `You're now ${planLabel} 🎉` : `${planLabel} 등급이 되었습니다 🎉`}</p>
+        <p style="margin:12px 0 0;font-size:14px;line-height:1.6">${escapeHtml(reason)}</p>
+        <p style="margin:8px 0 0;font-size:14px;line-height:1.6"><b>${en ? "New limits" : "새 한도"}:</b> ${escapeHtml(perks)}</p>
+      </td></tr>
+      <tr><td style="padding:20px 32px 28px">
+        <a href="${siteUrl}/${locale}/mypage" style="display:inline-block;background:#0b5d54;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">${en ? "View my page" : "마이페이지에서 확인"}</a>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
+
+  const ok = await sendEmail({ to, subject, html });
+  if (!ok) {
+    await logAppError(createAdminClient(), `plan upgrade mail send failed: ${plan}`, {
+      path: "notify.sendPlanUpgradeEmail",
+    });
+  }
+  return ok;
+}
+
 /** Resend 발송 공통부 — 키 미설정 시 false(no-op) */
 async function sendEmail(msg: { to: string; subject: string; html: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;

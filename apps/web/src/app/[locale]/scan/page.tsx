@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
+import { checkQuota, getEarnedPlan, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { ScanForm } from "./ScanForm";
 
@@ -26,7 +26,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
   if (!user) redirect(`/${locale}/login`);
 
   const [{ data: profile }, { data: verifiedDomains }, { data: recentScans }] = await Promise.all([
-    supabase.from("profiles").select("scan_limit_override").eq("id", user.id).single(),
+    supabase.from("profiles").select("scan_limit_override, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
     supabase.from("domains").select("hostname").eq("user_id", user.id).eq("verified", true),
     // 최근 검사 URL — 재검사가 잦은 실무 흐름용 자동완성
     supabase
@@ -38,17 +38,22 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
       .limit(20),
   ]);
 
+  // 달성 등급·피초대 보너스 (migration 0024 — 컬럼 부재 시 undefined → 기본 동작)
+  const earned = getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan);
+  const rawBonus = (profile as { referral_daily_bonus?: unknown } | null)?.referral_daily_bonus;
+  const dailyBonus = typeof rawBonus === "number" ? rawBonus : 0;
+
   const admin = createAdminClient();
   const plansActive = await getPlansActive(admin);
   const quota = await checkQuota(
     admin,
     user.id,
-    resolveLimits(profile?.scan_limit_override, plansActive),
+    resolveLimits(profile?.scan_limit_override, plansActive, earned, dailyBonus),
     getResets(profile?.scan_limit_override),
   );
   // 직접 입력 상한 — 소유 확인 여부에 따라 다르므로 두 값을 모두 넘겨 폼이 도메인별로 판단
-  const verifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: true, plansActive });
-  const unverifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive });
+  const verifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: true, plansActive, earned });
+  const unverifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive, earned });
   const verifiedHostnames = (verifiedDomains ?? []).map((d) => d.hostname);
   const recentUrls = [...new Set((recentScans ?? []).map((r) => r.root_url as string))].slice(0, 5);
 

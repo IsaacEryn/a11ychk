@@ -3,8 +3,9 @@ import { z } from "zod";
 import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, type PageScanResult } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireExtensionUser } from "@/lib/apiAuth";
+import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
-import { consumeExtUsage, getExtDailyLimit } from "@/lib/quota";
+import { consumeExtUsage, getEarnedPlan, getExtDailyLimit } from "@/lib/quota";
 import { reaggregate } from "@/lib/scan/runScan";
 
 // via 컬럼(migration 0009) 존재 여부 — 모듈 스코프 캐시로 요청당 프로브 쿼리 제거
@@ -88,7 +89,7 @@ export async function POST(request: Request) {
   // 3) 확장 한도 — 웹 검사 한도와 분리된 확장 전용 한도.
   //    저장이 서버 자원을 소비하는 지점이므로 여기서 원자적으로 소비한다
   //    (클라이언트가 별도 소비 호출을 생략해도 한도를 우회할 수 없음).
-  const extLimit = getExtDailyLimit(profile.scan_limit_override);
+  const extLimit = getExtDailyLimit(profile.scan_limit_override, getEarnedPlan(profile.earned_plan));
   const usage = await consumeExtUsage(admin, user.id, extLimit);
   if (usage.error) {
     return apiError(locale, "usageFailed", 500);
@@ -207,6 +208,8 @@ export async function POST(request: Request) {
     await saveReviews(admin, target.id, parsed.data.reviews);
     // 보고서 요약 재집계 (확장 페이지 + 판정 포함)
     await reaggregate(admin, target.id);
+    // 초대 성립 훅 — 확장 검사 저장도 첫 실사용으로 인정 (멱등·best-effort)
+    await markReferralValidOnFirstScan(admin, user.id);
     return NextResponse.json({ id: target.id, merged: true, rootUrl: target.root_url }, { status: 201 });
   }
 
@@ -252,6 +255,9 @@ export async function POST(request: Request) {
   await saveReviews(admin, scan.id, parsed.data.reviews);
   // 판정이 있으면 summary.scores 갱신을 위해 재집계
   if (parsed.data.reviews && parsed.data.reviews.length > 0) await reaggregate(admin, scan.id);
+
+  // 초대 성립 훅 — 확장 검사 저장도 첫 실사용으로 인정 (멱등·best-effort)
+  await markReferralValidOnFirstScan(admin, user.id);
 
   return NextResponse.json({ id: scan.id, merged: false }, { status: 201 });
 }

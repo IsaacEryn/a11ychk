@@ -3,11 +3,14 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getResets, resolveLimits } from "@/lib/quota";
+import { checkQuota, getEarnedPlan, getResets, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
+import { ensureReferralCode } from "@/lib/referral/code";
+import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL } from "@/lib/referral/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
 import { PreferredStandardForm } from "./PreferredStandardForm";
+import { ReferralCard, type ReferralRow } from "./ReferralCard";
 import type { ScanSummary } from "@a11ychk/core/catalog";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -30,7 +33,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   if (!user) redirect(`/${locale}/login`);
 
   const [{ data: profile }, { data: scans }, prefRow] = await Promise.all([
-    supabase.from("profiles").select("nickname, scan_limit_override").eq("id", user.id).single(),
+    supabase.from("profiles").select("nickname, scan_limit_override, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
     supabase
       .from("scans")
       .select("id, root_url, status, created_at, summary, title:report_meta->>title")
@@ -50,13 +53,38 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
     | "kwcag"
     | null;
   const mpAdmin = createAdminClient();
+  // 달성 등급·피초대 보너스 (migration 0024 — 컬럼 부재 시 undefined → 기본 동작)
+  const earned = getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan);
+  const rawBonus = (profile as { referral_daily_bonus?: unknown } | null)?.referral_daily_bonus;
+  const dailyBonus = typeof rawBonus === "number" ? rawBonus : 0;
+
   const plansActive = await getPlansActive(mpAdmin);
   const quota = await checkQuota(
     mpAdmin,
     user.id,
-    resolveLimits(profile?.scan_limit_override, plansActive),
+    resolveLimits(profile?.scan_limit_override, plansActive, earned, dailyBonus),
     getResets(profile?.scan_limit_override),
   );
+
+  // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
+  //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.
+  const referralCode = await ensureReferralCode(mpAdmin, user.id);
+  const { data: referralRows } = await mpAdmin
+    .from("referrals")
+    .select("id, status, suspect_reason, appeal_note, created_at")
+    .eq("referrer_id", user.id)
+    .order("created_at", { ascending: false })
+    .limit(30)
+    .then((r) => r, () => ({ data: null }));
+  const referrals: ReferralRow[] = (referralRows ?? []).map((r) => ({
+    id: r.id as string,
+    status: r.status as ReferralRow["status"],
+    suspectReason: (r.suspect_reason as string | null) ?? null,
+    appealNote: (r.appeal_note as string | null) ?? null,
+    createdAt: r.created_at as string,
+  }));
+  const referralValidCount = referrals.filter((r) => r.status === "valid").length;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
@@ -90,6 +118,17 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
           </dl>
         </section>
       </div>
+
+      {/* 초대 — 링크 공유·진행 현황·소명 */}
+      <ReferralCard
+        link={referralCode ? `${siteUrl}/join/${referralCode}` : null}
+        validCount={referralValidCount}
+        goal={REFERRAL_VALID_GOAL}
+        cap={REFERRAL_VALID_CAP}
+        rows={referrals}
+        earned={earned}
+        invitedBonus={dailyBonus > 0}
+      />
 
       {/* 검사 이력 */}
       <section aria-labelledby="history-heading" className="mt-10">

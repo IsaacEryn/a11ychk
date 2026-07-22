@@ -767,6 +767,41 @@
       "colStatus": "상태",
       "colResult": "결과",
       "complianceShort": "준수율 {rate}%"
+    },
+    "referral": {
+      "title": "친구 초대",
+      "intro": "초대 링크로 {goal}명이 가입해 첫 검사를 실행하면 플러스1 등급이 됩니다. 초대받아 가입한 분은 일 검사 한도 +1회 혜택을 받습니다.",
+      "earnedLabel": "달성 등급",
+      "earned": {
+        "none": "없음",
+        "plus1": "플러스1",
+        "plus2": "플러스2"
+      },
+      "invitedBonus": "초대 가입 혜택: 일 +1회 적용 중",
+      "plus2Hint": "플러스2는 도메인 소유확인과 보고서 공개를 완료하면 자동 달성됩니다 (일 5·주 8·월 20회, 8페이지).",
+      "copy": "링크 복사",
+      "copied": "복사됨",
+      "linkUnavailable": "초대 링크를 준비하지 못했습니다. 잠시 후 새로고침해 주세요.",
+      "progress": "유효 초대 {count} / {goal}",
+      "capNote": "유효 초대는 하루 2건씩 반영되며 총 {cap}건까지 인정됩니다.",
+      "status": {
+        "pending": "대기",
+        "valid": "성립",
+        "suspect": "확인 필요",
+        "rejected": "미인정"
+      },
+      "suspectReason": {
+        "same_ip": "같은 네트워크에서 가입되어 확인이 필요합니다",
+        "cap": "인정 상한 초과"
+      },
+      "appeal": {
+        "label": "소명 내용",
+        "placeholder": "예: 같은 사무실 동료입니다 — 상황을 알려주세요",
+        "submit": "소명 제출",
+        "submitted": "소명이 접수되었습니다. 관리자 확인 후 반영됩니다.",
+        "saved": "제출되었습니다.",
+        "error": "제출에 실패했습니다."
+      }
     }
   },
   "inquiries": {
@@ -881,7 +916,11 @@
       "noResults": "일치하는 사용자가 없습니다.",
       "pagesLabel": "페이지 한도",
       "pagesHint": "페이지 한도: 소유 확인 도메인은 2배 적용, 최대 {max}페이지",
-      "extDailyLabel": "확장/일"
+      "extDailyLabel": "확장/일",
+      "earned": {
+        "plus1": "플러스1 달성",
+        "plus2": "플러스2 달성"
+      }
     },
     "inquiriesSection": {
       "title": "문의 관리",
@@ -896,7 +935,8 @@
       "scans": "검사 로그",
       "inquiries": "문의",
       "settings": "운영 설정",
-      "logs": "로그"
+      "logs": "로그",
+      "referrals": "초대 관리"
     },
     "dashboard": {
       "goDetail": "자세히 →",
@@ -995,6 +1035,27 @@
       "oldestWait": "최장 대기",
       "max": "전역 동시 상한",
       "minutes": "{min}분"
+    },
+    "referrals": {
+      "title": "초대 관리",
+      "intro": "확인 필요(의심) 건을 심사합니다. 승인하면 성립으로 인정되고, 기각하면 피초대자의 가입 혜택도 회수됩니다.",
+      "empty": "초대 기록이 없습니다.",
+      "colStatus": "상태",
+      "colReferrer": "초대자",
+      "colInvitee": "피초대자",
+      "colIp": "가입 IP",
+      "colAppeal": "소명",
+      "colDate": "일시",
+      "colActions": "처리",
+      "status": {
+        "pending": "대기",
+        "valid": "성립",
+        "suspect": "확인 필요",
+        "rejected": "미인정"
+      },
+      "inviteeGone": "(탈퇴)",
+      "approve": "승인",
+      "reject": "기각"
     }
   },
   "guide": {

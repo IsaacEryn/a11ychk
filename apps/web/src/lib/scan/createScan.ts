@@ -1,9 +1,10 @@
 import "server-only";
 import type { EvaluationScope } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { QUOTA_WINDOWS, checkQuota, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
+import { QUOTA_WINDOWS, checkQuota, getEarnedPlan, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { foldHost } from "@/lib/host";
+import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { reclaimStaleScans } from "./reclaimStale";
 
 export type CreateScanResult =
@@ -53,18 +54,22 @@ export async function createScanForUser(
   // 계정 상태·한도
   const { data: profile } = await admin
     .from("profiles")
-    .select("blocked, scan_limit_override")
+    .select("blocked, scan_limit_override, earned_plan, referral_daily_bonus")
     .eq("id", userId)
     .single();
   if (!profile || profile.blocked) {
     return { ok: false, status: 403, error: "검사를 실행할 수 없는 계정입니다.", code: "blocked" };
   }
+  // 달성 등급·피초대 보너스 — migration 0024 미적용 환경에선 컬럼 부재로 undefined → 기본 동작
+  const p = profile as { earned_plan?: unknown; referral_daily_bonus?: unknown };
+  const earned = getEarnedPlan(p.earned_plan);
+  const dailyBonus = typeof p.referral_daily_bonus === "number" ? p.referral_daily_bonus : 0;
 
   const plansActive = await getPlansActive(admin);
   const quota = await checkQuota(
     admin,
     userId,
-    resolveLimits(profile.scan_limit_override, plansActive),
+    resolveLimits(profile.scan_limit_override, plansActive, earned, dailyBonus),
     getResets(profile.scan_limit_override),
   );
   if (!quota.ok) {
@@ -106,6 +111,7 @@ export async function createScanForUser(
     null;
 
   const pageLimit = getSampleSize({
+    earned,
     override: profile.scan_limit_override,
     verified: domain?.verified ?? false,
     plansActive,
@@ -155,7 +161,7 @@ export async function createScanForUser(
   const recheck = await checkQuota(
     admin,
     userId,
-    resolveLimits(profile.scan_limit_override, plansActive),
+    resolveLimits(profile.scan_limit_override, plansActive, earned, dailyBonus),
     getResets(profile.scan_limit_override),
   );
   for (const key of QUOTA_WINDOWS) {
@@ -171,5 +177,10 @@ export async function createScanForUser(
       };
     }
   }
+
+  // 초대 성립 훅 — 이 사용자가 초대받아 가입한 경우 첫 검사 실행으로 성립 전환.
+  // TOCTOU 회수(위 recheck) 통과 후라 회수된 검사로는 성립되지 않는다. best-effort·멱등.
+  await markReferralValidOnFirstScan(admin, userId);
+
   return { ok: true, id: scan.id };
 }

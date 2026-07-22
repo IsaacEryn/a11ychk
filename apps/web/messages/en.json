@@ -767,6 +767,41 @@
       "colStatus": "Status",
       "colResult": "Result",
       "complianceShort": "Compliance {rate}%"
+    },
+    "referral": {
+      "title": "Invite friends",
+      "intro": "When {goal} people sign up via your link and run their first scan, you reach Plus 1. Invited users get +1 daily scan.",
+      "earnedLabel": "Earned tier",
+      "earned": {
+        "none": "None",
+        "plus1": "Plus 1",
+        "plus2": "Plus 2"
+      },
+      "invitedBonus": "Invited-signup perk: +1 daily scan active",
+      "plus2Hint": "Plus 2 is earned automatically when you verify a domain and publish a report (5/8/20 scans, 8 pages).",
+      "copy": "Copy link",
+      "copied": "Copied",
+      "linkUnavailable": "Couldn't prepare your invite link. Please refresh shortly.",
+      "progress": "Valid invitations {count} / {goal}",
+      "capNote": "Up to 2 invitations count per day, {cap} in total.",
+      "status": {
+        "pending": "Pending",
+        "valid": "Valid",
+        "suspect": "Needs review",
+        "rejected": "Not counted"
+      },
+      "suspectReason": {
+        "same_ip": "Signed up from the same network — needs review",
+        "cap": "Over the cap"
+      },
+      "appeal": {
+        "label": "Explanation",
+        "placeholder": "e.g. This is a colleague in the same office — tell us the situation",
+        "submit": "Submit explanation",
+        "submitted": "Submitted. It will be reviewed by an admin.",
+        "saved": "Submitted.",
+        "error": "Failed to submit."
+      }
     }
   },
   "inquiries": {
@@ -881,7 +916,11 @@
       "noResults": "No matching users.",
       "pagesLabel": "Page limit",
       "pagesHint": "Page limit: doubled for verified domains, max {max} pages",
-      "extDailyLabel": "Ext/day"
+      "extDailyLabel": "Ext/day",
+      "earned": {
+        "plus1": "Plus 1 earned",
+        "plus2": "Plus 2 earned"
+      }
     },
     "inquiriesSection": {
       "title": "Inquiry management",
@@ -896,7 +935,8 @@
       "scans": "Scan log",
       "inquiries": "Inquiries",
       "settings": "Settings",
-      "logs": "Logs"
+      "logs": "Logs",
+      "referrals": "Referrals"
     },
     "dashboard": {
       "goDetail": "Details →",
@@ -995,6 +1035,27 @@
       "oldestWait": "Oldest wait",
       "max": "Global cap",
       "minutes": "{min} min"
+    },
+    "referrals": {
+      "title": "Referrals",
+      "intro": "Review suspect invitations. Approving counts them as valid; rejecting also revokes the invitee's signup perk.",
+      "empty": "No referral records.",
+      "colStatus": "Status",
+      "colReferrer": "Referrer",
+      "colInvitee": "Invitee",
+      "colIp": "Signup IP",
+      "colAppeal": "Appeal",
+      "colDate": "Date",
+      "colActions": "Actions",
+      "status": {
+        "pending": "Pending",
+        "valid": "Valid",
+        "suspect": "Needs review",
+        "rejected": "Rejected"
+      },
+      "inviteeGone": "(deleted)",
+      "approve": "Approve",
+      "reject": "Reject"
     }
   },
   "guide": {
