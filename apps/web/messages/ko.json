@@ -990,8 +990,10 @@
       "type": {
         "manual": "수동",
         "auto": "자동",
-        "scheduled": "정기"
+        "scheduled": "정기",
+        "teaser": "맛보기"
       },
+      "teaserUser": "비로그인",
       "colActions": "작업",
       "viewReport": "보고서 보기",
       "retryBadge": "관리자 재검사",

@@ -990,8 +990,10 @@
       "type": {
         "manual": "Manual",
         "auto": "Auto",
-        "scheduled": "Scheduled"
+        "scheduled": "Scheduled",
+        "teaser": "Teaser"
       },
+      "teaserUser": "Anonymous",
       "colActions": "Actions",
       "viewReport": "View report",
       "retryBadge": "Admin retry",

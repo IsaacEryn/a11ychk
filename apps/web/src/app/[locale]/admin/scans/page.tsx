@@ -12,7 +12,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 const STATUSES = ["queued", "running", "done", "failed"] as const;
 type ScanStatus = (typeof STATUSES)[number];
-const TYPES = ["manual", "auto", "scheduled"] as const;
+// teaser = 비로그인 맛보기(teaser_scans, 0026) — 회원 검사와 별도 테이블이라 병합 표시
+const TYPES = ["manual", "auto", "scheduled", "teaser"] as const;
 type ScanType = (typeof TYPES)[number];
 
 /** 검사 로그 — 최근 50건, 상태·유형 필터 */
@@ -49,18 +50,7 @@ export default async function AdminScansPage({
   };
   const SCORE_COLS =
     "manual_pages:scope->manualPages, combined:summary->scores->combined->>rate, auto_rate:summary->>complianceRate";
-  // admin_retry(0028)·source(0029) 미적용 환경 폴백 — 컬럼 부재로 조회가 깨지지 않게
-  const first = await buildQuery(
-    `id, root_url, status, error, created_at, admin_retry, source, ${SCORE_COLS}, profiles(nickname)`,
-    true,
-  );
-  let scans = first.data;
-  if (first.error)
-    ({ data: scans } = await buildQuery(
-      `id, root_url, status, error, created_at, ${SCORE_COLS}, profiles(nickname)`,
-      false,
-    ));
-  const rows = (scans ?? []) as unknown as {
+  type Row = {
     id: string;
     root_url: string;
     status: string;
@@ -68,15 +58,64 @@ export default async function AdminScansPage({
     created_at: string;
     admin_retry?: boolean;
     source?: string;
-    manual_pages: unknown;
+    manual_pages?: unknown;
     combined: string | null;
-    auto_rate: string | null;
+    auto_rate?: string | null;
+    teaser?: boolean;
     profiles: { nickname: string } | null;
-  }[];
+  };
 
-  /** 유형 판별 — 정기(source) > 수동(직접 입력 페이지 존재) > 자동 수집 */
-  const scanType = (s: (typeof rows)[number]): ScanType =>
-    s.source === "scheduled" ? "scheduled" : Array.isArray(s.manual_pages) && s.manual_pages.length > 0 ? "manual" : "auto";
+  // 회원 검사 — 맛보기 필터일 때는 조회 생략
+  let rows: Row[] = [];
+  if (typeFilter !== "teaser") {
+    // admin_retry(0028)·source(0029) 미적용 환경 폴백 — 컬럼 부재로 조회가 깨지지 않게
+    const first = await buildQuery(
+      `id, root_url, status, error, created_at, admin_retry, source, ${SCORE_COLS}, profiles(nickname)`,
+      true,
+    );
+    let scans = first.data;
+    if (first.error)
+      ({ data: scans } = await buildQuery(
+        `id, root_url, status, error, created_at, ${SCORE_COLS}, profiles(nickname)`,
+        false,
+      ));
+    rows = (scans ?? []) as unknown as Row[];
+  }
+
+  // 비로그인 맛보기(teaser_scans) — 성공한 검사만 기록되는 테이블이라 상태는 항상 done.
+  // 상태 필터가 done 외로 걸려 있으면 해당 없음. 0026 미적용 환경은 오류 → 빈 목록 관용.
+  if ((!typeFilter || typeFilter === "teaser") && (!filter || filter === "done")) {
+    const { data: teasers } = await admin
+      .from("teaser_scans")
+      .select("id, hostname, rate, created_at")
+      .order("created_at", { ascending: false })
+      .limit(50);
+    const teaserRows: Row[] = ((teasers ?? []) as { id: string; hostname: string; rate: number; created_at: string }[]).map(
+      (x) => ({
+        id: x.id,
+        root_url: x.hostname,
+        status: "done",
+        error: null,
+        created_at: x.created_at,
+        combined: String(x.rate),
+        teaser: true,
+        profiles: null,
+      }),
+    );
+    rows = [...rows, ...teaserRows]
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
+      .slice(0, 50);
+  }
+
+  /** 유형 판별 — 맛보기 > 정기(source) > 수동(직접 입력 페이지 존재) > 자동 수집 */
+  const scanType = (s: Row): ScanType =>
+    s.teaser
+      ? "teaser"
+      : s.source === "scheduled"
+        ? "scheduled"
+        : Array.isArray(s.manual_pages) && s.manual_pages.length > 0
+          ? "manual"
+          : "auto";
 
   /** 보고서 점수 — 통합 점수 우선, 없으면 자동 준수율 (대시보드와 동일 기준) */
   const scoreLabel = (s: (typeof rows)[number]): string => {
@@ -156,7 +195,11 @@ export default async function AdminScansPage({
             {rows.map((s) => (
               <tr key={s.id} className="border-b border-[var(--color-line)]">
                 <td className="whitespace-nowrap py-2 pr-3">
-                  {s.profiles?.nickname}
+                  {s.teaser ? (
+                    <span className="text-[var(--color-ink-faint)]">{t("scans.teaserUser")}</span>
+                  ) : (
+                    s.profiles?.nickname
+                  )}
                 </td>
                 <td className="max-w-64 truncate py-2 pr-3">{s.root_url}</td>
                 <td className="whitespace-nowrap py-2 pr-3">
@@ -178,7 +221,7 @@ export default async function AdminScansPage({
                 </td>
                 <td className="max-w-56 truncate py-2 pr-3 text-[var(--color-crit)]">{s.error}</td>
                 <td className="py-2">
-                  {s.status === "done" && (
+                  {s.status === "done" && !s.teaser && (
                     <a
                       href={`/${locale}/scans/${s.id}/report`}
                       className="text-xs font-bold text-[var(--color-seal)] underline underline-offset-2 hover:text-[var(--color-seal-deep)]"
