@@ -95,7 +95,7 @@ async function isBlockedHost(hostname: string, cache: Map<string, boolean>): Pro
 }
 
 /** 대상 URL을 검증하고, 검증된 공개 IP를 브라우저 DNS 핀 규칙으로 굳혀 실행 */
-async function launchGuardedBrowser(targetUrl?: string): Promise<Browser> {
+export async function launchGuardedBrowser(targetUrl?: string): Promise<Browser> {
   const { launchBrowser, buildHostResolverRule } = await import("./browser");
   let rule: string | undefined;
   if (targetUrl) {
@@ -115,7 +115,7 @@ async function launchGuardedBrowser(targetUrl?: string): Promise<Browser> {
 }
 
 /** 브라우저를 확실히 폐기 (크래시 상태여도 예외 없이) */
-async function disposeBrowser(browser: Browser | null): Promise<void> {
+export async function disposeBrowser(browser: Browser | null): Promise<void> {
   if (!browser) return;
   try {
     await browser.close();
@@ -130,7 +130,7 @@ interface SinglePageOutcome {
 }
 
 /** 한 페이지를 스캔해 결과 + 사이트 시그니처를 반환. 컨텍스트는 항상 정리한다. */
-async function scanSinglePage(browser: Browser, url: string): Promise<SinglePageOutcome> {
+export async function scanSinglePage(browser: Browser, url: string): Promise<SinglePageOutcome> {
   const context = await browser.newContext({
     // 애니메이션 감속 — 페이드인 도중 반투명 상태를 axe가 측정해 생기는
     // 명도 대비 오탐을 방지한다 (모든 검사 대상 공통)

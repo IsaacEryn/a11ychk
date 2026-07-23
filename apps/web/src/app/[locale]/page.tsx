@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { TeaserScanForm } from "./TeaserScanForm";
 
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -129,6 +130,9 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         </div>
       </section>
 
+      {/* ─── 비로그인 맛보기 검사 — 로그인 없이 1페이지 즉석 검사 ─── */}
+      <TeaserScanForm />
+
       {/* ─── 기능 ─── */}
       <section aria-labelledby="features-heading" className="py-14">
         <h2 id="features-heading" className="font-display text-3xl font-bold">
@@ -162,6 +166,37 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
             </article>
           ))}
         </div>
+      </section>
+
+      {/* ─── 무엇을 검사하나 — 자동 검사 범위 카테고리 ─── */}
+      <section aria-labelledby="categories-heading" className="py-14">
+        <h2 id="categories-heading" className="font-display text-3xl font-bold">
+          {t("categories.title")}
+        </h2>
+        <ul className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {(
+            [
+              "images",
+              "forms",
+              "keyboard",
+              "structure",
+              "links",
+              "language",
+              "media",
+              "contrast",
+              "wcag22",
+            ] as const
+          ).map((key) => (
+            <li key={key} className="border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-5">
+              <h3 className="font-display text-lg font-bold">{t(`categories.items.${key}.title`)}</h3>
+              <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t(`categories.items.${key}.desc`)}</p>
+            </li>
+          ))}
+        </ul>
+        {/* 실측 커버리지 정직 고지 — docs/coverage.md 수치 인용 */}
+        <p className="mt-6 border-l-[3px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">
+          {t("categories.caption")}
+        </p>
       </section>
 
       {/* ─── 진행 순서 ─── */}

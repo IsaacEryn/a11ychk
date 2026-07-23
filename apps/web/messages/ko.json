@@ -57,7 +57,7 @@
     "featuresTitle": "점검부터 개선까지, 한 번에",
     "features": {
       "autoTitle": "자동 접근성 검사",
-      "autoDesc": "axe-core 엔진이 대표 페이지들을 수집해 90여 개 규칙으로 자동 점검합니다.",
+      "autoDesc": "axe-core 엔진이 대표 페이지들을 수집해 106개 규칙으로 자동 점검합니다.",
       "kwcagTitle": "WCAG + KWCAG 동시 매핑",
       "kwcagDesc": "국제 기준(WCAG 2.2)과 한국형 지침(KWCAG 2.2) 33개 검사항목을 한 보고서에서 확인합니다.",
       "reportTitle": "보고서 · PDF 출력",
@@ -86,7 +86,84 @@
       "sampleBadge": "예시",
       "sampleCaption": "위 화면은 이해를 돕기 위한 보고서 예시입니다. 검사를 실행하면 이런 형태의 실제 보고서를 받게 됩니다."
     },
-    "ctaDemoReport": "실제 예시 보고서 보기 (a11ychk.com 자체 검사)"
+    "ctaDemoReport": "실제 예시 보고서 보기 (a11ychk.com 자체 검사)",
+    "teaser": {
+      "title": "지금 바로 1페이지 무료 검사",
+      "desc": "로그인 없이 웹 페이지 주소만 입력하면 해당 페이지의 접근성을 즉시 점검해 드립니다. (하루 2회)",
+      "urlLabel": "검사할 페이지 주소",
+      "urlPlaceholder": "https://example.com/page",
+      "submit": "무료로 검사하기",
+      "loading": "검사 중…",
+      "loadingNote": "페이지를 분석하고 있어요. 10~30초 정도 걸립니다.",
+      "notSaved": "이 검사 결과는 저장되지 않으며, 화면을 벗어나면 사라집니다.",
+      "cachedNote": "최근에 검사된 페이지라 저장된 결과 없이 즉시 표시했어요.",
+      "rateLabel": "자동 검사 준수율",
+      "impact": {
+        "critical": "치명적",
+        "serious": "심각",
+        "moderate": "보통",
+        "minor": "경미"
+      },
+      "noViolations": "자동 검사에서 위반이 발견되지 않았습니다. (자동 도구는 일부 기준만 검출해요 — 수동 점검 병행을 권장합니다)",
+      "nodeCount": "{count}개 요소",
+      "moreNodes": "나머지 {count}곳의 위치는 가입 후 확인할 수 있어요",
+      "guideToggle": "개선 방법 보기",
+      "lockedTitle": "더 깊이 점검하려면 무료로 가입하세요",
+      "lockedFeatures": "사이트 단위 검사 · KWCAG 33항목 매트릭스 · 수동 판정 워크플로 · 인증 준비 요약 · PDF/CSV 내보내기 · 정기 자동 검사",
+      "signupCta": "무료로 시작하기",
+      "errors": {
+        "invalidUrl": "검사할 수 없는 주소입니다. https:// 를 포함한 공개 웹 페이지 주소를 입력해 주세요.",
+        "captcha": "봇 방지 확인에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+        "ipLimit": "오늘의 무료 검사 2회를 모두 사용했어요.",
+        "globalCap": "오늘의 무료 검사가 모두 마감되었어요.",
+        "robots": "이 사이트는 robots.txt로 자동 검사를 허용하지 않아 검사할 수 없습니다.",
+        "scanFailed": "페이지를 검사하지 못했습니다. 주소를 확인하거나 잠시 후 다시 시도해 주세요.",
+        "unavailable": "맛보기 검사를 잠시 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+        "network": "네트워크 오류가 발생했습니다."
+      }
+    },
+    "categories": {
+      "title": "무엇을 검사하나요",
+      "items": {
+        "images": {
+          "title": "이미지 대체 텍스트",
+          "desc": "alt 존재·파일명/일반어 오용, 장식 이미지 처리"
+        },
+        "forms": {
+          "title": "폼과 라벨",
+          "desc": "라벨 연결, 오류 안내, 자동완성 속성"
+        },
+        "keyboard": {
+          "title": "키보드와 초점",
+          "desc": "초점 이동·표시, 건너뛰기 링크, 양수 tabindex"
+        },
+        "structure": {
+          "title": "구조와 랜드마크",
+          "desc": "제목 위계, 랜드마크, 표 구조, 읽기 순서"
+        },
+        "links": {
+          "title": "링크 텍스트",
+          "desc": "목적을 알 수 있는 링크명, 새 창 열림 고지"
+        },
+        "language": {
+          "title": "언어 표기",
+          "desc": "페이지 lang, 부분 언어, 유효한 언어 코드"
+        },
+        "media": {
+          "title": "미디어",
+          "desc": "자막 트랙, 자동재생 제어"
+        },
+        "contrast": {
+          "title": "명도 대비",
+          "desc": "본문·대형 텍스트 대비율(4.5:1/3:1)"
+        },
+        "wcag22": {
+          "title": "WCAG 2.2 신규",
+          "desc": "클릭 타깃 크기(24px), 초점 가림 등 최신 기준"
+        }
+      },
+      "caption": "자동 규칙 106개로 WCAG 2.2 A·AA 성공기준 55개 중 30개(54.5%)를 자동 검출합니다. 자동 도구가 못 보는 나머지는 수동 점검 워크플로가 안내해요 — 자동 검사만으로 '준수'를 보장하는 도구는 없습니다."
+    }
   },
   "login": {
     "title": "로그인",

@@ -61,6 +61,14 @@ export async function GET(request: Request) {
       // 테이블 미적용(마이그레이션 전) 환경은 건너뜀
     }
   }
+  // 맛보기 검사 어뷰즈 카운터 — 일 단위라 2일 지난 행은 무의미(개인정보 최소화: 해시도 짧게 보존)
+  try {
+    const dayCutoff = new Date(Date.now() - 2 * 24 * 3600_000).toISOString().slice(0, 10);
+    const { count } = await admin.from("teaser_usage").delete({ count: "exact" }).lt("day", dayCutoff);
+    cleaned["teaser_usage"] = count ?? 0;
+  } catch {
+    // 0025 미적용 환경은 건너뜀
+  }
 
   const results: { hostname: string; status: string }[] = [];
 

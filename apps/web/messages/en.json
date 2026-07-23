@@ -86,7 +86,84 @@
       "sampleBadge": "SAMPLE",
       "sampleCaption": "The card above is an illustrative sample. Running an audit produces a real report in this format."
     },
-    "ctaDemoReport": "See a real sample report (our own audit)"
+    "ctaDemoReport": "See a real sample report (our own audit)",
+    "teaser": {
+      "title": "Check one page free — right now",
+      "desc": "No sign-in needed. Paste a page URL and get an instant accessibility check. (Twice a day)",
+      "urlLabel": "Page URL to check",
+      "urlPlaceholder": "https://example.com/page",
+      "submit": "Check it free",
+      "loading": "Checking…",
+      "loadingNote": "Analysing the page — this takes about 10–30 seconds.",
+      "notSaved": "This result is not stored and disappears when you leave the page.",
+      "cachedNote": "This page was checked recently, so we showed the result instantly.",
+      "rateLabel": "Automated compliance",
+      "impact": {
+        "critical": "Critical",
+        "serious": "Serious",
+        "moderate": "Moderate",
+        "minor": "Minor"
+      },
+      "noViolations": "No violations found by automated checks. (Automated tools cover only part of the criteria — manual review is recommended.)",
+      "nodeCount": "{count} elements",
+      "moreNodes": "Locations of the remaining {count} are available after sign-up",
+      "guideToggle": "How to fix",
+      "lockedTitle": "Go deeper with a free account",
+      "lockedFeatures": "Site-wide scans · KWCAG 33-item matrix · manual review workflow · certification readiness · PDF/CSV export · scheduled scans",
+      "signupCta": "Start free",
+      "errors": {
+        "invalidUrl": "This address can't be checked. Enter a public web page URL including https://.",
+        "captcha": "Bot check failed. Please try again shortly.",
+        "ipLimit": "You've used today's 2 free checks.",
+        "globalCap": "Today's free checks are all used up.",
+        "robots": "This site disallows automated checks via robots.txt.",
+        "scanFailed": "Couldn't check the page. Verify the address or try again shortly.",
+        "unavailable": "The free check is temporarily unavailable. Please try again shortly.",
+        "network": "A network error occurred."
+      }
+    },
+    "categories": {
+      "title": "What we check",
+      "items": {
+        "images": {
+          "title": "Image alt text",
+          "desc": "Missing/filename/generic alt, decorative handling"
+        },
+        "forms": {
+          "title": "Forms & labels",
+          "desc": "Label association, error messaging, autocomplete"
+        },
+        "keyboard": {
+          "title": "Keyboard & focus",
+          "desc": "Focus order/visibility, skip links, positive tabindex"
+        },
+        "structure": {
+          "title": "Structure & landmarks",
+          "desc": "Heading hierarchy, landmarks, tables, reading order"
+        },
+        "links": {
+          "title": "Link text",
+          "desc": "Descriptive link names, new-window notice"
+        },
+        "language": {
+          "title": "Language",
+          "desc": "Page lang, language of parts, valid codes"
+        },
+        "media": {
+          "title": "Media",
+          "desc": "Caption tracks, autoplay control"
+        },
+        "contrast": {
+          "title": "Colour contrast",
+          "desc": "Body/large-text ratios (4.5:1 / 3:1)"
+        },
+        "wcag22": {
+          "title": "WCAG 2.2 additions",
+          "desc": "Target size (24px), focus not obscured, and more"
+        }
+      },
+      "caption": "106 automated rules detect 30 of the 55 WCAG 2.2 A/AA success criteria (54.5%). Our manual review workflow guides you through the rest — no automated tool alone can guarantee conformance."
+    }
   },
   "login": {
     "title": "Sign in",
