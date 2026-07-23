@@ -12,10 +12,15 @@ import { createClient } from "@/lib/supabase/server";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
- * W3C WCAG-EM Report Tool 호환 JSON export.
- * 공식 도구(https://www.w3.org/WAI/eval/report-tool/)의 "Open evaluation"으로
- * 불러와 이어서 편집할 수 있도록, 도구의 EvaluationModel 스키마
- * (w3c/wai-wcag-em-report-tool src/stores/evaluationStore.js)를 그대로 따른다.
+ * WCAG-EM JSON export — 두 형식 제공:
+ * - 기본(1.0 호환): W3C WCAG-EM Report Tool(https://www.w3.org/WAI/eval/report-tool/)의
+ *   "Open evaluation"으로 불러와 이어서 편집할 수 있도록, 도구의 EvaluationModel 스키마
+ *   (w3c/wai-wcag-em-report-tool src/stores/evaluationStore.js)를 그대로 따른다.
+ *   도구가 아직 WCAG-EM 1.0 포맷 기준이라 호환을 위해 유지한다.
+ * - ?version=2: @context를 WCAG-EM 2.0(https://www.w3.org/TR/wcag-em-2/) 절 앵커로
+ *   매핑한 자체 정의 형식. 2.0에는 공식 기계가독 포맷이 아직 없어(Step 5.5는 형식을
+ *   규정하지 않음) 1.0 도구 스키마 구조를 유지한 채 참조 명세만 2.0으로 바꾼 것이다.
+ *   (2.0 문서의 절 앵커는 1.0과 동일한 문자 체계 — #step1a = Step 1.1)
  */
 const IdSchema = z.string().uuid();
 
@@ -87,6 +92,20 @@ const EVALUATION_CONTEXT = {
   language: "@language",
 };
 
+/**
+ * WCAG-EM 2.0 기준 @context — 기반 명세 URL만 2.0으로 바꾸고(절 앵커 체계는 1.0과 동일),
+ * 2.0에서 신설된 절(2.1 공통 뷰 #step2a, 2.5 관련 표본 #step2e, 3.3 완전한 프로세스 #step3c)을
+ * 추가 등재한다. reporter는 자체 export임을 명시.
+ */
+const EVALUATION_CONTEXT_V2 = {
+  ...EVALUATION_CONTEXT,
+  reporter: "https://github.com/IsaacEryn/a11ychk",
+  wcagem: "https://www.w3.org/TR/wcag-em-2/#",
+  commonViews: "wcagem:step2a",
+  otherRelevantSamples: "wcagem:step2e",
+  completeProcesses: "wcagem:step3c",
+};
+
 const OUTCOME_MAP: Record<WcagOutcome, { id: string; type: string }> = {
   passed: { id: "earl:passed", type: "Pass" },
   failed: { id: "earl:failed", type: "Fail" },
@@ -97,6 +116,8 @@ const OUTCOME_MAP: Record<WcagOutcome, { id: string; type: string }> = {
 
 export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // ?version=2 → WCAG-EM 2.0 참조 형식, 기본 → 1.0 호환(W3C Report Tool 가져오기용)
+  const isV2 = new URL(req.url).searchParams.get("version") === "2";
   // ?lang= 우선, 없으면 Accept-Language 협상 — 에러·문서 prose·@language 공통
   const lang = resolveApiLocale(req);
   const L = (ko: string, en: string) => (lang === "en" ? en : ko);
@@ -189,10 +210,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   });
 
   const evaluation = {
-    "@context": EVALUATION_CONTEXT,
+    "@context": isV2 ? EVALUATION_CONTEXT_V2 : EVALUATION_CONTEXT,
     "@type": "Evaluation",
     "@language": lang,
-    reportToolVersion: "a11ychk-export-1.0",
+    reportToolVersion: isV2 ? "a11ychk-export-2.0" : "a11ychk-export-1.0",
     defineScope: {
       "@id": "_:defineScope",
       scope: { title: siteTitle, description: scan.root_url },
@@ -233,7 +254,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
 
   return NextResponse.json(evaluation, {
     headers: {
-      "Content-Disposition": `attachment; filename="a11ychk-wcag-em-${hostname}.json"`,
+      "Content-Disposition": `attachment; filename="a11ychk-wcag-em${isV2 ? "2" : ""}-${hostname}.json"`,
       "Cache-Control": "no-store",
     },
   });

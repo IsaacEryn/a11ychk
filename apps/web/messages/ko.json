@@ -713,7 +713,7 @@
     "disclaimer": "본 보고서는 자동 검사 도구(axe-core)의 결과로, 웹 접근성 전체 준수 여부를 보증하지 않습니다. 자동 검사는 전체 접근성 문제의 일부만 검출할 수 있으며, 공식 인증(웹 접근성 품질인증 마크 등)은 전문가의 수동 심사가 필요합니다.",
     "downloadPdf": "PDF 다운로드",
     "downloadEarl": "EARL(JSON)",
-    "downloadReportTool": "WCAG-EM Report Tool(JSON)",
+    "downloadReportTool": "WCAG-EM Report Tool(JSON · 1.0 호환)",
     "print": "인쇄",
     "generatedBy": "이 보고서는 A11y Check (a11ychk.com)에서 생성되었습니다.",
     "inline": {
@@ -798,7 +798,8 @@
       "menu": "내보내기",
       "csvFindings": "위반 목록 CSV (엑셀)",
       "csvKwcag": "KWCAG 매트릭스 CSV (엑셀)",
-      "aiFixJson": "AI 수정 요청 (.json)"
+      "aiFixJson": "AI 수정 요청 (.json)",
+      "reportToolV2": "WCAG-EM 2.0(JSON)"
     },
     "manualProgress": {
       "title": "수동 판정 진행률",

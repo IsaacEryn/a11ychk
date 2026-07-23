@@ -16,6 +16,7 @@ export async function ExportMenu({ scanId, locale }: { scanId: string; locale: s
           { href: `/api/scans/${scanId}/ai-fix?format=json&lang=${locale}`, label: t("export.aiFixJson") },
           { href: `/api/scans/${scanId}/earl?lang=${locale}`, label: t("downloadEarl") },
           { href: `/api/scans/${scanId}/report-tool?lang=${locale}`, label: t("downloadReportTool") },
+          { href: `/api/scans/${scanId}/report-tool?version=2&lang=${locale}`, label: t("export.reportToolV2") },
         ].map((item) => (
           <li key={item.href}>
             <a href={item.href} className="block px-4 py-2 text-sm font-semibold hover:bg-[var(--color-paper-warm)]">
