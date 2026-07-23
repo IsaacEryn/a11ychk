@@ -57,7 +57,7 @@
     "message": "Below are violations found by automated web accessibility checks. Using each item's cause and location, propose code fixes that satisfy WCAG 2.2 and KWCAG 2.2."
   },
   "procLabel": {
-    "message": "Mark this page as a step in a multi-step process (WCAG-EM)"
+    "message": "Mark this page as a step in a multi-step process (WCAG-EM 2.0)"
   },
   "saveDestLabel": {
     "message": "Save to"

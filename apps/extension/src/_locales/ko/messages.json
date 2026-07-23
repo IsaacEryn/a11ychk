@@ -57,7 +57,7 @@
     "message": "아래는 웹 접근성 자동 점검에서 발견된 위반입니다. 각 항목의 원인과 위치를 참고해, WCAG 2.2·KWCAG 2.2를 충족하도록 코드 수정안을 제시해 주세요."
   },
   "procLabel": {
-    "message": "이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM)"
+    "message": "이 페이지를 다단계 프로세스 단계로 표시 (WCAG-EM 2.0)"
   },
   "saveDestLabel": {
     "message": "저장 위치"
