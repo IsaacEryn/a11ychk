@@ -3,11 +3,17 @@
 ## 1. Supabase 프로젝트
 
 1. [supabase.com](https://supabase.com/dashboard)에서 새 프로젝트 생성 (리전: Northeast Asia 권장)
-2. **SQL Editor**에서 마이그레이션을 순서대로 실행
-   - `supabase/migrations/0001_initial_schema.sql`
-   - `supabase/migrations/0002_scheduled_scans.sql` (정기 스캔용 — 안 하면 정기 스캔만 비활성)
-   - `supabase/migrations/0003_wcag_em.sql` (**WCAG-EM 평가 범위·표본 + 요금제 설정 — 새 검사 실행에 필수**)
-   - `supabase/migrations/0004_reviews_meta.sql` (**점검자 판정 기입·보고서 정보 — 평가 워크벤치 기능에 필수**)
+2. **SQL Editor**에서 `supabase/migrations/`의 파일을 **번호 순서대로 전부** 실행
+   (`0001`부터 최신까지). 각 마이그레이션은 앞선 것에 의존하므로 건너뛰지 말 것.
+   특별히 유의할 마이그레이션:
+   - `0001_initial_schema.sql` — 기본 스키마·RLS·`is_admin()`
+   - `0002_scheduled_scans.sql` — 정기 스캔용 (안 하면 정기 스캔만 비활성)
+   - `0003_wcag_em.sql` — **WCAG-EM 평가 범위·표본 + 요금제 설정 — 새 검사 실행에 필수**
+   - `0004_reviews_meta.sql` — **점검자 판정 기입·보고서 정보 — 평가 워크벤치 기능에 필수**
+   - `0024_referrals.sql` — 친구 초대 등급 시스템 (초대 기록·부정 방지)
+   - `0025_teaser_usage.sql` — 비로그인 맛보기 검사 어뷰즈 카운터 (안 하면 맛보기만 비활성)
+   - `0026_teaser_stats.sql` — 맛보기 검사 관리자 통계
+   - `0027_is_admin_aal2.sql` — **(선택) 관리자 RLS에 2단계 인증(AAL2) 요구 — 반드시 관리자 TOTP 등록을 마친 뒤 적용** (아래 "관리자 2단계 인증" 참고)
 3. **Authentication → Providers**에서 Google, GitHub OAuth 활성화
    - Google: [Google Cloud Console](https://console.cloud.google.com)에서 OAuth 클라이언트 생성,
      승인된 리디렉션 URI에 `https://<프로젝트>.supabase.co/auth/v1/callback` 추가
@@ -29,6 +35,8 @@ INTERNAL_API_SECRET              # openssl rand -hex 32
 CRON_SECRET                      # 정기 스캔 크론 보호 (openssl rand -hex 32)
 NEXT_PUBLIC_SITE_URL=https://www.a11ychk.com
 RESEND_API_KEY                   # 이메일 발송 (정기 스캔 회귀 알림·서버 오류 알림) — 미설정 시 발송 생략
+NEXT_PUBLIC_TURNSTILE_SITE_KEY   # (선택) Cloudflare Turnstile 사이트 키 — 가입·로그인·맛보기 검사 봇 방지
+TURNSTILE_SECRET_KEY             # 사이트 키 설정 시 함께 필수 — 맛보기 검사 서버 검증용 (없으면 맛보기 비활성)
 NEXT_PUBLIC_GTM_ID                # GTM 컨테이너 ID(GA4) — 미설정 시 분석 스니펫 미삽입
 ADMIN_ALERT_EMAIL                # 서버 오류·관리자 로그인 알림 수신 주소 — 미설정 시 발송 생략
 ADMIN_PATH_SLUG                  # (선택) 관리자 비밀 경로 슬러그 — 설정 시 /admin은 404 (점 금지)

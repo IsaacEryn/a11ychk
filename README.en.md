@@ -43,7 +43,7 @@ diagnosis into **artifacts that drive remediation**:
 | Package | License | Description |
 |---|---|---|
 | [`packages/core`](packages/core) | Apache-2.0 | Scanner engine, crawler, rule catalog, SSRF guard — embeddable |
-| [`apps/web`](apps/web) | AGPL-3.0 | Next.js service: reports, scheduled scans, badges, public directory |
+| [`apps/web`](apps/web) | AGPL-3.0 | Next.js service: reports, scheduled scans, badges, public directory, no-login teaser check, referral tiers |
 | [`apps/extension`](apps/extension) | Apache-2.0 | Chrome MV3 side-panel: audit pages behind login, visual tools, expert judgment |
 
 ## Quick start
