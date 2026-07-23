@@ -4,6 +4,7 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { Link } from "@/i18n/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_CONCURRENT_SCANS } from "@/lib/scan/drain";
+import { CRON_STALE_HOURS, isCronStale } from "@/lib/cronRun";
 import { collectImpactStats } from "@/lib/impactStats";
 import { RefreshStatsForm } from "./RefreshStatsForm";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -70,6 +71,26 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
 
   // 성장·확산 지표 (/impact와 동일 집계 — 관리자 모니터링용)
   const growth = await collectImpactStats();
+
+  // ── 크론 실행 상태 (cron_runs, 0030) — 미적용 환경은 조회 실패를 관용해 "기록 없음" 표시 ──
+  type CronRunRow = { started_at: string; finished_at: string | null; ok: boolean | null };
+  const cronJobs = await Promise.all(
+    (["scheduled-scans", "repo-stats"] as const).map(async (job) => {
+      const { data } = await admin
+        .from("cron_runs")
+        .select("started_at, finished_at, ok")
+        .eq("job", job)
+        .order("started_at", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+        .then(
+          (r) => r,
+          () => ({ data: null }),
+        );
+      const run = data as CronRunRow | null;
+      return { job, run, stale: isCronStale(run?.started_at ?? null, CRON_STALE_HOURS) };
+    }),
+  );
 
   const total30 = scans30d.count ?? 0;
   const failed30 = failed30d.count ?? 0;
@@ -143,6 +164,40 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
               <dd className="font-display mt-0.5 text-2xl font-extrabold tabular-nums">{s.value}</dd>
             </div>
           ))}
+        </dl>
+      </section>
+
+      {/* 정기 작업(크론) 상태 — cron_runs 최근 실행. 26시간 초과 무실행이면 경고색 */}
+      <section aria-labelledby="admin-cron-heading" className="mt-8 doc-card p-6">
+        <h2 id="admin-cron-heading" className="font-display text-xl font-bold">
+          {t("cron.title")}
+        </h2>
+        <dl className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
+          {cronJobs.map(({ job, run, stale }) => {
+            const state = !run
+              ? { label: t("cron.none"), cls: "text-[var(--color-ink-faint)]" }
+              : stale
+                ? { label: t("cron.stale"), cls: "text-[var(--color-crit)]" }
+                : run.ok === true
+                  ? { label: t("cron.ok"), cls: "text-[var(--color-seal)]" }
+                  : run.ok === false
+                    ? { label: t("cron.fail"), cls: "text-[var(--color-crit)]" }
+                    : { label: t("cron.incomplete"), cls: "text-[var(--color-ink-soft)]" };
+            return (
+              <div
+                key={job}
+                className={`border-l-[3px] pl-3 ${stale || run?.ok === false ? "border-[var(--color-crit)]" : "border-[var(--color-seal)]"}`}
+              >
+                <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{t(`cron.jobs.${job}`)}</dt>
+                <dd className={`font-display mt-0.5 text-xl font-extrabold ${state.cls}`}>{state.label}</dd>
+                <dd className="mt-1 text-xs tabular-nums text-[var(--color-ink-faint)]">
+                  {run
+                    ? `${t("cron.lastRun")}: ${format.dateTime(new Date(run.started_at), { dateStyle: "short", timeStyle: "short" })}`
+                    : t("cron.noneHint")}
+                </dd>
+              </div>
+            );
+          })}
         </dl>
       </section>
 

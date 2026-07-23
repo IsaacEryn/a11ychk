@@ -1232,6 +1232,20 @@
       "max": "Global cap",
       "minutes": "{min} min"
     },
+    "cron": {
+      "title": "Scheduled jobs",
+      "jobs": {
+        "scheduled-scans": "Scheduled scans & cleanup (daily)",
+        "repo-stats": "Repo stats collection (daily)"
+      },
+      "ok": "OK",
+      "fail": "Failed",
+      "incomplete": "Incomplete (running or killed)",
+      "stale": "Stale — no run in 26h",
+      "none": "No record",
+      "noneHint": "Shown from the first run after applying migration 0030.",
+      "lastRun": "Last run"
+    },
     "referrals": {
       "title": "Referrals",
       "intro": "Review suspect invitations. Approving counts them as valid; rejecting also revokes the invitee's signup perk.",

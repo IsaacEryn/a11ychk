@@ -198,6 +198,28 @@ export async function sendPlanUpgradeEmail(
   return ok;
 }
 
+/**
+ * 크론 무실행 경보 — 상호 감시(다른 크론이 26h 넘게 성공 기록이 없을 때) 관리자 메일.
+ * 하루 1회 실행 경로에서만 호출되므로 별도 dedupe는 두지 않는다.
+ */
+export async function sendCronStaleAlert(job: string, lastOkAt: string | null): Promise<boolean> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) return false;
+  const html = `
+<p style="font-family:sans-serif;font-size:14px;line-height:1.7">
+  정기 작업 <b>${escapeHtml(job)}</b>가 26시간 넘게 성공 기록이 없습니다.<br/>
+  마지막 성공: <b>${escapeHtml(lastOkAt ?? "기록 없음")}</b><br/><br/>
+  Vercel 프로젝트의 Cron 설정과 관리자 콘솔의 서버 오류 로그를 확인하세요.
+</p>`;
+  const ok = await sendEmail({ to, subject: `[A11y Check] 크론 무실행 감지: ${job}`, html });
+  if (!ok) {
+    await logAppError(createAdminClient(), `cron stale alert send failed: ${job}`, {
+      path: "notify.sendCronStaleAlert",
+    });
+  }
+  return ok;
+}
+
 /** 재시도 지연(지수 백오프) — 최악 총 지연 = 8s×3회 + 0.5s + 2s = 26.5s
  *  (호출 컨텍스트가 전부 크론 300s·after()·관리자 액션이라 안전) */
 const EMAIL_RETRY_DELAYS_MS = [500, 2000];

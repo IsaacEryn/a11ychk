@@ -8,6 +8,8 @@ import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { reevaluateEarnedPlan } from "@/lib/referral/promote";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 import { logAppError } from "@/lib/logs";
+import { CRON_STALE_HOURS, isCronStale, lastCronOkAt, withCronRun } from "@/lib/cronRun";
+import { sendCronStaleAlert } from "@/lib/notify";
 import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
 
 export const maxDuration = 300;
@@ -28,7 +30,13 @@ export async function GET(request: Request) {
   if (!isAuthorizedCron(request)) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
+  // 실행 기록(0030) — 성공/실패/요약을 cron_runs에 남기고, 미처리 예외는 기록 후 재던져
+  // 크론 실패로 표면화한다. 본문은 runScheduledScans로 분리.
+  const summary = await withCronRun("scheduled-scans", runScheduledScans);
+  return NextResponse.json(summary);
+}
 
+async function runScheduledScans(): Promise<Record<string, unknown>> {
   const admin = createAdminClient();
   const now = Date.now();
 
@@ -60,7 +68,7 @@ export async function GET(request: Request) {
   // 관리자 행위 감사(audit_logs)는 감사 목적상 보존한다.
   const logCutoff = new Date(Date.now() - 90 * 24 * 3600_000).toISOString();
   const cleaned: Record<string, number> = {};
-  for (const table of ["login_logs", "app_errors"] as const) {
+  for (const table of ["login_logs", "app_errors", "cron_runs"] as const) {
     try {
       const { count } = await admin.from(table).delete({ count: "exact" }).lt("created_at", logCutoff);
       cleaned[table] = count ?? 0;
@@ -182,5 +190,14 @@ export async function GET(request: Request) {
     );
   }
 
-  return NextResponse.json({ processed: results.length, results, cleaned, referral, reclaimed });
+  // ── 상호 감시: repo-stats 크론이 26h 넘게 성공 기록이 없으면 관리자에게 경보 ──
+  // (역방향 감시는 repo-stats 쪽에 — 서로를 지켜본다. 둘 다 죽으면 대시보드가 마지막 안전망)
+  try {
+    const lastOk = await lastCronOkAt(admin, "repo-stats");
+    if (isCronStale(lastOk, CRON_STALE_HOURS)) await sendCronStaleAlert("repo-stats", lastOk);
+  } catch {
+    // 감시 실패가 본 작업을 막지 않게 — 0030 미적용 환경 포함
+  }
+
+  return { processed: results.length, results, cleaned, referral, reclaimed };
 }

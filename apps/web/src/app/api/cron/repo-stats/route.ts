@@ -4,6 +4,8 @@ import { collectImpactStats } from "@/lib/impactStats";
 import { collectRepoStats } from "@/lib/repoStats";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 import { logAppError } from "@/lib/logs";
+import { CRON_STALE_HOURS, isCronStale, lastCronOkAt, withCronRun } from "@/lib/cronRun";
+import { sendCronStaleAlert } from "@/lib/notify";
 
 /**
  * GitHub 저장소 통계 수집 크론 (하루 1회).
@@ -19,33 +21,43 @@ export async function GET(request: Request) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  let result;
+  // ?snapshot=1 로 월간 스냅샷 강제 발송 가능 (CRON_SECRET 인증은 이미 통과한 상태)
+  const force = new URL(request.url).searchParams.get("snapshot") === "1";
+
   try {
-    result = await collectRepoStats();
-  } catch (e) {
-    // Vercel 크론 재시도 정책상 200으로 보고하되, 무증상이 되지 않게 흔적은 남긴다
-    await logAppError(createAdminClient(), `repo stats collect failed: ${String(e).slice(0, 300)}`, {
-      path: "cron.repo-stats",
+    // 실행 기록(0030) — 수집 실패는 withCronRun이 ok:false + logAppError로 남긴다
+    const summary = await withCronRun("repo-stats", async () => {
+      const result = await collectRepoStats();
+
+      // ── 월간 지표 스냅샷 메일 — 매월 1일(UTC) 발송. 메일 타임스탬프가 시점 기록이 된다.
+      let snapshot = false;
+      if (force || new Date().getUTCDate() === 1) {
+        try {
+          snapshot = await sendMonthlySnapshot();
+        } catch (e) {
+          // 스냅샷 실패는 통계 수집에 영향 없음 — 매월 1회뿐이라 놓치면 복구 기회가 없어 기록
+          await logAppError(createAdminClient(), `monthly snapshot failed: ${String(e).slice(0, 300)}`, {
+            path: "cron.repo-stats",
+          });
+        }
+      }
+
+      // ── 상호 감시: scheduled-scans 크론이 26h 넘게 성공 기록이 없으면 관리자 경보 ──
+      try {
+        const admin = createAdminClient();
+        const lastOk = await lastCronOkAt(admin, "scheduled-scans");
+        if (isCronStale(lastOk, CRON_STALE_HOURS)) await sendCronStaleAlert("scheduled-scans", lastOk);
+      } catch {
+        // 감시 실패가 본 작업을 막지 않게 — 0030 미적용 환경 포함
+      }
+
+      return { ok: true, ...result, snapshot };
     });
+    return NextResponse.json(summary);
+  } catch (e) {
+    // Vercel 크론 재시도 정책상 200으로 보고 (cron_runs에는 ok:false로 정직하게 기록됨)
     return NextResponse.json({ ok: false, reason: (e as Error).message });
   }
-
-  // ── 월간 지표 스냅샷 메일 — 매월 1일(UTC) 발송. 메일 타임스탬프가 시점 기록이 된다.
-  //    ?snapshot=1 로 강제 발송 가능 (CRON_SECRET 인증은 이미 통과한 상태)
-  const force = new URL(request.url).searchParams.get("snapshot") === "1";
-  let snapshot = false;
-  if (force || new Date().getUTCDate() === 1) {
-    try {
-      snapshot = await sendMonthlySnapshot();
-    } catch (e) {
-      // 스냅샷 실패는 통계 수집에 영향 없음 — 매월 1회뿐이라 놓치면 복구 기회가 없어 기록
-      await logAppError(createAdminClient(), `monthly snapshot failed: ${String(e).slice(0, 300)}`, {
-        path: "cron.repo-stats",
-      });
-    }
-  }
-
-  return NextResponse.json({ ok: true, ...result, snapshot });
 }
 
 /** 월간 지표 스냅샷 — 임팩트 지표 + 가입자 수를 관리자 메일로 (미설정 시 no-op) */
