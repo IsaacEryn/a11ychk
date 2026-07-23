@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { assertPublicHttpUrl } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { drainQueue } from "@/lib/scan/drain";
+import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { DEFAULT_SCOPE, createScanForUser } from "@/lib/scan/createScan";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { reevaluateEarnedPlan } from "@/lib/referral/promote";
@@ -29,6 +30,11 @@ export async function GET(request: Request) {
 
   const admin = createAdminClient();
   const now = Date.now();
+
+  // 전역 좀비 회수 백스톱 — reclaimStale은 평소 검사 생성·상태조회(사용자/검사 단위)로만
+  // 호출되므로, 소유자가 다시 접속하지 않는 다른 사용자의 좀비는 회수되지 못한다. 일일 크론에서
+  // 사용자 무관 전역 회수를 돌려 running/queued에 영구히 멈춘 검사를 매일 정리한다.
+  const reclaimed = await reclaimStaleScans(admin, {});
 
   // 후보: 최소 간격(daily=20h)을 넘긴 도메인 전부. 주기별(매주·매월) 필터는 아래 JS에서.
   const minCutoff = new Date(now - FREQUENCY_HOURS.daily * 3600_000).toISOString();
@@ -165,5 +171,5 @@ export async function GET(request: Request) {
     // 테이블 부재(0024 미적용) 등 — 다음 크론에서 재시도
   }
 
-  return NextResponse.json({ processed: results.length, results, cleaned, referral });
+  return NextResponse.json({ processed: results.length, results, cleaned, referral, reclaimed });
 }
