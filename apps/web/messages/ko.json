@@ -224,7 +224,7 @@
     "desc": "검사할 사이트 주소를 입력하고 표본 수집 방식을 선택하세요. WCAG 2.2와 KWCAG 2.2 기준으로 자동 검사 후 보고서가 생성됩니다.",
     "modeLegend": "표본 수집 방식",
     "modeAuto": "자동 수집",
-    "modeAutoDesc": "sitemap과 내부 링크에서 공통 페이지·페이지 유형별 대표 표본을 자동으로 구성합니다 (WCAG-EM 구조+무작위 표본).",
+    "modeAutoDesc": "sitemap과 내부 링크에서 공통 페이지·페이지 유형별 대표 표본을 자동으로 구성합니다 (WCAG-EM 2.0 구조+무작위 표본).",
     "modeManual": "직접 입력",
     "modeManualDesc": "점검자가 검사할 페이지 목록을 직접 지정합니다. 같은 사이트(동일 도메인)의 페이지만 가능합니다.",
     "manualLabel": "검사할 페이지 목록 (줄바꿈으로 구분)",
@@ -357,9 +357,9 @@
       "placeholder": "https://example.com",
       "submit": "검사 시작",
       "submitting": "검사 요청 중…",
-      "advanced": "고급 옵션 (WCAG-EM 평가 범위)",
+      "advanced": "고급 옵션 (WCAG-EM 2.0 평가 범위)",
       "target": "목표 적합성 수준",
-      "targetHint": "WCAG-EM Step 1의 목표 수준입니다. 대부분 AA를 사용합니다. 비워두면 AA가 적용됩니다.",
+      "targetHint": "WCAG-EM 2.0 Step 1의 목표 수준입니다. 대부분 AA를 사용합니다. 비워두면 AA가 적용됩니다.",
       "notes": "평가 비고 (선택)",
       "notesPlaceholder": "평가 목적, 특기사항 등 (보고서에 기록됩니다)",
       "hint": "공개된 페이지만 검사할 수 있습니다. 소유 확인된 도메인은 최대 10페이지, 그 외 5페이지를 수집합니다.",
@@ -627,7 +627,7 @@
       "colViolations": "위반"
     },
     "em": {
-      "scopeTitle": "평가 범위 (WCAG-EM Step 1)",
+      "scopeTitle": "평가 범위 (WCAG-EM 2.0 Step 1)",
       "target": "목표 적합성 수준",
       "baseline": "접근성 지원 기준",
       "notes": "비고",
@@ -638,15 +638,18 @@
       "random": "무작위",
       "process": "프로세스",
       "method": "표본 선정 방법",
-      "representativeness": "대표성 검토 (4.c)",
+      "representativeness": "대표성 검토 (Step 4.3)",
       "repOk": "무작위 표본이 구조 표본에 없는 새 위반 유형을 드러내지 않았습니다. 표본이 충분히 대표적입니다.",
       "repNew": "무작위 표본이 구조 표본에 없던 위반 규칙 {count}종을 추가로 드러냈습니다. 실제 사이트는 더 넓은 표본 검사가 필요할 수 있습니다.",
-      "statementTitle": "적합성 진술",
-      "statement": "본 보고서는 WCAG-EM(웹 접근성 평가 방법론)의 구조에 따라 WCAG 2.2 {target} 수준을 목표로 자동 평가한 결과입니다. 자동 검사로 판정 가능한 부분만 다루며, '수동 검사' 표시 항목과 다단계 프로세스는 포함하지 않습니다. 완전한 WCAG 2.2 적합성 판정을 위해서는 전문가의 수동 평가가 필요하며, 본 자동 평가만으로는 적합성을 주장할 수 없습니다."
+      "statementTitle": "평가 성명",
+      "statement": "본 보고서는 W3C WCAG-EM 2.0(웹 접근성 평가 방법론)의 절차에 따라 WCAG 2.2 {target} 수준을 목표로 자동 평가한 결과입니다. 자동 검사로 판정 가능한 부분만 다루며, '수동 검사' 표시 항목과 다단계 프로세스는 포함하지 않습니다. 완전한 WCAG 2.2 적합성 판정을 위해서는 전문가의 수동 평가가 필요하며, 본 자동 평가만으로는 적합성을 주장할 수 없습니다.",
+      "stmtDate": "발행일",
+      "stmtGuidelines": "적용 지침",
+      "stmtProduct": "평가 대상"
     },
     "wcag": {
       "title": "WCAG 2.2 성공기준 결과",
-      "desc": "WCAG-EM Step 4 — 목표 수준의 성공기준별 자동 판정 결과입니다.",
+      "desc": "WCAG-EM 2.0 Step 4 — 목표 수준의 성공기준별 자동 판정 결과입니다.",
       "colSc": "성공기준",
       "colLevel": "수준",
       "colOutcome": "판정",
@@ -1352,8 +1355,8 @@
     "methodDesc": "자체 기준을 만들지 않았습니다. W3C와 한국 표준이 정한 것을 그대로 따릅니다.",
     "method": {
       "wcagem": {
-        "name": "WCAG-EM",
-        "desc": "W3C의 공식 웹사이트 평가 방법론입니다. 범위 정의부터 대표 표본 구성, 감사, 보고까지 이 절차대로 진행하며, W3C Report Tool로 가져갈 수 있는 파일도 내보냅니다."
+        "name": "WCAG-EM 2.0",
+        "desc": "W3C의 공식 접근성 적합성 평가 방법론(2026년 7월 발행 2.0)입니다. 범위 정의부터 대표 표본 구성, 감사, 보고까지 이 절차대로 진행하며, W3C Report Tool 호환 파일과 2.0 기준 파일을 모두 내보냅니다."
       },
       "wcag": {
         "name": "WCAG 2.2",

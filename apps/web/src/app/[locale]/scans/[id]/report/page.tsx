@@ -218,7 +218,12 @@ export default async function ReportPage({
       {canEdit && <ManualSection locale={locale} />}
 
       {/* ─── WCAG-EM 2.0 평가 성명 (Step 5.3) ─── */}
-      <StatementSection scope={scope} />
+      <StatementSection
+        scope={scope}
+        summary={summary}
+        rootUrl={scan.root_url as string}
+        date={(scan.finished_at ?? scan.created_at) as string}
+      />
 
       {/* ─── 비소유자(배지·공유 링크 방문자) 전환 CTA — 화면 전용, 인쇄 제외 ─── */}
       {!canEdit && <ViewerCta />}

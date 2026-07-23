@@ -33,7 +33,7 @@ diagnosis into **artifacts that drive remediation**:
 - 🔧 **Diagnosis → fix** — every finding ships with a remediation guide plus an
   auto-generated **fix-request document (Markdown/JSON)** you can paste straight into
   AI coding tools (Cursor, Copilot, Claude, …).
-- 🧭 **WCAG-EM methodology** — structured sampling → automated audit → expert judgment
+- 🧭 **WCAG-EM 2.0 methodology** — structured sampling → automated audit → expert judgment
   → combined conformance score, exportable as an EARL report.
 - 🙅 **Honest automation** — checks the tool cannot decide are surfaced with manual
   test instructions instead of being hidden. A 2-pass stability filter suppresses

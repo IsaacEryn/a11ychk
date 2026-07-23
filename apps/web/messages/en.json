@@ -224,7 +224,7 @@
     "desc": "Enter the site URL and choose how to build the sample. The audit runs against WCAG 2.2 and KWCAG 2.2 and produces a report.",
     "modeLegend": "Sampling mode",
     "modeAuto": "Automatic",
-    "modeAutoDesc": "Builds a representative sample from the sitemap and internal links (WCAG-EM structured + random sample).",
+    "modeAutoDesc": "Builds a representative sample from the sitemap and internal links (WCAG-EM 2.0 structured + random sample).",
     "modeManual": "Manual list",
     "modeManualDesc": "You specify the exact pages to audit. Only pages on the same site (same domain) are allowed.",
     "manualLabel": "Pages to audit (one per line)",
@@ -357,9 +357,9 @@
       "placeholder": "https://example.com",
       "submit": "Start audit",
       "submitting": "Requesting…",
-      "advanced": "Advanced (WCAG-EM evaluation scope)",
+      "advanced": "Advanced (WCAG-EM 2.0 evaluation scope)",
       "target": "Target conformance level",
-      "targetHint": "The WCAG-EM Step 1 target level. Most audits use AA. Defaults to AA if left blank.",
+      "targetHint": "The WCAG-EM 2.0 Step 1 target level. Most audits use AA. Defaults to AA if left blank.",
       "notes": "Evaluation notes (optional)",
       "notesPlaceholder": "Purpose, special considerations, etc. (recorded in the report)",
       "hint": "Only public pages can be audited. Verified domains get up to 10 pages; others get 5.",
@@ -627,7 +627,7 @@
       "colViolations": "Violations"
     },
     "em": {
-      "scopeTitle": "Evaluation scope (WCAG-EM Step 1)",
+      "scopeTitle": "Evaluation scope (WCAG-EM 2.0 Step 1)",
       "target": "Target conformance level",
       "baseline": "Accessibility support baseline",
       "notes": "Notes",
@@ -638,15 +638,18 @@
       "random": "Random",
       "process": "Process",
       "method": "Sampling method",
-      "representativeness": "Representativeness (4.c)",
+      "representativeness": "Representativeness (Step 4.3)",
       "repOk": "The random sample surfaced no violation types absent from the structured sample. The sample is sufficiently representative.",
       "repNew": "The random sample surfaced {count} additional violation rule(s) not in the structured sample. A broader sample may be warranted for the full site.",
-      "statementTitle": "Conformance statement",
-      "statement": "This report is an automated evaluation structured per WCAG-EM (Website Accessibility Conformance Evaluation Methodology), targeting WCAG 2.2 level {target}. It covers only what automated testing can judge and excludes items marked 'manual check' and multi-step processes. A complete WCAG 2.2 conformance determination requires expert manual evaluation; this automated evaluation alone does not support a conformance claim."
+      "statementTitle": "Evaluation statement",
+      "statement": "This report is an automated evaluation following W3C WCAG-EM 2.0 (Accessibility Conformance Evaluation Methodology), targeting WCAG 2.2 level {target}. It covers only what automated testing can judge and excludes items marked 'manual check' and multi-step processes. A complete WCAG 2.2 conformance determination requires expert manual evaluation; this automated evaluation alone does not support a conformance claim.",
+      "stmtDate": "Date of publication",
+      "stmtGuidelines": "Guidelines",
+      "stmtProduct": "Evaluated product"
     },
     "wcag": {
       "title": "WCAG 2.2 success criteria results",
-      "desc": "WCAG-EM Step 4 — automated outcome per success criterion at the target level.",
+      "desc": "WCAG-EM 2.0 Step 4 — automated outcome per success criterion at the target level.",
       "colSc": "Success criterion",
       "colLevel": "Level",
       "colOutcome": "Outcome",
@@ -1352,8 +1355,8 @@
     "methodDesc": "We didn't invent our own criteria. We follow what W3C and the Korean national standard define.",
     "method": {
       "wcagem": {
-        "name": "WCAG-EM",
-        "desc": "W3C's official website evaluation methodology. Scoping, exploration, representative sampling, auditing, and reporting follow this procedure, with export compatible with the W3C Report Tool."
+        "name": "WCAG-EM 2.0",
+        "desc": "W3C's official accessibility conformance evaluation methodology (2.0, published July 2026). Scoping, exploration, representative sampling, auditing, and reporting follow this procedure, with both a W3C Report Tool-compatible export and a 2.0-referenced export."
       },
       "wcag": {
         "name": "WCAG 2.2",
