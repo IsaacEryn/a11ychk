@@ -31,7 +31,8 @@
       "impact": "투명성 지표",
       "accessibility": "접근성 선언문",
       "sitemap": "사이트맵",
-      "pricing": "요금제"
+      "pricing": "요금제",
+      "notices": "공지사항"
     },
     "localeSwitcher": "언어 선택",
     "menu": {
@@ -44,6 +45,11 @@
       "light": "라이트",
       "dark": "다크",
       "contrast": "고대비"
+    },
+    "noticeBanner": {
+      "more": "자세히 보기",
+      "close": "공지 닫기",
+      "aria": "서비스 공지"
     }
   },
   "landing": {
@@ -1170,7 +1176,9 @@
         "referral_promote": "달성 등급 승급",
         "referral_clearEarned": "달성 등급 회수",
         "scan_admin_retry": "실패 검사 재검사",
-        "report_view": "사용자 보고서 열람"
+        "report_view": "사용자 보고서 열람",
+        "announcement_publish": "서비스 공지 발행",
+        "announcement_clear": "공지 배너 내리기"
       },
       "detailActive": "시행 시작",
       "detailInactive": "시행 중지",
@@ -1295,6 +1303,22 @@
       "colViolations": "위반",
       "colLocale": "언어",
       "violationsCell": "규칙 {rules} · 요소 {nodes}"
+    },
+    "announcement": {
+      "title": "서비스 공지",
+      "hint": "발행하면 사이트 상단 배너에 노출되고 공지사항 페이지에 기록됩니다. 새 공지를 발행하면 이전 공지는 배너에서 내려갑니다.",
+      "current": "현재 배너",
+      "clear": "배너 내리기",
+      "cleared": "배너를 내렸습니다",
+      "titleKo": "제목 (한국어)",
+      "titleEn": "제목 (영어)",
+      "bodyKo": "본문 (한국어)",
+      "bodyEn": "본문 (영어)",
+      "publish": "공지 발행",
+      "publishing": "발행 중…",
+      "published": "발행되었습니다",
+      "invalid": "제목과 본문(한국어·영어)을 모두 입력해 주세요.",
+      "failed": "처리에 실패했습니다. 잠시 후 다시 시도해 주세요."
     }
   },
   "guide": {
@@ -1540,5 +1564,10 @@
     "ctaFree": "무료로 시작하기",
     "ctaContact": "도입 문의하기",
     "note": "유료 플랜 시행 전까지 모든 계정은 Free 한도로 동작합니다. 더 큰 한도가 필요하면 문의해 주세요 — 검토 후 개별 배정해 드립니다. 시행 시점과 가격은 확정되면 이 페이지와 공지로 안내합니다."
+  },
+  "notices": {
+    "title": "공지사항",
+    "intro": "A11y Check의 새 소식과 변경 사항을 안내합니다.",
+    "empty": "등록된 공지가 없습니다."
   }
 }

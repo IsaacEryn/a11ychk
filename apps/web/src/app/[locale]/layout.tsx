@@ -8,6 +8,9 @@ import { Hahmlet } from "next/font/google";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import { ServiceStatusBanner } from "@/components/ServiceStatusBanner";
+import { AnnouncementBanner } from "@/components/AnnouncementBanner";
+import { getAnnouncements } from "@/lib/appSettings";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { themeInitScript } from "@/components/ThemeToggle";
 import "../globals.css";
 // Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
@@ -99,6 +102,12 @@ export default async function LocaleLayout({
   // GTM 컨테이너 ID — 미설정이면 스니펫 자체를 렌더하지 않는다 (CSP 허용 목록도 proxy에서 동일 조건)
   const gtmId = process.env.NEXT_PUBLIC_GTM_ID;
 
+  // 서비스 공지 — active 최신 1건만 배너로 표시 (조회 실패 시 미표시, best-effort)
+  const activeNotice = await getAnnouncements(createAdminClient()).then(
+    (items) => items.find((n) => n.active) ?? null,
+    () => null,
+  );
+
   return (
     // suppressHydrationWarning: 테마 초기화 스크립트가 hydration 전에 data-theme를
     // 설정하므로 html 속성 불일치 경고를 억제한다 (theme attribute 표준 패턴)
@@ -142,6 +151,15 @@ export default async function LocaleLayout({
         </a>
         <NextIntlClientProvider>
           <ServiceStatusBanner />
+          {activeNotice && (
+            <AnnouncementBanner
+              id={activeNotice.id}
+              title={activeNotice[locale === "en" ? "en" : "ko"].title}
+              moreLabel={t("noticeBanner.more")}
+              closeLabel={t("noticeBanner.close")}
+              ariaLabel={t("noticeBanner.aria")}
+            />
+          )}
           <Header />
           <main id="main" tabIndex={-1} className="flex-1 focus:outline-none">
             {children}

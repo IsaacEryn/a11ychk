@@ -393,3 +393,54 @@ export async function adminRetryScan(
   revalidateLocalized("/admin/scans");
   return { ok: true };
 }
+
+/**
+ * 서비스 공지 발행 — 새 공지를 최신으로 추가하고 배너에 노출(active). 기존 공지의
+ * active는 해제해 배너에는 항상 1건만 노출된다. /notices에는 전체 이력이 남는다.
+ */
+export async function publishAnnouncement(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { user: actor } = await requireAdmin();
+  const Schema = z.object({
+    titleKo: z.string().min(1).max(120),
+    bodyKo: z.string().min(1).max(4000),
+    titleEn: z.string().min(1).max(120),
+    bodyEn: z.string().min(1).max(4000),
+  });
+  const parsed = Schema.safeParse({
+    titleKo: formData.get("titleKo"),
+    bodyKo: formData.get("bodyKo"),
+    titleEn: formData.get("titleEn"),
+    bodyEn: formData.get("bodyEn"),
+  });
+  if (!parsed.success) return { error: "invalid" };
+
+  const admin = createAdminClient();
+  const { getAnnouncements, saveAnnouncements } = await import("@/lib/appSettings");
+  const items = await getAnnouncements(admin);
+  const next = [
+    {
+      id: crypto.randomUUID(),
+      date: new Date().toISOString(),
+      active: true,
+      ko: { title: parsed.data.titleKo, body: parsed.data.bodyKo },
+      en: { title: parsed.data.titleEn, body: parsed.data.bodyEn },
+    },
+    ...items.map((n) => ({ ...n, active: false })),
+  ];
+  await saveAnnouncements(admin, next);
+  await logAdminAction(admin, actor.id, "announcement.publish", undefined, { subject: parsed.data.titleKo });
+  revalidateLocalized("/", "/notices", "/admin/settings");
+  return { ok: true };
+}
+
+/** 공지 배너 내리기 — 모든 공지의 active 해제 (/notices 이력은 유지) */
+export async function clearAnnouncementBanner(): Promise<SaveState> {
+  const { user: actor } = await requireAdmin();
+  const admin = createAdminClient();
+  const { getAnnouncements, saveAnnouncements } = await import("@/lib/appSettings");
+  const items = await getAnnouncements(admin);
+  await saveAnnouncements(admin, items.map((n) => ({ ...n, active: false })));
+  await logAdminAction(admin, actor.id, "announcement.clear");
+  revalidateLocalized("/", "/notices", "/admin/settings");
+  return { ok: true };
+}

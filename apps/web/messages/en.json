@@ -31,7 +31,8 @@
       "impact": "Impact",
       "accessibility": "Accessibility",
       "sitemap": "Sitemap",
-      "pricing": "Pricing"
+      "pricing": "Pricing",
+      "notices": "Notices"
     },
     "localeSwitcher": "Select language",
     "menu": {
@@ -44,6 +45,11 @@
       "light": "Light",
       "dark": "Dark",
       "contrast": "High contrast"
+    },
+    "noticeBanner": {
+      "more": "Read more",
+      "close": "Dismiss notice",
+      "aria": "Service notice"
     }
   },
   "landing": {
@@ -1170,7 +1176,9 @@
         "referral_promote": "Promote earned plan",
         "referral_clearEarned": "Clear earned plan",
         "scan_admin_retry": "Retry failed scan",
-        "report_view": "View user report"
+        "report_view": "View user report",
+        "announcement_publish": "Publish notice",
+        "announcement_clear": "Remove notice banner"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",
@@ -1295,6 +1303,22 @@
       "colViolations": "Violations",
       "colLocale": "Locale",
       "violationsCell": "{rules} rules · {nodes} elements"
+    },
+    "announcement": {
+      "title": "Service notices",
+      "hint": "Publishing shows a site-wide banner and records the notice on the notices page. Publishing a new notice replaces the previous banner.",
+      "current": "Current banner",
+      "clear": "Remove banner",
+      "cleared": "Banner removed",
+      "titleKo": "Title (Korean)",
+      "titleEn": "Title (English)",
+      "bodyKo": "Body (Korean)",
+      "bodyEn": "Body (English)",
+      "publish": "Publish",
+      "publishing": "Publishing…",
+      "published": "Published",
+      "invalid": "Fill in the title and body in both languages.",
+      "failed": "Failed. Try again shortly."
     }
   },
   "guide": {
@@ -1540,5 +1564,10 @@
     "ctaFree": "Start for free",
     "ctaContact": "Contact us",
     "note": "Until paid plans launch, every account runs on Free limits. Need more? Contact us and we will review and assign limits individually. Launch timing and prices will be announced on this page."
+  },
+  "notices": {
+    "title": "Notices",
+    "intro": "News and changes to A11y Check.",
+    "empty": "No notices yet."
   }
 }

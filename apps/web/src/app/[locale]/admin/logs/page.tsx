@@ -185,6 +185,8 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
       "referral.clearEarned",
       "scan.admin_retry",
       "report.view",
+      "announcement.publish",
+      "announcement.clear",
     ];
     return known.includes(action) ? t(`logs.actions.${action.replace(".", "_")}`) : action;
   }

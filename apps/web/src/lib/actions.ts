@@ -36,6 +36,8 @@ export {
   clearEarnedPlan,
   sendUserEmail,
   adminRetryScan,
+  publishAnnouncement,
+  clearAnnouncementBanner,
 } from "./actions/admin";
 export type { ResetQuotaState } from "./actions/admin";
 

@@ -5,7 +5,7 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
 /** 공개(비로그인) 페이지만 노출 — 대시보드·보고서·관리자는 robots에서 차단 */
 // /pricing은 요금제 시행 전이라 검색·푸터 노출에서 제외 (직접 URL 접근은 유지)
-const PUBLIC_PATHS = ["", "/about", "/guide", "/impact", "/directory", "/scan", "/accessibility", "/terms", "/privacy", "/login"];
+const PUBLIC_PATHS = ["", "/about", "/guide", "/impact", "/directory", "/scan", "/accessibility", "/notices", "/terms", "/privacy", "/login"];
 const LOCALES = ["ko", "en"] as const;
 
 /** 공개 등재된 도메인의 사이트 리졸버(`/site/{hostname}`)를 sitemap에 포함 — 롱테일 유입면. */
