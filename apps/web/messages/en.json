@@ -1211,10 +1211,10 @@
   },
   "extension": {
     "title": "Connect Chrome extension",
-    "desc": "Install the A11y Check Chrome extension to audit pages behind login or the screen you're working on, and use the manual checklist. Follow the steps below to connect the extension to your account — connecting requires signing in to a11ychk.com.",
+    "desc": "Install the A11y Check Chrome extension to audit pages behind login or the screen you're working on, and use the manual checklist. Connect it to your account in the 3 steps below.",
     "step1": "Install the 'A11y Check' extension from the Chrome Web Store.",
-    "step2": "Sign in to a11ychk.com in this browser. This connect page is only accessible when signed in, and it hands your session to the extension.",
-    "step3": "While signed in, opening this page hands your session to the extension automatically — once the status below turns 'Connected', use 'Save results to my account' in the extension popup.",
+    "step2": "Sign in to a11ychk.com in this browser.",
+    "step3": "Open this page while signed in — it connects automatically. Done when the status below shows 'Connected'.",
     "waiting": "Waiting for the extension to connect…",
     "connected": "Extension connected!",
     "notInstalled": "If the extension isn't installed or recognized yet, install it and refresh this page.",
