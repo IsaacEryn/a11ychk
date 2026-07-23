@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -20,6 +21,7 @@ function minutesSince(iso: string | null): number {
 export default async function AdminDashboardPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireAdmin(locale); // 병렬 렌더 누출 방지 — page 자체 가드 (layout 가드만으로는 불충분)
   const t = await getTranslations("admin");
   const tDash = await getTranslations("dashboard");
   const format = await getFormatter();

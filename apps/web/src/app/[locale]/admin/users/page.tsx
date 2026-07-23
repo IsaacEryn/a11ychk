@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getPlansActive } from "@/lib/appSettings";
@@ -32,6 +33,7 @@ export default async function AdminUsersPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireAdmin(locale); // 병렬 렌더 누출 방지 — page 자체 가드 (layout 가드만으로는 불충분)
   const { q } = await searchParams;
   const t = await getTranslations("admin");
   const tDash = await getTranslations("dashboard");

@@ -1,3 +1,4 @@
+import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TEASER_GLOBAL_DAILY_CAP, TEASER_GLOBAL_KEY } from "@/lib/teaser";
@@ -31,6 +32,7 @@ function todayUtc(): string {
 export default async function AdminTeaserPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  await requireAdmin(locale); // 병렬 렌더 누출 방지 — page 자체 가드 (layout 가드만으로는 불충분)
   const t = await getTranslations("admin.teaser");
   const format = await getFormatter();
 

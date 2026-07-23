@@ -1,11 +1,15 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { getCachedUser } from "@/lib/supabase/user";
 import { TeaserScanForm } from "./TeaserScanForm";
 
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("landing");
+  // 맛보기 검사는 비로그인 방문자 전용 — 회원은 대시보드에서 본검사를 쓰면 된다
+  // (헤더가 이미 같은 렌더 패스에서 getCachedUser를 호출하므로 추가 왕복 없음)
+  const user = await getCachedUser();
 
   // 검색엔진 구조화 데이터 — 정적 값만 사용(사용자 입력 없음)
   const jsonLd = {
@@ -130,8 +134,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
         </div>
       </section>
 
-      {/* ─── 비로그인 맛보기 검사 — 로그인 없이 1페이지 즉석 검사 ─── */}
-      <TeaserScanForm />
+      {/* ─── 비로그인 맛보기 검사 — 로그인 없이 1페이지 즉석 검사 (회원에겐 미노출) ─── */}
+      {!user && <TeaserScanForm />}
 
       {/* ─── 기능 ─── */}
       <section aria-labelledby="features-heading" className="py-14">
