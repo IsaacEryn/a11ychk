@@ -128,6 +128,23 @@ export async function POST(request: Request) {
     const summary = aggregateScan([page], AXE_VERSION);
     const payload = buildTeaserResult(page, summary, locale);
 
+    // 관리자 통계 기록 (best-effort — 0026 미적용/일시 오류여도 응답은 정상 반환)
+    // 호스트명·요약 수치만 저장: 경로·쿼리(개인정보 가능성)·IP·결과 상세는 저장하지 않는다.
+    await admin
+      .from("teaser_scans")
+      .insert({
+        hostname: url.hostname,
+        rate: payload.rate,
+        rule_count: payload.ruleCount,
+        node_count: payload.totalNodes,
+        by_impact: payload.byImpact,
+        locale,
+      })
+      .then(
+        () => undefined,
+        () => undefined,
+      );
+
     // 양 로케일 슬롯 캐시 (같은 URL을 다른 언어로 봐도 재검사 없이 트리밍만 다시)
     const other = locale === "ko" ? "en" : "ko";
     resultCache.set(cacheKey, {

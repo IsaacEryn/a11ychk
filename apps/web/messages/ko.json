@@ -95,7 +95,7 @@
       "submit": "무료로 검사하기",
       "loading": "검사 중…",
       "loadingNote": "페이지를 분석하고 있어요. 10~30초 정도 걸립니다.",
-      "notSaved": "이 검사 결과는 저장되지 않으며, 화면을 벗어나면 사라집니다.",
+      "notSaved": "결과 화면은 저장되지 않아 다시 볼 수 없습니다. 서비스 운영 통계를 위해 검사 도메인과 요약 수치만 수집합니다.",
       "cachedNote": "최근에 검사된 페이지라 저장된 결과 없이 즉시 표시했어요.",
       "rateLabel": "자동 검사 준수율",
       "impact": {
@@ -1038,7 +1038,8 @@
       "inquiries": "문의",
       "settings": "운영 설정",
       "logs": "로그",
-      "referrals": "초대 관리"
+      "referrals": "초대 관리",
+      "teaser": "맛보기"
     },
     "dashboard": {
       "goDetail": "자세히 →",
@@ -1158,6 +1159,30 @@
       "inviteeGone": "(탈퇴)",
       "approve": "승인",
       "reject": "기각"
+    },
+    "teaser": {
+      "title": "맛보기 검사 통계",
+      "intro": "비로그인 맛보기 검사의 수요·품질 지표입니다. 호스트명과 요약 수치만 수집하며(경로·IP·개인정보 없음), 소비자에게는 결과가 다시 표시되지 않습니다. 표·평균은 최근 30일 기준입니다.",
+      "empty": "아직 기록된 맛보기 검사가 없습니다. (migration 0026 적용 후부터 기록됩니다)",
+      "cards": {
+        "today": "오늘",
+        "week": "최근 7일",
+        "month": "최근 30일",
+        "total": "누적",
+        "globalCap": "오늘 전역 캡",
+        "avgRate": "평균 준수율(30일)"
+      },
+      "domainsTitle": "도메인별 수요 (최근 30일)",
+      "recentTitle": "최근 검사 (최신 50건)",
+      "colDomain": "도메인",
+      "colCount": "검사 수",
+      "colAvgRate": "평균 준수율",
+      "colLast": "마지막 검사",
+      "colTime": "일시",
+      "colRate": "준수율",
+      "colViolations": "위반",
+      "colLocale": "언어",
+      "violationsCell": "규칙 {rules} · 요소 {nodes}"
     }
   },
   "guide": {

@@ -95,7 +95,7 @@
       "submit": "Check it free",
       "loading": "Checking…",
       "loadingNote": "Analysing the page — this takes about 10–30 seconds.",
-      "notSaved": "This result is not stored and disappears when you leave the page.",
+      "notSaved": "The result screen is not saved and cannot be viewed again. Only the checked domain and summary figures are collected for service statistics.",
       "cachedNote": "This page was checked recently, so we showed the result instantly.",
       "rateLabel": "Automated compliance",
       "impact": {
@@ -1038,7 +1038,8 @@
       "inquiries": "Inquiries",
       "settings": "Settings",
       "logs": "Logs",
-      "referrals": "Referrals"
+      "referrals": "Referrals",
+      "teaser": "Teaser"
     },
     "dashboard": {
       "goDetail": "Details →",
@@ -1158,6 +1159,30 @@
       "inviteeGone": "(deleted)",
       "approve": "Approve",
       "reject": "Reject"
+    },
+    "teaser": {
+      "title": "Teaser scan statistics",
+      "intro": "Demand and quality metrics for the no-login teaser check. Only hostnames and summary figures are collected (no paths, IPs, or personal data); results are never shown to visitors again. Tables and averages cover the last 30 days.",
+      "empty": "No teaser scans recorded yet. (Recording starts after migration 0026 is applied.)",
+      "cards": {
+        "today": "Today",
+        "week": "Last 7 days",
+        "month": "Last 30 days",
+        "total": "All time",
+        "globalCap": "Today's global cap",
+        "avgRate": "Avg. rate (30d)"
+      },
+      "domainsTitle": "Demand by domain (last 30 days)",
+      "recentTitle": "Recent scans (latest 50)",
+      "colDomain": "Domain",
+      "colCount": "Scans",
+      "colAvgRate": "Avg. rate",
+      "colLast": "Last scanned",
+      "colTime": "When",
+      "colRate": "Rate",
+      "colViolations": "Violations",
+      "colLocale": "Locale",
+      "violationsCell": "{rules} rules · {nodes} elements"
     }
   },
   "guide": {

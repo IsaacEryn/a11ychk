@@ -13,7 +13,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   ko: {
     title: "개인정보 처리방침",
     effective:
-      "시행일: 2026년 7월 23일 (개정 — 친구 초대 기능 도입 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
+      "시행일: 2026년 7월 24일 (개정 — 비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
@@ -22,6 +22,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "서비스 이용 시: 검사 대상 URL과 검사 결과, 점검자 판정·메모, 보고서 정보(사이트 이름·평가자 등), 문의 내용.",
           "서비스 보호 목적: 로그인 기록(IP 주소 포함)과 서버 오류 로그를 수집합니다.",
           "친구 초대 기능 이용 시: 초대 코드, 피초대자 이메일의 일방향 해시값(원문은 저장하지 않음), 피초대자 가입 시점 IP 주소 — 중복·부정 초대 방지 목적으로만 사용합니다.",
+          "비로그인 맛보기 검사 이용 시: 이용량 제한을 위한 IP 주소의 일방향 해시값(원본 IP는 저장하지 않으며 2일 후 자동 삭제)과, 서비스 운영 통계를 위한 검사 대상 도메인·결과 요약 수치(경로·개인 식별 정보 없음)를 수집합니다. 검사 결과 상세는 저장하지 않습니다.",
           "쿠키: 로그인 세션 유지 목적의 인증 쿠키와 서비스 이용 통계를 위한 웹 분석 쿠키(제5조)를 사용합니다. 광고 목적의 쿠키는 사용하지 않습니다.",
         ],
       },
@@ -73,7 +74,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   en: {
     title: "Privacy Policy",
     effective:
-      "Effective: July 23, 2026 (amended — referral feature disclosure; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
+      "Effective: July 24, 2026 (amended — no-login teaser check disclosure; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Data we collect",
@@ -82,6 +83,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "During use: audited URLs and results, evaluator judgments/notes, report details (site name, evaluator, etc.), and inquiry contents.",
           "For service protection: sign-in records (including IP address) and server error logs.",
           "When using the referral feature: your invite code, a one-way hash of the invitee's email (the original is not stored), and the invitee's IP address at sign-up — used only to prevent duplicate or fraudulent referrals.",
+          "When using the no-login teaser check: a one-way hash of your IP address for rate limiting (the original IP is not stored; deleted automatically after 2 days), and the checked domain with summary result figures for service statistics (no paths or personally identifiable information). Detailed results are not stored.",
           "Cookies: authentication cookies for session management, plus web-analytics cookies for usage statistics (see Section 5). No advertising cookies.",
         ],
       },
