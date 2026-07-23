@@ -57,6 +57,14 @@ type ScanPageRow = { id: string; url: string; sample_type: string | null };
  */
 const PAGE_SCAN_TIMEOUT_MS = 55_000;
 
+/**
+ * 페이지 수집(buildSample) 하드 타임아웃. sitemap·내부 링크 크롤이 느리거나 매달리는
+ * 사이트에서 수집 단계가 함수 maxDuration까지 매달리면 페이지를 하나도 못 만든 채
+ * 좀비(running·페이지 0건)가 된다. 개별 fetch는 15s 캡이 있지만 누적·엣지케이스를 대비해
+ * 수집 전체를 캡하고, 초과 시 루트 페이지만으로 진행한다(부분 결과라도 완료 → 좀비 방지).
+ */
+const COLLECT_BUDGET_MS = 75_000;
+
 /** 프라미스에 타임아웃을 건다(초과 시 reject). 원 프라미스는 race가 계속 참조하므로 미처리 거부 없음. */
 function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
   let timer: ReturnType<typeof setTimeout>;
@@ -307,10 +315,24 @@ export async function runScan(scanId: string): Promise<void> {
         source: "root-only",
       };
     } else {
-      sample = await buildSample(scan.root_url, {
-        maxPages: scan.page_limit,
-        fetcher: (u) => guardedFetch(u),
-      });
+      // 자동 수집을 시간 예산으로 감싼다. 초과 시 루트 페이지만으로 진행해 좀비를 막는다.
+      // robots 차단·잘못된 URL 등 buildSample의 실제 오류는 그대로 던져 정상 실패시킨다.
+      try {
+        sample = await withTimeout(
+          buildSample(scan.root_url, { maxPages: scan.page_limit, fetcher: (u) => guardedFetch(u) }),
+          COLLECT_BUDGET_MS,
+          "collect-timeout",
+        );
+      } catch (e) {
+        if ((e as Error).message !== "collect-timeout") throw e;
+        const rootNorm = normalizeUrl(scan.root_url) ?? scan.root_url;
+        sample = {
+          pages: [{ url: rootNorm, category: "home", sampleType: "structured" }],
+          technologies: ["HTML"],
+          sampleMethod: "페이지 수집이 지연되어 루트 페이지만 검사했습니다(부분 결과).",
+          source: "root-only",
+        };
+      }
     }
 
     // 2) 페이지 행 생성 (표본 유형·분류 기록)
