@@ -1218,7 +1218,8 @@
     "waiting": "확장 연결을 기다리는 중…",
     "connected": "확장이 연결되었습니다!",
     "notInstalled": "확장이 아직 설치되지 않았거나 인식되지 않으면, 설치 후 이 페이지를 새로고침하세요.",
-    "account": "계정"
+    "account": "계정",
+    "installButton": "크롬 웹스토어에서 설치"
   },
   "errors": {
     "notFoundTitle": "페이지를 찾을 수 없습니다",

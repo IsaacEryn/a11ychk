@@ -1218,7 +1218,8 @@
     "waiting": "Waiting for the extension to connect…",
     "connected": "Extension connected!",
     "notInstalled": "If the extension isn't installed or recognized yet, install it and refresh this page.",
-    "account": "Account"
+    "account": "Account",
+    "installButton": "Install from Chrome Web Store"
   },
   "errors": {
     "notFoundTitle": "Page not found",

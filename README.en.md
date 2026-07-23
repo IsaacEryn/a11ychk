@@ -13,6 +13,7 @@ fix-request documents for AI coding tools.
 [![app: AGPL-3.0](https://img.shields.io/badge/app-AGPL--3.0-1a7f6e.svg)](apps/web/LICENSE)
 
 **[🔗 Live: a11ychk.com](https://www.a11ychk.com)** ·
+[Chrome extension](https://chromewebstore.google.com/detail/a11y-check/ldldalfanbiampibejfhbdcjdlkcaoag) ·
 [Public directory](https://www.a11ychk.com/en/directory) ·
 [Impact metrics](https://www.a11ychk.com/en/impact) ·
 **[한국어 README](README.md)**
