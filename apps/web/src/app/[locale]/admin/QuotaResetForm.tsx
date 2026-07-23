@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { resetQuota, type ResetQuotaState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
 
 /** 사용자 한도 초기화 폼 — 실행 중/성공/실패 상태를 즉시 보여준다 */
 export function QuotaResetForm({ userId }: { userId: string }) {
@@ -36,16 +37,11 @@ export function QuotaResetForm({ userId }: { userId: string }) {
       >
         {pending ? t("resetPending") : t("resetApply")}
       </button>
-      {state.ok && state.resetScope && (
-        <span role="status" className="text-xs font-bold text-[var(--color-seal)]">
-          ✓ {t("resetDone", { scope: t(`resetScope.${state.resetScope}`) })}
-        </span>
-      )}
-      {state.error && (
-        <span role="alert" className="text-xs font-bold text-[var(--color-crit)]">
-          {t("resetFailed")}
-        </span>
-      )}
+      <FormFeedback
+        state={{ ok: Boolean(state.ok && state.resetScope), error: state.error }}
+        okLabel={state.resetScope ? t("resetDone", { scope: t(`resetScope.${state.resetScope}`) }) : ""}
+        fallback={t("resetFailed")}
+      />
     </form>
   );
 }

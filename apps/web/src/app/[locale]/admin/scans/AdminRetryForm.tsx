@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { adminRetryScan, type SaveState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
 
 /**
  * 실패 검사 관리자 재검사 버튼 — 한도 미차감, 성공 시에만 사용자에게 노출.
@@ -22,16 +23,14 @@ export function AdminRetryForm({ scanId }: { scanId: string }) {
       >
         {pending ? t("pending") : t("run")}
       </button>
-      {state.ok && (
-        <span role="status" className="text-xs font-bold text-[var(--color-seal)]">
-          ✓ {t("started")}
-        </span>
-      )}
-      {state.error && (
-        <span role="alert" className="text-xs font-bold text-[var(--color-crit)]">
-          {t(`errors.${["userBusy", "notFailed", "notFound", "invalidUrl"].includes(state.error) ? state.error : "createFailed"}`)}
-        </span>
-      )}
+      <FormFeedback
+        state={state}
+        okLabel={t("started")}
+        errors={Object.fromEntries(
+          ["userBusy", "notFailed", "notFound", "invalidUrl"].map((c) => [c, t(`errors.${c}`)]),
+        )}
+        fallback={t("errors.createFailed")}
+      />
     </form>
   );
 }

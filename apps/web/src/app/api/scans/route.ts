@@ -2,6 +2,7 @@ import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { UrlGuardError, assertPublicHttpUrl, isSameOrigin, normalizeUrl, type EvaluationScope } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { apiError, resolveApiLocale, type ApiErrorCode } from "@/lib/apiError";
 import { DEFAULT_BASELINE, createScanForUser } from "@/lib/scan/createScan";
 import { drainQueue } from "@/lib/scan/drain";
 import { MAX_PAGES_PER_SCAN } from "@/lib/quota";
@@ -28,13 +29,14 @@ const CreateScanSchema = z.object({
 });
 
 export async function POST(request: Request) {
+  const locale = resolveApiLocale(request);
   // 1) 인증
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return NextResponse.json({ error: "로그인이 필요합니다.", code: "loginRequired" }, { status: 401 });
+    return apiError(locale, "loginRequired", 401);
   }
 
   // 2) 입력 검증
@@ -42,11 +44,11 @@ export async function POST(request: Request) {
   try {
     body = await request.json();
   } catch {
-    return NextResponse.json({ error: "잘못된 요청 형식입니다.", code: "invalidInput" }, { status: 400 });
+    return apiError(locale, "invalidBody", 400);
   }
   const parsed = CreateScanSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "검사할 URL을 입력해 주세요.", code: "invalidInput" }, { status: 400 });
+    return apiError(locale, "invalidInput", 400);
   }
 
   // 3) SSRF 가드 (형식 + DNS 검증)
@@ -54,10 +56,9 @@ export async function POST(request: Request) {
   try {
     url = await assertPublicHttpUrl(parsed.data.url);
   } catch (e) {
-    const message = e instanceof UrlGuardError ? e.message : "URL을 확인할 수 없습니다.";
-    // UrlGuardError.code → i18n 코드 (invalid-url → url_invalid_url)
-    const code = e instanceof UrlGuardError ? `url_${e.code.replaceAll("-", "_")}` : "urlUnknown";
-    return NextResponse.json({ error: message, code }, { status: 400 });
+    // UrlGuardError.code → i18n 코드 (invalid-url → url_invalid_url) — 전 코드가 MESSAGES에 등재됨
+    const code = (e instanceof UrlGuardError ? `url_${e.code.replaceAll("-", "_")}` : "urlUnknown") as ApiErrorCode;
+    return apiError(locale, code, 400);
   }
 
   // 4) 점검자 직접 입력 표본 검증: 정규화 → 같은 origin만 → 중복 제거
@@ -67,20 +68,13 @@ export async function POST(request: Request) {
     for (const raw of parsed.data.pages) {
       const normalized = normalizeUrl(raw);
       if (!normalized || !isSameOrigin(normalized, url.origin)) {
-        return NextResponse.json(
-          {
-            error: `검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: ${raw}`,
-            code: "pageOtherDomain",
-            params: { url: raw },
-          },
-          { status: 400 },
-        );
+        return apiError(locale, "pageOtherDomain", 400, { params: { url: raw } });
       }
       seen.add(normalized);
     }
     manualPages = [...seen];
     if (manualPages.length === 0) {
-      return NextResponse.json({ error: "검사할 페이지를 1개 이상 입력해 주세요.", code: "pagesEmpty" }, { status: 400 });
+      return apiError(locale, "pagesEmpty", 400);
     }
   }
 

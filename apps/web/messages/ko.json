@@ -250,6 +250,7 @@
       "url_bad_scheme": "http/https 주소만 검사할 수 있습니다.",
       "url_private_address": "사설/내부 네트워크 주소는 검사할 수 없습니다.",
       "url_resolve_failed": "호스트를 찾을 수 없습니다. 주소를 확인해 주세요.",
+      "url_too_many_redirects": "리디렉션이 너무 많아 검사할 수 없습니다.",
       "url_fetch_failed": "대상에 접속할 수 없습니다. 잠시 후 다시 시도해 주세요.",
       "urlUnknown": "URL을 확인할 수 없습니다.",
       "pageOtherDomain": "검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: {url}",

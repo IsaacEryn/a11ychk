@@ -51,6 +51,31 @@ const MESSAGES = {
     en: "You've used all {limit} extension scans for today.",
   },
   extReportNotFound: { ko: "선택한 보고서를 찾을 수 없습니다.", en: "Selected report not found." },
+  // ── 검사 생성(api/scans) — SSRF 가드(UrlGuardError.code → url_*)·표본 검증 ──
+  url_invalid_url: { ko: "올바른 URL 형식이 아닙니다.", en: "Invalid URL format." },
+  url_bad_scheme: { ko: "http/https 주소만 검사할 수 있습니다.", en: "Only http/https URLs can be scanned." },
+  url_private_address: {
+    ko: "사설/내부 네트워크 주소는 검사할 수 없습니다.",
+    en: "Private or internal network addresses cannot be scanned.",
+  },
+  url_resolve_failed: {
+    ko: "호스트를 찾을 수 없습니다. 주소를 확인해 주세요.",
+    en: "Host not found. Please check the address.",
+  },
+  url_too_many_redirects: {
+    ko: "리디렉션이 너무 많아 검사할 수 없습니다.",
+    en: "Too many redirects to scan this URL.",
+  },
+  url_fetch_failed: {
+    ko: "대상에 접속할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+    en: "Could not reach the target. Please try again shortly.",
+  },
+  urlUnknown: { ko: "URL을 확인할 수 없습니다.", en: "Could not verify the URL." },
+  pageOtherDomain: {
+    ko: "검사 주소와 다른 도메인이거나 올바르지 않은 페이지가 있습니다: {url}",
+    en: "A page is on a different domain or invalid: {url}",
+  },
+  pagesEmpty: { ko: "검사할 페이지를 1개 이상 입력해 주세요.", en: "Enter at least one page to scan." },
 } as const;
 
 /** 요청 로케일 해석 — ?lang= 명시가 우선(기존 csv/pdf/ai-fix 관례), 없으면 Accept-Language */

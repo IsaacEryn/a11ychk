@@ -250,6 +250,7 @@
       "url_bad_scheme": "Only http/https addresses can be scanned.",
       "url_private_address": "Private/internal network addresses cannot be scanned.",
       "url_resolve_failed": "Host not found. Please check the address.",
+      "url_too_many_redirects": "Too many redirects to scan this URL.",
       "url_fetch_failed": "Could not reach the target. Please try again shortly.",
       "urlUnknown": "Could not verify the URL.",
       "pageOtherDomain": "A page is on a different domain or invalid: {url}",
