@@ -1,4 +1,5 @@
 import "server-only";
+import { adminBasePath } from "@/lib/adminSlug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAppError } from "@/lib/logs";
 
@@ -74,11 +75,39 @@ export async function sendAdminInquiryAlert(title: string, nickname: string | nu
 <p style="font-family:sans-serif;font-size:14px;line-height:1.6">
   새 문의가 접수되었습니다.<br/>
   <b>${escapeHtml(title)}</b>${nickname ? ` — ${escapeHtml(nickname)}` : ""}<br/>
-  <a href="${siteUrl}/ko/admin/inquiries">관리자에서 확인</a>
+  <a href="${siteUrl}${adminBasePath("ko")}/inquiries">관리자에서 확인</a>
 </p>`;
   const ok = await sendEmail({ to, subject: `[A11y Check] 새 문의: ${title.slice(0, 60)}`, html });
   if (!ok) {
     await logAppError(createAdminClient(), "admin inquiry alert send failed", { path: "notify.sendAdminInquiryAlert" });
+  }
+  return ok;
+}
+
+/**
+ * 관리자 계정 로그인 알림 — 관리자 세션이 2단계 인증(AAL2)까지 완성될 때마다 1통.
+ * 자격증명 탈취 시 본인이 즉시 인지할 수 있게 한다. best-effort.
+ */
+export async function sendAdminLoginAlert(info: {
+  email: string | null;
+  provider: string;
+  ip: string | null;
+  userAgent: string | null;
+}): Promise<boolean> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) return false;
+  const html = `
+<p style="font-family:sans-serif;font-size:14px;line-height:1.7">
+  관리자 계정에 새 로그인이 있었습니다.<br/>
+  계정: <b>${escapeHtml(info.email ?? "?")}</b> · 방식: ${escapeHtml(info.provider)}<br/>
+  IP: ${escapeHtml(info.ip ?? "?")}<br/>
+  브라우저: ${escapeHtml((info.userAgent ?? "?").slice(0, 120))}<br/>
+  시각: ${new Date().toISOString()}<br/><br/>
+  본인이 아니라면 즉시 비밀번호를 변경하고 Supabase 대시보드에서 세션을 철회하세요.
+</p>`;
+  const ok = await sendEmail({ to, subject: "[A11y Check] 관리자 로그인 알림", html });
+  if (!ok) {
+    await logAppError(createAdminClient(), "admin login alert send failed", { path: "notify.sendAdminLoginAlert" });
   }
   return ok;
 }

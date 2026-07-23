@@ -5,10 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 
 export function OAuthButtons({
   locale,
+  next,
   googleLabel,
   githubLabel,
 }: {
   locale: string;
+  /** 로그인 후 돌아갈 내부 경로 (서버에서 sanitize됨) */
+  next?: string;
   googleLabel: string;
   githubLabel: string;
 }) {
@@ -20,7 +23,7 @@ export function OAuthButtons({
     await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: `${window.location.origin}/auth/callback?next=/${locale}/dashboard`,
+        redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next ?? `/${locale}/dashboard`)}`,
       },
     });
   }

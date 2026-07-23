@@ -36,6 +36,7 @@ export interface MobileNavLabels {
 export function MobileNav({
   isLoggedIn,
   isAdmin,
+  adminHref = "/admin",
   labels,
   themeLabel,
   themeLabels,
@@ -44,6 +45,8 @@ export function MobileNav({
 }: {
   isLoggedIn: boolean;
   isAdmin: boolean;
+  /** 관리자 링크 경로 — 서버가 슬러그 반영해 계산 (기본 /admin) */
+  adminHref?: string;
   labels: MobileNavLabels;
   themeLabel: string;
   themeLabels: Record<Theme, string>;
@@ -148,7 +151,7 @@ export function MobileNav({
                 {renderLinks(auditLinks)}
                 <li className={groupHeading} aria-hidden="true">{labels.myGroup}</li>
                 {renderLinks(myLinks)}
-                {isAdmin && renderLinks([{ href: "/admin", label: labels.admin }])}
+                {isAdmin && renderLinks([{ href: adminHref, label: labels.admin }])}
               </>
             )}
           </ul>

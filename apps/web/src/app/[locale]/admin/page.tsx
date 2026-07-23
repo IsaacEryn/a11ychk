@@ -1,3 +1,4 @@
+import { adminBase } from "@/lib/adminSlug";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
@@ -23,6 +24,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   setRequestLocale(locale);
   await requireAdmin(locale); // 병렬 렌더 누출 방지 — page 자체 가드 (layout 가드만으로는 불충분)
   const t = await getTranslations("admin");
+  const base = adminBase(); // 슬러그 반영 관리자 기준 경로
   const tDash = await getTranslations("dashboard");
   const format = await getFormatter();
 
@@ -81,11 +83,11 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   const queueSaturated = queuedCount > 0 && runningCount >= MAX_CONCURRENT_SCANS;
 
   const stats = [
-    { label: t("stats.users"), value: String(users.count ?? 0), href: "/admin/users" },
-    { label: t("stats.scans30d"), value: String(total30), href: "/admin/scans" },
-    { label: t("stats.failedRate"), value: `${failedRate}%`, href: "/admin/scans?status=failed", sub: `${failed30}/${total30}` },
-    { label: t("stats.running"), value: String(running.count ?? 0), href: "/admin/scans" },
-    { label: t("stats.openInquiries"), value: String(openInquiries.count ?? 0), href: "/admin/inquiries" },
+    { label: t("stats.users"), value: String(users.count ?? 0), href: `${base}/users` },
+    { label: t("stats.scans30d"), value: String(total30), href: `${base}/scans` },
+    { label: t("stats.failedRate"), value: `${failedRate}%`, href: `${base}/scans?status=failed`, sub: `${failed30}/${total30}` },
+    { label: t("stats.running"), value: String(running.count ?? 0), href: `${base}/scans` },
+    { label: t("stats.openInquiries"), value: String(openInquiries.count ?? 0), href: `${base}/inquiries` },
   ];
 
   return (
@@ -200,7 +202,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             <h2 id="admin-recent-scans-heading" className="font-display text-xl font-bold">
               {t("dashboard.recentScans")}
             </h2>
-            <Link href="/admin/scans" className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4">
+            <Link href={`${base}/scans`} className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4">
               {t("dashboard.viewAll")}
             </Link>
           </div>
@@ -231,7 +233,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
               {t("stats.openInquiries")}
             </h2>
             <Link
-              href="/admin/inquiries"
+              href={`${base}/inquiries`}
               className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4"
             >
               {t("dashboard.viewAll")}

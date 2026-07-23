@@ -34,7 +34,25 @@ export async function GET(request: Request) {
           userAgent: request.headers.get("user-agent") ?? undefined,
         });
       }
-      const res = NextResponse.redirect(`${origin}${next}`);
+      // 관리자면 2단계 인증부터 — MFA 검증(AAL2) 완료 시 post-login이
+      // 동시 로그인 철회·알림·무활동 타이머를 처리한다.
+      let dest = next;
+      if (data.user) {
+        const { data: me } = await createAdminClient()
+          .from("profiles")
+          .select("role")
+          .eq("id", data.user.id)
+          .single();
+        if (me?.role === "admin") {
+          const locale = next.startsWith("/en") ? "en" : "ko";
+          const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+          dest =
+            aal?.nextLevel !== "aal2"
+              ? `/${locale}/login/mfa/setup?next=${encodeURIComponent(next)}`
+              : `/${locale}/login/mfa?next=${encodeURIComponent(next)}`;
+        }
+      }
+      const res = NextResponse.redirect(`${origin}${dest}`);
       // 소비 여부와 무관하게 삭제 — 재로그인 잔류 오염 방지
       res.cookies.delete(REFERRAL_COOKIE);
       return res;

@@ -34,7 +34,16 @@ export interface EmailAuthLabels {
 
 type Mode = "signin" | "signup" | "forgot";
 
-export function EmailLoginForm({ locale, labels }: { locale: string; labels: EmailAuthLabels }) {
+export function EmailLoginForm({
+  locale,
+  labels,
+  next,
+}: {
+  locale: string;
+  labels: EmailAuthLabels;
+  /** 로그인 후 돌아갈 내부 경로 (서버에서 sanitize됨) */
+  next?: string;
+}) {
   const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -62,8 +71,25 @@ export function EmailLoginForm({ locale, labels }: { locale: string; labels: Ema
       setMsg({ kind: "err", text: m });
       return;
     }
+    // 서버 훅 — 로그인 감사 기록 + 관리자 여부에 따른 MFA 분기 (best-effort)
+    const dest = next ?? `/${locale}/dashboard`;
+    let target = dest;
+    try {
+      const res = await fetch("/api/auth/post-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "password" }),
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { mfaRequired?: boolean; setupRequired?: boolean };
+        if (data.setupRequired) target = `/${locale}/login/mfa/setup?next=${encodeURIComponent(dest)}`;
+        else if (data.mfaRequired) target = `/${locale}/login/mfa?next=${encodeURIComponent(dest)}`;
+      }
+    } catch {
+      // 훅 실패 시에도 진행 — 관리자면 requireAdmin이 MFA를 재강제한다
+    }
     // 세션 쿠키 반영을 위해 전체 이동
-    window.location.assign(`/${locale}/dashboard`);
+    window.location.assign(target);
   }
 
   async function handleSignUp() {

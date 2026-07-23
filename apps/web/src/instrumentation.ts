@@ -4,6 +4,7 @@
  * 관리자 콘솔 /admin/logs에서 확인. 24시간 내 처음 보는 메시지는 관리자에게
  * 이메일 알림 (ADMIN_ALERT_EMAIL + RESEND_API_KEY 설정 시).
  */
+import { adminBasePath } from "./lib/adminSlug";
 import type { Instrumentation } from "next";
 
 export const onRequestError: Instrumentation.onRequestError = async (error, request) => {
@@ -77,7 +78,7 @@ async function maybeAlertAdmin(message: string, method: string, path: string): P
   <p style="margin:0"><b>경로</b>: <code>${esc(method)} ${esc(path.slice(0, 300))}</code></p>
   <p style="margin:8px 0 0"><b>메시지</b>:</p>
   <pre style="margin:4px 0 0;padding:10px;background:#f5f3ee;border-radius:6px;white-space:pre-wrap;word-break:break-all">${esc(message.slice(0, 600))}</pre>
-  <p style="margin:16px 0 0"><a href="${siteUrl}/ko/admin/logs" style="color:#0b5d54;font-weight:700">관리자 콘솔에서 확인 →</a></p>
+  <p style="margin:16px 0 0"><a href="${siteUrl}${adminBasePath("ko")}/logs" style="color:#0b5d54;font-weight:700">관리자 콘솔에서 확인 →</a></p>
   <p style="margin:12px 0 0;font-size:12px;color:#5d6a66">같은 메시지는 24시간에 한 번만 알립니다.</p>
 </div>`;
     await fetch("https://api.resend.com/emails", {

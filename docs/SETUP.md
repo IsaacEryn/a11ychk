@@ -30,8 +30,23 @@ CRON_SECRET                      # 정기 스캔 크론 보호 (openssl rand -he
 NEXT_PUBLIC_SITE_URL=https://www.a11ychk.com
 RESEND_API_KEY                   # 이메일 발송 (정기 스캔 회귀 알림·서버 오류 알림) — 미설정 시 발송 생략
 NEXT_PUBLIC_GTM_ID                # GTM 컨테이너 ID(GA4) — 미설정 시 분석 스니펫 미삽입
-ADMIN_ALERT_EMAIL                # 서버 오류 알림 수신 주소 — 미설정 시 발송 생략
+ADMIN_ALERT_EMAIL                # 서버 오류·관리자 로그인 알림 수신 주소 — 미설정 시 발송 생략
+ADMIN_PATH_SLUG                  # (선택) 관리자 비밀 경로 슬러그 — 설정 시 /admin은 404 (점 금지)
+ADMIN_IDLE_MINUTES               # (선택) 관리자 무활동 자동 로그아웃 분 (기본 20)
+SESSION_MAX_HOURS                # (선택) 전 회원 세션 절대 유지 시간 (기본 24)
 ```
+
+### 관리자 2단계 인증(TOTP) 복구
+
+관리자 계정은 TOTP 등록·검증 없이는 관리자 페이지에 접근할 수 없습니다(웹이 자동으로
+등록 화면을 안내). 인증 앱을 분실했다면 다음 중 하나로 factor를 삭제하세요 —
+삭제 후 다음 관리자 접근 시 등록 화면이 다시 나옵니다.
+
+1. Supabase Dashboard → Authentication → Users → 해당 사용자 → MFA factors 삭제
+2. SQL Editor: `delete from auth.mfa_factors where user_id = '<관리자 uuid>';`
+
+migration 0027(선택)을 적용했다면 관리자 RLS가 AAL2 세션을 요구하므로,
+**반드시 TOTP 등록을 마친 뒤** 적용하세요.
 
 ## 크롬 확장 빌드 (Phase 3)
 

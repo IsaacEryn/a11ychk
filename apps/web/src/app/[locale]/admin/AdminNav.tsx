@@ -14,19 +14,23 @@ interface AdminNavLabels {
   logs: string;
 }
 
-/** 관리자 하위 내비게이션 — 현재 페이지는 aria-current="page"로 표시 */
-export function AdminNav({ labels }: { labels: AdminNavLabels }) {
+/**
+ * 관리자 하위 내비게이션 — 현재 페이지는 aria-current="page"로 표시.
+ * basePath는 서버(layout)가 슬러그를 반영해 계산한 기준 경로("/admin" 또는 "/{slug}") —
+ * usePathname(next-intl)은 브라우저의 외부 경로를 로케일만 벗겨 반환하므로 슬러그와 일치한다.
+ */
+export function AdminNav({ labels, basePath }: { labels: AdminNavLabels; basePath: string }) {
   const pathname = usePathname();
 
   const items: { href: string; label: string }[] = [
-    { href: "/admin", label: labels.dashboard },
-    { href: "/admin/users", label: labels.users },
-    { href: "/admin/referrals", label: labels.referrals },
-    { href: "/admin/teaser", label: labels.teaser },
-    { href: "/admin/scans", label: labels.scans },
-    { href: "/admin/inquiries", label: labels.inquiries },
-    { href: "/admin/settings", label: labels.settings },
-    { href: "/admin/logs", label: labels.logs },
+    { href: basePath, label: labels.dashboard },
+    { href: `${basePath}/users`, label: labels.users },
+    { href: `${basePath}/referrals`, label: labels.referrals },
+    { href: `${basePath}/teaser`, label: labels.teaser },
+    { href: `${basePath}/scans`, label: labels.scans },
+    { href: `${basePath}/inquiries`, label: labels.inquiries },
+    { href: `${basePath}/settings`, label: labels.settings },
+    { href: `${basePath}/logs`, label: labels.logs },
   ];
 
   return (
@@ -34,7 +38,7 @@ export function AdminNav({ labels }: { labels: AdminNavLabels }) {
       <ul className="flex flex-wrap gap-1">
         {items.map((item) => {
           // 대시보드는 정확 일치, 하위 페이지는 접두 일치
-          const current = item.href === "/admin" ? pathname === "/admin" : pathname.startsWith(item.href);
+          const current = item.href === basePath ? pathname === basePath : pathname.startsWith(item.href);
           return (
             <li key={item.href}>
               <Link

@@ -202,7 +202,22 @@
     "errNotConfirmed": "Your email isn't confirmed yet. Click the link in your inbox first.",
     "errExists": "This email is already registered. Sign in or reset your password.",
     "errGeneric": "Something went wrong. Please try again shortly.",
-    "errCaptcha": "Please complete the security check."
+    "errCaptcha": "Please complete the security check.",
+    "timeoutNotice": "For security, your admin session ended after a period of inactivity. Please sign in again.",
+    "mfa": {
+      "challengeTitle": "Two-factor authentication",
+      "challengeDesc": "Enter the 6-digit code shown in your authenticator app (e.g. Google Authenticator).",
+      "setupTitle": "Set up two-factor authentication",
+      "setupDesc": "Two-factor authentication is required for administrator accounts. Scan the QR code with your authenticator app, then enter the 6-digit code it shows.",
+      "scanQr": "Scan the QR code with your authenticator app",
+      "secretLabel": "Can't scan? Enter this key manually:",
+      "codeLabel": "Verification code (6 digits)",
+      "verify": "Verify",
+      "working": "Verifying…",
+      "reissue": "Code expired? Try again",
+      "errInvalidCode": "Invalid code. Try again with the latest code from your app.",
+      "errGeneric": "Something went wrong. Refresh and try again."
+    }
   },
   "scanPage": {
     "title": "Run Audit",

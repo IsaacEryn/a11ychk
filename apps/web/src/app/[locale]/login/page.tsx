@@ -2,6 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizeNextPath } from "@/lib/safeRedirect";
 import { OAuthButtons } from "./OAuthButtons";
 import { EmailLoginForm } from "./EmailLoginForm";
 
@@ -16,18 +17,19 @@ export default async function LoginPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ error?: string }>;
+  searchParams: Promise<{ error?: string; next?: string; reason?: string }>;
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
-  const { error } = await searchParams;
+  const { error, next: rawNext, reason } = await searchParams;
   const t = await getTranslations("login");
+  const next = sanitizeNextPath(rawNext, `/${locale}/dashboard`);
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (user) redirect(`/${locale}/dashboard`);
+  if (user) redirect(next);
 
   return (
     <div className="mx-auto max-w-md px-4 py-20 sm:px-6">
@@ -40,8 +42,13 @@ export default async function LoginPage({
             {error === "confirm" ? t("errorConfirm") : t("error")}
           </p>
         )}
+        {reason === "timeout" && (
+          <p role="status" className="mt-4 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] px-3 py-2 text-sm font-medium">
+            {t("timeoutNotice")}
+          </p>
+        )}
 
-        <OAuthButtons locale={locale} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} />
+        <OAuthButtons locale={locale} next={next} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} />
 
         {/* 이메일 매직링크 로그인/가입 */}
         <div className="mt-6 flex items-center gap-3 text-xs text-[var(--color-ink-faint)]" aria-hidden="true">
@@ -51,6 +58,7 @@ export default async function LoginPage({
         </div>
         <EmailLoginForm
           locale={locale}
+          next={next}
           labels={{
             tabSignIn: t("tabSignIn"),
             tabSignUp: t("tabSignUp"),

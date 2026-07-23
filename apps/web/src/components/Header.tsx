@@ -1,6 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { adminBase } from "@/lib/adminSlug";
 import { getCachedUser } from "@/lib/supabase/user";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { NavMenu } from "./NavMenu";
@@ -76,7 +77,7 @@ export async function Header() {
             />
           )}
           {user && isAdmin && (
-            <Link href="/admin" className={linkCls}>
+            <Link href={adminBase()} className={linkCls}>
               {t("nav.admin")}
             </Link>
           )}
@@ -117,6 +118,7 @@ export async function Header() {
           className="ml-auto md:hidden"
           isLoggedIn={!!user}
           isAdmin={isAdmin}
+          adminHref={adminBase()}
           themeLabel={t("theme.label")}
           themeLabels={{
             system: t("theme.system"),

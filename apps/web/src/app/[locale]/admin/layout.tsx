@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { requireAdmin } from "@/lib/adminGuard";
+import { adminBase } from "@/lib/adminSlug";
 import { AdminNav } from "./AdminNav";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -29,6 +30,7 @@ export default async function AdminLayout({
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
       <AdminNav
+        basePath={adminBase()}
         labels={{
           label: t("nav.label"),
           dashboard: t("nav.dashboard"),
