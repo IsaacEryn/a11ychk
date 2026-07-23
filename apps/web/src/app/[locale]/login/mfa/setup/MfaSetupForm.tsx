@@ -39,6 +39,8 @@ export function MfaSetupForm({ next, labels }: { next: string; labels: MfaSetupL
       const { data, error: enrollErr } = await supabase.auth.mfa.enroll({
         factorType: "totp",
         friendlyName: `admin-totp-${Date.now()}`,
+        // 인증앱 계정 목록에 표시되는 발급자 이름 — 미지정 시 Supabase 프로젝트 URL이 노출됨
+        issuer: "A11y Check",
       });
       if (enrollErr || !data) {
         setError(labels.errGeneric);
