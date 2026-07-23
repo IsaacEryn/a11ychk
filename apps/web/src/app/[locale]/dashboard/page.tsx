@@ -8,7 +8,15 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { foldHost } from "@/lib/host";
-import { checkQuota, getEarnedPlan, getResets, getVerifiedDomainLimit, resolveLimits } from "@/lib/quota";
+import {
+  checkQuota,
+  getEarnedPlan,
+  getExtDailyLimit,
+  getResets,
+  getSampleSize,
+  getVerifiedDomainLimit,
+  resolveLimits,
+} from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { toggleAutoScan, toggleNotify } from "@/lib/actions";
 import { AddDomainForm, DeleteDomainButton } from "./DomainForms";
@@ -191,6 +199,9 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
     resolveLimits(profile?.scan_limit_override, plansActive, earned, dailyBonus),
     getResets(profile?.scan_limit_override),
   );
+  // 확장도구 한도·페이지 제한(검사당 기본, 미확인 도메인 기준) — 마이페이지와 동일 표시
+  const extLimit = getExtDailyLimit(profile?.scan_limit_override, earned);
+  const pageLimit = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive, earned });
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
@@ -236,6 +247,14 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 </dd>
               </div>
             ))}
+            <div className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-2">
+              <dt className="font-medium">{t("quota.extLabel")}</dt>
+              <dd className="font-bold tabular-nums">{t("quota.extValue", { limit: extLimit })}</dd>
+            </div>
+            <div className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-2">
+              <dt className="font-medium">{t("quota.pageLabel")}</dt>
+              <dd className="font-bold tabular-nums">{t("quota.pageValue", { limit: pageLimit })}</dd>
+            </div>
           </dl>
         </section>
       </div>

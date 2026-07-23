@@ -275,7 +275,11 @@
       "daily": "오늘",
       "weekly": "이번 주",
       "monthly": "이번 달",
-      "unit": "{used} / {limit}회"
+      "unit": "{used} / {limit}회",
+      "extLabel": "확장도구 검사",
+      "extValue": "일 {limit}회",
+      "pageLabel": "페이지 제한",
+      "pageValue": "검사당 {limit}페이지"
     },
     "domains": {
       "title": "내 도메인",

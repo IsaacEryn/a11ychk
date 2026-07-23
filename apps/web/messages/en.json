@@ -275,7 +275,11 @@
       "daily": "Today",
       "weekly": "This week",
       "monthly": "This month",
-      "unit": "{used} / {limit}"
+      "unit": "{used} / {limit}",
+      "extLabel": "Extension scans",
+      "extValue": "{limit}/day",
+      "pageLabel": "Pages per scan",
+      "pageValue": "up to {limit}"
     },
     "domains": {
       "title": "My domains",
