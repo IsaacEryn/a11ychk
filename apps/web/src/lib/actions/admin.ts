@@ -248,16 +248,9 @@ export async function approveReferral(formData: FormData): Promise<void> {
   const referrerId = data?.[0]?.referrer_id as string | undefined;
   if (referrerId) {
     await logAdminAction(admin, actor.id, "referral.approve", id.data);
-    const { REFERRAL_VALID_GOAL } = await import("@/lib/referral/constants");
-    const { count } = await admin
-      .from("referrals")
-      .select("id", { count: "exact", head: true })
-      .eq("referrer_id", referrerId)
-      .eq("status", "valid");
-    if ((count ?? 0) >= REFERRAL_VALID_GOAL) {
-      const { maybePromoteToPlus1 } = await import("@/lib/referral/promote");
-      await maybePromoteToPlus1(admin, referrerId);
-    }
+    // 승인으로 성립 수가 늘었으니 달성 등급 재평가 (플러스1/플러스2)
+    const { reevaluateEarnedPlan } = await import("@/lib/referral/promote");
+    await reevaluateEarnedPlan(admin, referrerId);
   }
   revalidateLocalized("/admin/referrals");
 }

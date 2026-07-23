@@ -769,16 +769,19 @@
       "complianceShort": "Compliance {rate}%"
     },
     "referral": {
-      "title": "Invite friends",
-      "intro": "When {goal} people sign up via your link and run their first scan, you reach Plus 1. Invited users get +1 daily scan.",
-      "earnedLabel": "Earned tier",
-      "earned": {
-        "none": "None",
-        "plus1": "Plus 1",
-        "plus2": "Plus 2"
+      "title": "Level up",
+      "intro": "Earn higher-tier benefits through invitations and activity. (For members below Pro.)",
+      "badgeDone": "Done",
+      "badgeInProgress": "In progress",
+      "m1Title": "Mission 1 · Plus 1",
+      "m1Desc": "Reached when {goal} friends sign up via your link and run their first scan.",
+      "m2Title": "Mission 2 · Plus 2",
+      "m2Desc": "After reaching Plus 1, verify a domain and publish a report to earn it.",
+      "step": {
+        "plus1": "Reach Plus 1 (invite {goal} friends)",
+        "domain": "Verify at least 1 domain",
+        "report": "Publish at least 1 report"
       },
-      "invitedBonus": "Invited-signup perk: +1 daily scan active",
-      "plus2Hint": "Plus 2 is earned automatically when you verify a domain and publish a report (5/8/20 scans, 8 pages).",
       "copy": "Copy link",
       "copied": "Copied",
       "linkUnavailable": "Couldn't prepare your invite link. Please refresh shortly.",
@@ -802,6 +805,17 @@
         "saved": "Submitted.",
         "error": "Failed to submit."
       }
+    },
+    "tier": {
+      "title": "My membership",
+      "invitedBonus": "Invited-signup perk · +1 daily scan",
+      "free": "Free",
+      "plus1": "Plus 1",
+      "plus2": "Plus 2",
+      "plus": "Plus",
+      "pro": "Pro",
+      "enterprise": "Enterprise",
+      "unlimited": "Unlimited"
     }
   },
   "inquiries": {

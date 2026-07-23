@@ -6,7 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardedFetch } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getEarnedPlan, getVerifiedDomainLimit } from "@/lib/quota";
-import { maybePromoteToPlus2 } from "@/lib/referral/promote";
+import { reevaluateEarnedPlan } from "@/lib/referral/promote";
 import { setupCloudflareTxt } from "@/lib/cloudflare";
 import { scanUrlMatchesHost } from "@/lib/host";
 import { requireUser, revalidateLocalized, type SaveState } from "./shared";
@@ -183,7 +183,7 @@ export async function setPublicReport(_prev: SaveState, formData: FormData): Pro
 
   if (!(await applyUpdate({ public_listed: true, listed_at: new Date().toISOString(), public_scan_id: publicScanId }))) return { error: "failed" };
   // 달성 등급(plus2) 조건 검사 — 소유확인+보고서 공개 (best-effort)
-  await maybePromoteToPlus2(admin, user.id);
+  await reevaluateEarnedPlan(admin, user.id);
   revalidateLocalized("/dashboard", "/directory");
   return { ok: true };
 }
@@ -251,7 +251,7 @@ export async function verifyDomain(_prev: VerifyDomainState, formData: FormData)
   const verifiedAdmin = createAdminClient();
   await verifiedAdmin.from("domains").update({ verified: true, verify_method: method }).eq("id", domain.id);
   // 달성 등급(plus2) 조건 검사 — 소유확인+보고서 공개 (best-effort)
-  await maybePromoteToPlus2(verifiedAdmin, user.id);
+  await reevaluateEarnedPlan(verifiedAdmin, user.id);
   revalidateLocalized("/dashboard", "/scan");
   return { status: "verified", method };
 }
@@ -346,7 +346,7 @@ export async function setupCloudflareDns(_prev: CloudflareState, formData: FormD
       const cfAdmin = createAdminClient();
       await cfAdmin.from("domains").update({ verified: true, verify_method: "dns_txt" }).eq("id", domain.id);
       // 달성 등급(plus2) 조건 검사 (best-effort)
-      await maybePromoteToPlus2(cfAdmin, user.id);
+      await reevaluateEarnedPlan(cfAdmin, user.id);
       revalidateLocalized("/dashboard", "/scan");
       return { status: "verified" };
     }

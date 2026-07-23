@@ -1,7 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL, REFERRAL_VELOCITY_PER_DAY } from "./constants";
-import { maybePromoteToPlus1 } from "./promote";
+import { reevaluateEarnedPlan } from "./promote";
 
 /**
  * 초대 성립 전환 — 피초대자의 첫 검사 실행 시 호출 (createScanForUser 성공,
@@ -86,7 +86,8 @@ export async function markReferralValidOnFirstScan(admin: SupabaseClient, invite
       .eq("referrer_id", referrerId)
       .eq("status", "valid");
     if ((validNow ?? 0) >= REFERRAL_VALID_GOAL) {
-      await maybePromoteToPlus1(admin, referrerId);
+      // 초대 완료 시점에 도메인·공개 조건까지 이미 충족했으면 바로 플러스2로 (아니면 플러스1)
+      await reevaluateEarnedPlan(admin, referrerId);
     }
   } catch {
     // best-effort — 검사 흐름 보호

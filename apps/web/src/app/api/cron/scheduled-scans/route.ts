@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { drainQueue } from "@/lib/scan/drain";
 import { DEFAULT_SCOPE, createScanForUser } from "@/lib/scan/createScan";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
-import { maybePromoteToPlus2 } from "@/lib/referral/promote";
+import { reevaluateEarnedPlan } from "@/lib/referral/promote";
 import { isAuthorizedCron } from "@/lib/cronAuth";
 import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
 
@@ -140,7 +140,7 @@ export async function GET(request: Request) {
         .in("id", ownerIds)
         .or("earned_plan.is.null,earned_plan.eq.plus1");
       for (const o of owners ?? []) {
-        await maybePromoteToPlus2(admin, o.id as string);
+        await reevaluateEarnedPlan(admin, o.id as string);
         referral.plus2Checked++;
       }
     }

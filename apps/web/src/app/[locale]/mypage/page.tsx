@@ -3,14 +3,22 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { checkQuota, getEarnedPlan, getResets, resolveLimits } from "@/lib/quota";
+import {
+  PLAN_RANK,
+  checkQuota,
+  getEarnedPlan,
+  getPlan,
+  getResets,
+  resolveLimits,
+  type PlanId,
+} from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { ensureReferralCode } from "@/lib/referral/code";
 import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL } from "@/lib/referral/constants";
 import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
 import { PreferredStandardForm } from "./PreferredStandardForm";
-import { ReferralCard, type ReferralRow } from "./ReferralCard";
+import { MissionCard, type ReferralRow } from "./ReferralCard";
 import type { ScanSummary } from "@a11ychk/core/catalog";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -86,6 +94,27 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   const referralValidCount = referrals.filter((r) => r.status === "valid").length;
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
+  // ── 등급 표시 + 미션 진행 상태 ──
+  // 유효 등급 = 배정 등급과 달성 등급 중 서열이 높은 쪽. 프로 미만이면 미션 안내를 노출한다.
+  const assignedPlan = getPlan(profile?.scan_limit_override);
+  const assignedRank = PLAN_RANK[assignedPlan];
+  const earnedRank = earned ? PLAN_RANK[earned] : 0;
+  const displayTier: PlanId = earned && earnedRank >= assignedRank ? earned : assignedPlan;
+  const showMissions = Math.max(assignedRank, earnedRank) < PLAN_RANK.pro;
+
+  // 미션2 하위 단계 — 도메인 소유확인·보고서 공개 (0024 미적용 시 빈 목록 → 미완)
+  const { data: myDomains } = await mpAdmin
+    .from("domains")
+    .select("verified, public_listed")
+    .eq("user_id", user.id)
+    .then((r) => r, () => ({ data: null }));
+  const mission = {
+    m1Done: referralValidCount >= REFERRAL_VALID_GOAL,
+    domainVerified: (myDomains ?? []).some((d) => d.verified === true),
+    reportPublished: (myDomains ?? []).some((d) => d.public_listed === true),
+    m2Done: earned === "plus2",
+  };
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
       <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
@@ -101,14 +130,23 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
           <p className="mt-4 break-all text-sm text-[var(--color-ink-faint)]">{user.email}</p>
         </section>
 
-        {/* 사용량 */}
-        <section aria-labelledby="usage-heading" className="doc-card p-6">
-          <h2 id="usage-heading" className="font-display text-xl font-bold">
-            {t("usage.title")}
+        {/* 등급 & 검사 사용량 (통합) */}
+        <section aria-labelledby="tier-heading" className="doc-card p-6">
+          <h2 id="tier-heading" className="font-display text-xl font-bold">
+            {t("tier.title")}
           </h2>
-          <dl className="mt-4 space-y-3">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-[var(--color-seal-tint)] px-3 py-1 text-sm font-bold text-[var(--color-seal)]">
+              {t(`tier.${displayTier}`)}
+            </span>
+            {dailyBonus > 0 && (
+              <span className="text-xs font-semibold text-[var(--color-seal)]">{t("tier.invitedBonus")}</span>
+            )}
+          </div>
+          <p className="mt-4 text-sm font-semibold text-[var(--color-ink-soft)]">{t("usage.title")}</p>
+          <dl className="mt-2 space-y-2">
             {(["daily", "weekly", "monthly"] as const).map((key) => (
-              <div key={key} className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-2">
+              <div key={key} className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-1.5">
                 <dt className="font-medium">{tDash(`quota.${key}`)}</dt>
                 <dd className="font-bold tabular-nums">
                   {tDash("quota.unit", { used: quota.used[key], limit: quota.limits[key] })}
@@ -119,16 +157,20 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
         </section>
       </div>
 
-      {/* 초대 — 링크 공유·진행 현황·소명 */}
-      <ReferralCard
-        link={referralCode ? `${siteUrl}/join/${referralCode}` : null}
-        validCount={referralValidCount}
-        goal={REFERRAL_VALID_GOAL}
-        cap={REFERRAL_VALID_CAP}
-        rows={referrals}
-        earned={earned}
-        invitedBonus={dailyBonus > 0}
-      />
+      {/* 등급 올리기 — 미션 진행 + 초대 (프로 등급 미만에게만 노출) */}
+      {showMissions && (
+        <MissionCard
+          link={referralCode ? `${siteUrl}/join/${referralCode}` : null}
+          validCount={referralValidCount}
+          goal={REFERRAL_VALID_GOAL}
+          cap={REFERRAL_VALID_CAP}
+          mission1Done={mission.m1Done}
+          domainVerified={mission.domainVerified}
+          reportPublished={mission.reportPublished}
+          mission2Done={mission.m2Done}
+          rows={referrals}
+        />
+      )}
 
       {/* 검사 이력 */}
       <section aria-labelledby="history-heading" className="mt-10">

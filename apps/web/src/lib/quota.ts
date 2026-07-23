@@ -58,6 +58,17 @@ export const ASSIGNABLE_PLAN_IDS = PLAN_IDS.filter(
   (p) => !(EARNED_PLAN_IDS as readonly string[]).includes(p),
 );
 
+/** 등급 서열 (표시·미션 노출 판단용). 배정 등급과 달성 등급 중 높은 쪽이 유효 등급 */
+export const PLAN_RANK: Record<PlanId, number> = {
+  free: 0,
+  plus1: 1,
+  plus2: 2,
+  plus: 2,
+  pro: 3,
+  enterprise: 4,
+  unlimited: 5,
+};
+
 /** 기본 한도 = free 요금제 */
 export const DEFAULT_SCAN_LIMITS: ScanLimits = {
   daily: PLANS.free.daily,
