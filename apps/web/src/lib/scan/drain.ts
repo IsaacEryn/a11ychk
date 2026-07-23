@@ -9,10 +9,18 @@ import { logAppError } from "@/lib/logs";
  */
 export const MAX_CONCURRENT_SCANS = Math.max(1, Number(process.env.A11YCHK_MAX_CONCURRENT_SCANS) || 3);
 
-/** 내부 run-scan 엔드포인트 베이스 URL. 배포=VERCEL_URL 자동, 로컬/오버라이드=env. 없으면 null(인프로세스 폴백). */
+/**
+ * 내부 run-scan 엔드포인트 베이스 URL.
+ * 우선순위: 명시 override → **공개 도메인(NEXT_PUBLIC_SITE_URL)** → VERCEL_URL → null(인프로세스 폴백).
+ * VERCEL_URL(배포별 URL)은 Vercel Deployment Protection에 막혀 내부 서버-투-서버 fetch가
+ * 401로 차단될 수 있다(→ 검사가 claim만 되고 실행 안 되는 좀비의 원인). 공개 별칭은 보호
+ * 대상이 아니므로 안정적으로 도달한다. (엔드포인트 자체는 CRON_SECRET으로 별도 인증)
+ */
 function internalBaseUrl(): string | null {
   const explicit = process.env.A11YCHK_INTERNAL_BASE_URL;
   if (explicit) return explicit.replace(/\/+$/, "");
+  const site = process.env.NEXT_PUBLIC_SITE_URL;
+  if (site && site.startsWith("https://")) return site.replace(/\/+$/, "");
   if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
   return null;
 }
@@ -41,8 +49,16 @@ export async function drainQueue(): Promise<void> {
           headers: { authorization: `Bearer ${cron}`, "content-type": "application/json" },
           body: JSON.stringify({ id }),
         }).then(
-          () => undefined,
-          () => undefined, // 실패해도 좀비 회수(10분)+재드레인으로 복구
+          // 2xx가 아니면(예: Deployment Protection 401·URL 오류) 검사가 claim만 되고 실행되지 않아
+          // 좀비가 된다. 조용히 삼키지 말고 관측 가능하도록 기록한다(복구는 여전히 reclaim이 담당).
+          (res) => {
+            if (!res.ok) {
+              void logAppError(admin, `run-scan invoke ${res.status} for ${id} (base ${base})`, { path: "drain.invoke" });
+            }
+          },
+          (e) => {
+            void logAppError(admin, `run-scan invoke failed for ${id}: ${(e as Error).message}`, { path: "drain.invoke" });
+          },
         ),
       ),
     );
