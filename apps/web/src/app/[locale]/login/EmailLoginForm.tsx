@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { appFetch } from "@/lib/serviceStatus";
 import { CAPTCHA_ENABLED, Turnstile, resetTurnstile } from "@/components/Turnstile";
 
 export interface EmailAuthLabels {
@@ -75,7 +76,7 @@ export function EmailLoginForm({
     const dest = next ?? `/${locale}/dashboard`;
     let target = dest;
     try {
-      const res = await fetch("/api/auth/post-login", {
+      const res = await appFetch("/api/auth/post-login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stage: "password" }),

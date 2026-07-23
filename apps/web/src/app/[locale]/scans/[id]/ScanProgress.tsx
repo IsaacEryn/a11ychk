@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { appFetch, notifyServiceDegraded } from "@/lib/serviceStatus";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RerunScanButton } from "./report/RescanButtons";
 
@@ -60,33 +61,40 @@ export function ScanProgress({
     let delay = POLL_MIN_MS; // 상태(effect dep)가 바뀌면 effect가 재실행돼 간격이 리셋된다
 
     const tick = async () => {
-      const [{ data: scan }, { data: pageRows }] = await Promise.all([
-        supabase.from("scans").select("status, error").eq("id", scanId).maybeSingle(),
-        supabase.from("scan_pages").select("id, url, status, violation_counts").eq("scan_id", scanId).order("url"),
-      ]);
-      if (cancelled) return;
-      if (pageRows) setPages(pageRows as PageRow[]);
-      if (scan) {
-        setStatus(scan.status);
-        setError(scan.error);
-        if (scan.status === "done") {
-          router.push(`/scans/${scanId}/report`);
-          return;
-        }
-      }
-      // queued면 대기열 현황(앞선 대기 수·예상 시간) 조회 — 소유자 게이트 엔드포인트
-      if ((scan?.status ?? status) === "queued") {
-        try {
-          const res = await fetch(`/api/scans/${scanId}/queue`, { cache: "no-store" });
-          if (!cancelled && res.ok) {
-            const q = (await res.json()) as { status?: string; ahead?: number; estMinutes?: number };
-            setQueue(q.status === "queued" ? { ahead: q.ahead ?? 0, estMinutes: q.estMinutes ?? 0 } : null);
+      // 어떤 실패에도 폴링은 반드시 재예약된다 — 조회가 throw하면(네트워크 단절 등)
+      // 재예약이 끊겨 사용자가 무한 로딩에 갇히는 문제를 막는다. 실패 시 전역 장애
+      // 배너 신호를 보내고, 다음 tick(백오프 상한 12s)이 자동 재시도한다.
+      try {
+        const [{ data: scan }, { data: pageRows }] = await Promise.all([
+          supabase.from("scans").select("status, error").eq("id", scanId).maybeSingle(),
+          supabase.from("scan_pages").select("id, url, status, violation_counts").eq("scan_id", scanId).order("url"),
+        ]);
+        if (cancelled) return;
+        if (pageRows) setPages(pageRows as PageRow[]);
+        if (scan) {
+          setStatus(scan.status);
+          setError(scan.error);
+          if (scan.status === "done") {
+            router.push(`/scans/${scanId}/report`);
+            return;
           }
-        } catch {
-          // 대기열 조회 실패는 무시 — 다음 tick에서 재시도
         }
-      } else if (!cancelled) {
-        setQueue(null);
+        // queued면 대기열 현황(앞선 대기 수·예상 시간) 조회 — 소유자 게이트 엔드포인트
+        if ((scan?.status ?? status) === "queued") {
+          try {
+            const res = await appFetch(`/api/scans/${scanId}/queue`, { cache: "no-store" });
+            if (!cancelled && res.ok) {
+              const q = (await res.json()) as { status?: string; ahead?: number; estMinutes?: number };
+              setQueue(q.status === "queued" ? { ahead: q.ahead ?? 0, estMinutes: q.estMinutes ?? 0 } : null);
+            }
+          } catch {
+            // 대기열 조회 실패는 무시 — 다음 tick에서 재시도 (장애 신호는 appFetch가 발사)
+          }
+        } else if (!cancelled) {
+          setQueue(null);
+        }
+      } catch {
+        notifyServiceDegraded();
       }
       if (cancelled) return;
       delay = Math.min(Math.round(delay * POLL_FACTOR), POLL_MAX_MS);

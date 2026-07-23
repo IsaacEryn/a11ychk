@@ -20,3 +20,20 @@ export function notifyServiceDegraded(): void {
 export function isServerOutage(status: number): boolean {
   return status >= 500;
 }
+
+/**
+ * 앱 공용 fetch — 5xx·네트워크 실패 시 전역 장애 배너 신호를 자동 발사한다.
+ * 4xx는 호출부의 로컬 피드백 책임 그대로. 네트워크 예외는 신호 후 다시 던져
+ * 호출부의 기존 catch(로컬 오류 표시)가 그대로 동작한다.
+ * 클라이언트 컴포넌트에서 /api/* 호출은 fetch 대신 이 래퍼를 쓸 것.
+ */
+export async function appFetch(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  try {
+    const res = await fetch(input, init);
+    if (isServerOutage(res.status)) notifyServiceDegraded();
+    return res;
+  } catch (e) {
+    notifyServiceDegraded();
+    throw e;
+  }
+}

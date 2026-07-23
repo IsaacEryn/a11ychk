@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
-import { isServerOutage, notifyServiceDegraded } from "@/lib/serviceStatus";
+import { appFetch } from "@/lib/serviceStatus";
 
 export interface ScanFormLabels {
   label: string;
@@ -105,7 +105,8 @@ export function ScanForm({
     setSubmitting(true);
     setError(null);
     try {
-      const res = await fetch("/api/scans", {
+      // appFetch: 5xx·네트워크 실패 시 전역 장애 배너 신호 자동 발사
+      const res = await appFetch("/api/scans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -122,8 +123,6 @@ export function ScanForm({
         params?: Record<string, string | number>;
       };
       if (!res.ok || !data.id) {
-        // 서버 장애(5xx)면 전역 배너로도 알린다(입력 오류 4xx는 제외)
-        if (isServerOutage(res.status)) notifyServiceDegraded();
         // 코드가 있으면 로케일 번역 템플릿 사용, 없으면 서버 문자열 폴백
         const template = data.code ? labels.errors[data.code] : undefined;
         setError(template ? fill(template, data.params ?? {}) : (data.error ?? labels.errors.generic));
@@ -132,8 +131,7 @@ export function ScanForm({
       }
       router.push(`/scans/${data.id}`);
     } catch {
-      // fetch 자체가 실패(네트워크 단절·서버 도달 불가) → 전역 배너 신호
-      notifyServiceDegraded();
+      // fetch 자체가 실패(네트워크 단절·서버 도달 불가) — 배너 신호는 appFetch가 발사
       setError(labels.errors.network);
       setSubmitting(false);
     }

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Turnstile, CAPTCHA_ENABLED, resetTurnstile } from "@/components/Turnstile";
+import { appFetch } from "@/lib/serviceStatus";
 
 /** /api/teaser-scan 응답(서버에서 로컬라이즈·트리밍 완료 — 규칙당 위치 1개만 옴) */
 interface TeaserRule {
@@ -53,7 +54,7 @@ export function TeaserScanForm() {
     setErrorCode("");
     setResult(null);
     try {
-      const res = await fetch("/api/teaser-scan", {
+      const res = await appFetch("/api/teaser-scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url: url.trim(), token: token ?? undefined, locale }),

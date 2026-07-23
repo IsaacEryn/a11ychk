@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import { appFetch } from "@/lib/serviceStatus";
 import type { AccessCheckResult, AccessVerdict } from "@a11ychk/core/catalog";
 
 const VERDICT_STYLE: Record<AccessVerdict, string> = {
@@ -29,7 +30,7 @@ export function AccessCheckClient() {
     setError(null);
     setResult(null);
     try {
-      const res = await fetch("/api/access-check", {
+      const res = await appFetch("/api/access-check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ url }),

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { appFetch } from "@/lib/serviceStatus";
 
 /** 서버 응답의 에러 code를 현재 로케일로 번역 — 코드 우선, 서버 문자열 폴백 (ScanForm 패턴) */
 function useApiErrorLabel() {
@@ -29,7 +30,7 @@ export function RescanPageButton({ scanId, pageId }: { scanId: string; pageId: s
     setState("pending");
     setMessage(null);
     try {
-      const res = await fetch(`/api/scans/${scanId}/rescan-page`, {
+      const res = await appFetch(`/api/scans/${scanId}/rescan-page`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pageId }),
@@ -79,7 +80,7 @@ export function RerunScanButton({ scanId }: { scanId: string }) {
     setPending(true);
     setMessage(null);
     try {
-      const res = await fetch(`/api/scans/${scanId}/rerun`, { method: "POST" });
+      const res = await appFetch(`/api/scans/${scanId}/rerun`, { method: "POST" });
       const data = (await res.json()) as {
         id?: string;
         error?: string;

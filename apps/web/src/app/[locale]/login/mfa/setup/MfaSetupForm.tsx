@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { appFetch } from "@/lib/serviceStatus";
 
 export interface MfaSetupLabels {
   scanQr: string;
@@ -67,7 +68,7 @@ export function MfaSetupForm({ next, labels }: { next: string; labels: MfaSetupL
       }
       // AAL2 완성 — 동시 로그인 철회·알림·무활동 타이머 (best-effort)
       try {
-        await fetch("/api/auth/post-login", {
+        await appFetch("/api/auth/post-login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ stage: "mfa" }),
