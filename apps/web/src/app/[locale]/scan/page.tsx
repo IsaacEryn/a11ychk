@@ -88,6 +88,8 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
             modeManualDesc: t("modeManualDesc"),
             manualLabel: t("manualLabel"),
             manualPlaceholder: t("manualPlaceholder"),
+            autoPagesLabel: t("autoPagesLabel"),
+            autoPagesMax: t.raw("autoPagesMax"),
             // 플레이스홀더({count} 등)는 클라이언트(fill)에서 치환하므로 raw 템플릿을 전달
             manualCount: t.raw("manualCount"),
             manualOriginHint: t("manualOriginHint"),

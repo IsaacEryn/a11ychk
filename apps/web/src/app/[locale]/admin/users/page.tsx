@@ -16,6 +16,7 @@ import {
 } from "@/lib/quota";
 import { QuotaResetForm } from "../QuotaResetForm";
 import { UserLimitsForm } from "../UserLimitsForm";
+import { SendEmailForm } from "./SendEmailForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -197,6 +198,9 @@ export default async function AdminUsersPage({
                   </form>
                 )}
               </div>
+
+              {/* 메일 보내기 (접기형) */}
+              <SendEmailForm userId={u.id} />
             </li>
           );
         })}

@@ -34,6 +34,8 @@ export {
   approveReferral,
   rejectReferral,
   clearEarnedPlan,
+  sendUserEmail,
+  adminRetryScan,
 } from "./actions/admin";
 export type { ResetQuotaState } from "./actions/admin";
 

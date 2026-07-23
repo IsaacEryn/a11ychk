@@ -286,6 +286,15 @@ const WINDOW_MS: Record<QuotaWindow, number> = {
   monthly: 30 * 24 * 3600_000,
 };
 
+/**
+ * 자동 수집 페이지 수(사용자 선택)를 한도로 클램프. 미지정이면 한도 최대.
+ * 서버가 항상 이 함수를 거치므로 클라이언트 값을 그대로 신뢰하지 않는다.
+ */
+export function clampRequestedPages(sampleSize: number, requested?: number): number {
+  if (requested === undefined || !Number.isFinite(requested)) return sampleSize;
+  return Math.max(1, Math.min(sampleSize, Math.floor(requested)));
+}
+
 /** 롤링 윈도우 기준 사용량 확인. 각 윈도우는 리셋 시각 이후로만 집계 */
 export async function checkQuota(
   admin: SupabaseClient,
@@ -301,11 +310,21 @@ export async function checkQuota(
     const reset = resets[key];
     // 롤링 윈도우 시작과 리셋 시각 중 더 나중(=더 짧은 기간)을 하한으로
     const lowerBound = reset && reset > windowStart ? reset : windowStart;
-    const { count, error } = await admin
+    // 관리자 재검사(admin_retry, 0028)는 사용자 한도에서 제외.
+    // 0028 미적용 환경(컬럼 부재)에서는 필터 없이 폴백해 검사 생성이 깨지지 않게 한다.
+    let { count, error } = await admin
       .from("scans")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
+      .eq("admin_retry", false)
       .gte("created_at", lowerBound);
+    if (error) {
+      ({ count, error } = await admin
+        .from("scans")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("created_at", lowerBound));
+    }
     if (error) throw new Error(`사용량 조회 실패: ${error.message}`);
     counts[key] = count ?? 0;
   }

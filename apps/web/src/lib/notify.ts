@@ -85,6 +85,30 @@ export async function sendAdminInquiryAlert(title: string, nickname: string | nu
 }
 
 /**
+ * 관리자 → 사용자 직접 메일 — 관리자 콘솔의 '메일 보내기'에서 발송.
+ * 본문은 평문으로 받아 escapeHtml 후 줄바꿈만 <br/>로 변환(HTML 주입 차단).
+ * ADMIN_ALERT_EMAIL이 설정돼 있으면 reply_to로 실어 사용자가 회신할 수 있게 한다.
+ */
+export async function sendAdminUserEmail(msg: { to: string; subject: string; body: string }): Promise<boolean> {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
+  const bodyHtml = escapeHtml(msg.body).replaceAll("\n", "<br/>");
+  const html = `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:24px 0">
+  <tr><td align="center">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422">
+      <tr><td style="padding:28px 32px 8px"><img src="${siteUrl}/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
+      <tr><td style="padding:8px 32px 24px">
+        <p style="margin:0 0 14px;font-size:15px;font-weight:700">${escapeHtml(msg.subject)}</p>
+        <p style="margin:0;font-size:14px;line-height:1.7">${bodyHtml}</p>
+        <p style="margin:18px 0 0;font-size:12px;color:#5d6a66">— A11y Check 운영자 · <a href="${siteUrl}" style="color:#0b5d54">a11ychk.com</a></p>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>`;
+  return sendEmail({ to: msg.to, subject: msg.subject, html, replyTo: process.env.ADMIN_ALERT_EMAIL });
+}
+
+/**
  * 관리자 계정 로그인 알림 — 관리자 세션이 2단계 인증(AAL2)까지 완성될 때마다 1통.
  * 자격증명 탈취 시 본인이 즉시 인지할 수 있게 한다. best-effort.
  */
@@ -171,14 +195,20 @@ export async function sendPlanUpgradeEmail(
 }
 
 /** Resend 발송 공통부 — 키 미설정 시 false(no-op) */
-async function sendEmail(msg: { to: string; subject: string; html: string }): Promise<boolean> {
+async function sendEmail(msg: { to: string; subject: string; html: string; replyTo?: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: "A11y Check <noreply@a11ychk.com>", to: msg.to, subject: msg.subject, html: msg.html }),
+      body: JSON.stringify({
+        from: "A11y Check <noreply@a11ychk.com>",
+        to: msg.to,
+        subject: msg.subject,
+        html: msg.html,
+        ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+      }),
     });
     return res.ok;
   } catch {

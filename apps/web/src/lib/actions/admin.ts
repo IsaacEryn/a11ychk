@@ -6,7 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_PAGES_PER_SCAN, PLAN_IDS } from "@/lib/quota";
 import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction } from "@/lib/logs";
-import { requireAdmin, revalidateLocalized } from "./shared";
+import { requireAdmin, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 관리자 ───────────────
 /** 관리자: GitHub 저장소 통계 즉시 수집 (크론이 밀렸을 때 수동 새로고침) */
@@ -293,4 +293,95 @@ export async function clearEarnedPlan(formData: FormData): Promise<void> {
     await logAdminAction(admin, actor.id, "referral.clearEarned", id.data);
   }
   revalidateLocalized("/admin/users", "/admin/referrals");
+}
+
+// ─────────────── 관리자 → 사용자 메일 ───────────────
+
+const SendEmailSchema = z.object({
+  userId: z.string().uuid(),
+  subject: z.string().trim().min(1).max(200),
+  body: z.string().trim().min(1).max(5000),
+});
+
+/**
+ * 관리자가 사용자에게 직접 메일 발송 (useActionState 피드백).
+ * 이메일은 profiles가 아닌 auth에서 조회하고, 본문은 notify에서 escapeHtml 처리된다.
+ */
+export async function sendUserEmail(
+  _prev: SaveState,
+  formData: FormData,
+): Promise<SaveState> {
+  const { user: actor } = await requireAdmin();
+  const parsed = SendEmailSchema.safeParse({
+    userId: formData.get("userId"),
+    subject: formData.get("subject"),
+    body: formData.get("body"),
+  });
+  if (!parsed.success) return { error: "invalid" };
+
+  const admin = createAdminClient();
+  const { data: target } = await admin.auth.admin.getUserById(parsed.data.userId);
+  const to = target?.user?.email;
+  if (!to) return { error: "noEmail" };
+
+  const { sendAdminUserEmail } = await import("@/lib/notify");
+  const sent = await sendAdminUserEmail({ to, subject: parsed.data.subject, body: parsed.data.body });
+  if (!sent) return { error: "sendFailed" };
+
+  await logAdminAction(admin, actor.id, "user.email", parsed.data.userId, {
+    subject: parsed.data.subject.slice(0, 120),
+  });
+  return { ok: true };
+}
+
+// ─────────────── 관리자 재검사 (실패 검사, 한도 미차감) ───────────────
+
+/**
+ * 실패한 검사를 관리자가 재실행한다. 사용자 검사 한도를 차감하지 않으며(admin_retry, 0028),
+ * 성공(done)한 경우에만 해당 사용자에게 노출된다 — 실패는 관리자 목록에만 보인다.
+ */
+export async function adminRetryScan(
+  _prev: SaveState,
+  formData: FormData,
+): Promise<SaveState> {
+  const { user: actor } = await requireAdmin();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return { error: "invalid" };
+
+  const admin = createAdminClient();
+  const { data: orig } = await admin
+    .from("scans")
+    .select("id, user_id, root_url, scope, page_limit, status")
+    .eq("id", id.data)
+    .single();
+  if (!orig) return { error: "notFound" };
+  if (orig.status !== "failed") return { error: "notFailed" };
+
+  const { assertPublicHttpUrl } = await import("@a11ychk/core");
+  let url: URL;
+  try {
+    url = await assertPublicHttpUrl(orig.root_url as string);
+  } catch {
+    return { error: "invalidUrl" };
+  }
+
+  const { createScanForUser, DEFAULT_SCOPE } = await import("@/lib/scan/createScan");
+  const result = await createScanForUser(
+    orig.user_id as string,
+    url,
+    (orig.scope as import("@a11ychk/core").EvaluationScope | null) ?? DEFAULT_SCOPE,
+    { adminRetry: true, requestedPages: (orig.page_limit as number | null) ?? undefined },
+  );
+  if (!result.ok) {
+    // 409 = 해당 사용자에게 진행 중 검사 존재, 그 외 = 생성 실패(0028 미적용 포함)
+    return { error: result.status === 409 ? "userBusy" : "createFailed" };
+  }
+
+  const { after } = await import("next/server");
+  const { runScan } = await import("@/lib/scan/runScan");
+  after(() => runScan(result.id));
+
+  await logAdminAction(admin, actor.id, "scan.admin_retry", id.data, { newScanId: result.id });
+  revalidateLocalized("/admin/scans");
+  return { ok: true };
 }

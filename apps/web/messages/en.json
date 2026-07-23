@@ -266,7 +266,9 @@
       "rescanFailed": "Failed to re-scan the page.",
       "rateLimited": "Too many requests. Please try again later.",
       "checkFailed": "The check failed. Please try again shortly."
-    }
+    },
+    "autoPagesLabel": "Pages to audit automatically",
+    "autoPagesMax": "Max pages per audit: {max}"
   },
   "accessCheck": {
     "title": "Bot-block checker",
@@ -981,7 +983,21 @@
       "colError": "Error",
       "filterLabel": "Status filter",
       "filterAll": "All",
-      "filterApply": "Apply"
+      "filterApply": "Apply",
+      "colActions": "Actions",
+      "retryBadge": "Admin retry",
+      "retry": {
+        "run": "Retry",
+        "pending": "Starting…",
+        "started": "Retry started (no quota used; visible to the user only if it succeeds)",
+        "errors": {
+          "userBusy": "The user has an active scan — try again later.",
+          "notFailed": "Only failed scans can be retried.",
+          "notFound": "Scan not found.",
+          "invalidUrl": "The URL cannot be scanned.",
+          "createFailed": "Failed to create the retry. (Check migration 0028.)"
+        }
+      }
     },
     "plansControl": {
       "active": "Plans active",
@@ -1037,6 +1053,19 @@
       "earned": {
         "plus1": "Plus 1 earned",
         "plus2": "Plus 2 earned"
+      },
+      "email": {
+        "toggle": "Send email",
+        "subject": "Subject",
+        "body": "Body",
+        "send": "Send",
+        "sending": "Sending…",
+        "sent": "Sent",
+        "errors": {
+          "invalid": "Check the subject and body.",
+          "noEmail": "No email found for this user.",
+          "sendFailed": "Sending failed. Try again shortly."
+        }
       }
     },
     "inquiriesSection": {

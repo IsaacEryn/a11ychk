@@ -14,6 +14,8 @@ const CreateScanSchema = z.object({
   url: z.string().min(1).max(2000),
   /** 점검자 직접 입력 표본 (없으면 자동 수집) */
   pages: z.array(z.string().min(1).max(2000)).max(MAX_PAGES_PER_SCAN).optional(),
+  /** 자동 수집 시 검사할 페이지 수 — 서버가 사용자 한도로 재클램프 */
+  pageCount: z.number().int().min(1).max(MAX_PAGES_PER_SCAN).optional(),
   scope: z
     .object({
       conformanceTarget: z.enum(["A", "AA", "AAA"]).optional(),
@@ -94,7 +96,11 @@ export async function POST(request: Request) {
     notes: parsed.data.scope?.notes,
   };
 
-  const result = await createScanForUser(user.id, url, scope, { strictManualLimit: true });
+  const result = await createScanForUser(user.id, url, scope, {
+    strictManualLimit: true,
+    // 자동 수집일 때만 페이지 수 선택 반영 (직접 입력 표본은 배열 길이가 곧 페이지 수)
+    requestedPages: manualPages ? undefined : parsed.data.pageCount,
+  });
   if (!result.ok) {
     return NextResponse.json({ error: result.error, code: result.code, params: result.params }, { status: result.status });
   }

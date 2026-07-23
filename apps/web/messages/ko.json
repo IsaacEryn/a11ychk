@@ -266,7 +266,9 @@
       "rescanFailed": "페이지 재검사에 실패했습니다.",
       "rateLimited": "진단 요청이 너무 잦습니다. 잠시 후 다시 시도해 주세요.",
       "checkFailed": "진단에 실패했습니다. 잠시 후 다시 시도해 주세요."
-    }
+    },
+    "autoPagesLabel": "자동 점검할 페이지 수",
+    "autoPagesMax": "한번에 점검 가능한 페이지 수: {max}"
   },
   "accessCheck": {
     "title": "봇 차단 검증",
@@ -981,7 +983,21 @@
       "colError": "오류",
       "filterLabel": "상태 필터",
       "filterAll": "전체",
-      "filterApply": "적용"
+      "filterApply": "적용",
+      "colActions": "작업",
+      "retryBadge": "관리자 재검사",
+      "retry": {
+        "run": "재검사",
+        "pending": "시작 중…",
+        "started": "재검사를 시작했습니다 (한도 미차감, 성공 시에만 사용자에게 표시)",
+        "errors": {
+          "userBusy": "이 사용자에게 진행 중인 검사가 있어 지금은 재검사할 수 없습니다.",
+          "notFailed": "실패한 검사만 재검사할 수 있습니다.",
+          "notFound": "검사를 찾을 수 없습니다.",
+          "invalidUrl": "검사할 수 없는 주소입니다.",
+          "createFailed": "재검사 생성에 실패했습니다. (migration 0028 적용 여부를 확인하세요)"
+        }
+      }
     },
     "plansControl": {
       "active": "요금제 시행 중",
@@ -1037,6 +1053,19 @@
       "earned": {
         "plus1": "플러스1 달성",
         "plus2": "플러스2 달성"
+      },
+      "email": {
+        "toggle": "메일 보내기",
+        "subject": "제목",
+        "body": "본문",
+        "send": "보내기",
+        "sending": "보내는 중…",
+        "sent": "발송되었습니다",
+        "errors": {
+          "invalid": "제목과 본문을 확인해 주세요.",
+          "noEmail": "이 사용자의 이메일을 찾을 수 없습니다.",
+          "sendFailed": "발송에 실패했습니다. 잠시 후 다시 시도해 주세요."
+        }
       }
     },
     "inquiriesSection": {

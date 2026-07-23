@@ -2,6 +2,7 @@ import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { StatusBadge } from "@/components/StatusBadge";
+import { AdminRetryForm } from "./AdminRetryForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -31,13 +32,26 @@ export default async function AdminScansPage({
   const filter = STATUSES.includes(status as ScanStatus) ? (status as ScanStatus) : undefined;
 
   const admin = createAdminClient();
-  let query = admin
-    .from("scans")
-    .select("id, root_url, status, error, created_at, profiles(nickname)")
-    .order("created_at", { ascending: false })
-    .limit(50);
-  if (filter) query = query.eq("status", filter);
-  const { data: scans } = await query;
+  const buildQuery = (cols: string) => {
+    let q = admin.from("scans").select(cols).order("created_at", { ascending: false }).limit(50);
+    if (filter) q = q.eq("status", filter);
+    return q;
+  };
+  // admin_retry(0028) 미적용 환경 폴백 — 컬럼 부재로 조회가 깨지지 않게
+  const first = await buildQuery(
+    "id, root_url, status, error, created_at, admin_retry, profiles(nickname)",
+  );
+  let scans = first.data;
+  if (first.error) ({ data: scans } = await buildQuery("id, root_url, status, error, created_at, profiles(nickname)"));
+  const rows = (scans ?? []) as unknown as {
+    id: string;
+    root_url: string;
+    status: string;
+    error: string | null;
+    created_at: string;
+    admin_retry?: boolean;
+    profiles: { nickname: string } | null;
+  }[];
 
   return (
     <section aria-labelledby="admin-scans-heading" className="mt-8">
@@ -82,28 +96,35 @@ export default async function AdminScansPage({
               <th scope="col" className="py-2 pr-3 font-bold">{t("scans.colUrl")}</th>
               <th scope="col" className="py-2 pr-3 font-bold">{t("scans.colStatus")}</th>
               <th scope="col" className="py-2 pr-3 font-bold">{t("scans.colDate")}</th>
-              <th scope="col" className="py-2 font-bold">{t("scans.colError")}</th>
+              <th scope="col" className="py-2 pr-3 font-bold">{t("scans.colError")}</th>
+              <th scope="col" className="py-2 font-bold">{t("scans.colActions")}</th>
             </tr>
           </thead>
           <tbody>
-            {(scans ?? []).map((s) => (
+            {rows.map((s) => (
               <tr key={s.id} className="border-b border-[var(--color-line)]">
                 <td className="whitespace-nowrap py-2 pr-3">
-                  {(s.profiles as unknown as { nickname: string } | null)?.nickname}
+                  {s.profiles?.nickname}
                 </td>
                 <td className="max-w-64 truncate py-2 pr-3">{s.root_url}</td>
                 <td className="py-2 pr-3">
                   <StatusBadge status={s.status} label={tDash(`status.${s.status as ScanStatus}`)} />
+                  {s.admin_retry && (
+                    <span className="ml-1.5 rounded-full border border-[var(--color-line)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-ink-faint)]">
+                      {t("scans.retryBadge")}
+                    </span>
+                  )}
                 </td>
                 <td className="whitespace-nowrap py-2 pr-3 tabular-nums text-[var(--color-ink-faint)]">
                   {format.dateTime(new Date(s.created_at), { dateStyle: "short", timeStyle: "short" })}
                 </td>
-                <td className="max-w-56 truncate py-2 text-[var(--color-crit)]">{s.error}</td>
+                <td className="max-w-56 truncate py-2 pr-3 text-[var(--color-crit)]">{s.error}</td>
+                <td className="py-2">{s.status === "failed" && <AdminRetryForm scanId={s.id} />}</td>
               </tr>
             ))}
-            {(scans ?? []).length === 0 && (
+            {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="py-4 text-sm text-[var(--color-ink-faint)]">
+                <td colSpan={6} className="py-4 text-sm text-[var(--color-ink-faint)]">
                   {t("dashboard.empty")}
                 </td>
               </tr>

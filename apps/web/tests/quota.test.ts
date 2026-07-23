@@ -12,6 +12,7 @@ import {
   getPlan,
   getResets,
   getSampleSize,
+  clampRequestedPages,
   getVerifiedDomainLimit,
   resolveLimits,
 } from "../src/lib/quota";
@@ -161,5 +162,25 @@ describe("달성 등급(earned) — getEarnedPlan / 확장·소유확인 한도 
     expect(getVerifiedDomainLimit(null, "plus2")).toBe(2);
     expect(getVerifiedDomainLimit({ plan: "enterprise" }, "plus2")).toBe(DOMAIN_VERIFY_LIMITS.enterprise);
     expect(getVerifiedDomainLimit({ verifiedDomains: 1 }, "plus2")).toBe(1);
+  });
+});
+
+describe("clampRequestedPages — 자동 수집 페이지 수 클램프", () => {
+  it("미지정이면 한도 최대", () => {
+    expect(clampRequestedPages(10)).toBe(10);
+    expect(clampRequestedPages(10, undefined)).toBe(10);
+  });
+
+  it("한도 내 값은 그대로, 초과는 한도로, 1 미만은 1로", () => {
+    expect(clampRequestedPages(10, 3)).toBe(3);
+    expect(clampRequestedPages(10, 15)).toBe(10);
+    expect(clampRequestedPages(10, 0)).toBe(1);
+    expect(clampRequestedPages(10, -5)).toBe(1);
+  });
+
+  it("소수·비정상 값 방어", () => {
+    expect(clampRequestedPages(10, 3.9)).toBe(3);
+    expect(clampRequestedPages(10, Number.NaN)).toBe(10);
+    expect(clampRequestedPages(10, Number.POSITIVE_INFINITY)).toBe(10);
   });
 });

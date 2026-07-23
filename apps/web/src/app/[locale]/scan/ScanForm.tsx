@@ -21,6 +21,8 @@ export interface ScanFormLabels {
   modeManualDesc: string;
   manualLabel: string;
   manualPlaceholder: string;
+  autoPagesLabel: string;
+  autoPagesMax: string; // "{max}"
   manualCount: string; // "{count} / {max}"
   manualOriginHint: string;
   manualOverLimit: string; // "{max}"
@@ -82,6 +84,10 @@ export function ScanForm({
     [rootHost, verifiedHostnames, verifiedSize, unverifiedSize],
   );
 
+  // 자동 수집 시 검사할 페이지 수 — 미선택이면 min(한도, 15), 한도 변동 시 자동 클램프
+  const [autoPagesChoice, setAutoPagesChoice] = useState<number | null>(null);
+  const autoPages = Math.max(1, Math.min(autoPagesChoice ?? 15, maxPages));
+
   // 직접 입력 페이지 중 검사 주소와 호스트가 다르거나 URL이 아닌 줄 (서버도 거부하므로 폼에서 미리 알림)
   const invalidLines = useMemo(() => {
     if (mode !== "manual" || !rootHost) return [];
@@ -105,6 +111,7 @@ export function ScanForm({
         body: JSON.stringify({
           url,
           pages: mode === "manual" ? manualPages.slice(0, maxPages) : undefined,
+          pageCount: mode === "auto" ? autoPages : undefined,
           scope: { conformanceTarget: target, notes: notes.trim() || undefined },
         }),
       });
@@ -205,6 +212,31 @@ export function ScanForm({
           ))}
         </div>
       </fieldset>
+
+      {mode === "auto" && (
+        <div className="mt-3">
+          <div className="mb-1 flex items-baseline justify-between gap-3">
+            <label htmlFor="auto-pages" className="text-sm font-semibold">
+              {labels.autoPagesLabel}
+            </label>
+            <span className="text-xs font-bold tabular-nums text-[var(--color-ink-faint)]" aria-live="polite">
+              {fill(labels.autoPagesMax, { max: maxPages })}
+            </span>
+          </div>
+          <select
+            id="auto-pages"
+            value={autoPages}
+            onChange={(e) => setAutoPagesChoice(Number(e.target.value))}
+            className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm sm:w-40"
+          >
+            {Array.from({ length: maxPages }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                {n}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
 
       {mode === "manual" && (
         <div className="mt-3">
