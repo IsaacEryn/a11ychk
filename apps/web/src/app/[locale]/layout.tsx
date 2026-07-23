@@ -56,6 +56,11 @@ export async function generateMetadata({
     },
     description: t("footer.tagline"),
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
+    // 사이트 소유확인 — env 설정 시에만 메타태그 삽입(셀프호스팅·포크 기본 미포함).
+    // 네이버 서치어드바이저는 파일 대신 메타태그 방식으로 확인.
+    verification: process.env.NAVER_SITE_VERIFICATION
+      ? { other: { "naver-site-verification": process.env.NAVER_SITE_VERIFICATION } }
+      : undefined,
     // 아이콘은 파일 컨벤션(app/icon.svg, apple-icon.png)이 자동 주입.
     // OG 이미지는 루트 세그먼트 파일이 [locale] 하위에 전파되지 않아 명시 지정.
     openGraph: {
