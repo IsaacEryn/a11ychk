@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/adminGuard";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bulkSetPages, bulkSetPlan, togglePlansActive } from "@/lib/actions";
-import { MAX_PAGES_PER_SCAN, PLANS, PLAN_IDS } from "@/lib/quota";
+import { ASSIGNABLE_PLAN_IDS, MAX_PAGES_PER_SCAN, PLANS } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -69,7 +69,7 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
             defaultValue="free"
             className="rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm"
           >
-            {PLAN_IDS.map((p) => (
+            {ASSIGNABLE_PLAN_IDS.map((p) => (
               <option key={p} value={p}>
                 {t(`users.plans.${p}`)} (한도 {PLANS[p].daily}/{PLANS[p].weekly}/{PLANS[p].monthly} · 표본{" "}
                 {Math.min(PLANS[p].sampleSize, MAX_PAGES_PER_SCAN)}p)

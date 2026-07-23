@@ -117,8 +117,12 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
 
   const planNames: Record<string, string> = {
     free: t("users.plans.free"),
+    plus1: t("users.plans.plus1"),
+    plus2: t("users.plans.plus2"),
+    plus: t("users.plans.plus"),
     pro: t("users.plans.pro"),
     enterprise: t("users.plans.enterprise"),
+    unlimited: t("users.plans.unlimited"),
   };
   const scopeNames: Record<string, string> = {
     all: t("users.resetScope.all"),
@@ -168,10 +172,18 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
       "user.unblock",
       "user.set_limits",
       "user.reset_quota",
+      "user.email",
       "plans.toggle",
       "plans.bulk_set",
       "pages.bulk_set",
       "inquiry.reply",
+      "auth.login",
+      "stats.refresh",
+      "referral.approve",
+      "referral.reject",
+      "referral.promote",
+      "referral.clearEarned",
+      "scan.admin_retry",
     ];
     return known.includes(action) ? t(`logs.actions.${action.replace(".", "_")}`) : action;
   }
@@ -191,6 +203,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
     if (d.pages === null) limits.push(t("logs.detailPagesCleared"));
     if (limits.length > 0) parts.push(limits.join(" · "));
     if (typeof d.count === "number") parts.push(t("logs.detailCount", { n: d.count }));
+    if (typeof d.subject === "string") parts.push(`"${d.subject}"`);
     return parts.join(" · ");
   }
 

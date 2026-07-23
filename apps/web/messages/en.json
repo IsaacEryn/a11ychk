@@ -981,9 +981,17 @@
       "colStatus": "Status",
       "colDate": "Date",
       "colError": "Error",
+      "colType": "Type",
+      "colScore": "Score",
       "filterLabel": "Status filter",
       "filterAll": "All",
       "filterApply": "Apply",
+      "typeFilterLabel": "Type filter",
+      "type": {
+        "manual": "Manual",
+        "auto": "Auto",
+        "scheduled": "Scheduled"
+      },
       "colActions": "Actions",
       "retryBadge": "Admin retry",
       "retry": {
@@ -1019,7 +1027,9 @@
       "planLabel": "Plan",
       "plans": {
         "free": "Free",
-        "plus": "Plus",
+        "plus1": "Plus 1 (earned)",
+        "plus2": "Plus 2 (earned)",
+        "plus": "Plus (assigned)",
         "pro": "Pro",
         "enterprise": "Enterprise",
         "unlimited": "Unlimited (operator)"
@@ -1056,6 +1066,30 @@
       },
       "email": {
         "toggle": "Send email",
+        "templates": {
+          "label": "Sample template",
+          "none": "Write from scratch",
+          "welcome": {
+            "name": "Welcome",
+            "subject": "Welcome to A11y Check",
+            "body": "Hello, this is A11y Check.\n\nThank you for signing up. Enter your site URL on the Scan page to get an automated report based on WCAG 2.2 and KWCAG 2.2.\n\n- Verify domain ownership to scan more pages.\n- Install the Chrome extension to audit pages as you browse.\n\nReply to this email or use the contact form for any questions.\n\nThanks,\nThe A11y Check team"
+          },
+          "delay": {
+            "name": "Scan delay notice",
+            "subject": "About the delay in your scan",
+            "body": "Hello, this is A11y Check.\n\nWe're sorry your scan took longer than expected. (Describe the cause here.)\n\nIt has now completed and the report is available. We've taken steps to prevent this from happening again.\n\nWe apologize for the inconvenience.\nThe A11y Check team"
+          },
+          "update": {
+            "name": "Feature update",
+            "subject": "New features in A11y Check",
+            "body": "Hello, this is A11y Check.\n\nHere's what's new:\n\n- (Describe the updates here.)\n\nSign in to try them out. Feel free to reply with any feedback.\n\nThanks,\nThe A11y Check team"
+          },
+          "feedback": {
+            "name": "Feedback request",
+            "subject": "How is A11y Check working for you?",
+            "body": "Hello, this is A11y Check.\n\nThank you for using the service. We'd love to hear a bit about your experience.\n\n- What part of the report helped you most?\n- Is there anything missing or frustrating?\n\nReply to this email — we read and act on every response.\n\nThanks,\nThe A11y Check team"
+          }
+        },
         "subject": "Subject",
         "body": "Body",
         "send": "Send",
@@ -1119,7 +1153,15 @@
         "plans_toggle": "Toggle plan enforcement",
         "plans_bulk_set": "Bulk assign plan",
         "pages_bulk_set": "Bulk set page limit",
-        "inquiry_reply": "Reply to inquiry"
+        "inquiry_reply": "Reply to inquiry",
+        "user_email": "Email user",
+        "auth_login": "Admin sign-in",
+        "stats_refresh": "Refresh repo stats",
+        "referral_approve": "Approve referral appeal",
+        "referral_reject": "Reject referral appeal",
+        "referral_promote": "Promote earned plan",
+        "referral_clearEarned": "Clear earned plan",
+        "scan_admin_retry": "Retry failed scan"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",

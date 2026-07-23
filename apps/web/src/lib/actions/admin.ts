@@ -3,7 +3,7 @@
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MAX_PAGES_PER_SCAN, PLAN_IDS } from "@/lib/quota";
+import { ASSIGNABLE_PLAN_IDS, MAX_PAGES_PER_SCAN } from "@/lib/quota";
 import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction } from "@/lib/logs";
 import { requireAdmin, revalidateLocalized, type SaveState } from "./shared";
@@ -95,7 +95,8 @@ export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Pr
 export async function setUserLimits(formData: FormData): Promise<void> {
   const { user: actor } = await requireAdmin();
   const id = z.string().uuid().safeParse(formData.get("id"));
-  const plan = z.enum(PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
+  // 달성 등급(plus1/plus2)은 초대·활동으로만 부여 — 관리자 배정 대상에서 제외
+  const plan = z.enum(ASSIGNABLE_PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
   if (!id.success || !plan.success) return;
 
   const admin = createAdminClient();
@@ -162,7 +163,8 @@ export async function togglePlansActive(formData: FormData): Promise<void> {
 /** 요금제(그룹) 일괄 배정 — 전체 사용자를 지정 요금제로. 개별 한도 override(횟수·페이지)는 제거 */
 export async function bulkSetPlan(formData: FormData): Promise<void> {
   const { user: actor } = await requireAdmin();
-  const plan = z.enum(PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
+  // 달성 등급(plus1/plus2)은 초대·활동으로만 부여 — 관리자 배정 대상에서 제외
+  const plan = z.enum(ASSIGNABLE_PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
   if (!plan.success) return;
 
   const admin = createAdminClient();

@@ -981,9 +981,17 @@
       "colStatus": "상태",
       "colDate": "일시",
       "colError": "오류",
+      "colType": "유형",
+      "colScore": "점수",
       "filterLabel": "상태 필터",
       "filterAll": "전체",
       "filterApply": "적용",
+      "typeFilterLabel": "유형 필터",
+      "type": {
+        "manual": "수동",
+        "auto": "자동",
+        "scheduled": "정기"
+      },
       "colActions": "작업",
       "retryBadge": "관리자 재검사",
       "retry": {
@@ -1019,7 +1027,9 @@
       "planLabel": "요금제",
       "plans": {
         "free": "무료",
-        "plus": "플러스(우수)",
+        "plus1": "플러스1(달성 등급)",
+        "plus2": "플러스2(달성 등급)",
+        "plus": "플러스(배정)",
         "pro": "프로",
         "enterprise": "엔터프라이즈",
         "unlimited": "무제한(운영자)"
@@ -1056,6 +1066,30 @@
       },
       "email": {
         "toggle": "메일 보내기",
+        "templates": {
+          "label": "샘플 양식",
+          "none": "직접 작성",
+          "welcome": {
+            "name": "가입 환영",
+            "subject": "A11y Check에 오신 것을 환영합니다",
+            "body": "안녕하세요, A11y Check입니다.\n\n가입해 주셔서 감사합니다. 검사하기에서 사이트 주소를 입력하면 WCAG 2.2·KWCAG 2.2 기준 자동 점검 보고서를 받아보실 수 있습니다.\n\n- 도메인 소유를 확인하면 더 많은 페이지를 검사할 수 있습니다.\n- 크롬 확장을 설치하면 페이지를 열어 둔 채 바로 점검할 수 있습니다.\n\n궁금한 점은 이 메일에 회신하거나 사이트의 문의하기를 이용해 주세요.\n\n감사합니다.\nA11y Check 드림"
+          },
+          "delay": {
+            "name": "검사 지연 안내",
+            "subject": "검사 처리 지연 안내드립니다",
+            "body": "안녕하세요, A11y Check입니다.\n\n요청하신 검사가 예상보다 늦게 처리된 점 사과드립니다. (지연 사유를 적어 주세요)\n\n현재는 정상 처리되어 보고서를 확인하실 수 있으며, 같은 문제가 재발하지 않도록 조치했습니다.\n\n이용에 불편을 드려 죄송합니다.\nA11y Check 드림"
+          },
+          "update": {
+            "name": "기능 업데이트 소식",
+            "subject": "A11y Check 새 기능을 소개합니다",
+            "body": "안녕하세요, A11y Check입니다.\n\n최근 추가된 기능을 안내드립니다.\n\n- (업데이트 내용을 적어 주세요)\n\n지금 로그인하시면 바로 사용해 보실 수 있습니다. 의견은 언제든 이 메일에 회신해 주세요.\n\n감사합니다.\nA11y Check 드림"
+          },
+          "feedback": {
+            "name": "의견 요청",
+            "subject": "A11y Check 사용 경험을 들려주세요",
+            "body": "안녕하세요, A11y Check입니다.\n\n서비스를 이용해 주셔서 감사합니다. 더 나은 서비스를 위해 짧은 의견을 여쭙고자 합니다.\n\n- 검사 보고서에서 가장 도움이 된 부분은 무엇인가요?\n- 아쉽거나 개선이 필요한 부분이 있다면 알려주세요.\n\n이 메일에 회신해 주시면 꼼꼼히 읽고 반영하겠습니다.\n\n감사합니다.\nA11y Check 드림"
+          }
+        },
         "subject": "제목",
         "body": "본문",
         "send": "보내기",
@@ -1119,7 +1153,15 @@
         "plans_toggle": "요금제 시행 전환",
         "plans_bulk_set": "요금제 일괄 배정",
         "pages_bulk_set": "페이지 한도 일괄 설정",
-        "inquiry_reply": "문의 답변"
+        "inquiry_reply": "문의 답변",
+        "user_email": "사용자 메일 발송",
+        "auth_login": "관리자 로그인",
+        "stats_refresh": "저장소 통계 새로고침",
+        "referral_approve": "초대 소명 승인",
+        "referral_reject": "초대 소명 거부",
+        "referral_promote": "달성 등급 승급",
+        "referral_clearEarned": "달성 등급 회수",
+        "scan_admin_retry": "실패 검사 재검사"
       },
       "detailActive": "시행 시작",
       "detailInactive": "시행 중지",

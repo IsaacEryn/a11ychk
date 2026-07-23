@@ -33,6 +33,8 @@ interface CreateScanOptions {
    * 차단 계정·동시 실행 가드·유니크 인덱스는 그대로 적용.
    */
   adminRetry?: boolean;
+  /** 생성 주체(0029) — 정기 검사 크론만 "scheduled"를 넘긴다. 미지정 = 사용자 직접 실행. */
+  source?: "scheduled";
 }
 
 /** 한국 기본 접근성 지원 기준 (WCAG-EM Step 1.c 프리셋) — 신규 검사·정기 검사 공용 */
@@ -152,20 +154,30 @@ export async function createScanForUser(
     manualPages: scope.manualPages?.slice(0, pageLimit),
   };
 
-  const { data: scan, error: insertError } = await admin
+  const baseRow = {
+    user_id: userId,
+    domain_id: domain?.id ?? null,
+    root_url: url.toString(),
+    status: "queued",
+    page_limit: pageLimit,
+    scope: finalScope,
+    // 관리자 재검사 표식(0028) — 일반 검사는 컬럼 기본값(false)에 맡겨 미적용 환경 호환
+    ...(options.adminRetry ? { admin_retry: true } : {}),
+  };
+  let { data: scan, error: insertError } = await admin
     .from("scans")
-    .insert({
-      user_id: userId,
-      domain_id: domain?.id ?? null,
-      root_url: url.toString(),
-      status: "queued",
-      page_limit: pageLimit,
-      scope: finalScope,
-      // 관리자 재검사 표식(0028) — 일반 검사는 컬럼 기본값(false)에 맡겨 미적용 환경 호환
-      ...(options.adminRetry ? { admin_retry: true } : {}),
-    })
+    // 생성 주체 표식(0029) — 정기 검사만 scheduled
+    .insert({ ...baseRow, ...(options.source ? { source: options.source } : {}) })
     .select("id")
     .single();
+  // 0029 미적용 환경에서 크론이 source를 넘기면 컬럼 부재(PGRST204)로 실패 — 표식 없이 재시도
+  if (insertError?.code === "PGRST204" && options.source) {
+    ({ data: scan, error: insertError } = await admin
+      .from("scans")
+      .insert(baseRow)
+      .select("id")
+      .single());
+  }
   if (insertError || !scan) {
     // 23505 = 유니크 위반 — 동시 요청이 사전 검사를 함께 통과한 경우(TOCTOU)
     if (insertError?.code === "23505") {
