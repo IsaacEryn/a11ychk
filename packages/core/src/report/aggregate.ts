@@ -125,7 +125,7 @@ export function aggregateScan(
     };
   });
 
-  // ── WCAG 2.2 성공기준(SC) 매트릭스 (WCAG-EM Step 4) ──
+  // ── WCAG 2.2 성공기준(SC) 매트릭스 (WCAG-EM 2.0 Step 4) ──
   const scFail = new Map<string, { count: number; rules: Set<string> }>();
   for (const ruleId of failedRules) {
     for (const sc of getRuleEntry(ruleId).wcag) {
@@ -166,7 +166,7 @@ export function aggregateScan(
   const checkedRuleCount = passedRules.size + failedRules.size;
   const complianceRate = checkedRuleCount === 0 ? 0 : Math.round((passedRules.size / checkedRuleCount) * 1000) / 10;
 
-  // ── 세 가지 준수율 (WCAG-EM Phase D): 자동 / 수동 / 통합 ──
+  // ── 세 가지 준수율 (WCAG-EM 2.0 Step 5.4 — 선택적 종합 점수의 자체 구현): 자동 / 수동 / 통합 ──
   const scores = computeScores(wcagMatrix, options.reviews?.wcag ?? {});
 
   return {

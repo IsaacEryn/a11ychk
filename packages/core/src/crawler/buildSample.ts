@@ -1,5 +1,8 @@
 /**
- * WCAG-EM Step 2·3 — 대상 탐색 + 대표 표본 선정.
+ * WCAG-EM 2.0 Step 2·3 — 대상 탐색 + 대표 표본 선정.
+ *
+ * 페이지 분류(categorizePage)는 2.0 Step 2.1(공통 뷰: 홈·로그인·문의 등)과
+ * 2.3(표본 유형 다양성)에, 무작위 표본은 Step 3.2(구조 표본의 10%)에 대응한다.
  * collectPages의 후보 수집을 재사용하되, 페이지를 분류(공통 페이지 등)하고
  * 구조 표본(structured) + 무작위 표본(random 10%)으로 태깅한다.
  * 프로세스(process) 표본은 자동 크롤 불가이므로 크롬 확장에 위임한다.
@@ -124,7 +127,7 @@ export async function buildSample(rootRawUrl: string, options: BuildSampleOption
 
   const sampleMethod =
     random.length > 0
-      ? `구조 표본 ${structured.length}개(공통 페이지·페이지 유형별 대표) + 무작위 표본 ${random.length}개(전체 후보에서 시드 기반 무작위 선정, WCAG-EM 10% 규칙)`
+      ? `구조 표본 ${structured.length}개(공통 페이지·페이지 유형별 대표) + 무작위 표본 ${random.length}개(전체 후보에서 시드 기반 무작위 선정, WCAG-EM 2.0 Step 3.2 — 구조 표본의 10%)`
       : `구조 표본 ${structured.length}개(후보가 적어 무작위 표본 없음)`;
 
   return {

@@ -37,7 +37,7 @@ interface CreateScanOptions {
   source?: "scheduled";
 }
 
-/** 한국 기본 접근성 지원 기준 (WCAG-EM Step 1.c 프리셋) — 신규 검사·정기 검사 공용 */
+/** 한국 기본 접근성 지원 기준 (WCAG-EM 2.0 Step 1.3 프리셋) — 신규 검사·정기 검사 공용 */
 export const DEFAULT_BASELINE = [
   "NVDA + Chrome (Windows)",
   "VoiceOver + Safari (macOS/iOS)",

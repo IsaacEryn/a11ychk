@@ -64,7 +64,7 @@ export interface ReviewSample {
   text: string;
 }
 
-/** 사이트 수준 검사를 위한 페이지 시그니처 (WCAG-EM Phase C) */
+/** 사이트 수준 검사를 위한 페이지 시그니처 (자체 구현 — 사이트 수준 SC 검사용) */
 export interface PageSignature {
   url: string;
   title: string;
@@ -131,7 +131,7 @@ export interface WcagMatrixRow {
   reviewRuleIds?: string[];
 }
 
-/** WCAG-EM Step 1 평가 범위 (scans.scope에 저장) */
+/** WCAG-EM 2.0 Step 1 평가 범위 (scans.scope에 저장) */
 export interface EvaluationScope {
   /** 목표 적합성 수준 */
   conformanceTarget: "A" | "AA" | "AAA";
@@ -204,7 +204,7 @@ export type PageCategory =
 
 export type SampleType = "structured" | "random" | "process";
 
-/** WCAG-EM Step 2·3 결과 요약 (ScanSummary.sample에 저장) */
+/** WCAG-EM 2.0 Step 2·3 결과 요약 (ScanSummary.sample에 저장) */
 export interface SampleSummary {
   structuredCount: number;
   randomCount: number;
@@ -232,7 +232,7 @@ export interface ScoreBreakdown {
 }
 
 /**
- * 세 가지 준수율 (WCAG-EM Phase D).
+ * 세 가지 준수율 — WCAG-EM 2.0 Step 5.4(선택적 종합 점수)의 자체 구현.
  * - automated: 자동 검사(axe + 자체 규칙 + 사이트 검사)만의 결과
  * - manual: 점검자가 직접 판정 기입한 결과만
  * - combined: 자동 + 수동을 통합 (점검자 판정이 자동 판정을 우선)
@@ -256,7 +256,7 @@ export interface ScanSummary {
   /** ruleId → 위반 노드 수 */
   byRule: Record<string, number>;
   kwcagMatrix: KwcagMatrixRow[];
-  /** WCAG 2.2 성공기준별 판정 (WCAG-EM Step 4) */
+  /** WCAG 2.2 성공기준별 판정 (WCAG-EM 2.0 Step 4) */
   wcagMatrix: WcagMatrixRow[];
   /** 자동 검사 가능 규칙 기준 준수율 (0–100) — 하위 호환용(자동 검사 규칙 기준) */
   complianceRate: number;

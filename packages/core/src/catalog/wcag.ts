@@ -1,6 +1,6 @@
 /**
  * WCAG 2.2 성공기준(Success Criteria) 카탈로그 — Level A·AA 전체.
- * WCAG-EM(웹 접근성 평가 방법론) Step 4의 "성공기준별 결과" 매트릭스에 사용한다.
+ * WCAG-EM 2.0(웹 접근성 평가 방법론) Step 4의 "성공기준별 결과" 매트릭스에 사용한다.
  * 출처: W3C WCAG 2.2 Recommendation / Quick Reference.
  *
  * (4.1.1 Parsing은 WCAG 2.2에서 폐기되어 제외. AAA는 목표 수준이 아니므로 제외.)

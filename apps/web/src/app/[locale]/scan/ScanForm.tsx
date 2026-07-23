@@ -289,7 +289,7 @@ export function ScanForm({
         </div>
       )}
 
-      {/* WCAG-EM Step 1 — 평가 범위 (고급, 접기형) */}
+      {/* WCAG-EM 2.0 Step 1 — 평가 범위 (고급, 접기형) */}
       <details className="mt-3 border-[1.5px] border-dashed border-[var(--color-line)] p-3">
         <summary className="cursor-pointer text-sm font-semibold">{labels.advanced}</summary>
         <div className="mt-3 space-y-3">

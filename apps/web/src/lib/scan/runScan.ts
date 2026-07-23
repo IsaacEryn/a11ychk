@@ -292,7 +292,7 @@ export async function runScan(scanId: string): Promise<void> {
 
   let browser: Browser | null = null;
   try {
-    // 1) WCAG-EM Step 2·3 — 표본 구성
+    // 1) WCAG-EM 2.0 Step 2·3 — 표본 구성
     //    점검자가 직접 페이지를 지정했으면 그 목록을, 아니면 자동 수집(buildSample)
     let sample: SampleResult;
     if (scope?.manualPages && scope.manualPages.length > 0) {
@@ -311,7 +311,7 @@ export async function runScan(scanId: string): Promise<void> {
           sampleType: "structured" as const,
         })),
         technologies,
-        sampleMethod: `점검자 직접 입력 표본 ${scope.manualPages.length}개 (WCAG-EM 3.a 구조 표본)`,
+        sampleMethod: `점검자 직접 입력 표본 ${scope.manualPages.length}개 (WCAG-EM 2.0 Step 3.1 구조 표본)`,
         source: "root-only",
       };
     } else {
@@ -353,7 +353,7 @@ export async function runScan(scanId: string): Promise<void> {
     // 3) 페이지 스캔 — 동시 SCAN_CONCURRENCY개(한 브라우저에 컨텍스트 N개)로 배치 처리.
     //    같은 origin 표본이라 host-resolver 핀을 공유하므로 한 브라우저로 안전하다(SSRF).
     //    메모리는 배치마다 브라우저를 닫아 리셋한다(2 동시 = ERR_INSUFFICIENT_RESOURCES 여유).
-    //    구조/무작위 표본별 위반 규칙 추적(WCAG-EM 4.c).
+    //    구조/무작위 표본별 위반 규칙 추적(WCAG-EM 2.0 Step 4.3 — 표본 비교).
     const results: PageScanResult[] = [];
     const signatures: PageSignature[] = [];
     const structuredRules = new Set<string>();

@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     }
   }
 
-  // 5) WCAG-EM Step 1 평가 범위 (미입력 시 합리적 기본값) → 생성 정책 공통 처리
+  // 5) WCAG-EM 2.0 Step 1 평가 범위 (미입력 시 합리적 기본값) → 생성 정책 공통 처리
   const scope: EvaluationScope = {
     conformanceTarget: parsed.data.scope?.conformanceTarget ?? "AA",
     accessibilitySupportBaseline: parsed.data.scope?.accessibilitySupportBaseline?.length

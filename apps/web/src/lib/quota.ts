@@ -11,7 +11,7 @@ export interface ScanLimits {
 }
 
 export interface PlanConfig extends ScanLimits {
-  /** WCAG-EM 구조 표본 페이지 수 (무작위 표본은 이의 10%가 추가됨) */
+  /** WCAG-EM 2.0 구조 표본 페이지 수 (무작위 표본은 이의 10%가 추가됨 — Step 3.2) */
   sampleSize: number;
 }
 

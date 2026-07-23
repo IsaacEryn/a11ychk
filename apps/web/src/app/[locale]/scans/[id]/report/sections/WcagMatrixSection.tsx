@@ -8,7 +8,7 @@ function pick(text: { ko: string; en?: string }, locale: string): string {
   return locale === "en" && text.en ? text.en : text.ko;
 }
 
-/** WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4) — 행 가시성은 reportFilter의 data 속성이 담당 */
+/** WCAG 2.2 성공기준 매트릭스 (WCAG-EM 2.0 Step 4) — 행 가시성은 reportFilter의 data 속성이 담당 */
 export async function WcagMatrixSection({
   locale,
   summary,

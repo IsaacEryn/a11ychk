@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import type { EvaluationScope, ScanSummary } from "@a11ychk/core/catalog";
 
-/** WCAG-EM Step 1·2·3: 평가 범위 + 표본 */
+/** WCAG-EM 2.0 Step 1·2·3: 평가 범위 + 표본 */
 export async function ScopeSection({
   scope,
   sample,

@@ -136,7 +136,7 @@ export default async function ReportPage({
       {/* ─── Executive Summary (총평) ─── */}
       <ExecSummary meta={meta} />
 
-      {/* ─── WCAG-EM Step 1·2·3: 평가 범위 + 표본 ─── */}
+      {/* ─── WCAG-EM 2.0 Step 1·2·3: 평가 범위 + 표본 ─── */}
       <ScopeSection scope={scope} sample={summary.sample} />
 
       {/* ─── 표본 페이지 상세 (Step 3 + 검사 상태) ─── */}
@@ -153,7 +153,7 @@ export default async function ReportPage({
 
       {/* ─── 표준별 매트릭스 — std로 선택, preferred로 순서 결정 ─── */}
       {(() => {
-        // WCAG 2.2 성공기준 매트릭스 (WCAG-EM Step 4)
+        // WCAG 2.2 성공기준 매트릭스 (WCAG-EM 2.0 Step 4)
         const wcagBlock = hasWcag ? (
           <WcagMatrixSection
             locale={locale}
@@ -217,7 +217,7 @@ export default async function ReportPage({
       {/* ─── 수동 검사 항목 — 소유자 전용(점검 워크플로 안내). 공유·비소유자 뷰엔 미노출 ─── */}
       {canEdit && <ManualSection locale={locale} />}
 
-      {/* ─── WCAG-EM 적합성 진술 (Step 5.c) ─── */}
+      {/* ─── WCAG-EM 2.0 평가 성명 (Step 5.3) ─── */}
       <StatementSection scope={scope} />
 
       {/* ─── 비소유자(배지·공유 링크 방문자) 전환 CTA — 화면 전용, 인쇄 제외 ─── */}

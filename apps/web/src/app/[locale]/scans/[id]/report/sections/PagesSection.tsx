@@ -4,7 +4,7 @@ import { classifyScanError } from "@/lib/scanError";
 import { RescanPageButton } from "../RescanButtons";
 import type { PageRow } from "../loadReport";
 
-/** 표본 페이지 상세 (WCAG-EM Step 3 + 검사 상태) */
+/** 표본 페이지 상세 (WCAG-EM 2.0 Step 3 + 검사 상태) */
 export async function PagesSection({
   pages,
   canEdit,

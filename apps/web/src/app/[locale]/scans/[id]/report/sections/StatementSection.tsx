@@ -1,7 +1,7 @@
 import { getTranslations } from "next-intl/server";
 import type { EvaluationScope } from "@a11ychk/core/catalog";
 
-/** WCAG-EM 적합성 진술 (Step 5.c) */
+/** WCAG-EM 2.0 평가 성명 (Step 5.3 — optional evaluation statement) */
 export async function StatementSection({ scope }: { scope: EvaluationScope | null }) {
   const t = await getTranslations("report");
   return (

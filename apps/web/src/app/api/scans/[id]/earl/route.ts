@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
- * WCAG-EM Step 5.e — 기계 판독 가능 평가 결과 (EARL 정렬 JSON).
+ * WCAG-EM 2.0 Step 5.5 — 기계 판독 가능 보고서 (EARL 정렬 JSON).
  * 소유자(또는 관리자)만 접근. 자동 평가 부분의 SC별 결과를 EARL 어휘로 제공한다.
  */
 const IdSchema = z.string().uuid();
@@ -57,7 +57,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     },
     evaluation: {
       standard: "WCAG 2.2",
-      methodology: "WCAG-EM 1.0 (automated portion)",
+      methodology: "WCAG-EM 2.0 (automated portion)",
       date: scan.finished_at ?? scan.created_at,
       engine: `${summary.engine.name} ${summary.engine.axeVersion}`,
       conformanceTarget: scope?.conformanceTarget ?? "AA",

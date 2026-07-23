@@ -1,5 +1,5 @@
 /**
- * 사이트 수준 검사 (WCAG-EM Phase C) — 표본 여러 페이지의 시그니처를 비교해
+ * 사이트 수준 검사 (자체 구현) — 표본 여러 페이지의 시그니처를 비교해
  * 단일 페이지 도구가 못 하는 성공기준을 판정한다. 순수 함수.
  */
 import type { FindingNode, PageSignature, SiteCheckOutcome } from "../types";
