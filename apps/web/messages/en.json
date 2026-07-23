@@ -57,7 +57,7 @@
     "featuresTitle": "From audit to remediation, in one place",
     "features": {
       "autoTitle": "Automated audits",
-      "autoDesc": "The axe-core engine collects representative pages and checks ~90 rules automatically.",
+      "autoDesc": "The axe-core engine collects representative pages and checks 106 rules automatically.",
       "kwcagTitle": "WCAG + KWCAG mapping",
       "kwcagDesc": "See WCAG 2.2 and all 33 KWCAG 2.2 checkpoints together in one report.",
       "reportTitle": "Reports & PDF export",
@@ -1258,7 +1258,7 @@
     "features": {
       "auto": {
         "name": "Automated audits",
-        "desc": "Samples pages from your sitemap and internal links, then runs ~90 axe-core rules: alt text, color contrast, keyboard access — the things a machine can judge with confidence. Pages are re-checked at mobile width, and same-origin iframes are audited too."
+        "desc": "Samples pages from your sitemap and internal links, then runs 106 axe-core rules: alt text, color contrast, keyboard access — the things a machine can judge with confidence. Pages are re-checked at mobile width, and same-origin iframes are audited too."
       },
       "workbench": {
         "name": "Evaluation workbench",
@@ -1382,7 +1382,8 @@
     "impact": "Impact",
     "accessibility": "Accessibility statement",
     "terms": "Terms of service",
-    "privacy": "Privacy policy"
+    "privacy": "Privacy policy",
+    "directory": "Audited sites"
   },
   "serviceStatus": {
     "offlineTitle": "You are offline",

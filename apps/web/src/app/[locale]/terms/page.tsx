@@ -12,7 +12,8 @@ interface Section {
 const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections: Section[] }> = {
   ko: {
     title: "서비스 이용약관",
-    effective: "시행일: 2026년 7월 19일 (2026년 7월 16일 제정 — 비식별 데이터 활용 조항 신설, 서비스 내용 구체화)",
+    effective:
+      "시행일: 2026년 7월 24일 (개정 — 비회원 맛보기 검사·친구 초대 조항 신설 / 2026년 7월 19일 비식별 데이터 활용 조항 신설 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "제1조 (목적)",
@@ -24,7 +25,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         heading: "제2조 (정의)",
         body: [
           "\"서비스\"란 a11ychk.com에서 제공하는 웹 접근성 자동 검사, 평가 보고서 작성, 크롬 확장, 접근성 배지 등 일체의 기능을 말합니다.",
-          "\"이용자\"란 이 약관에 따라 서비스를 이용하는 회원을 말합니다.",
+          "\"이용자\"란 이 약관에 따라 서비스를 이용하는 회원을 말합니다. 로그인 없이 맛보기 검사 등 일부 기능을 이용하는 비회원에게도 이 약관이 적용됩니다.",
         ],
       },
       {
@@ -35,19 +36,21 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "이용자가 소유 확인한 도메인에 대해 정기 자동 검사와 결과 알림을 제공할 수 있습니다.",
           "이용자가 보고서 공유 링크를 생성하면 링크를 아는 누구나 해당 보고서를 열람할 수 있습니다. 공유 링크의 전달·해제 관리 책임은 이용자에게 있습니다.",
           "무료 서비스의 검사 횟수·표본 크기는 운영 사정에 따라 제한될 수 있습니다.",
+          "로그인 없이 이용할 수 있는 맛보기 검사(1페이지)를 제공할 수 있습니다. 맛보기 검사의 결과 화면은 저장되지 않아 다시 볼 수 없으며, 이용 횟수가 제한되고, 봇 방지를 위한 보안 확인이 요구될 수 있습니다.",
+          "운영자는 친구 초대 등 참여 조건 달성에 따른 이용 한도 혜택을 제공할 수 있습니다. 혜택의 내용·조건은 운영 사정에 따라 변경될 수 있으며, 중복 계정 생성 등 부정한 방법으로 얻은 혜택은 회수될 수 있습니다.",
         ],
       },
       {
         heading: "제4조 (계정)",
         body: [
-          "서비스 이용을 위해 Google·GitHub 계정 또는 이메일을 통한 로그인이 필요합니다.",
+          "맛보기 검사 등 일부 기능을 제외한 서비스 이용을 위해 Google·GitHub 계정 또는 이메일을 통한 로그인이 필요합니다.",
           "이용자는 타인의 계정을 도용하거나 운영자·관리자를 사칭하는 닉네임을 사용할 수 없습니다.",
         ],
       },
       {
         heading: "제5조 (이용 제한)",
         body: [
-          "다음의 경우 서비스 이용이 제한될 수 있습니다: ① 검사 한도를 우회하려는 시도 ② 타인 소유 사이트에 대한 악의적 대량 검사 ③ 서비스의 정상 운영을 방해하는 행위.",
+          "다음의 경우 서비스 이용이 제한될 수 있습니다: ① 검사 한도를 우회하려는 시도 ② 타인 소유 사이트에 대한 악의적 대량 검사 ③ 서비스의 정상 운영을 방해하는 행위 ④ 중복 계정 생성 등 부정한 방법의 초대 혜택 취득.",
           "운영자는 위반 계정에 대해 사전 통지 없이 이용을 제한할 수 있습니다.",
         ],
       },
@@ -82,7 +85,8 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   },
   en: {
     title: "Terms of Service",
-    effective: "Effective: July 19, 2026 (enacted July 16, 2026; de-identified data clause added, service details clarified)",
+    effective:
+      "Effective: July 24, 2026 (amended — no-login teaser check and referral clauses; July 19, 2026 de-identified data clause; enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Purpose",
@@ -98,18 +102,20 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
           "Scheduled automatic audits and result notifications may be provided for domains the user has verified.",
           "If the user creates a report share link, anyone with the link can view that report. Managing and revoking share links is the user's responsibility.",
           "Audit quotas and sample sizes of the free service may be limited at the operator's discretion.",
+          "A no-login teaser check (one page) may be offered. Teaser results are not stored and cannot be viewed again; usage is rate-limited and a bot-prevention check may be required. These terms also apply to non-member users of the teaser check.",
+          "The operator may grant usage-limit benefits for participation such as referrals. Benefit contents and conditions may change at the operator's discretion, and benefits obtained fraudulently (e.g., via duplicate accounts) may be revoked.",
         ],
       },
       {
         heading: "3. Accounts",
         body: [
-          "Sign-in via Google, GitHub, or email is required. Users must not impersonate operators/administrators or use another person's account.",
+          "Sign-in via Google, GitHub, or email is required except for some features such as the teaser check. Users must not impersonate operators/administrators or use another person's account.",
         ],
       },
       {
         heading: "4. Restrictions",
         body: [
-          "Use may be restricted for: attempts to bypass quotas, malicious bulk audits of third-party sites, or conduct that disrupts the Service.",
+          "Use may be restricted for: attempts to bypass quotas, malicious bulk audits of third-party sites, conduct that disrupts the Service, or obtaining referral benefits fraudulently (e.g., duplicate accounts).",
         ],
       },
       {

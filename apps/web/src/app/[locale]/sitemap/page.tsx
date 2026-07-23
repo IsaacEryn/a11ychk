@@ -45,6 +45,7 @@ export default async function SitemapPage({ params }: { params: Promise<{ locale
       items: [
         ["/about", t("about")],
         ["/guide", t("guide")],
+        ["/directory", t("directory")],
         ["/impact", t("impact")],
         ["/accessibility", t("accessibility")],
       ],

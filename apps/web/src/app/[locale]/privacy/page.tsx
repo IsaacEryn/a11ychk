@@ -45,7 +45,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
       {
         heading: "4. 처리 위탁",
         body: [
-          "서비스 운영을 위해 다음 업체에 데이터 처리를 위탁합니다: Supabase(데이터베이스·인증·파일 보관), Vercel(웹 호스팅·검사 실행), Cloudflare(가입·로그인 남용 방지를 위한 보안 확인), Resend(알림 이메일 발송). 위탁 업체는 각사의 보안 기준에 따라 데이터를 처리하며, 서버가 국외에 위치할 수 있습니다.",
+          "서비스 운영을 위해 다음 업체에 데이터 처리를 위탁합니다: Supabase(데이터베이스·인증·파일 보관), Vercel(웹 호스팅·검사 실행), Cloudflare(가입·로그인·비로그인 검사 남용 방지를 위한 보안 확인), Resend(알림 이메일 발송). 위탁 업체는 각사의 보안 기준에 따라 데이터를 처리하며, 서버가 국외에 위치할 수 있습니다.",
         ],
       },
       {
@@ -105,7 +105,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
       {
         heading: "4. Processors",
         body: [
-          "We entrust processing to: Supabase (database, authentication, file storage), Vercel (hosting, audit execution), Cloudflare (abuse-prevention checks at sign-up/sign-in), and Resend (notification emails), each under their own security standards. Their servers may be located outside Korea.",
+          "We entrust processing to: Supabase (database, authentication, file storage), Vercel (hosting, audit execution), Cloudflare (abuse-prevention checks at sign-up/sign-in and for no-login checks), and Resend (notification emails), each under their own security standards. Their servers may be located outside Korea.",
         ],
       },
       {
