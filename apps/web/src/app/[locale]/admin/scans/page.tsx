@@ -177,7 +177,17 @@ export default async function AdminScansPage({
                   {format.dateTime(new Date(s.created_at), { dateStyle: "short", timeStyle: "short" })}
                 </td>
                 <td className="max-w-56 truncate py-2 pr-3 text-[var(--color-crit)]">{s.error}</td>
-                <td className="py-2">{s.status === "failed" && <AdminRetryForm scanId={s.id} />}</td>
+                <td className="py-2">
+                  {s.status === "done" && (
+                    <a
+                      href={`/${locale}/scans/${s.id}/report`}
+                      className="text-xs font-bold text-[var(--color-seal)] underline underline-offset-2 hover:text-[var(--color-seal-deep)]"
+                    >
+                      {t("scans.viewReport")}
+                    </a>
+                  )}
+                  {s.status === "failed" && <AdminRetryForm scanId={s.id} />}
+                </td>
               </tr>
             ))}
             {rows.length === 0 && (

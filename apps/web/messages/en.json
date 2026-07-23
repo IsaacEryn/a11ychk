@@ -874,11 +874,11 @@
       "m1Title": "Mission 1 · Plus 1",
       "m1Desc": "Reached when {goal} friends sign up via your link and run their first scan.",
       "m2Title": "Mission 2 · Plus 2",
-      "m2Desc": "After reaching Plus 1, verify a domain and publish a report to earn it.",
+      "m2Desc": "After reaching Plus 1, verify a domain and list your site in the public directory to earn it.",
       "step": {
         "plus1": "Reach Plus 1 (invite {goal} friends)",
         "domain": "Verify at least 1 domain",
-        "report": "Publish at least 1 report"
+        "report": "List at least 1 site in the public directory (publish the badge from your dashboard)"
       },
       "copy": "Copy link",
       "copied": "Copied",
@@ -993,6 +993,7 @@
         "scheduled": "Scheduled"
       },
       "colActions": "Actions",
+      "viewReport": "View report",
       "retryBadge": "Admin retry",
       "retry": {
         "run": "Retry",
@@ -1161,7 +1162,8 @@
         "referral_reject": "Reject referral appeal",
         "referral_promote": "Promote earned plan",
         "referral_clearEarned": "Clear earned plan",
-        "scan_admin_retry": "Retry failed scan"
+        "scan_admin_retry": "Retry failed scan",
+        "report_view": "View user report"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",

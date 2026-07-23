@@ -12,6 +12,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
+import { logAdminAction } from "@/lib/logs";
 import { verifyReportToken } from "@/lib/reportToken";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
 import type { ReviewValue } from "./ReviewCell";
@@ -99,6 +100,7 @@ export async function loadReport(locale: string, id: string, token: string | und
   //   3) 로그인 사용자 (RLS — 소유자/관리자, 편집 가능)
   let db: SupabaseClient;
   let canEdit = false; // 판정 기입·보고서 정보 편집 가능 여부 (토큰 접근은 읽기 전용)
+  let sessionUserId: string | null = null; // 세션 접근 시 열람자 id — 관리자 열람 감사 기록용
   // 열람자의 우선 표준 설정 — 세션 접근에서만 조회 가능 (토큰 접근은 locale 폴백)
   let preferredStandard: "wcag" | "kwcag" | null = null;
   if (token && verifyReportToken(id, token)) {
@@ -109,6 +111,7 @@ export async function loadReport(locale: string, id: string, token: string | und
     // 렌더 스코프 캐시 — 헤더와 getUser 왕복 공유
     const user = await getCachedUser();
     if (!user) redirect(`/${locale}/login`);
+    sessionUserId = user.id;
     const supabase = await createClient();
     db = supabase as unknown as SupabaseClient;
     canEdit = true; // RLS 통과 = 소유자 또는 관리자
@@ -126,6 +129,14 @@ export async function loadReport(locale: string, id: string, token: string | und
   // select("*")로 조회해 migration 0003 적용 전에도 scope 컬럼 부재로 깨지지 않게 한다
   const { data: scan } = await db.from("scans").select("*").eq("id", id).maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) notFound();
+
+  // 세션 열람자가 소유자가 아닌데 RLS를 통과했다 = 관리자 열람 (scans_select_own의 is_admin 경로).
+  // 개인정보 처리방침 고지에 따라 감사 로그를 남긴다. best-effort — 실패해도 열람은 진행.
+  if (sessionUserId && sessionUserId !== scan.user_id) {
+    await logAdminAction(createAdminClient(), sessionUserId, "report.view", scan.user_id as string, {
+      url: scan.root_url as string,
+    }).catch(() => {});
+  }
 
   const summary = scan.summary as ScanSummary;
   const scope = (scan.scope ?? null) as EvaluationScope | null;

@@ -13,7 +13,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   ko: {
     title: "개인정보 처리방침",
     effective:
-      "시행일: 2026년 7월 24일 (개정 — 비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
+      "시행일: 2026년 7월 24일 (개정 — 관리자의 검사 결과 접근 고지·비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
@@ -31,6 +31,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "회원 식별 및 서비스 제공(검사 이력·보고서 관리), 검사 한도 등 자원 관리, 문의 응대, 정기 검사 결과 등 서비스 알림 이메일 발송(도메인별로 수신 거부 가능), 서비스 개선을 위한 통계(개인 식별 불가 형태)에 이용합니다.",
           "검사 대상 URL과 검사 결과는 개인·계정을 식별할 수 없는 집계 통계로 가공하여 학술 연구와 정책 제안에 활용될 수 있습니다. 이 경우 도메인 등 식별 요소는 제거되거나 분야 단위로 일반화됩니다.",
+          "서비스 품질 관리, 검사 오류 대응, 문의 처리를 위해 관리자가 이용자의 검사 결과(보고서)에 접근할 수 있습니다. 모든 접근은 내부 감사 기록으로 남기며, 위 목적 외에는 사용하지 않습니다.",
         ],
       },
       {
@@ -74,7 +75,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   en: {
     title: "Privacy Policy",
     effective:
-      "Effective: July 24, 2026 (amended — no-login teaser check disclosure; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
+      "Effective: July 24, 2026 (amended — administrator access to audit results and no-login teaser check disclosures; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Data we collect",
@@ -92,6 +93,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "Identifying members and providing the service (audit history and reports), resource management such as quotas, responding to inquiries, sending service notification emails such as scheduled audit results (opt-out per domain), and non-identifying statistics for service improvement.",
           "Audit target URLs and results may be processed into aggregate statistics that cannot identify any user or account, and used for academic research and policy proposals. Identifying elements such as domains are removed or generalized into categories.",
+          "For quality management, resolving audit errors, and handling inquiries, administrators may access your audit results (reports). Every access is recorded in an internal audit log and is not used for any other purpose.",
         ],
       },
       {

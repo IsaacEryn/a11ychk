@@ -184,6 +184,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
       "referral.promote",
       "referral.clearEarned",
       "scan.admin_retry",
+      "report.view",
     ];
     return known.includes(action) ? t(`logs.actions.${action.replace(".", "_")}`) : action;
   }
@@ -204,6 +205,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
     if (limits.length > 0) parts.push(limits.join(" · "));
     if (typeof d.count === "number") parts.push(t("logs.detailCount", { n: d.count }));
     if (typeof d.subject === "string") parts.push(`"${d.subject}"`);
+    if (typeof d.url === "string") parts.push(d.url);
     return parts.join(" · ");
   }
 

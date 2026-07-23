@@ -874,11 +874,11 @@
       "m1Title": "미션 1 · 플러스1",
       "m1Desc": "초대 링크로 친구 {goal}명이 가입하고 첫 검사를 실행하면 달성돼요.",
       "m2Title": "미션 2 · 플러스2",
-      "m2Desc": "플러스1을 달성한 뒤, 도메인 소유확인과 보고서 공개까지 마치면 달성돼요.",
+      "m2Desc": "플러스1을 달성한 뒤, 도메인 소유확인과 점검 사이트 공개 목록 등재까지 마치면 달성돼요.",
       "step": {
         "plus1": "플러스1 달성 (친구 {goal}명 초대)",
         "domain": "도메인 소유확인 1개 이상",
-        "report": "보고서 공개 1개 이상"
+        "report": "점검 사이트 공개 목록 등재 1개 이상 (대시보드의 공개 배지 발행)"
       },
       "copy": "링크 복사",
       "copied": "복사됨",
@@ -993,6 +993,7 @@
         "scheduled": "정기"
       },
       "colActions": "작업",
+      "viewReport": "보고서 보기",
       "retryBadge": "관리자 재검사",
       "retry": {
         "run": "재검사",
@@ -1161,7 +1162,8 @@
         "referral_reject": "초대 소명 거부",
         "referral_promote": "달성 등급 승급",
         "referral_clearEarned": "달성 등급 회수",
-        "scan_admin_retry": "실패 검사 재검사"
+        "scan_admin_retry": "실패 검사 재검사",
+        "report_view": "사용자 보고서 열람"
       },
       "detailActive": "시행 시작",
       "detailInactive": "시행 중지",
