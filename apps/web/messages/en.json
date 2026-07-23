@@ -770,7 +770,7 @@
     },
     "referral": {
       "title": "Level up",
-      "intro": "Earn higher-tier benefits through invitations and activity. (For members below Pro.)",
+      "intro": "Earn higher-tier benefits through invitations and activity.",
       "badgeDone": "Done",
       "badgeInProgress": "In progress",
       "m1Title": "Mission 1 · Plus 1",
@@ -804,10 +804,12 @@
         "submitted": "Submitted. It will be reviewed by an admin.",
         "saved": "Submitted.",
         "error": "Failed to submit."
-      }
+      },
+      "m1Reward": "Reward · {daily}/day, {weekly}/week, {monthly}/month scans, {ext} extension/day",
+      "m2Reward": "Reward · {daily}/day, {weekly}/week, {monthly}/month scans, {pages} pages/scan, {ext} extension/day, {verify} verified domains"
     },
     "tier": {
-      "title": "My membership",
+      "title": "My usage",
       "invitedBonus": "Invited-signup perk · +1 daily scan",
       "free": "Free",
       "plus1": "Plus 1",
@@ -815,7 +817,12 @@
       "plus": "Plus",
       "pro": "Pro",
       "enterprise": "Enterprise",
-      "unlimited": "Unlimited"
+      "unlimited": "Unlimited",
+      "scanUsageLabel": "Scans",
+      "extLabel": "Extension scans",
+      "extValue": "{limit}/day",
+      "pageLabel": "Pages per scan",
+      "pageValue": "up to {limit}"
     }
   },
   "inquiries": {

@@ -770,7 +770,7 @@
     },
     "referral": {
       "title": "등급 올리기",
-      "intro": "친구 초대와 활동으로 상위 등급 혜택을 받을 수 있어요. (프로 등급 미만 회원 대상)",
+      "intro": "친구 초대와 활동으로 상위 등급 혜택을 받을 수 있어요.",
       "badgeDone": "완료",
       "badgeInProgress": "진행 중",
       "m1Title": "미션 1 · 플러스1",
@@ -804,10 +804,12 @@
         "submitted": "소명이 접수되었습니다. 관리자 확인 후 반영됩니다.",
         "saved": "제출되었습니다.",
         "error": "제출에 실패했습니다."
-      }
+      },
+      "m1Reward": "달성 시 · 검사 일 {daily}·주 {weekly}·월 {monthly}회, 확장 일 {ext}회",
+      "m2Reward": "달성 시 · 검사 일 {daily}·주 {weekly}·월 {monthly}회, 검사당 {pages}페이지, 확장 일 {ext}회, 소유확인 {verify}개"
     },
     "tier": {
-      "title": "내 등급",
+      "title": "나의 사용량",
       "invitedBonus": "초대 가입 혜택 · 일 검사 +1회",
       "free": "무료",
       "plus1": "플러스1",
@@ -815,7 +817,12 @@
       "plus": "플러스",
       "pro": "프로",
       "enterprise": "엔터프라이즈",
-      "unlimited": "무제한"
+      "unlimited": "무제한",
+      "scanUsageLabel": "검사 사용량",
+      "extLabel": "확장도구 검사",
+      "extValue": "일 {limit}회",
+      "pageLabel": "페이지 제한",
+      "pageValue": "검사당 {limit}페이지"
     }
   },
   "inquiries": {

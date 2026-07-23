@@ -4,11 +4,16 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
+  DOMAIN_VERIFY_LIMITS,
+  EXT_DAILY_LIMITS,
+  PLANS,
   PLAN_RANK,
   checkQuota,
   getEarnedPlan,
+  getExtDailyLimit,
   getPlan,
   getResets,
+  getSampleSize,
   resolveLimits,
   type PlanId,
 } from "@/lib/quota";
@@ -102,6 +107,14 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   const displayTier: PlanId = earned && earnedRank >= assignedRank ? earned : assignedPlan;
   const showMissions = Math.max(assignedRank, earnedRank) < PLAN_RANK.pro;
 
+  // 확장도구 한도·페이지 제한(검사당 기본, 미확인 도메인 기준) — 사용량 카드 표시용
+  const extLimit = getExtDailyLimit(profile?.scan_limit_override, earned);
+  const pageLimit = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive, earned });
+
+  // 미션 보상 요약 — 각 등급 달성 시 받는 한도
+  const plus1Reward = { ...PLANS.plus1, ext: EXT_DAILY_LIMITS.plus1 };
+  const plus2Reward = { ...PLANS.plus2, ext: EXT_DAILY_LIMITS.plus2, verify: DOMAIN_VERIFY_LIMITS.plus2 };
+
   // 미션2 하위 단계 — 도메인 소유확인·보고서 공개 (0024 미적용 시 빈 목록 → 미완)
   const { data: myDomains } = await mpAdmin
     .from("domains")
@@ -143,7 +156,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
               <span className="text-xs font-semibold text-[var(--color-seal)]">{t("tier.invitedBonus")}</span>
             )}
           </div>
-          <p className="mt-4 text-sm font-semibold text-[var(--color-ink-soft)]">{t("usage.title")}</p>
+          <p className="mt-4 text-sm font-semibold text-[var(--color-ink-soft)]">{t("tier.scanUsageLabel")}</p>
           <dl className="mt-2 space-y-2">
             {(["daily", "weekly", "monthly"] as const).map((key) => (
               <div key={key} className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-1.5">
@@ -153,6 +166,14 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
                 </dd>
               </div>
             ))}
+            <div className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-1.5">
+              <dt className="font-medium">{t("tier.extLabel")}</dt>
+              <dd className="font-bold tabular-nums">{t("tier.extValue", { limit: extLimit })}</dd>
+            </div>
+            <div className="flex items-center justify-between border-b border-dashed border-[var(--color-line)] pb-1.5">
+              <dt className="font-medium">{t("tier.pageLabel")}</dt>
+              <dd className="font-bold tabular-nums">{t("tier.pageValue", { limit: pageLimit })}</dd>
+            </div>
           </dl>
         </section>
       </div>
@@ -168,6 +189,8 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
           domainVerified={mission.domainVerified}
           reportPublished={mission.reportPublished}
           mission2Done={mission.m2Done}
+          plus1Reward={plus1Reward}
+          plus2Reward={plus2Reward}
           rows={referrals}
         />
       )}

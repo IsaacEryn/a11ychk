@@ -28,6 +28,8 @@ export function MissionCard({
   domainVerified,
   reportPublished,
   mission2Done,
+  plus1Reward,
+  plus2Reward,
   rows,
 }: {
   link: string | null;
@@ -38,6 +40,8 @@ export function MissionCard({
   domainVerified: boolean;
   reportPublished: boolean;
   mission2Done: boolean;
+  plus1Reward: { daily: number; weekly: number; monthly: number; ext: number };
+  plus2Reward: { daily: number; weekly: number; monthly: number; sampleSize: number; ext: number; verify: number };
   rows: ReferralRow[];
 }) {
   const t = useTranslations("mypage.referral");
@@ -68,6 +72,14 @@ export function MissionCard({
           {badge(mission1Done)}
         </div>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("m1Desc", { goal })}</p>
+        <p className="mt-1 text-xs font-semibold text-[var(--color-seal)]">
+          {t("m1Reward", {
+            daily: plus1Reward.daily,
+            weekly: plus1Reward.weekly,
+            monthly: plus1Reward.monthly,
+            ext: plus1Reward.ext,
+          })}
+        </p>
 
         <p className="mt-3 text-sm font-semibold" aria-live="polite">
           {t("progress", { count: validCount, goal })}
@@ -108,6 +120,16 @@ export function MissionCard({
           {badge(mission2Done)}
         </div>
         <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("m2Desc")}</p>
+        <p className="mt-1 text-xs font-semibold text-[var(--color-seal)]">
+          {t("m2Reward", {
+            daily: plus2Reward.daily,
+            weekly: plus2Reward.weekly,
+            monthly: plus2Reward.monthly,
+            pages: plus2Reward.sampleSize,
+            ext: plus2Reward.ext,
+            verify: plus2Reward.verify,
+          })}
+        </p>
         <ul className="mt-3 space-y-1.5 text-sm">
           <MissionStep done={mission1Done} label={t("step.plus1", { goal })} />
           <MissionStep done={domainVerified} label={t("step.domain")} />
