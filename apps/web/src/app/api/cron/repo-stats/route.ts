@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { collectImpactStats } from "@/lib/impactStats";
 import { collectRepoStats } from "@/lib/repoStats";
 import { isAuthorizedCron } from "@/lib/cronAuth";
+import { logAppError } from "@/lib/logs";
 
 /**
  * GitHub 저장소 통계 수집 크론 (하루 1회).
@@ -22,7 +23,10 @@ export async function GET(request: Request) {
   try {
     result = await collectRepoStats();
   } catch (e) {
-    // 마이그레이션 미적용 등 — 크론 실패로 기록되지 않게 200으로 보고만
+    // Vercel 크론 재시도 정책상 200으로 보고하되, 무증상이 되지 않게 흔적은 남긴다
+    await logAppError(createAdminClient(), `repo stats collect failed: ${String(e).slice(0, 300)}`, {
+      path: "cron.repo-stats",
+    });
     return NextResponse.json({ ok: false, reason: (e as Error).message });
   }
 
@@ -33,8 +37,11 @@ export async function GET(request: Request) {
   if (force || new Date().getUTCDate() === 1) {
     try {
       snapshot = await sendMonthlySnapshot();
-    } catch {
-      // 스냅샷 실패는 통계 수집에 영향 없음
+    } catch (e) {
+      // 스냅샷 실패는 통계 수집에 영향 없음 — 매월 1회뿐이라 놓치면 복구 기회가 없어 기록
+      await logAppError(createAdminClient(), `monthly snapshot failed: ${String(e).slice(0, 300)}`, {
+        path: "cron.repo-stats",
+      });
     }
   }
 

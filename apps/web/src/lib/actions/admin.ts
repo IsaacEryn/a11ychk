@@ -5,21 +5,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ASSIGNABLE_PLAN_IDS, MAX_PAGES_PER_SCAN } from "@/lib/quota";
 import { setPlansActive } from "@/lib/appSettings";
-import { logAdminAction } from "@/lib/logs";
+import { logAdminAction, logAppError } from "@/lib/logs";
 import { requireAdmin, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 관리자 ───────────────
 /** 관리자: GitHub 저장소 통계 즉시 수집 (크론이 밀렸을 때 수동 새로고침) */
-export async function refreshRepoStats(): Promise<void> {
+// useActionState 액션 시그니처 (prev, formData)와 호환 — 둘 다 안 쓰므로 매개변수 생략
+export async function refreshRepoStats(): Promise<SaveState> {
   const { user: actor } = await requireAdmin();
   const { collectRepoStats } = await import("@/lib/repoStats");
   try {
     await collectRepoStats();
     await logAdminAction(createAdminClient(), actor.id, "stats.refresh");
-  } catch {
-    // 토큰 부재·API 오류 — 조용히 무시 (지표는 다음 크론에 반영)
+    revalidateLocalized("/admin");
+    return { ok: true };
+  } catch (e) {
+    // 토큰 부재·API 오류 — 지표는 다음 크론에 반영되지만, 무증상이 되지 않게 기록+피드백
+    await logAppError(createAdminClient(), `repo stats manual refresh failed: ${String(e).slice(0, 300)}`, {
+      path: "actions.refreshRepoStats",
+    });
+    return { error: "failed" };
   }
-  revalidateLocalized("/admin");
 }
 
 export async function toggleBlockUser(formData: FormData): Promise<void> {

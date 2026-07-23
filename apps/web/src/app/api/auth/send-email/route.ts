@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import crypto from "node:crypto";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { logAppError } from "@/lib/logs";
 
 /**
  * Supabase "Send Email" Auth Hook — 인증 메일을 로케일에 맞춰 직접 발송한다.
@@ -182,10 +184,17 @@ export async function POST(request: Request) {
       }),
     });
     if (!res.ok) {
+      // 인증 메일 미발송 — Supabase가 가입 오류로 표면화하도록 502. 원인은 로그로 관측
       const detail = await res.text();
+      await logAppError(createAdminClient(), `auth email send failed (${res.status}): ${detail.slice(0, 200)}`, {
+        path: "auth.send-email",
+      });
       return NextResponse.json({ error: "send failed", detail: detail.slice(0, 200) }, { status: 502 });
     }
   } catch (e) {
+    await logAppError(createAdminClient(), `auth email send failed: ${String(e).slice(0, 300)}`, {
+      path: "auth.send-email",
+    });
     return NextResponse.json({ error: (e as Error).message }, { status: 502 });
   }
 

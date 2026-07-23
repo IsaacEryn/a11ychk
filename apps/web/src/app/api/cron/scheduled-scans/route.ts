@@ -7,6 +7,7 @@ import { DEFAULT_SCOPE, createScanForUser } from "@/lib/scan/createScan";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { reevaluateEarnedPlan } from "@/lib/referral/promote";
 import { isAuthorizedCron } from "@/lib/cronAuth";
+import { logAppError } from "@/lib/logs";
 import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
 
 export const maxDuration = 300;
@@ -63,8 +64,11 @@ export async function GET(request: Request) {
     try {
       const { count } = await admin.from(table).delete({ count: "exact" }).lt("created_at", logCutoff);
       cleaned[table] = count ?? 0;
-    } catch {
-      // 테이블 미적용(마이그레이션 전) 환경은 건너뜀
+    } catch (e) {
+      // 정리 실패는 크론을 멈추지 않되, 무증상이 되지 않게 기록 (마이그레이션은 이미 전부 적용됨)
+      await logAppError(admin, `log cleanup failed: ${table}: ${String(e).slice(0, 300)}`, {
+        path: "cron.scheduled-scans",
+      });
     }
   }
   // 맛보기 검사 어뷰즈 카운터 — 일 단위라 2일 지난 행은 무의미(개인정보 최소화: 해시도 짧게 보존)
@@ -72,8 +76,10 @@ export async function GET(request: Request) {
     const dayCutoff = new Date(Date.now() - 2 * 24 * 3600_000).toISOString().slice(0, 10);
     const { count } = await admin.from("teaser_usage").delete({ count: "exact" }).lt("day", dayCutoff);
     cleaned["teaser_usage"] = count ?? 0;
-  } catch {
-    // 0025 미적용 환경은 건너뜀
+  } catch (e) {
+    await logAppError(admin, `teaser_usage cleanup failed: ${String(e).slice(0, 300)}`, {
+      path: "cron.scheduled-scans",
+    });
   }
 
   const results: { hostname: string; status: string }[] = [];
@@ -167,8 +173,13 @@ export async function GET(request: Request) {
       .not("signup_ip", "is", null)
       .select("id");
     referral.ipPurged = purged?.length ?? 0;
-  } catch {
-    // 테이블 부재(0024 미적용) 등 — 다음 크론에서 재시도
+  } catch (e) {
+    // 다음 크론이 자연 재시도하지만, 어느 단계 실패인지 알 수 있게 기록 (진행 카운터 포함)
+    await logAppError(
+      admin,
+      `referral daily correction failed after ${JSON.stringify(referral)}: ${String(e).slice(0, 300)}`,
+      { path: "cron.scheduled-scans" },
+    );
   }
 
   return NextResponse.json({ processed: results.length, results, cleaned, referral, reclaimed });

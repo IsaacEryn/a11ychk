@@ -5,7 +5,7 @@ import { Link } from "@/i18n/navigation";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_CONCURRENT_SCANS } from "@/lib/scan/drain";
 import { collectImpactStats } from "@/lib/impactStats";
-import { refreshRepoStats } from "@/lib/actions";
+import { RefreshStatsForm } from "./RefreshStatsForm";
 import { StatusBadge } from "@/components/StatusBadge";
 
 function isoDaysAgo(days: number): string {
@@ -159,14 +159,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             >
               {t("growth.publicPage")}
             </Link>
-            <form action={refreshRepoStats}>
-              <button
-                type="submit"
-                className="rounded border-[1.5px] border-[var(--color-ink)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-paper-warm)]"
-              >
-                {t("growth.refresh")}
-              </button>
-            </form>
+            <RefreshStatsForm />
           </div>
         </div>
         <dl className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">

@@ -105,7 +105,11 @@ export async function sendAdminUserEmail(msg: { to: string; subject: string; bod
     </table>
   </td></tr>
 </table>`;
-  return sendEmail({ to: msg.to, subject: msg.subject, html, replyTo: process.env.ADMIN_ALERT_EMAIL });
+  const ok = await sendEmail({ to: msg.to, subject: msg.subject, html, replyTo: process.env.ADMIN_ALERT_EMAIL });
+  if (!ok) {
+    await logAppError(createAdminClient(), "admin user email send failed", { path: "notify.sendAdminUserEmail" });
+  }
+  return ok;
 }
 
 /**
@@ -194,25 +198,44 @@ export async function sendPlanUpgradeEmail(
   return ok;
 }
 
-/** Resend 발송 공통부 — 키 미설정 시 false(no-op) */
+/** 재시도 지연(지수 백오프) — 최악 총 지연 = 8s×3회 + 0.5s + 2s = 26.5s
+ *  (호출 컨텍스트가 전부 크론 300s·after()·관리자 액션이라 안전) */
+const EMAIL_RETRY_DELAYS_MS = [500, 2000];
+const EMAIL_ATTEMPT_TIMEOUT_MS = 8000;
+
+/**
+ * 응답 상태로 재시도 여부 판정 — 5xx·429(레이트리밋)만 일시 장애로 보고 재시도.
+ * 4xx(키·수신자·본문 오류)는 재시도해도 같은 결과라 즉시 포기.
+ */
+export function shouldRetryEmailStatus(status: number): boolean {
+  return status >= 500 || status === 429;
+}
+
+/** Resend 발송 공통부 — 키 미설정 시 false(no-op). 일시 장애는 지수 백오프로 재시도. */
 async function sendEmail(msg: { to: string; subject: string; html: string; replyTo?: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
-  try {
-    const res = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
-      body: JSON.stringify({
-        from: "A11y Check <noreply@a11ychk.com>",
-        to: msg.to,
-        subject: msg.subject,
-        html: msg.html,
-        ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
-      }),
-    });
-    return res.ok;
-  } catch {
-    return false;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      const res = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+        body: JSON.stringify({
+          from: "A11y Check <noreply@a11ychk.com>",
+          to: msg.to,
+          subject: msg.subject,
+          html: msg.html,
+          ...(msg.replyTo ? { reply_to: msg.replyTo } : {}),
+        }),
+        signal: AbortSignal.timeout(EMAIL_ATTEMPT_TIMEOUT_MS),
+      });
+      if (res.ok) return true;
+      if (!shouldRetryEmailStatus(res.status)) return false;
+    } catch {
+      // 네트워크·타임아웃 → 재시도 대상
+    }
+    if (attempt >= EMAIL_RETRY_DELAYS_MS.length) return false;
+    await new Promise((r) => setTimeout(r, EMAIL_RETRY_DELAYS_MS[attempt]));
   }
 }
 
