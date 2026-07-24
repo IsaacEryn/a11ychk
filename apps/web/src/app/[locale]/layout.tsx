@@ -156,6 +156,9 @@ export default async function LocaleLayout({
               id={activeNotice.id}
               title={activeNotice[locale === "en" ? "en" : "ko"].title}
               moreLabel={t("noticeBanner.more")}
+              moreAriaLabel={t("noticeBanner.moreAria", {
+                title: activeNotice[locale === "en" ? "en" : "ko"].title,
+              })}
               closeLabel={t("noticeBanner.close")}
               ariaLabel={t("noticeBanner.aria")}
             />

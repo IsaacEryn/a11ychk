@@ -49,7 +49,8 @@
     "noticeBanner": {
       "more": "자세히 보기",
       "close": "공지 닫기",
-      "aria": "서비스 공지"
+      "aria": "서비스 공지",
+      "moreAria": "공지사항 자세히 보기: {title}"
     }
   },
   "landing": {

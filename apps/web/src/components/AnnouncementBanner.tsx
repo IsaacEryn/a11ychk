@@ -73,12 +73,15 @@ export function AnnouncementBanner({
   id,
   title,
   moreLabel,
+  moreAriaLabel,
   closeLabel,
   ariaLabel,
 }: {
   id: string;
   title: string;
   moreLabel: string;
+  /** 링크 목록으로 탐색할 때도 어떤 공지인지 알 수 있게 제목을 포함한 접근 가능한 이름 */
+  moreAriaLabel: string;
   closeLabel: string;
   ariaLabel: string;
 }) {
@@ -100,8 +103,14 @@ export function AnnouncementBanner({
     >
       <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 sm:px-6">
         <p className="min-w-0 flex-1 text-sm font-semibold">
-          📢 {title}{" "}
-          <Link href="/notices" className="whitespace-nowrap font-bold text-[var(--color-seal)] underline underline-offset-4">
+          {/* 장식용 이모지 — 스크린리더가 "확성기"로 읽지 않도록 숨긴다.
+              "공지"라는 정보는 위 aside의 aria-label이 전달한다 */}
+          <span aria-hidden="true">📢</span> {title}{" "}
+          <Link
+            href="/notices"
+            aria-label={moreAriaLabel}
+            className="whitespace-nowrap font-bold text-[var(--color-seal)] underline underline-offset-4"
+          >
             {moreLabel}
           </Link>
         </p>

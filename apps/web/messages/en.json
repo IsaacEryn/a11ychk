@@ -49,7 +49,8 @@
     "noticeBanner": {
       "more": "Read more",
       "close": "Dismiss notice",
-      "aria": "Service notice"
+      "aria": "Service notice",
+      "moreAria": "Read the full notice: {title}"
     }
   },
   "landing": {
