@@ -624,5 +624,8 @@
         "content": "$1"
       }
     }
+  },
+  "footReview": {
+    "message": "Leave a review"
   }
 }

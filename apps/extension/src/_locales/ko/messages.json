@@ -624,5 +624,8 @@
         "content": "$1"
       }
     }
+  },
+  "footReview": {
+    "message": "리뷰 남기기"
   }
 }
