@@ -58,7 +58,9 @@ export async function saveToAccount() {
   try {
     const reviewMap = await getReviewState(state.lastPage.url);
     const reviews = Object.entries(reviewMap).map(([itemId, v]) => ({
-      standard: "kwcag" as const,
+      // 체크리스트가 WCAG SC 축(1~4.x.x) — 서버 점수에 직접 반영된다.
+      // KWCAG 고유 항목(5~8.x.x — 5.4.3·6.4.4)만 kwcag로 저장
+      standard: /^[5-8]\./.test(itemId) ? ("kwcag" as const) : ("wcag" as const),
       itemId,
       outcome: v.outcome,
       note: v.note ?? "",

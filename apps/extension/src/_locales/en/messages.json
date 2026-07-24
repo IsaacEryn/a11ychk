@@ -610,5 +610,19 @@
   },
   "focusJudgeSaved": {
     "message": "Verdict saved. It is reflected in the manual checklist on the Audit tab."
+  },
+  "manualGroupKwcagOnly": {
+    "message": "KWCAG-specific items"
+  },
+  "manualKwcagRef": {
+    "message": "KWCAG mapping"
+  },
+  "levelAria": {
+    "message": "Level $1",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   }
 }

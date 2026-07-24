@@ -610,5 +610,19 @@
   },
   "focusJudgeSaved": {
     "message": "판정을 저장했습니다. 검사 탭의 수동 점검 목록에 반영됩니다."
+  },
+  "manualGroupKwcagOnly": {
+    "message": "KWCAG 추가 항목"
+  },
+  "manualKwcagRef": {
+    "message": "KWCAG 대응"
+  },
+  "levelAria": {
+    "message": "수준 $1",
+    "placeholders": {
+      "1": {
+        "content": "$1"
+      }
+    }
   }
 }

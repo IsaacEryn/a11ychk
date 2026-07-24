@@ -963,3 +963,20 @@ h2 {
 .gsteps li + li {
   margin-top: 4px;
 }
+
+/* WCAG 수준 배지·KWCAG 대응 표기 (수동 체크리스트 WCAG 축) */
+.ri-level {
+  margin-left: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  vertical-align: middle;
+}
+.ri-ref {
+  margin: -2px 0 6px;
+  font-size: 11px;
+  color: var(--ink-faint);
+}

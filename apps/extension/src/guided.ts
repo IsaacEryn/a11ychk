@@ -3,7 +3,7 @@
  * 분해하고, 절차 수행 후 예/아니오/판단 불가 답변으로 판정을 바로 기입하게 한다.
  * 자유 기입 판정·메모와 공존하며 같은 저장소(setReview)를 쓴다.
  */
-import type { KwcagItem } from "@a11ychk/core/catalog";
+import type { LocalizedText } from "@a11ychk/core/catalog";
 import { isEnglish, pick } from "./i18n";
 
 /**
@@ -11,8 +11,9 @@ import { isEnglish, pick } from "./i18n";
  * ko는 "…다." 경계, en은 마침표+대문자 경계로 분리 — 약어 등으로 분리가
  * 어색해도 각 문장은 온전하므로 절차 품질이 크게 손상되지 않는다.
  * 분리가 실패하면 통짜 문단 1단계로 폴백.
+ * (인자는 howToTest만 쓰므로 KWCAG 항목·WCAG 파생 항목 출처 모두 받을 수 있다)
  */
-export function buildGuidedSteps(item: KwcagItem): string[] {
+export function buildGuidedSteps(item: { howToTest?: LocalizedText }): string[] {
   const text = item.howToTest ? pick(item.howToTest).trim() : "";
   if (!text) return [];
   const parts = isEnglish() ? text.split(/(?<=\.)\s+(?=[A-Z(])/) : text.split(/(?<=다\.)\s+/);
