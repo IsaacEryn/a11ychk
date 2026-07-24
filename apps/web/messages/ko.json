@@ -1225,6 +1225,11 @@
         "apiCron": "정기 작업",
         "apiBadge": "배지 위젯 API",
         "other": "기타"
+      },
+      "colOutcome": "결과",
+      "outcome": {
+        "success": "성공",
+        "mfa_failed": "2단계 인증 실패"
       }
     },
     "growth": {

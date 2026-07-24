@@ -113,29 +113,77 @@ export async function sendAdminUserEmail(msg: { to: string; subject: string; bod
 }
 
 /**
- * 관리자 계정 로그인 알림 — 관리자 세션이 2단계 인증(AAL2)까지 완성될 때마다 1통.
- * 자격증명 탈취 시 본인이 즉시 인지할 수 있게 한다. best-effort.
+ * 관리자 로그인 이상 징후 알림 — 매 로그인이 아니라 평소와 다른 신호가 있을 때만.
+ * (알림이 흔하면 무시하게 되어 정작 위험할 때 놓친다. 판정은 lib/security/loginRisk.)
+ * best-effort.
  */
+const RISK_LABEL: Record<string, string> = {
+  newIp: "처음 보는 IP에서 로그인",
+  newDevice: "처음 보는 브라우저·기기에서 로그인",
+  recentFailures: "직전에 2단계 인증 실패가 반복됨 (비밀번호가 노출됐을 수 있음)",
+};
+
 export async function sendAdminLoginAlert(info: {
   email: string | null;
   provider: string;
   ip: string | null;
   userAgent: string | null;
+  /** 이상 징후 목록 — 비어 있으면 호출자가 발송하지 않는다 */
+  reasons: string[];
 }): Promise<boolean> {
   const to = process.env.ADMIN_ALERT_EMAIL;
   if (!to) return false;
+  const reasonList = info.reasons
+    .map((r) => `<li>${escapeHtml(RISK_LABEL[r] ?? r)}</li>`)
+    .join("");
   const html = `
 <p style="font-family:sans-serif;font-size:14px;line-height:1.7">
-  관리자 계정에 새 로그인이 있었습니다.<br/>
+  관리자 계정 로그인에서 <b>평소와 다른 점</b>이 확인되었습니다.
+</p>
+<ul style="font-family:sans-serif;font-size:14px;line-height:1.7">${reasonList}</ul>
+<p style="font-family:sans-serif;font-size:14px;line-height:1.7">
   계정: <b>${escapeHtml(info.email ?? "?")}</b> · 방식: ${escapeHtml(info.provider)}<br/>
   IP: ${escapeHtml(info.ip ?? "?")}<br/>
   브라우저: ${escapeHtml((info.userAgent ?? "?").slice(0, 120))}<br/>
   시각: ${new Date().toISOString()}<br/><br/>
   본인이 아니라면 즉시 비밀번호를 변경하고 Supabase 대시보드에서 세션을 철회하세요.
+  익숙한 환경에서의 로그인은 이 메일을 보내지 않습니다(관리자 로그에는 항상 기록됩니다).
 </p>`;
-  const ok = await sendEmail({ to, subject: "[A11y Check] 관리자 로그인 알림", html });
+  const ok = await sendEmail({ to, subject: "[A11y Check] 관리자 로그인 이상 징후", html });
   if (!ok) {
     await logAppError(createAdminClient(), "admin login alert send failed", { path: "notify.sendAdminLoginAlert" });
+  }
+  return ok;
+}
+
+/**
+ * 2단계 인증 실패 누적 경보 — 비밀번호는 통과했으나 TOTP를 넘지 못한 시도가
+ * 짧은 시간에 임계치에 도달했을 때 1회. 계정 탈취 시도의 가장 강한 신호다.
+ */
+export async function sendAdminMfaFailureAlert(info: {
+  email: string | null;
+  ip: string | null;
+  userAgent: string | null;
+  failures: number;
+  windowMinutes: number;
+}): Promise<boolean> {
+  const to = process.env.ADMIN_ALERT_EMAIL;
+  if (!to) return false;
+  const html = `
+<p style="font-family:sans-serif;font-size:14px;line-height:1.7">
+  관리자 계정에서 <b>2단계 인증 실패가 ${info.windowMinutes}분 내 ${info.failures}회</b> 발생했습니다.<br/>
+  비밀번호는 통과한 시도이므로, 비밀번호가 노출됐을 가능성을 점검하세요.<br/><br/>
+  계정: <b>${escapeHtml(info.email ?? "?")}</b><br/>
+  IP: ${escapeHtml(info.ip ?? "?")}<br/>
+  브라우저: ${escapeHtml((info.userAgent ?? "?").slice(0, 120))}<br/>
+  시각: ${new Date().toISOString()}<br/><br/>
+  본인 시도가 아니라면 즉시 비밀번호를 변경하고 Supabase 대시보드에서 세션을 철회하세요.
+</p>`;
+  const ok = await sendEmail({ to, subject: "[A11y Check] 관리자 2단계 인증 실패 반복", html });
+  if (!ok) {
+    await logAppError(createAdminClient(), "admin mfa failure alert send failed", {
+      path: "notify.sendAdminMfaFailureAlert",
+    });
   }
   return ok;
 }

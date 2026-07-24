@@ -14,6 +14,8 @@ interface LoginLogRow {
   provider: string | null;
   ip: string | null;
   user_agent: string | null;
+  /** 0031 — 'success' | 'mfa_failed' (미적용 환경은 undefined) */
+  outcome?: string | null;
   created_at: string;
   profiles: { nickname: string } | null;
 }
@@ -50,7 +52,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
   const [loginRes, auditRes, errorRes] = await Promise.all([
     admin
       .from("login_logs")
-      .select("id, email, provider, ip, user_agent, created_at, profiles(nickname)")
+      .select("id, email, provider, ip, user_agent, outcome, created_at, profiles(nickname)")
       .order("created_at", { ascending: false })
       .limit(50)
       .then(
@@ -235,6 +237,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
                 <th scope="col" className="py-2 pr-3 font-bold">{t("logs.colEmail")}</th>
                 <th scope="col" className="py-2 pr-3 font-bold">{t("logs.colProvider")}</th>
                 <th scope="col" className="py-2 pr-3 font-bold">{t("logs.colIp")}</th>
+                <th scope="col" className="py-2 pr-3 font-bold">{t("logs.colOutcome")}</th>
                 <th scope="col" className="py-2 font-bold">{t("logs.colDate")}</th>
               </tr>
             </thead>
@@ -247,6 +250,13 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
                     {l.provider === "google" ? "Google" : l.provider === "github" ? "GitHub" : l.provider}
                   </td>
                   <td className="py-2 pr-3 tabular-nums">{l.ip}</td>
+                  <td className="whitespace-nowrap py-2 pr-3">
+                    {l.outcome === "mfa_failed" ? (
+                      <span className="font-bold text-[var(--color-crit)]">{t("logs.outcome.mfa_failed")}</span>
+                    ) : (
+                      <span className="text-[var(--color-ink-faint)]">{t("logs.outcome.success")}</span>
+                    )}
+                  </td>
                   <td className="whitespace-nowrap py-2 tabular-nums text-[var(--color-ink-faint)]">
                     {format.dateTime(new Date(l.created_at), { dateStyle: "short", timeStyle: "medium" })}
                   </td>
@@ -254,7 +264,7 @@ export default async function AdminLogsPage({ params }: { params: Promise<{ loca
               ))}
               {loginLogs.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-4 text-sm text-[var(--color-ink-faint)]">
+                  <td colSpan={6} className="py-4 text-sm text-[var(--color-ink-faint)]">
                     {t("logs.empty")}
                   </td>
                 </tr>

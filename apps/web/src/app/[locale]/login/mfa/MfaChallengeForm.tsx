@@ -57,6 +57,16 @@ export function MfaChallengeForm({ next, labels }: { next: string; labels: MfaCh
       const supabase = createClient();
       const { error: vErr } = await supabase.auth.mfa.verify({ factorId, challengeId, code: code.trim() });
       if (vErr) {
+        // 실패 기록 — 비밀번호는 통과한 시도라 누적되면 계정 탈취 신호 (best-effort)
+        try {
+          await appFetch("/api/auth/post-login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ stage: "mfaFailed" }),
+          });
+        } catch {
+          // 기록 실패가 재시도를 막지 않는다
+        }
         // 챌린지 만료 가능성 — 다음 시도를 위해 재발급
         setError(labels.errInvalidCode);
         setCode("");

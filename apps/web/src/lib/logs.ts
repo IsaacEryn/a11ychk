@@ -12,6 +12,8 @@ export interface LoginLogEntry {
   provider?: string;
   ip?: string;
   userAgent?: string;
+  /** 로그인 결과 (0031) — 미지정이면 성공. mfa_failed는 2단계 인증 실패 시도 */
+  outcome?: "success" | "mfa_failed";
 }
 
 /**
@@ -45,6 +47,8 @@ export async function logLogin(admin: SupabaseClient, entry: LoginLogEntry): Pro
       provider: entry.provider ?? null,
       ip: entry.ip ?? null,
       user_agent: entry.userAgent ?? null,
+      // 0031 미적용 환경에선 컬럼 부재 — 성공 기록은 기본값에 맡겨 호환 유지
+      ...(entry.outcome && entry.outcome !== "success" ? { outcome: entry.outcome } : {}),
     });
   } catch {
     // 마이그레이션 미적용 등 — 무시

@@ -1225,6 +1225,11 @@
         "apiCron": "Scheduled job",
         "apiBadge": "Badge widget API",
         "other": "Other"
+      },
+      "colOutcome": "Result",
+      "outcome": {
+        "success": "Success",
+        "mfa_failed": "2FA failed"
       }
     },
     "growth": {
