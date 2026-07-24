@@ -12,6 +12,7 @@ import { fetchAllRows } from "@/lib/scan/fetchAll";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { computeKwcagPageRates } from "@/app/[locale]/scans/[id]/report/kwcagPageRate";
 import { computeCertReadiness } from "@/app/[locale]/scans/[id]/report/certReadiness";
+import { buildEffectiveKwcagReviews } from "@/app/[locale]/scans/[id]/report/derivedReviews";
 import type { ReviewValue } from "@/app/[locale]/scans/[id]/report/ReviewCell";
 
 /**
@@ -118,19 +119,21 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const statusLabel = lang === "en" ? STATUS_EN : STATUS_KO;
     const matrix = (summary.kwcagMatrix ?? []) as KwcagMatrixRow[];
     const rates = computeKwcagPageRates(matrix, findings, donePageCount);
-    // 점검자 판정 — 인증 준비 요약 평균이 보고서 화면과 일치하도록 동일 입력 사용
-    const kwcagReviews = new Map<string, ReviewValue>();
+    // 점검자 판정 — 인증 준비 요약 평균이 보고서 화면과 일치하도록 동일 입력 사용.
+    // WCAG 축으로 기입한 판정도 파생으로 반영되게 양 표준을 읽어 유효 판정을 만든다.
+    const directKwcag = new Map<string, ReviewValue>();
+    const wcagReviews = new Map<string, ReviewValue>();
     {
       const { data: reviewRows } = await supabase
         .from("scan_reviews")
         .select("standard, item_id, outcome, note, pages")
-        .eq("scan_id", id)
-        .eq("standard", "kwcag");
+        .eq("scan_id", id);
       for (const r of reviewRows ?? []) {
         const p = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
-        kwcagReviews.set(r.item_id, { outcome: r.outcome, note: r.note, pages: p });
+        (r.standard === "kwcag" ? directKwcag : wcagReviews).set(r.item_id, { outcome: r.outcome, note: r.note, pages: p });
       }
     }
+    const kwcagReviews = buildEffectiveKwcagReviews(directKwcag, wcagReviews);
     rows.push(
       (lang === "en"
         ? ["Item ID", "Item", "Status", "Violation elements", "Affected pages", "Page compliance rate (%)"]

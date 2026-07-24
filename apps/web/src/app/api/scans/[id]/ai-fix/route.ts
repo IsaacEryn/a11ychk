@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { KWCAG_BY_ID, getRuleEntry, type Impact, type ScanSummary } from "@a11ychk/core/catalog";
+import { KWCAG_BY_ID, WCAG_BY_ID, getRuleEntry, type Impact, type ScanSummary } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
@@ -108,10 +108,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const failedReviews = (reviewRows ?? []).map((r) => ({
     standard: r.standard as string,
     itemId: r.item_id as string,
-    name:
-      r.standard === "kwcag"
-        ? (KWCAG_BY_ID.get(r.item_id)?.name && pickText(KWCAG_BY_ID.get(r.item_id)!.name)) || r.item_id
-        : r.item_id,
+    name: (() => {
+      const entry = r.standard === "kwcag" ? KWCAG_BY_ID.get(r.item_id) : WCAG_BY_ID.get(r.item_id);
+      return entry ? pickText(entry.name) : r.item_id;
+    })(),
     note: (r.note as string) ?? "",
     pages: Array.isArray(r.pages) ? (r.pages as string[]) : [],
   }));
