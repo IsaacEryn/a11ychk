@@ -118,7 +118,8 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     id: "6.1.3",
     principle: "operable",
     name: { ko: "조작 가능", en: "Target size / operable controls" },
-    wcag: ["2.5.5", "2.5.8"],
+    // 2.5.5(Target Size Enhanced)는 AAA라 카탈로그 밖 — 목표 수준(A/AA) 대응은 2.5.8뿐
+    wcag: ["2.5.8"],
     autoCoverage: "partial",
     howToTest: {
       ko: "버튼·링크 등 조작 가능한 요소의 크기가 충분한지(최소 24×24 CSS px 권장), 인접한 컨트롤과 간격이 확보되어 잘못 누를 위험이 없는지 확인하세요.",
@@ -369,6 +370,8 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     id: "8.1.1",
     principle: "robust",
     name: { ko: "마크업 오류 방지", en: "Parsing / valid markup" },
+    // 4.1.1(Parsing)은 WCAG 2.2에서 폐기 — 역사적 대응 표기 전용. 역매핑·파생 로직은
+    // WCAG_BY_ID 필터로 자동 제외한다. 비우면 'KWCAG 고유 항목' 판별과 충돌하므로 유지.
     wcag: ["4.1.1"],
     autoCoverage: "full",
   },

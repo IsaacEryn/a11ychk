@@ -33,11 +33,13 @@ async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<
     .select("standard, item_id, outcome")
     .eq("scan_id", scanId);
   const wcagReviews: Record<string, WcagOutcome> = {};
+  const kwcagReviews: Record<string, WcagOutcome> = {};
   for (const r of reviews ?? []) {
-    if (r.standard === "wcag") wcagReviews[r.item_id as string] = r.outcome as WcagOutcome;
+    (r.standard === "wcag" ? wcagReviews : kwcagReviews)[r.item_id as string] = r.outcome as WcagOutcome;
   }
 
-  const scores = computeScores(summary.wcagMatrix as WcagMatrixRow[], wcagReviews);
+  // kwcag 판정은 computeScores가 대응 SC로 파생 소비 (wcag 직접 판정 우선)
+  const scores = computeScores(summary.wcagMatrix as WcagMatrixRow[], wcagReviews, kwcagReviews);
   // scores 키만 원자 갱신(jsonb_set RPC — migration 0011) — 동시 재집계와의
   // read-merge-write 덮어쓰기 방지. RPC 미적용 시 기존 전체 갱신으로 폴백.
   const { error: rpcErr } = await supabase.rpc("update_scan_summary_scores", {

@@ -16,6 +16,7 @@ import type {
   WcagOutcome,
 } from "../types";
 import { getRuleEntry } from "../catalog/rules";
+import { deriveWcagReviewsFromKwcag } from "../manual/manualChecks";
 import { KWCAG_ITEMS } from "../catalog/kwcag";
 import { criteriaForTarget, type WcagLevel } from "../catalog/wcag";
 
@@ -167,7 +168,7 @@ export function aggregateScan(
   const complianceRate = checkedRuleCount === 0 ? 0 : Math.round((passedRules.size / checkedRuleCount) * 1000) / 10;
 
   // ── 세 가지 준수율 (WCAG-EM 2.0 Step 5.4 — 선택적 종합 점수의 자체 구현): 자동 / 수동 / 통합 ──
-  const scores = computeScores(wcagMatrix, options.reviews?.wcag ?? {});
+  const scores = computeScores(wcagMatrix, options.reviews?.wcag ?? {}, options.reviews?.kwcag ?? {});
 
   return {
     pageCount: options.plannedPageCount ?? pages.length,
@@ -197,11 +198,17 @@ function breakdown(passed: number, failed: number, total: number): ScoreBreakdow
  * - 자동: wcagMatrix의 passed·failed (axe + 자체 + 사이트 검사)
  * - 수동: 점검자가 판정 기입한 성공기준의 passed·failed
  * - 통합: 각 성공기준마다 점검자 판정이 있으면 그것을, 없으면 자동 판정을 사용
+ *
+ * kwcagReviews(선택): KWCAG 항목 번호로 기입된 판정 — 대응 SC로 파생해 수동 판정으로
+ * 소비한다. 같은 SC에 wcag 직접 판정이 있으면 직접 판정이 우선한다. (확장·KWCAG
+ * 매트릭스에서 기입한 판정이 점수에 반영되지 않던 비대칭 해소)
  */
 export function computeScores(
   wcagMatrix: WcagMatrixRow[],
   reviews: Record<string, WcagOutcome>,
+  kwcagReviews: Record<string, WcagOutcome> = {},
 ): ScanScores {
+  const derived = deriveWcagReviewsFromKwcag(kwcagReviews);
   const total = wcagMatrix.length;
   let autoPass = 0;
   let autoFail = 0;
@@ -215,7 +222,7 @@ export function computeScores(
     if (row.outcome === "passed" || row.outcome === "notPresent") autoPass += 1;
     else if (row.outcome === "failed") autoFail += 1;
 
-    const rv = reviews[row.scId];
+    const rv = reviews[row.scId] ?? derived[row.scId];
     if (rv === "passed") manualPass += 1;
     else if (rv === "failed") manualFail += 1;
 
