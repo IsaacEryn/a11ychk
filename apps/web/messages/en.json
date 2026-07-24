@@ -1326,7 +1326,13 @@
       "publishing": "Publishing…",
       "published": "Published",
       "invalid": "Fill in the title and body in both languages.",
-      "failed": "Failed. Try again shortly."
+      "failed": "Failed. Try again shortly.",
+      "bannerDays": "Banner display period",
+      "bannerDaysN": "{n} days",
+      "bannerDaysNone": "No limit (until removed)",
+      "bannerDaysHint": "After this period the banner comes down automatically; the notice stays on the notices page. The banner also stops after a user dismisses it or has seen it 5 times.",
+      "until": "Banner ends: {date}",
+      "untilNone": "No end date"
     }
   },
   "guide": {

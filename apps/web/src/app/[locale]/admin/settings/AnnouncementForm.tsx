@@ -8,8 +8,17 @@ import { FormFeedback } from "@/components/FormFeedback";
 const inputCls =
   "w-full rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-sm";
 
+/** 배너 노출 기간 선택지(일) — 빈 값은 무기한(직접 내릴 때까지) */
+const BANNER_DAYS = ["7", "14", "30", ""] as const;
+
 /** 서비스 공지 발행 폼 — 발행 시 배너 노출(기존 공지는 배너에서 내려가고 /notices 이력 유지) */
-export function AnnouncementForm({ activeTitle }: { activeTitle: string | null }) {
+export function AnnouncementForm({
+  activeTitle,
+  activeUntil,
+}: {
+  activeTitle: string | null;
+  activeUntil: string | null;
+}) {
   const t = useTranslations("admin.announcement");
   const [state, formAction, pending] = useActionState<SaveState, FormData>(publishAnnouncement, {});
   const [clearState, clearAction, clearPending] = useActionState<SaveState, FormData>(clearAnnouncementBanner, {});
@@ -23,6 +32,11 @@ export function AnnouncementForm({ activeTitle }: { activeTitle: string | null }
         <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
           <span className="font-semibold">{t("current")}:</span>
           <span className="text-[var(--color-ink-soft)]">{activeTitle}</span>
+          <span className="text-xs text-[var(--color-ink-faint)]">
+            {activeUntil
+              ? t("until", { date: new Date(activeUntil).toLocaleDateString("ko-KR") })
+              : t("untilNone")}
+          </span>
           <form action={clearAction} className="flex items-center gap-2">
             <button
               type="submit"
@@ -60,6 +74,27 @@ export function AnnouncementForm({ activeTitle }: { activeTitle: string | null }
             {t("bodyEn")}
           </label>
           <textarea id="ann-body-en" name="bodyEn" required maxLength={4000} rows={6} className={inputCls} />
+        </div>
+        <div className="sm:col-span-2">
+          <label htmlFor="ann-days" className="mb-1 block text-xs font-semibold">
+            {t("bannerDays")}
+          </label>
+          <select
+            id="ann-days"
+            name="bannerDays"
+            defaultValue="14"
+            aria-describedby="ann-days-hint"
+            className={inputCls}
+          >
+            {BANNER_DAYS.map((d) => (
+              <option key={d || "none"} value={d}>
+                {d ? t("bannerDaysN", { n: Number(d) }) : t("bannerDaysNone")}
+              </option>
+            ))}
+          </select>
+          <p id="ann-days-hint" className="mt-1 text-xs text-[var(--color-ink-faint)]">
+            {t("bannerDaysHint")}
+          </p>
         </div>
         <div className="flex items-center gap-2 sm:col-span-2">
           <button

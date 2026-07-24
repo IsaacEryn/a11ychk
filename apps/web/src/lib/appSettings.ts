@@ -28,8 +28,24 @@ export interface Announcement {
   date: string;
   /** true면 사이트 배너에 노출 */
   active: boolean;
+  /**
+   * 배너 노출 종료 시각(ISO). 지나면 배너만 자동으로 내려가고 /notices 이력은 남는다.
+   * 미지정이면 관리자가 직접 내릴 때까지 계속 노출.
+   *
+   * 시간이 지나 배너를 내리는 것은 "읽는 도중 사라지는" 시간 제한(WCAG 2.2.1)이 아니라
+   * 게시 기간 종료다 — 페이지를 보고 있는 사용자에게서 콘텐츠를 뺏지 않는다.
+   */
+  expiresAt?: string;
   ko: { title: string; body: string };
   en: { title: string; body: string };
+}
+
+/** 배너 노출 대상인지 — active이고 만료되지 않았을 것 (순수 함수) */
+export function isBannerActive(n: Announcement, now = Date.now()): boolean {
+  if (!n.active) return false;
+  if (!n.expiresAt) return true;
+  const t = Date.parse(n.expiresAt);
+  return Number.isNaN(t) ? true : t > now;
 }
 
 export async function getAnnouncements(db: SupabaseClient): Promise<Announcement[]> {

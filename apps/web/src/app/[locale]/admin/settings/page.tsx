@@ -2,7 +2,7 @@ import { requireAdmin } from "@/lib/adminGuard";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { bulkSetPages, bulkSetPlan, togglePlansActive } from "@/lib/actions";
-import { getAnnouncements } from "@/lib/appSettings";
+import { getAnnouncements, isBannerActive } from "@/lib/appSettings";
 import { AnnouncementForm } from "./AnnouncementForm";
 import { ASSIGNABLE_PLAN_IDS, MAX_PAGES_PER_SCAN, PLANS } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
@@ -22,7 +22,7 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
 
   const admin = createAdminClient();
   const plansActive = await getPlansActive(admin);
-  const activeNotice = (await getAnnouncements(admin).catch(() => [])).find((n) => n.active) ?? null;
+  const activeNotice = (await getAnnouncements(admin).catch(() => [])).find((n) => isBannerActive(n)) ?? null;
 
   return (
     <section aria-labelledby="admin-settings-heading" className="mt-8">
@@ -122,7 +122,7 @@ export default async function AdminSettingsPage({ params }: { params: Promise<{ 
       </form>
 
       {/* 서비스 공지 관리 — 발행 시 사이트 배너 노출 + /notices 이력 */}
-      <AnnouncementForm activeTitle={activeNotice?.ko.title ?? null} />
+      <AnnouncementForm activeTitle={activeNotice?.ko.title ?? null} activeUntil={activeNotice?.expiresAt ?? null} />
     </section>
   );
 }

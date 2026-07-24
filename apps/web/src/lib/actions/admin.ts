@@ -405,14 +405,21 @@ export async function publishAnnouncement(_prev: SaveState, formData: FormData):
     bodyKo: z.string().min(1).max(4000),
     titleEn: z.string().min(1).max(120),
     bodyEn: z.string().min(1).max(4000),
+    /** 배너 노출 기간(일) — 빈 값이면 무기한(관리자가 직접 내릴 때까지) */
+    bannerDays: z.coerce.number().int().min(1).max(365).optional(),
   });
+  const rawDays = formData.get("bannerDays");
   const parsed = Schema.safeParse({
     titleKo: formData.get("titleKo"),
     bodyKo: formData.get("bodyKo"),
     titleEn: formData.get("titleEn"),
     bodyEn: formData.get("bodyEn"),
+    bannerDays: typeof rawDays === "string" && rawDays.trim() !== "" ? rawDays : undefined,
   });
   if (!parsed.success) return { error: "invalid" };
+  const expiresAt = parsed.data.bannerDays
+    ? new Date(Date.now() + parsed.data.bannerDays * 24 * 3600_000).toISOString()
+    : undefined;
 
   const admin = createAdminClient();
   const { getAnnouncements, saveAnnouncements } = await import("@/lib/appSettings");
@@ -422,6 +429,7 @@ export async function publishAnnouncement(_prev: SaveState, formData: FormData):
       id: crypto.randomUUID(),
       date: new Date().toISOString(),
       active: true,
+      ...(expiresAt ? { expiresAt } : {}),
       ko: { title: parsed.data.titleKo, body: parsed.data.bodyKo },
       en: { title: parsed.data.titleEn, body: parsed.data.bodyEn },
     },
