@@ -684,7 +684,9 @@
       },
       "new22": "New in 2.2",
       "colPageRate": "Page rate",
-      "certNote": "Page rate is the share of scanned pages with no violations for the item. Korean accessibility certification requires ≥95% per item; the figures here are page-level approximations from automated checks and may differ from the element-level calculation used in audits."
+      "certNote": "Page rate is the share of scanned pages with no violations for the item. Korean accessibility certification requires ≥95% per item; the figures here are page-level approximations from automated checks and may differ from the element-level calculation used in audits.",
+      "derivedBadge": "Derived from WCAG",
+      "derivedNote": "Items without a direct judgment derive from the corresponding WCAG criteria (any failure fails the item; a pass requires all criteria judged)."
     },
     "violations": {
       "title": "Violations & remediation guides",
@@ -704,8 +706,14 @@
     },
     "manual": {
       "title": "Checkpoints requiring manual testing",
-      "desc": "These checkpoints cannot be judged automatically — a human must verify them. Use the instructions below or get a professional audit.",
-      "howToTest": "How to test"
+      "desc": "Items automated tools cannot fully judge, listed by WCAG 2.2 success criteria (A/AA). Testing guidance comes from the corresponding KWCAG 2.2 items.",
+      "howToTest": "How to test",
+      "levelAria": "Level",
+      "kwcagRef": "KWCAG mapping",
+      "noGuideTitle": "Also verify (no KWCAG guide)",
+      "noGuideDesc": "Success criteria without a KWCAG guide. Verify alongside automated results using the W3C Understanding documents.",
+      "understanding": "Understanding",
+      "kwcagOnlyTitle": "KWCAG-specific items"
     },
     "failedPages": {
       "title": "Pages that could not be audited",
@@ -1323,12 +1331,14 @@
   },
   "guide": {
     "title": "Manual testing guide",
-    "desc": "KWCAG 2.2 checkpoints that automation cannot judge, with instructions for testing them yourself. Identical to the 'manual checks' section of A11y Check reports.",
-    "wcagRef": "WCAG reference",
+    "desc": "Manual checks that automated testing cannot settle, organized by WCAG 2.2 success criteria (A/AA). Procedures follow the corresponding KWCAG 2.2 items.",
     "coverage": {
       "partial": "Partially automated",
       "none": "Fully manual"
-    }
+    },
+    "kwcagRef": "KWCAG mapping",
+    "kwcagOnlyTitle": "KWCAG-specific items (no WCAG mapping)",
+    "levelAria": "Level"
   },
   "extension": {
     "title": "Connect Chrome extension",

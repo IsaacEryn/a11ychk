@@ -3,6 +3,7 @@ import type { WcagOutcome } from "@a11ychk/core/catalog";
 import { loadReport } from "./loadReport";
 import { computeKwcagPageRates } from "./kwcagPageRate";
 import { computeCertReadiness } from "./certReadiness";
+import { buildEffectiveKwcagReviews, buildEffectiveWcagReviews } from "./derivedReviews";
 import { PrintButton } from "./PrintButton";
 import { ReportMetaForm } from "./ReportMetaForm";
 import { RerunScanButton } from "./RescanButtons";
@@ -71,11 +72,15 @@ export default async function ReportPage({
     (pages ?? []).filter((p) => p.status === "done").length,
   );
   const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
-  // 인증 준비 요약 — 항목별 페이지 준수율·판정을 평균해 인증 합격선(95%/85%)과 대응
+  // 유효 판정 — 직접 판정에 상대 표준 파생을 보충 (kwcag 직접 > wcag 파생, 그 역도 동일)
+  const effectiveKwcagReviews = buildEffectiveKwcagReviews(kwcagReviews, wcagReviews);
+  const effectiveWcagReviews = buildEffectiveWcagReviews(wcagReviews, kwcagReviews);
+  // 인증 준비 요약 — 항목별 페이지 준수율·판정을 평균해 인증 합격선(95%/85%)과 대응.
+  // WCAG 축으로 기입한 판정도 파생으로 반영되도록 유효 판정을 소비한다.
   const cert = computeCertReadiness(
     summary.kwcagMatrix ?? [],
     kwcagRates,
-    kwcagReviews,
+    effectiveKwcagReviews,
     (pages ?? []).filter((p) => p.status === "done").length,
   );
 
@@ -149,7 +154,7 @@ export default async function ReportPage({
       <CompareSection locale={locale} compare={compare} compareOptions={compareOptions} compareParam={compareParam} />
 
       {/* ─── 수동 판정 진행률 ─── */}
-      <ManualProgressSection summary={summary} wcagReviews={wcagReviews} kwcagReviews={kwcagReviews} preferred={preferred} />
+      <ManualProgressSection summary={summary} wcagReviews={effectiveWcagReviews} kwcagReviews={effectiveKwcagReviews} preferred={preferred} />
 
       {/* ─── 표준별 매트릭스 — std로 선택, preferred로 순서 결정 ─── */}
       {(() => {
@@ -173,7 +178,7 @@ export default async function ReportPage({
             <KwcagMatrixSection
               locale={locale}
               summary={summary}
-              kwcagReviews={kwcagReviews}
+              kwcagReviews={effectiveKwcagReviews}
               kwcagRates={kwcagRates}
               canEdit={canEdit}
               scanId={scan.id}

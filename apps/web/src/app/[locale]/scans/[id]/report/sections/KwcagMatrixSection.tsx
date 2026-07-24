@@ -36,7 +36,7 @@ export async function KwcagMatrixSection({
 }: {
   locale: string;
   summary: ScanSummary;
-  kwcagReviews: Map<string, ReviewValue>;
+  kwcagReviews: Map<string, ReviewValue & { derived?: boolean }>;
   kwcagRates: Map<string, KwcagPageRate>;
   canEdit: boolean;
   scanId: string;
@@ -50,6 +50,7 @@ export async function KwcagMatrixSection({
         {t("kwcag.title")}
       </h2>
       <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("kwcag.desc")}</p>
+      <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{t("kwcag.derivedNote")}</p>
       <div className="table-scroll mt-4 overflow-x-auto">
         <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
           <caption className="sr-only">{t("kwcag.title")}</caption>
@@ -118,7 +119,7 @@ export async function KwcagMatrixSection({
                           {t(`wcag.outcome.${review.outcome as WcagOutcome}`)}
                         </span>
                         <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
-                          {t("review.badge")}
+                          {review.derived ? t("kwcag.derivedBadge") : t("review.badge")}
                         </span>
                       </>
                     ) : (
@@ -154,7 +155,7 @@ export async function KwcagMatrixSection({
                   </td>
                   {canEdit && (
                     <td className="no-print py-2">
-                      <ReviewCell scanId={scanId} standard="kwcag" itemId={row.itemId} current={review} pageUrls={donePageUrls} />
+                      <ReviewCell scanId={scanId} standard="kwcag" itemId={row.itemId} current={review?.derived ? null : review} pageUrls={donePageUrls} />
                     </td>
                   )}
                 </tr>
