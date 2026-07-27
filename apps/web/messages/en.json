@@ -242,6 +242,10 @@
     "manualOverLimit": "You entered more pages than this domain's limit ({max}). Please reduce to {max} or fewer.",
     "manualVerifyHint": "Verifying domain ownership raises the limit to {verified} pages.",
     "manualHostMismatch": "These pages are on a different host than the audit URL ({host}) and cannot be scanned. Remove or fix these lines.",
+    "excludeTitle": "Excluded pages ({count})",
+    "excludeLabel": "Addresses / paths to exclude (one per line)",
+    "excludePlaceholder": "/admin/*\n/tag/\nhttps://example.com/login",
+    "excludeHint": "Pages to drop from the auto-collected sample. Use an exact address, or end with * or / (e.g. /admin/*, /tag/) to exclude a whole subtree. Up to 30.",
     "apiErrors": {
       "blocked": "This account cannot run scans.",
       "quota_daily": "You have used all of your daily scan quota ({limit}).",

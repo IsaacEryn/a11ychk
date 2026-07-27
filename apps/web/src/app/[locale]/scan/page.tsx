@@ -96,6 +96,10 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
             manualOverLimit: t.raw("manualOverLimit"),
             manualVerifyHint: t.raw("manualVerifyHint"),
             manualHostMismatch: t.raw("manualHostMismatch"),
+            excludeTitle: t.raw("excludeTitle"),
+            excludeLabel: t("excludeLabel"),
+            excludePlaceholder: t("excludePlaceholder"),
+            excludeHint: t("excludeHint"),
             errors: t.raw("apiErrors") as Record<string, string>,
           }}
         />

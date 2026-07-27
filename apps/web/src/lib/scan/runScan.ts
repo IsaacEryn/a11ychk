@@ -319,7 +319,11 @@ export async function runScan(scanId: string): Promise<void> {
       // robots 차단·잘못된 URL 등 buildSample의 실제 오류는 그대로 던져 정상 실패시킨다.
       try {
         sample = await withTimeout(
-          buildSample(scan.root_url, { maxPages: scan.page_limit, fetcher: (u) => guardedFetch(u) }),
+          buildSample(scan.root_url, {
+            maxPages: scan.page_limit,
+            fetcher: (u) => guardedFetch(u),
+            excludePatterns: scope?.excludePatterns,
+          }),
           COLLECT_BUDGET_MS,
           "collect-timeout",
         );

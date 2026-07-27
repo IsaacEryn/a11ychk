@@ -28,6 +28,10 @@ export interface ScanFormLabels {
   manualOverLimit: string; // "{max}"
   manualVerifyHint: string; // "{verified}"
   manualHostMismatch: string; // "{host}"
+  excludeTitle: string; // "{count}"
+  excludeLabel: string;
+  excludePlaceholder: string;
+  excludeHint: string;
   /** 서버 에러 코드 → 번역 템플릿 ({limit} {count} {url} 플레이스홀더) */
   errors: Record<string, string>;
 }
@@ -55,6 +59,7 @@ export function ScanForm({
   const [url, setUrl] = useState("");
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [pagesText, setPagesText] = useState("");
+  const [excludeText, setExcludeText] = useState("");
   const [target, setTarget] = useState<"A" | "AA" | "AAA">("AA");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -67,6 +72,17 @@ export function ScanForm({
         .map((s) => s.trim())
         .filter(Boolean),
     [pagesText],
+  );
+
+  // 자동 수집에서 제외할 URL/경로 패턴 (최대 30개, 서버 Zod와 동일)
+  const excludePatterns = useMemo(
+    () =>
+      excludeText
+        .split(/\r?\n/)
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 30),
+    [excludeText],
   );
 
   // 검사 주소의 호스트 (미입력·잘못된 URL이면 null)
@@ -113,7 +129,11 @@ export function ScanForm({
           url,
           pages: mode === "manual" ? manualPages.slice(0, maxPages) : undefined,
           pageCount: mode === "auto" ? autoPages : undefined,
-          scope: { conformanceTarget: target, notes: notes.trim() || undefined },
+          scope: {
+            conformanceTarget: target,
+            notes: notes.trim() || undefined,
+            excludePatterns: mode === "auto" && excludePatterns.length > 0 ? excludePatterns : undefined,
+          },
         }),
       });
       const data = (await res.json()) as {
@@ -233,6 +253,30 @@ export function ScanForm({
               </option>
             ))}
           </select>
+
+          {/* 검사 제외 페이지 — 기본 닫힘 아코디언 */}
+          <details className="mt-3 border-[1.5px] border-dashed border-[var(--color-line)] p-3">
+            <summary className="cursor-pointer text-sm font-semibold">
+              {fill(labels.excludeTitle, { count: excludePatterns.length })}
+            </summary>
+            <div className="mt-3">
+              <label htmlFor="exclude-pages" className="mb-1 block text-sm font-semibold">
+                {labels.excludeLabel}
+              </label>
+              <textarea
+                id="exclude-pages"
+                value={excludeText}
+                onChange={(e) => setExcludeText(e.target.value)}
+                rows={4}
+                placeholder={labels.excludePlaceholder}
+                aria-describedby="exclude-pages-hint"
+                className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 font-mono text-sm"
+              />
+              <p id="exclude-pages-hint" className="mt-1 text-xs text-[var(--color-ink-faint)]">
+                {labels.excludeHint}
+              </p>
+            </div>
+          </details>
         </div>
       )}
 

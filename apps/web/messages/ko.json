@@ -242,6 +242,10 @@
     "manualOverLimit": "입력한 페이지가 이 도메인의 검사 한도({max}페이지)를 초과했습니다. {max}페이지 이하로 줄여 주세요.",
     "manualVerifyHint": "도메인 소유를 확인하면 최대 {verified}페이지까지 가능합니다.",
     "manualHostMismatch": "다음 페이지는 검사 주소의 도메인({host})과 달라 검사할 수 없습니다. 해당 줄을 삭제하거나 수정해 주세요.",
+    "excludeTitle": "검사 제외 페이지 ({count})",
+    "excludeLabel": "제외할 주소·경로 (한 줄에 하나)",
+    "excludePlaceholder": "/admin/*\n/tag/\nhttps://example.com/login",
+    "excludeHint": "자동 수집 표본에서 뺄 페이지입니다. 정확한 주소, 또는 /admin/* · /tag/ 처럼 * 나 / 로 끝나면 하위 경로까지 제외합니다. 최대 30개.",
     "apiErrors": {
       "blocked": "검사를 실행할 수 없는 계정입니다.",
       "quota_daily": "일간 검사 한도({limit}회)를 모두 사용했습니다.",
