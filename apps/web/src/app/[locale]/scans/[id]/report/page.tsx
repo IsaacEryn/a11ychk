@@ -65,13 +65,15 @@ export default async function ReportPage({
   const effView = canEdit ? view : ((meta?.publicView as typeof view | undefined) ?? "all");
   const effStd = !hasWcag ? "kwcag" : canEdit ? std : ((meta?.publicStd as typeof std | undefined) ?? "both");
 
+  // 검사 완료된 페이지 — 준수율·URL·인증 계산에 공통으로 쓰인다 (한 번만 필터)
+  const donePages = (pages ?? []).filter((p) => p.status === "done");
   // KWCAG 항목별 페이지 준수율 (인증 기준 95% 대비 근사치) — 추가 쿼리 없이 계산
   const kwcagRates = computeKwcagPageRates(
     summary.kwcagMatrix ?? [],
     ruleGroups.flatMap((g) => g.rows),
-    (pages ?? []).filter((p) => p.status === "done").length,
+    donePages.length,
   );
-  const donePageUrls = (pages ?? []).filter((p) => p.status === "done").map((p) => p.url as string);
+  const donePageUrls = donePages.map((p) => p.url as string);
   // 유효 판정 — 직접 판정에 상대 표준 파생을 보충 (kwcag 직접 > wcag 파생, 그 역도 동일)
   const effectiveKwcagReviews = buildEffectiveKwcagReviews(kwcagReviews, wcagReviews);
   const effectiveWcagReviews = buildEffectiveWcagReviews(wcagReviews, kwcagReviews);
@@ -81,7 +83,7 @@ export default async function ReportPage({
     summary.kwcagMatrix ?? [],
     kwcagRates,
     effectiveKwcagReviews,
-    (pages ?? []).filter((p) => p.status === "done").length,
+    donePages.length,
   );
 
   // 판정(outcome) 배지 스타일 — WCAG·KWCAG 매트릭스가 공유
