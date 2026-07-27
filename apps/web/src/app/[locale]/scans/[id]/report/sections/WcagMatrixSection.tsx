@@ -3,6 +3,7 @@ import { WCAG_BY_ID, pickLocale as pick, type ScanSummary, type WcagOutcome } fr
 import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { wcagRowData } from "../reportFilter";
+import { CountCell, MatrixShell, ReviewNote } from "./matrixParts";
 
 /** WCAG 2.2 성공기준 매트릭스 (WCAG-EM 2.0 Step 4) — 행 가시성은 reportFilter의 data 속성이 담당 */
 export async function WcagMatrixSection({
@@ -29,9 +30,7 @@ export async function WcagMatrixSection({
         {t("wcag.title")}
       </h2>
       <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("wcag.desc")}</p>
-      <div className="table-scroll mt-4 overflow-x-auto">
-        <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
-          <caption className="sr-only">{t("wcag.title")}</caption>
+      <MatrixShell caption={t("wcag.title")}>
           <thead>
             <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
               <th scope="col" className="col-sticky col-sticky-head py-2 pr-3 font-bold">{t("wcag.colSc")}</th>
@@ -54,11 +53,7 @@ export async function WcagMatrixSection({
                   <th scope="row" className="col-sticky w-[15rem] py-2 pr-3 text-left font-medium">
                     <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
                     {pick(c.name, locale)}
-                    {review?.note && (
-                      <p className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
-                        <strong>{t("review.noteLabel")}:</strong> {review.note}
-                      </p>
-                    )}
+                    {review?.note && <ReviewNote note={review.note} />}
                     {review?.pages && review.pages.length > 0 && (
                       <p className="mt-1 break-all text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
                         <strong>{t("review.relatedPages")}:</strong> {review.pages.join(" · ")}
@@ -99,10 +94,7 @@ export async function WcagMatrixSection({
                       )}
                     </span>
                   </td>
-                  <td className="py-2 pr-3 text-right font-bold tabular-nums">
-                    <span className="blind-ph font-normal text-[var(--color-ink-faint)]">—</span>
-                    <span className="blind-mask">{row.violationCount > 0 ? row.violationCount : "—"}</span>
-                  </td>
+                  <CountCell count={row.violationCount} />
                   {canEdit && (
                     <td className="no-print py-2">
                       <ReviewCell scanId={scanId} standard="wcag" itemId={row.scId} current={review} pageUrls={donePageUrls} />
@@ -112,8 +104,7 @@ export async function WcagMatrixSection({
               );
             })}
           </tbody>
-        </table>
-      </div>
+      </MatrixShell>
       <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("wcag.notCheckedNote")}</p>
     </section>
   );

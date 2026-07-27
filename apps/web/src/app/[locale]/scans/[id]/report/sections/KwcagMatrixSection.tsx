@@ -10,6 +10,7 @@ import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { kwcagRowData } from "../reportFilter";
 import type { KwcagPageRate } from "../kwcagPageRate";
+import { CountCell, MatrixShell, ReviewNote } from "./matrixParts";
 
 
 // 자동 판정 상태 배지 스타일 (KWCAG status 키)
@@ -49,9 +50,7 @@ export async function KwcagMatrixSection({
       </h2>
       <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("kwcag.desc")}</p>
       <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{t("kwcag.derivedNote")}</p>
-      <div className="table-scroll mt-4 overflow-x-auto">
-        <table className="w-full min-w-[40rem] border-collapse border-y-[1.5px] border-[var(--color-ink)] text-sm">
-          <caption className="sr-only">{t("kwcag.title")}</caption>
+      <MatrixShell caption={t("kwcag.title")}>
           <thead>
             <tr className="border-b-[1.5px] border-[var(--color-ink)] text-left">
               <th scope="col" className="col-sticky col-sticky-head py-2 pr-3 font-bold">
@@ -89,11 +88,7 @@ export async function KwcagMatrixSection({
                     <span className="ml-2 text-xs text-[var(--color-ink-faint)]">
                       {KWCAG_PRINCIPLE_LABEL[item.principle][locale === "en" ? "en" : "ko"]}
                     </span>
-                    {review?.note && (
-                      <p className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
-                        <strong>{t("review.noteLabel")}:</strong> {review.note}
-                      </p>
-                    )}
+                    {review?.note && <ReviewNote note={review.note} />}
                     {row.status === "fail" && row.ruleIds.length > 0 && (
                       <div className="blind-mask">
                         <MatrixDetail kind="fix" ruleIds={row.ruleIds} locale={locale} />
@@ -132,10 +127,7 @@ export async function KwcagMatrixSection({
                       </>
                     )}
                   </td>
-                  <td className="py-2 pr-3 text-right font-bold tabular-nums">
-                    <span className="blind-ph font-normal text-[var(--color-ink-faint)]">—</span>
-                    <span className="blind-mask">{row.violationCount > 0 ? row.violationCount : "—"}</span>
-                  </td>
+                  <CountCell count={row.violationCount} />
                   <td className="py-2 pr-3 text-right tabular-nums">
                     <span className="blind-ph text-[var(--color-ink-faint)]">—</span>
                     <span className="blind-mask">
@@ -160,8 +152,7 @@ export async function KwcagMatrixSection({
               );
             })}
           </tbody>
-        </table>
-      </div>
+      </MatrixShell>
       <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("kwcag.certNote")}</p>
     </section>
   );
