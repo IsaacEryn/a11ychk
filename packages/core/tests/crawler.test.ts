@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { extractLinks, isSameOrigin, normalizeUrl, prioritizeUrls, resolveCanonicalRoot } from "../src/crawler/collectPages";
+import {
+  extractLinks,
+  fetchSitemapEntries,
+  isSameOrigin,
+  normalizeUrl,
+  prioritizeUrls,
+  resolveCanonicalRoot,
+} from "../src/crawler/collectPages";
+
+const xmlRes = (body: string, ok = true) =>
+  Promise.resolve(new Response(body, { status: ok ? 200 : 404, headers: { "content-type": "application/xml" } }));
 
 describe("normalizeUrl", () => {
   it("fragment 제거·hostname 소문자화, 후행 슬래시는 보존", () => {
@@ -61,6 +71,51 @@ describe("prioritizeUrls", () => {
     expect(sorted[0]).toBe("https://example.com/about");
     expect(sorted[1]).toBe("https://example.com/blog");
     expect(sorted[2]).toBe("https://example.com/blog/2024/01/post-1");
+  });
+});
+
+describe("fetchSitemapEntries — lastmod/priority 파싱 + index 다중 순회", () => {
+  it("<url> 블록의 loc·lastmod·priority를 함께 추출", async () => {
+    const xml = `<?xml version="1.0"?><urlset>
+      <url><loc>https://e.com/blog/1</loc><lastmod>2026-07-01</lastmod><priority>0.8</priority></url>
+      <url><loc>https://e.com/about</loc></url>
+    </urlset>`;
+    const entries = await fetchSitemapEntries("https://e.com", () => xmlRes(xml));
+    expect(entries).toHaveLength(2);
+    expect(entries[0]).toMatchObject({ loc: "https://e.com/blog/1", lastmod: "2026-07-01", priority: 0.8 });
+    expect(entries[1]!.lastmod).toBeUndefined();
+    expect(entries[1]!.priority).toBeUndefined();
+  });
+
+  it("sitemap index면 same-origin 하위 sitemap을 상위 N개까지 순회", async () => {
+    const index = `<sitemapindex>
+      <sitemap><loc>https://e.com/sitemap-a.xml</loc></sitemap>
+      <sitemap><loc>https://e.com/sitemap-b.xml</loc></sitemap>
+      <sitemap><loc>https://e.com/sitemap-c.xml</loc></sitemap>
+    </sitemapindex>`;
+    const child = (n: string) => `<urlset><url><loc>https://e.com/${n}</loc></url></urlset>`;
+    const fetcher = (u: string) => {
+      if (u.endsWith("/sitemap.xml")) return xmlRes(index);
+      if (u.endsWith("sitemap-a.xml")) return xmlRes(child("a"));
+      if (u.endsWith("sitemap-b.xml")) return xmlRes(child("b"));
+      return xmlRes(child("c"));
+    };
+    // maxChildSitemaps=2 → 앞의 두 하위만
+    const entries = await fetchSitemapEntries("https://e.com", fetcher, { maxChildSitemaps: 2 });
+    expect(entries.map((e) => e.loc)).toEqual(["https://e.com/a", "https://e.com/b"]);
+  });
+
+  it("maxEntries 초과분은 절단", async () => {
+    const urls = Array.from({ length: 10 }, (_, i) => `<url><loc>https://e.com/p/${i}</loc></url>`).join("");
+    const entries = await fetchSitemapEntries("https://e.com", () => xmlRes(`<urlset>${urls}</urlset>`), {
+      maxEntries: 4,
+    });
+    expect(entries).toHaveLength(4);
+  });
+
+  it("sitemap 없음(404) → 빈 배열", async () => {
+    const entries = await fetchSitemapEntries("https://e.com", () => xmlRes("", false));
+    expect(entries).toEqual([]);
   });
 });
 
