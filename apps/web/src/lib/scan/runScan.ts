@@ -272,6 +272,72 @@ function applyDisabledRules(result: PageScanResult, disabled: Set<string>): void
  * POST /api/scans에서 after()로 호출된다 — 사용자 응답 이후 백그라운드 실행.
  * 실패해도 throw하지 않고 scans.status='failed'로 기록한다.
  */
+/**
+ * WCAG-EM 2.0 Step 2·3 — 검사할 페이지 표본을 정한다.
+ * 점검자가 직접 페이지를 지정했으면 그 목록을 그대로 쓰고, 아니면 자동 수집한다.
+ * 자동 수집은 시간 예산으로 감싸 초과 시 루트 페이지만으로 진행한다(좀비 방지).
+ * robots 차단·잘못된 URL 같은 실제 오류는 그대로 던져 정상 실패시킨다.
+ */
+async function buildScanSample(rootUrl: string, pageLimit: number, scope: EvaluationScope | null): Promise<SampleResult> {
+  if (scope?.manualPages && scope.manualPages.length > 0) {
+    let technologies = ["HTML"];
+    try {
+      const res = await guardedFetch(rootUrl);
+      if (res.ok) technologies = detectTechnologies((await res.text()).slice(0, 3_000_000));
+    } catch {
+      // 기술 감지 실패해도 검사는 진행
+    }
+    const rootNorm = normalizeUrl(rootUrl);
+    return {
+      pages: scope.manualPages.map((u) => ({
+        url: u,
+        category: categorizePage(u, u === rootNorm),
+        sampleType: "structured" as const,
+      })),
+      technologies,
+      sampleMethod: `점검자 직접 입력 표본 ${scope.manualPages.length}개 (WCAG-EM 2.0 Step 3.1 구조 표본)`,
+      source: "root-only",
+    };
+  }
+
+  try {
+    return await withTimeout(
+      buildSample(rootUrl, {
+        maxPages: pageLimit,
+        fetcher: (u) => guardedFetch(u),
+        excludePatterns: scope?.excludePatterns,
+      }),
+      COLLECT_BUDGET_MS,
+      "collect-timeout",
+    );
+  } catch (e) {
+    if ((e as Error).message !== "collect-timeout") throw e;
+    return {
+      pages: [{ url: normalizeUrl(rootUrl) ?? rootUrl, category: "home", sampleType: "structured" }],
+      technologies: ["HTML"],
+      sampleMethod: "페이지 수집이 지연되어 루트 페이지만 검사했습니다(부분 결과).",
+      source: "root-only",
+    };
+  }
+}
+
+/** 표본 구성 결과를 보고서용 요약으로 (Step 4.3 — 무작위 표본이 드러낸 새 규칙 포함) */
+function summarizeSample(
+  sample: SampleResult,
+  structuredRules: Set<string>,
+  randomRules: Set<string>,
+): SampleSummary {
+  return {
+    structuredCount: sample.pages.filter((p) => p.sampleType === "structured").length,
+    randomCount: sample.pages.filter((p) => p.sampleType === "random").length,
+    processCount: 0,
+    method: sample.sampleMethod,
+    technologies: sample.technologies,
+    randomSurfacedNewRules: [...randomRules].filter((r) => !structuredRules.has(r)),
+    ...(sample.clusters && sample.clusters.length > 0 ? { repeatingClusters: sample.clusters } : {}),
+  };
+}
+
 export async function runScan(scanId: string): Promise<void> {
   const db = createAdminClient();
 
@@ -293,51 +359,7 @@ export async function runScan(scanId: string): Promise<void> {
   let browser: Browser | null = null;
   try {
     // 1) WCAG-EM 2.0 Step 2·3 — 표본 구성
-    //    점검자가 직접 페이지를 지정했으면 그 목록을, 아니면 자동 수집(buildSample)
-    let sample: SampleResult;
-    if (scope?.manualPages && scope.manualPages.length > 0) {
-      let technologies = ["HTML"];
-      try {
-        const res = await guardedFetch(scan.root_url);
-        if (res.ok) technologies = detectTechnologies((await res.text()).slice(0, 3_000_000));
-      } catch {
-        // 기술 감지 실패해도 검사는 진행
-      }
-      const rootNorm = normalizeUrl(scan.root_url);
-      sample = {
-        pages: scope.manualPages.map((u) => ({
-          url: u,
-          category: categorizePage(u, u === rootNorm),
-          sampleType: "structured" as const,
-        })),
-        technologies,
-        sampleMethod: `점검자 직접 입력 표본 ${scope.manualPages.length}개 (WCAG-EM 2.0 Step 3.1 구조 표본)`,
-        source: "root-only",
-      };
-    } else {
-      // 자동 수집을 시간 예산으로 감싼다. 초과 시 루트 페이지만으로 진행해 좀비를 막는다.
-      // robots 차단·잘못된 URL 등 buildSample의 실제 오류는 그대로 던져 정상 실패시킨다.
-      try {
-        sample = await withTimeout(
-          buildSample(scan.root_url, {
-            maxPages: scan.page_limit,
-            fetcher: (u) => guardedFetch(u),
-            excludePatterns: scope?.excludePatterns,
-          }),
-          COLLECT_BUDGET_MS,
-          "collect-timeout",
-        );
-      } catch (e) {
-        if ((e as Error).message !== "collect-timeout") throw e;
-        const rootNorm = normalizeUrl(scan.root_url) ?? scan.root_url;
-        sample = {
-          pages: [{ url: rootNorm, category: "home", sampleType: "structured" }],
-          technologies: ["HTML"],
-          sampleMethod: "페이지 수집이 지연되어 루트 페이지만 검사했습니다(부분 결과).",
-          source: "root-only",
-        };
-      }
-    }
+    const sample = await buildScanSample(scan.root_url, scan.page_limit, scope);
 
     // 2) 페이지 행 생성 (표본 유형·분류 기록)
     const { data: pageRows, error: insertError } = await db
@@ -460,19 +482,9 @@ export async function runScan(scanId: string): Promise<void> {
     }
 
     // 4) 집계 → 완료 (WCAG-EM 표본 요약 + 목표 수준 반영)
-    const randomSurfacedNewRules = [...randomRules].filter((r) => !structuredRules.has(r));
-    const sampleSummary: SampleSummary = {
-      structuredCount: sample.pages.filter((p) => p.sampleType === "structured").length,
-      randomCount: sample.pages.filter((p) => p.sampleType === "random").length,
-      processCount: 0,
-      method: sample.sampleMethod,
-      technologies: sample.technologies,
-      randomSurfacedNewRules,
-      ...(sample.clusters && sample.clusters.length > 0 ? { repeatingClusters: sample.clusters } : {}),
-    };
     const summary = aggregateScan(results, AXE_VERSION, {
       conformanceTarget,
-      sample: sampleSummary,
+      sample: summarizeSample(sample, structuredRules, randomRules),
       plannedPageCount: sample.pages.length,
       siteChecks: computeSiteChecks(signatures),
       notPresentScs: computeNotPresentScs(signatures, results.length),
