@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useActionState, useMemo, useState } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { appFetch } from "@/lib/serviceStatus";
+import { deletePreset, savePreset, type ScanPreset, type SaveState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
 
 export interface ScanFormLabels {
   label: string;
@@ -32,6 +34,16 @@ export interface ScanFormLabels {
   excludeLabel: string;
   excludePlaceholder: string;
   excludeHint: string;
+  presetTitle: string;
+  presetLoadLabel: string;
+  presetLoadPlaceholder: string;
+  presetNamePlaceholder: string;
+  presetSave: string;
+  presetDelete: string;
+  presetSaved: string;
+  presetHint: string;
+  /** 프리셋 저장 에러 코드 → 문구 (invalid/limit/failed) */
+  presetErrors: Record<string, string>;
   /** 서버 에러 코드 → 번역 템플릿 ({limit} {count} {url} 플레이스홀더) */
   errors: Record<string, string>;
 }
@@ -46,6 +58,7 @@ export function ScanForm({
   verifiedSize,
   unverifiedSize,
   verifiedHostnames,
+  presets = [],
   labels,
 }: {
   /** 최근 검사한 URL — 입력 자동완성(datalist) */
@@ -53,6 +66,8 @@ export function ScanForm({
   verifiedSize: number;
   unverifiedSize: number;
   verifiedHostnames: string[];
+  /** 저장된 검사 옵션 프리셋 */
+  presets?: ScanPreset[];
   labels: ScanFormLabels;
 }) {
   const router = useRouter();
@@ -64,6 +79,9 @@ export function ScanForm({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [presetName, setPresetName] = useState("");
+  const [selectedPresetId, setSelectedPresetId] = useState("");
+  const [saveState, saveAction] = useActionState<SaveState, FormData>(savePreset, {});
 
   const manualPages = useMemo(
     () =>
@@ -116,6 +134,36 @@ export function ScanForm({
     });
   }, [mode, manualPages, rootHost]);
 
+  // 현재 폼 상태를 프리셋 옵션으로 직렬화 (저장용)
+  const currentOptions = useMemo(
+    () => ({
+      url: url || undefined,
+      mode,
+      conformanceTarget: target,
+      pageCount: mode === "auto" ? autoPages : undefined,
+      manualPages: mode === "manual" && manualPages.length > 0 ? manualPages : undefined,
+      excludePatterns: mode === "auto" && excludePatterns.length > 0 ? excludePatterns : undefined,
+      notes: notes.trim() || undefined,
+    }),
+    [url, mode, target, autoPages, manualPages, excludePatterns, notes],
+  );
+
+  // 프리셋 불러오기 — 폼 상태만 채우고 제출은 명시적 버튼(WCAG 3.2.2)
+  function loadPreset(id: string) {
+    setSelectedPresetId(id);
+    const p = presets.find((x) => x.id === id);
+    if (!p) return;
+    const o = p.options;
+    setUrl(o.url ?? "");
+    setMode(o.mode ?? "auto");
+    setTarget(o.conformanceTarget ?? "AA");
+    setAutoPagesChoice(o.pageCount ?? null);
+    setPagesText(o.manualPages?.join("\n") ?? "");
+    setExcludeText(o.excludePatterns?.join("\n") ?? "");
+    setNotes(o.notes ?? "");
+    setPresetName(p.name);
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
@@ -160,10 +208,71 @@ export function ScanForm({
   const overLimit = mode === "manual" && manualPages.length > maxPages;
 
   return (
-    <form onSubmit={onSubmit} className="mt-4">
-      <label htmlFor="scan-url" className="mb-1 block text-sm font-semibold">
-        {labels.label}
-      </label>
+    <>
+      {/* 검사 옵션 프리셋 — 불러오기(select) + 이름 저장 + 삭제. 폼 밖에 둬 중첩 폼을 피한다 */}
+      <section aria-label={labels.presetTitle} className="mt-4 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-3">
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-40 flex-1">
+            <label htmlFor="preset-load" className="mb-1 block text-sm font-semibold">
+              {labels.presetTitle}
+            </label>
+            <select
+              id="preset-load"
+              value={selectedPresetId}
+              onChange={(e) => loadPreset(e.target.value)}
+              className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm"
+            >
+              <option value="">{labels.presetLoadPlaceholder}</option>
+              {presets.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          {selectedPresetId && (
+            <form action={deletePreset}>
+              <input type="hidden" name="id" value={selectedPresetId} />
+              <button
+                type="submit"
+                className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-2 text-sm font-semibold hover:border-[var(--color-crit)] hover:text-[var(--color-crit)]"
+              >
+                {labels.presetDelete}
+              </button>
+            </form>
+          )}
+        </div>
+        <form action={saveAction} className="mt-2 flex flex-wrap items-center gap-2">
+          <label htmlFor="preset-name" className="sr-only">
+            {labels.presetLoadLabel}
+          </label>
+          <input
+            id="preset-name"
+            name="name"
+            type="text"
+            maxLength={60}
+            value={presetName}
+            onChange={(e) => setPresetName(e.target.value)}
+            placeholder={labels.presetNamePlaceholder}
+            className="min-w-40 flex-1 rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm"
+          />
+          <input type="hidden" name="options" value={JSON.stringify(currentOptions)} />
+          <button
+            type="submit"
+            disabled={!presetName.trim()}
+            className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-2 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)] disabled:opacity-60"
+          >
+            {labels.presetSave}
+          </button>
+          <FormFeedback state={saveState} okLabel={labels.presetSaved} errors={labels.presetErrors} fallback={labels.presetErrors.failed} />
+        </form>
+        <p className="mt-2 text-xs text-[var(--color-ink-faint)]">{labels.presetHint}</p>
+      </section>
+
+      <form onSubmit={onSubmit} className="mt-4">
+        <label htmlFor="scan-url" className="mb-1 block text-sm font-semibold">
+          {labels.label}
+        </label>
       <div className="flex flex-wrap gap-2">
         <input
           id="scan-url"
@@ -369,6 +478,7 @@ export function ScanForm({
           </div>
         </div>
       </details>
-    </form>
+      </form>
+    </>
   );
 }

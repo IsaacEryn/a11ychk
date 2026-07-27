@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { checkQuota, getEarnedPlan, getResets, getSampleSize, resolveLimits } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
+import { listPresets } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -56,6 +57,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
   const unverifiedSize = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive, earned });
   const verifiedHostnames = (verifiedDomains ?? []).map((d) => d.hostname);
   const recentUrls = [...new Set((recentScans ?? []).map((r) => r.root_url as string))].slice(0, 5);
+  const presets = await listPresets();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
@@ -71,6 +73,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
           verifiedSize={verifiedSize}
           unverifiedSize={unverifiedSize}
           verifiedHostnames={verifiedHostnames}
+          presets={presets}
           labels={{
             label: tDash("scanForm.label"),
             placeholder: tDash("scanForm.placeholder"),
@@ -100,6 +103,15 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
             excludeLabel: t("excludeLabel"),
             excludePlaceholder: t("excludePlaceholder"),
             excludeHint: t("excludeHint"),
+            presetTitle: t("preset.title"),
+            presetLoadLabel: t("preset.loadLabel"),
+            presetLoadPlaceholder: t("preset.loadPlaceholder"),
+            presetNamePlaceholder: t("preset.namePlaceholder"),
+            presetSave: t("preset.save"),
+            presetDelete: t("preset.delete"),
+            presetSaved: t("preset.saved"),
+            presetHint: t("preset.hint"),
+            presetErrors: t.raw("preset.errors") as Record<string, string>,
             errors: t.raw("apiErrors") as Record<string, string>,
           }}
         />

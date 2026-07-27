@@ -246,6 +246,21 @@
     "excludeLabel": "Addresses / paths to exclude (one per line)",
     "excludePlaceholder": "/admin/*\n/tag/\nhttps://example.com/login",
     "excludeHint": "Pages to drop from the auto-collected sample. Use an exact address, or end with * or / (e.g. /admin/*, /tag/) to exclude a whole subtree. Up to 30.",
+    "preset": {
+      "title": "Load saved scan options",
+      "loadLabel": "Preset name",
+      "loadPlaceholder": "Select a preset…",
+      "namePlaceholder": "Preset name (e.g. Company site)",
+      "save": "Save current options",
+      "delete": "Delete",
+      "saved": "Saved",
+      "hint": "Save the options you've entered (URL, collection mode, page count, exclusions, etc.) under a name and load them next time.",
+      "errors": {
+        "invalid": "The name or options are invalid.",
+        "limit": "You've reached the maximum number of saved presets.",
+        "failed": "Could not save. Please try again shortly."
+      }
+    },
     "apiErrors": {
       "blocked": "This account cannot run scans.",
       "quota_daily": "You have used all of your daily scan quota ({limit}).",

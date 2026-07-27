@@ -69,6 +69,15 @@ export const PLAN_RANK: Record<PlanId, number> = {
   unlimited: 5,
 };
 
+/**
+ * 검사 옵션 프리셋 저장 개수 상한 — 무료부터 제공하되 등급별 제한(과다 생성 방지).
+ * 배정 등급·달성 등급 중 높은 쪽 기준: free=3, 그 외 등급=20.
+ */
+export function presetLimit(override: unknown, earned: EarnedPlanId | null): number {
+  const rank = Math.max(PLAN_RANK[getPlan(override)], earned ? PLAN_RANK[earned] : 0);
+  return rank === 0 ? 3 : 20;
+}
+
 /** 기본 한도 = free 요금제 */
 export const DEFAULT_SCAN_LIMITS: ScanLimits = {
   daily: PLANS.free.daily,
