@@ -365,6 +365,10 @@ export async function collectCandidates(
 /**
  * 루트 URL에서 시작해 최대 maxPages개의 대표 페이지 URL을 수집.
  * robots.txt에서 루트 자체가 차단되면 에러를 던진다.
+ *
+ * 표본 유형·반복 콘텐츠까지 필요한 실제 검사 파이프라인은 buildSample을 쓴다. 이쪽은
+ * "URL 목록만" 필요할 때를 위한 간단한 진입점으로, 지금은 E2E 테스트와 패키지를 직접
+ * 쓰는 외부 사용자를 위해 남겨둔 공개 API다.
  */
 export async function collectPages(rootRawUrl: string, options: CrawlOptions): Promise<CrawlResult> {
   const fetcher = options.fetcher ?? ((u: string) => guardedFetch(u));
