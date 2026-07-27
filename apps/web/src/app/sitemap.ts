@@ -1,4 +1,5 @@
 import type { MetadataRoute } from "next";
+import { KWCAG_ITEMS, kwcagSlug } from "@a11ychk/core/catalog";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
@@ -13,8 +14,12 @@ const LOCALES = ["ko", "en"] as const;
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
+  // KWCAG 33항목 상세 — 항목 단위로 찾아오는 검색을 받는 면
+  const guideItems = KWCAG_ITEMS.map((item) => `/guide/${kwcagSlug(item)}`);
+  const paths = [...PUBLIC_PATHS, ...guideItems];
+
   return LOCALES.flatMap((locale) =>
-    PUBLIC_PATHS.map((path) => ({
+    paths.map((path) => ({
       url: `${SITE}/${locale}${path}`,
       lastModified: now,
       changeFrequency: path === "" ? ("weekly" as const) : ("monthly" as const),

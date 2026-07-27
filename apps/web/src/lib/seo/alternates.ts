@@ -15,7 +15,12 @@ import { routing } from "@/i18n/routing";
 export function localeAlternates(locale: string, path = ""): Metadata["alternates"] {
   const languages: Record<string, string> = {};
   for (const l of routing.locales) languages[l] = `/${l}${path}`;
-  // 언어 매칭이 안 되는 방문자에게 보여 줄 기본판
-  languages["x-default"] = `/${routing.defaultLocale}${path}`;
+  // x-default는 로케일 접두어 없는 주소 — 방문자 언어를 보고 알아서 보내 주는 자리라
+  // "언어가 안 맞는 사람에게 줄 페이지"라는 x-default의 뜻에 정확히 맞는다.
+  //
+  // 값을 마음대로 정하면 안 된다: next-intl 미들웨어가 이미 같은 내용을 Link 헤더로
+  // 내보내고 있어서, head와 헤더가 서로 다른 x-default를 말하면 구글이 hreflang 묶음
+  // 전체를 무시할 수 있다. 헤더 쪽과 같은 주소를 쓴다.
+  languages["x-default"] = path || "/";
   return { canonical: `/${locale}${path}`, languages };
 }

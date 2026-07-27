@@ -63,6 +63,22 @@ export function faqJsonLd(items: { q: string; a: string }[]) {
   };
 }
 
+/**
+ * 가이드 항목의 검사 방법 — 화면에 보이는 본문과 같은 문자열을 넘긴다.
+ * 절차가 문장으로만 돼 있어 단계를 쪼개지 않고 통째로 한 단계로 둔다
+ * (없는 단계를 지어내면 실제 화면과 어긋난다).
+ */
+export function howToJsonLd(name: string, text: string, path: string) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name,
+    description: text,
+    url: `${SITE}${path}`,
+    step: [{ "@type": "HowToStep", name, text }],
+  };
+}
+
 /** 가이드 항목 페이지의 위치 표시 — 검색 결과에 경로가 함께 나온다 */
 export function breadcrumbJsonLd(items: { name: string; url: string }[]) {
   return {

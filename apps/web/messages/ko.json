@@ -1403,7 +1403,9 @@
     },
     "kwcagRef": "KWCAG 대응",
     "kwcagOnlyTitle": "KWCAG 추가 항목 (WCAG 대응 없음)",
-    "levelAria": "수준"
+    "levelAria": "수준",
+    "itemIndexTitle": "KWCAG 2.2 검사항목 33개",
+    "itemIndexDesc": "항목별로 검사 방법과 대응 WCAG 성공기준, 자동 검사로 잡히는 부분을 따로 정리해 두었습니다."
   },
   "extension": {
     "title": "크롬 확장 연결",
@@ -1646,5 +1648,30 @@
     "title": "공지사항",
     "intro": "A11y Check의 새 소식과 변경 사항을 안내합니다.",
     "empty": "등록된 공지가 없습니다."
+  },
+  "guideItem": {
+    "metaTitle": "{name} 검사 방법 — KWCAG {id} | A11y Check",
+    "metaDescription": "KWCAG 2.2 {id}번 검사항목 「{name}」을 어떻게 점검하는지 정리했습니다. 대응 WCAG 성공기준({wcag}), 자동 검사로 잡히는 부분과 사람이 직접 봐야 하는 부분, 위반 시 개선 방법을 함께 안내합니다.",
+    "breadcrumbLabel": "현재 위치",
+    "breadcrumbGuide": "검사 가이드",
+    "siblingLabel": "앞뒤 검사항목",
+    "new22": "2.2 신설",
+    "h1": "{name} 검사 방법",
+    "lead": "KWCAG 2.2 「{name}」 항목을 점검하는 방법입니다. {coverage}",
+    "coverage": {
+      "full": "이 항목은 자동 검사만으로도 판정할 수 있습니다.",
+      "partial": "자동 검사가 일부를 잡아내지만, 나머지는 사람이 직접 확인해야 합니다.",
+      "none": "이 항목은 자동으로 판정할 수 없어 사람이 직접 확인해야 합니다."
+    },
+    "mappingTitle": "어떤 기준에 해당하나요",
+    "kwcagLabel": "한국 기준 (KWCAG 2.2)",
+    "wcagLabel": "국제 기준 (WCAG 2.2)",
+    "howToTitle": "어떻게 검사하나요",
+    "rulesTitle": "자동 검사로 잡히는 부분",
+    "rulesIntro": "이 항목은 {count}개 규칙으로 자동 판정합니다. 각 규칙에 위반 시 개선 방법이 붙어 있습니다.",
+    "rulesEmpty": "이 항목을 자동으로 판정하는 규칙은 없습니다. 위 검사 방법에 따라 직접 확인해 주세요.",
+    "ctaTitle": "내 사이트는 어떤지 확인해 보세요",
+    "ctaDesc": "주소만 넣으면 이 항목을 포함한 KWCAG 33항목을 한 번에 점검해 드립니다. 로그인 없이 한 페이지를 바로 검사해 볼 수 있습니다.",
+    "ctaButton": "무료로 검사하기"
   }
 }

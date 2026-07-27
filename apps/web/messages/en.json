@@ -1403,7 +1403,9 @@
     },
     "kwcagRef": "KWCAG mapping",
     "kwcagOnlyTitle": "KWCAG-specific items (no WCAG mapping)",
-    "levelAria": "Level"
+    "levelAria": "Level",
+    "itemIndexTitle": "The 33 KWCAG 2.2 checkpoints",
+    "itemIndexDesc": "Each checkpoint has its own page: how to test it, the matching WCAG success criteria, and what automation can decide."
   },
   "extension": {
     "title": "Connect Chrome extension",
@@ -1646,5 +1648,30 @@
     "title": "Notices",
     "intro": "News and changes to A11y Check.",
     "empty": "No notices yet."
+  },
+  "guideItem": {
+    "metaTitle": "How to test {name} — KWCAG {id} | A11y Check",
+    "metaDescription": "How to evaluate KWCAG 2.2 checkpoint {id}, “{name}”. Covers the matching WCAG 2.2 success criteria ({wcag}), what automation can decide, what a person has to check, and how to fix failures.",
+    "breadcrumbLabel": "Breadcrumb",
+    "breadcrumbGuide": "Testing guide",
+    "siblingLabel": "Adjacent checkpoints",
+    "new22": "New in 2.2",
+    "h1": "How to test {name}",
+    "lead": "How to evaluate the KWCAG 2.2 checkpoint “{name}”. {coverage}",
+    "coverage": {
+      "full": "Automation can decide this checkpoint on its own.",
+      "partial": "Automation catches part of it; the rest needs a person.",
+      "none": "Automation cannot decide this one — it has to be checked by a person."
+    },
+    "mappingTitle": "Which standards this maps to",
+    "kwcagLabel": "Korean standard (KWCAG 2.2)",
+    "wcagLabel": "International standard (WCAG 2.2)",
+    "howToTitle": "How to test it",
+    "rulesTitle": "What automation covers",
+    "rulesIntro": "{count} automated rules judge this checkpoint. Each comes with remediation guidance.",
+    "rulesEmpty": "No automated rule covers this checkpoint. Follow the testing instructions above.",
+    "ctaTitle": "See how your own site does",
+    "ctaDesc": "Enter a URL and we will check this checkpoint along with the other 32. One page can be audited without signing in.",
+    "ctaButton": "Run a free check"
   }
 }
