@@ -97,6 +97,21 @@ export async function resetQuota(_prev: ResetQuotaState, formData: FormData): Pr
   return { ok: true, resetScope: scope.data };
 }
 
+/**
+ * 폼의 정수 한도 필드를 override에 반영한다. 빈 값이면 개별 한도를 지워 요금제 기본값을 쓰고,
+ * 정수가 아니거나 [min, max]를 벗어나면 조용히 무시(잘못된 입력이 기존 값을 덮지 않게).
+ */
+function applyIntOverride(next: Record<string, unknown>, formData: FormData, key: string, min: number, max: number): void {
+  const raw = formData.get(key);
+  const str = typeof raw === "string" ? raw.trim() : "";
+  if (str === "") {
+    delete next[key];
+    return;
+  }
+  const n = Number(str);
+  if (Number.isInteger(n) && n >= min && n <= max) next[key] = n;
+}
+
 /** 사용자별 요금제·개별 최대 한도 설정. 빈 숫자는 개별값 제거(요금제 한도 사용) */
 export async function setUserLimits(formData: FormData): Promise<void> {
   const { user: actor } = await requireAdmin();
@@ -109,40 +124,10 @@ export async function setUserLimits(formData: FormData): Promise<void> {
   const current = await readOverride(admin, id.data);
   const next: Record<string, unknown> = { ...current, plan: plan.data };
 
-  for (const key of ["daily", "weekly", "monthly"] as const) {
-    const raw = formData.get(key);
-    const str = typeof raw === "string" ? raw.trim() : "";
-    if (str === "") {
-      delete next[key]; // 개별 한도 해제 → 요금제 한도 적용
-    } else {
-      const n = Number(str);
-      if (Number.isInteger(n) && n >= 0 && n <= 100000) next[key] = n;
-    }
-  }
-
-  // 사용자별 기본 페이지 한도 (소유 확인 도메인은 ×2, 최대 MAX_PAGES_PER_SCAN)
-  {
-    const raw = formData.get("pages");
-    const str = typeof raw === "string" ? raw.trim() : "";
-    if (str === "") {
-      delete next.pages;
-    } else {
-      const n = Number(str);
-      if (Number.isInteger(n) && n >= 1 && n <= MAX_PAGES_PER_SCAN) next.pages = n;
-    }
-  }
-
-  // 확장 일일 검사 한도 (웹 검사 한도와 분리)
-  {
-    const raw = formData.get("extDaily");
-    const str = typeof raw === "string" ? raw.trim() : "";
-    if (str === "") {
-      delete next.extDaily;
-    } else {
-      const n = Number(str);
-      if (Number.isInteger(n) && n >= 0 && n <= 10000) next.extDaily = n;
-    }
-  }
+  // 검사 횟수(일·주·월), 검사당 페이지 수, 확장 일일 한도 — 각기 다른 범위로 검증
+  for (const key of ["daily", "weekly", "monthly"] as const) applyIntOverride(next, formData, key, 0, 100000);
+  applyIntOverride(next, formData, "pages", 1, MAX_PAGES_PER_SCAN);
+  applyIntOverride(next, formData, "extDaily", 0, 10000);
 
   await admin.from("profiles").update({ scan_limit_override: next }).eq("id", id.data);
   await logAdminAction(admin, actor.id, "user.set_limits", id.data, {

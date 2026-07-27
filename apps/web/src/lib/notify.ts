@@ -3,6 +3,37 @@ import { adminBasePath } from "@/lib/adminSlug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAppError } from "@/lib/logs";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
+
+/** 카드형 브랜드 메일 색 (인라인 스타일 전용 — 이메일 클라이언트는 CSS 변수를 못 쓴다) */
+const EMAIL = {
+  paper: "#f5f3ee",
+  card: "#ffffff",
+  line: "#e5e1d8",
+  ink: "#1c2422",
+  inkSoft: "#5d6a66",
+  seal: "#0b5d54",
+  crit: "#a4243b",
+} as const;
+
+/** 로고 락업 + 본문 rows(tr/td)를 감싸는 카드형 메일 셸. 알림·승급·관리자 메일이 공유한다. */
+function emailCard(rows: string): string {
+  return `
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${EMAIL.paper};padding:24px 0">
+  <tr><td align="center">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:${EMAIL.card};border:1px solid ${EMAIL.line};border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:${EMAIL.ink}">
+      <tr><td style="padding:28px 32px 8px"><img src="${SITE_URL}/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
+      ${rows}
+    </table>
+  </td></tr>
+</table>`;
+}
+
+/** 카드형 메일의 주요 CTA 버튼(seal 채움). */
+function emailButton(href: string, label: string): string {
+  return `<a href="${href}" style="display:inline-block;background:${EMAIL.seal};color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">${label}</a>`;
+}
+
 /**
  * 정기 스캔 결과 알림 이메일 (Resend).
  * 준수율 하락 또는 새 위반 규칙 발견 시에만 발송 — 잡음 없는 회귀 알림.
@@ -32,26 +63,19 @@ export async function sendScanAlert(alert: ScanAlert): Promise<boolean> {
           .join("")}${alert.newRules.length > 5 ? `<li>외 ${alert.newRules.length - 5}건</li>` : ""}</ul>`
       : "";
 
-  const html = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:24px 0">
-  <tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422">
-      <tr><td style="padding:28px 32px 8px"><img src="https://www.a11ychk.com/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
+  const html = emailCard(`
       <tr><td style="padding:8px 32px">
         <p style="margin:0;font-size:16px;font-weight:700">${escapeHtml(alert.hostname)} 정기 검사 결과에 변화가 있습니다</p>
         <p style="margin:12px 0 0;font-size:14px;line-height:1.6">
-          준수율: <b>${alert.prevRate}%</b> → <b style="color:${delta < 0 ? "#a4243b" : "#0b5d54"}">${alert.newRate}%</b>
+          준수율: <b>${alert.prevRate}%</b> → <b style="color:${delta < 0 ? EMAIL.crit : EMAIL.seal}">${alert.newRate}%</b>
           (${delta >= 0 ? "+" : ""}${delta}p)
         </p>
         ${newRulesHtml}
       </td></tr>
       <tr><td style="padding:20px 32px 28px">
-        <a href="${alert.reportUrl}" style="display:inline-block;background:#0b5d54;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">보고서 보기</a>
-        <p style="margin:16px 0 0;font-size:12px;color:#5d6a66">이 알림은 정기 자동 검사 도메인에 대해 발송됩니다. 대시보드에서 도메인별로 끌 수 있습니다.</p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>`;
+        ${emailButton(alert.reportUrl, "보고서 보기")}
+        <p style="margin:16px 0 0;font-size:12px;color:${EMAIL.inkSoft}">이 알림은 정기 자동 검사 도메인에 대해 발송됩니다. 대시보드에서 도메인별로 끌 수 있습니다.</p>
+      </td></tr>`);
 
   const ok = await sendEmail({ to: alert.to, subject, html });
   if (!ok) {
@@ -90,21 +114,13 @@ export async function sendAdminInquiryAlert(title: string, nickname: string | nu
  * ADMIN_ALERT_EMAIL이 설정돼 있으면 reply_to로 실어 사용자가 회신할 수 있게 한다.
  */
 export async function sendAdminUserEmail(msg: { to: string; subject: string; body: string }): Promise<boolean> {
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
   const bodyHtml = escapeHtml(msg.body).replaceAll("\n", "<br/>");
-  const html = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:24px 0">
-  <tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422">
-      <tr><td style="padding:28px 32px 8px"><img src="${siteUrl}/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
+  const html = emailCard(`
       <tr><td style="padding:8px 32px 24px">
         <p style="margin:0 0 14px;font-size:15px;font-weight:700">${escapeHtml(msg.subject)}</p>
         <p style="margin:0;font-size:14px;line-height:1.7">${bodyHtml}</p>
-        <p style="margin:18px 0 0;font-size:12px;color:#5d6a66">— A11y Check 운영자 · <a href="${siteUrl}" style="color:#0b5d54">a11ychk.com</a></p>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>`;
+        <p style="margin:18px 0 0;font-size:12px;color:${EMAIL.inkSoft}">— A11y Check 운영자 · <a href="${SITE_URL}" style="color:${EMAIL.seal}">a11ychk.com</a></p>
+      </td></tr>`);
   const ok = await sendEmail({ to: msg.to, subject: msg.subject, html, replyTo: process.env.ADMIN_ALERT_EMAIL });
   if (!ok) {
     await logAppError(createAdminClient(), "admin user email send failed", { path: "notify.sendAdminUserEmail" });
@@ -218,24 +234,16 @@ export async function sendPlanUpgradeEmail(
   const subject = en
     ? `[A11y Check] Your plan is upgraded to ${planLabel}`
     : `[A11y Check] ${planLabel} 등급으로 승급되었습니다`;
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
-  const html = `
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f3ee;padding:24px 0">
-  <tr><td align="center">
-    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="background:#fff;border:1px solid #e5e1d8;border-radius:12px;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422">
-      <tr><td style="padding:28px 32px 8px"><img src="https://www.a11ychk.com/email-lockup.png" width="162" height="38" alt="A11y Check" style="display:block;border:0" /></td></tr>
+  const html = emailCard(`
       <tr><td style="padding:8px 32px">
-        <p style="margin:0;font-size:16px;font-weight:700">${en ? `You're now ${planLabel} 🎉` : `${planLabel} 등급이 되었습니다 🎉`}</p>
+        <p style="margin:0;font-size:16px;font-weight:700">${en ? `You're now ${planLabel}` : `${planLabel} 등급이 되었습니다`}</p>
         <p style="margin:12px 0 0;font-size:14px;line-height:1.6">${escapeHtml(reason)}</p>
         <p style="margin:8px 0 0;font-size:14px;line-height:1.6"><b>${en ? "New limits" : "새 한도"}:</b> ${escapeHtml(perks)}</p>
       </td></tr>
       <tr><td style="padding:20px 32px 28px">
-        <a href="${siteUrl}/${locale}/mypage" style="display:inline-block;background:#0b5d54;color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">${en ? "View my page" : "마이페이지에서 확인"}</a>
-      </td></tr>
-    </table>
-  </td></tr>
-</table>`;
+        ${emailButton(`${SITE_URL}/${locale}/mypage`, en ? "View my page" : "마이페이지에서 확인")}
+      </td></tr>`);
 
   const ok = await sendEmail({ to, subject, html });
   if (!ok) {
