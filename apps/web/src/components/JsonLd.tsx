@@ -47,6 +47,22 @@ export function webApplicationJsonLd(locale: string) {
   };
 }
 
+/**
+ * 랜딩 FAQ — 화면에 보이는 문답과 **글자 그대로 같아야** 한다.
+ * 보이지 않는 내용을 구조화 데이터에만 넣으면 구글이 스팸으로 본다.
+ */
+export function faqJsonLd(items: { q: string; a: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((it) => ({
+      "@type": "Question",
+      name: it.q,
+      acceptedAnswer: { "@type": "Answer", text: it.a },
+    })),
+  };
+}
+
 /** 가이드 항목 페이지의 위치 표시 — 검색 결과에 경로가 함께 나온다 */
 export function breadcrumbJsonLd(items: { name: string; url: string }[]) {
   return {

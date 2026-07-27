@@ -116,6 +116,12 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
             </li>
           ))}
         </ul>
+        {/* KWCAG를 처음 접하는 해외 팀을 위한 설명 — 영문 검색에서 이 서비스만의
+            차별점("Korean accessibility")으로 들어오는 사람들의 착지점 */}
+        <div className="mt-6 border-l-[3px] border-[var(--color-seal)] bg-[var(--color-paper-warm)] p-5">
+          <h3 className="font-display text-lg font-bold">{t("kwcagPrimerTitle")}</h3>
+          <p className="mt-2 leading-relaxed text-[var(--color-ink-soft)]">{t("kwcagPrimerDesc")}</p>
+        </div>
       </section>
 
       {/* 기능 */}

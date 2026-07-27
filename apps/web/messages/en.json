@@ -56,7 +56,7 @@
     "seoDescription": "Automated web accessibility testing against WCAG 2.2 AA and KWCAG 2.2, Korea's national accessibility guidelines. Scan a site from one URL and get a report with remediation guidance."
   },
   "landing": {
-    "heroEyebrow": "Automated web accessibility audits & remediation guides",
+    "heroEyebrow": "WCAG 2.2 AA and KWCAG 2.2 in one report",
     "heroTitle1": "Is your website",
     "heroTitleMark": "open to everyone",
     "heroTitle2": "?",
@@ -174,7 +174,33 @@
       "caption": "106 automated rules detect 30 of the 55 WCAG 2.2 A/AA success criteria (54.5%). Our manual review workflow guides you through the rest — no automated tool alone can guarantee conformance."
     },
     "seoTitle": "Web Accessibility Checker — WCAG 2.2 AA & KWCAG 2.2 | A11y Check",
-    "seoDescription": "Free web accessibility checker. Enter one URL to crawl representative pages and audit them against WCAG 2.2 AA and KWCAG 2.2 (Korea's 33 accessibility checkpoints), with remediation guidance for every finding. Try a single page without signing in."
+    "seoDescription": "Free web accessibility checker. Enter one URL to crawl representative pages and audit them against WCAG 2.2 AA and KWCAG 2.2 (Korea's 33 accessibility checkpoints), with remediation guidance for every finding. Try a single page without signing in.",
+    "heroH1": "Web Accessibility Checker",
+    "faq": {
+      "title": "Frequently asked questions",
+      "items": [
+        {
+          "q": "How do I check a website for accessibility?",
+          "a": "Start with an automated checker to clear the issues a machine can decide, then review the rest by hand. A11y Check takes a single URL, collects representative pages, audits them with an axe-core based engine, and hands you testing instructions for everything automation cannot settle."
+        },
+        {
+          "q": "What is KWCAG, and how does it differ from WCAG?",
+          "a": "WCAG 2.2 is the W3C's international standard. KWCAG 2.2 is South Korea's national guideline, organised as 33 checkpoints, and it is what Korean accessibility certification is assessed against. A11y Check maps every finding to both at once, so one report serves both audiences."
+        },
+        {
+          "q": "Can an automated checker prove WCAG conformance?",
+          "a": "No. Automation finds only part of the picture — whether alt text is meaningful or a keyboard order is logical still needs a person. A11y Check does not hide what it cannot decide; it lists those criteria with instructions for testing them manually."
+        },
+        {
+          "q": "Is it free?",
+          "a": "Yes. You can audit one page without signing in. A free account adds site-wide scans, the 33-checkpoint KWCAG matrix, the manual review workflow, and PDF and CSV export."
+        },
+        {
+          "q": "We ship a product in Korea. Do we need KWCAG as well as WCAG?",
+          "a": "If your service is used in South Korea, KWCAG 2.2 is the standard local assessments and certification use. Much of it overlaps with WCAG 2.2, but the wording, grouping, and a few requirements differ. Running both together is the cheapest way to avoid a surprise late in the process."
+        }
+      ]
+    }
   },
   "login": {
     "title": "Sign in",
@@ -1483,7 +1509,9 @@
     "makerTitle": "Who's behind it",
     "makerDesc1": "This service is built and run by the web manager at Daegu Cyber University.",
     "makerDesc2": "Daegu Cyber University was founded on the spirit of \"Love, Light, and Freedom\" and has specialized in special education, rehabilitation, and welfare. When you run the web for a university whose mission is widening the door of learning for students with disabilities, accessibility stops being a compliance item and becomes the obvious thing to do. Allycheck is a tool that makes that obvious thing easy for other organizations and developers too.",
-    "makerLink": "About Daegu Cyber University"
+    "makerLink": "About Daegu Cyber University",
+    "kwcagPrimerTitle": "What is KWCAG 2.2?",
+    "kwcagPrimerDesc": "KWCAG 2.2 — the Korean Web Content Accessibility Guidelines — is South Korea's national standard, organised as 33 checkpoints across four principles: perceivable, operable, understandable, and robust. Korea's accessibility quality certification is assessed against it. It overlaps heavily with WCAG 2.2, but the grouping, wording, and a few requirements differ, so a product built to WCAG alone can still fall short of a Korean review. If you ship a service used in Korea, checking both at once is the cheapest way to find that out early rather than late."
   },
   "impact": {
     "eyebrow": "Transparency metrics",

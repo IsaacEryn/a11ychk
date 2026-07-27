@@ -2,7 +2,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { getCachedUser } from "@/lib/supabase/user";
 import { localeAlternates } from "@/lib/seo/alternates";
-import { JsonLd, webApplicationJsonLd } from "@/components/JsonLd";
+import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
 import { TeaserScanForm } from "./TeaserScanForm";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -23,6 +23,8 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   // 맛보기 검사는 비로그인 방문자 전용 — 회원은 대시보드에서 본검사를 쓰면 된다
   // (헤더가 이미 같은 렌더 패스에서 getCachedUser를 호출하므로 추가 왕복 없음)
   const user = await getCachedUser();
+  // 화면 렌더와 FAQPage 구조화 데이터가 같은 배열을 쓰도록 한 번만 읽는다
+  const faq = t.raw("faq.items") as { q: string; a: string }[];
 
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
@@ -33,11 +35,15 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           <p className="rise rise-1 inline-block border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] px-3 py-1 text-sm font-semibold tracking-wide">
             {t("heroEyebrow")}
           </p>
+          {/* h1은 사람들이 검색창에 실제로 넣는 말을 담고, 원래 있던 물음은 바로 아래
+              h2로 내렸다 — 브랜드 인상은 유지하면서 검색에서 찾히게 하려는 배치 */}
           <h1 className="rise rise-2 font-display mt-6 text-4xl font-extrabold leading-[1.25] sm:text-5xl sm:leading-[1.22]">
-            {t("heroTitle1")}
-            <br />
-            <span className="marker px-1">{t("heroTitleMark")}</span> {t("heroTitle2")}
+            {t("heroH1")}
           </h1>
+          <h2 className="rise rise-2 font-display mt-4 text-2xl font-bold leading-snug sm:text-3xl">
+            {t("heroTitle1")}{" "}
+            <span className="marker px-1">{t("heroTitleMark")}</span> {t("heroTitle2")}
+          </h2>
           <p className="rise rise-3 mt-6 max-w-xl text-lg text-[var(--color-ink-soft)]">{t("heroDesc")}</p>
           <div className="rise rise-4 mt-8 flex flex-wrap gap-3">
             <Link
@@ -232,6 +238,24 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
           </a>
         </div>
       </section>
+
+      {/* ─── FAQ ───
+          검색에서 들어오는 사람들이 던지는 질문을 그대로 받는 자리. 같은 내용을
+          FAQPage 구조화 데이터로도 내보내 검색 결과에 질문이 펼쳐질 수 있게 한다. */}
+      <section aria-labelledby="faq-heading" className="py-14">
+        <h2 id="faq-heading" className="font-display text-3xl font-bold">
+          {t("faq.title")}
+        </h2>
+        <dl className="mt-8 space-y-4">
+          {faq.map((item) => (
+            <div key={item.q} className="border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-6">
+              <dt className="font-display text-lg font-bold">{item.q}</dt>
+              <dd className="mt-2 leading-relaxed text-[var(--color-ink-soft)]">{item.a}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+      <JsonLd data={faqJsonLd(faq)} />
     </div>
   );
 }
