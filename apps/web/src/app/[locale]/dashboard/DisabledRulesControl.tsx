@@ -89,7 +89,7 @@ export function DisabledRulesControl({ domainId, disabled }: { domainId: string;
         <input type="hidden" name="id" value={domainId} />
         <input type="hidden" name="rules" value={rules.join(",")} />
         <button type="submit" disabled={pending} className={BTN_OUTLINE}>
-          {t("rulesApply")}
+          {t("apply")}
         </button>
         <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
       </form>

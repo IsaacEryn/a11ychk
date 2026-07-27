@@ -71,7 +71,7 @@ export function PublicReportControl({
           )}
         </select>
         <button type="submit" disabled={pending} className={BTN_OUTLINE}>
-          {t("scheduleApply")}
+          {t("apply")}
         </button>
         <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
       </form>

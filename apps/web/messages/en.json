@@ -471,7 +471,7 @@
       "scheduleDaily": "Daily",
       "scheduleWeekly": "Weekly",
       "scheduleMonthly": "Monthly",
-      "scheduleApply": "Apply",
+      "apply": "Apply",
       "scheduleExplain": "Scheduled scans run automatically around 3 AM KST each day, checking only domains whose interval has elapsed. A specific time of day is not configurable.",
       "publicLabel": "Public report",
       "publicOff": "Not public",
@@ -493,7 +493,6 @@
       "rulesAdd": "Add",
       "rulesRemove": "Remove",
       "rulesRemoveAria": "Stop excluding {rule}",
-      "rulesApply": "Apply",
       "rulesNote": "Use exclusions carefully — hiding real violations makes the compliance rate diverge from reality. Up to 20 rules.",
       "excludeTitle": "Scheduled-scan excluded pages",
       "excludeHint": "URLs/paths to drop from scheduled (auto) scan samples. One per line. Use an exact address, or end with * or / (e.g. /admin/*, /tag/) to exclude a whole subtree. Up to 30."

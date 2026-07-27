@@ -37,7 +37,7 @@ export function ScanScheduleControl({ domainId, frequency }: { domainId: string;
           <option value="monthly">{t("scheduleMonthly")}</option>
         </select>
         <button type="submit" disabled={pending} className={BTN_OUTLINE}>
-          {t("scheduleApply")}
+          {t("apply")}
         </button>
         <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
       </form>

@@ -43,7 +43,7 @@ export function ExcludedPagesControl({ domainId, paths }: { domainId: string; pa
         />
         <div className="mt-2 flex items-center gap-2">
           <button type="submit" disabled={pending} className={BTN_OUTLINE}>
-            {t("rulesApply")}
+            {t("apply")}
           </button>
           <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
         </div>
