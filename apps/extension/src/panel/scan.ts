@@ -1,6 +1,7 @@
 // 검사 실행(axe + 커스텀 검사) + 결과 세션 캐시 갱신
 import {
   AXE_RUN_TAGS,
+  THIRD_PARTY_AD_EXCLUDE,
   aggregateScan,
   customFindingsFromSignals,
   mergePageSignals,
@@ -92,7 +93,7 @@ export async function scan() {
       chrome.scripting.executeScript({
         target: { tabId: tab.id },
         world: "MAIN",
-        args: [AXE_RUN_TAGS],
+        args: [AXE_RUN_TAGS, THIRD_PARTY_AD_EXCLUDE],
         func: runAxeInPage,
       }),
       AXE_TIMEOUT_MS,

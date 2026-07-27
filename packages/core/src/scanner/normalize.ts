@@ -7,6 +7,24 @@ import type { Finding, Impact, PageScanResult } from "../types";
 /** WCAG 2.2 AA + best-practice 태그 기준으로 실행 */
 export const AXE_RUN_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa", "best-practice"];
 
+/**
+ * 제3자 광고·추적 네트워크가 페이지에 주입하는 프레임·요소 선택자 — axe 검사에서 제외.
+ * 사이트 소유자가 고칠 수 없는 마크업(AdSense가 넣는 sodar 추적 이미지·빈 광고 슬롯
+ * iframe, reCAPTCHA aframe 등)이며, WCAG-EM은 '사이트 자체 콘텐츠'를 평가 대상으로 본다.
+ * 광고 iframe 내부 접근성은 광고 네트워크의 책임이므로 사이트 점수에 반영하지 않는다.
+ */
+export const THIRD_PARTY_AD_EXCLUDE: string[] = [
+  "ins.adsbygoogle",
+  'iframe[src*="googlesyndication.com"]',
+  'iframe[src*="doubleclick.net"]',
+  'iframe[src*="google.com/recaptcha"]',
+  'iframe[src*="googletagservices.com"]',
+  'iframe[id^="aswift_"]',
+  'iframe[id^="google_ads_iframe"]',
+  '[src*="googlesyndication.com"]',
+  '[src*="doubleclick.net"]',
+];
+
 const VALID_IMPACTS: Impact[] = ["critical", "serious", "moderate", "minor"];
 
 export interface AxeRunResults {

@@ -16,12 +16,17 @@ export function configureAxeLocaleInPage(locale: unknown): void {
   }
 }
 
-export function runAxeInPage(tags: string[]): Promise<AxeRunResults> {
+export function runAxeInPage(tags: string[], adExclude: string[]): Promise<AxeRunResults> {
+  // 제3자 광고 요소 제외(서버 스캐너와 동일 정책). adExclude는 자기 완결 제약상
+  // 인자로 전달받아 컨텍스트를 페이지 안에서 구성한다.
   // @ts-expect-error axe는 vendor 스크립트로 주입됨
-  return window.axe.run(document, {
-    runOnly: { type: "tag", values: tags },
-    resultTypes: ["violations", "passes", "incomplete"],
-  });
+  return window.axe.run(
+    { exclude: adExclude.map((s) => [s]) },
+    {
+      runOnly: { type: "tag", values: tags },
+      resultTypes: ["violations", "passes", "incomplete"],
+    },
+  );
 }
 
 /**
