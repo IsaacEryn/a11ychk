@@ -19,7 +19,7 @@ jobs:
   a11y:
     runs-on: ubuntu-latest
     steps:
-      - uses: IsaacEryn/a11ychk@main
+      - uses: IsaacEryn/a11ychk@v1
         with:
           urls: |
             https://example.com/
@@ -30,7 +30,7 @@ jobs:
 프리뷰 배포 URL을 검사하려면 배포 스텝의 출력 URL을 넘기면 됩니다:
 
 ```yaml
-      - uses: IsaacEryn/a11ychk@main
+      - uses: IsaacEryn/a11ychk@v1
         with:
           urls: ${{ steps.deploy.outputs.preview-url }}
 ```
@@ -50,10 +50,18 @@ jobs:
 | `violation-nodes` | 위반 요소 수 (전체 페이지 합산) |
 | `violation-rules` | 위반 규칙 수 |
 
+## 버전 고정
+
+| 참조 | 언제 쓰나 |
+|---|---|
+| `@v1` | 권장. v1 계열의 최신 패치를 자동으로 받습니다 |
+| `@v1.0.0` | 완전 고정. 릴리스 내용이 바뀌지 않기를 원할 때 |
+| `@main` | 개발 중인 코드. 예고 없이 바뀌므로 파이프라인에 쓰지 마세요 |
+
 ## 알아둘 것
 
-- 의존성 설치 + chromium 다운로드로 첫 실행에 2~3분이 걸립니다.
-  자주 실행한다면 `actions/cache`로 `~/.cache/ms-playwright`를 캐시하세요.
+- 첫 실행은 의존성 설치 + chromium 다운로드로 2~3분이 걸립니다. 두 번째부터는
+  액션이 브라우저를 알아서 캐시하므로(`~/.cache/ms-playwright`) 훨씬 빠릅니다.
 - 자동 도구는 접근성 기준의 일부만 검출합니다(이 프로젝트 자동 커버리지 문서 참고).
   통과가 곧 준수는 아니며, 수동 점검을 병행해야 합니다 — 사이트 단위 검사·수동 판정
   워크플로·인증 준비 보고서는 [a11ychk.com](https://www.a11ychk.com)에서 이용할 수 있습니다.
