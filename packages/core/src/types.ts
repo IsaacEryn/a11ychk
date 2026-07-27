@@ -286,6 +286,8 @@ export interface CrawlOptions {
   /** SSRF 가드를 통과한 fetch 구현 (기본: guardedFetch) */
   fetcher?: (url: string) => Promise<Response>;
   userAgent?: string;
+  /** 검사에서 제외할 URL/경로 패턴 (정확 일치 또는 `/admin/*`·`/tag/` 접두). 루트는 제외되지 않음 */
+  excludePatterns?: string[];
 }
 
 export interface CrawlResult {

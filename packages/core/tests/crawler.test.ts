@@ -3,6 +3,7 @@ import {
   extractLinks,
   fetchSitemapEntries,
   isSameOrigin,
+  matchesExcludePattern,
   normalizeUrl,
   prioritizeUrls,
   resolveCanonicalRoot,
@@ -71,6 +72,66 @@ describe("prioritizeUrls", () => {
     expect(sorted[0]).toBe("https://example.com/about");
     expect(sorted[1]).toBe("https://example.com/blog");
     expect(sorted[2]).toBe("https://example.com/blog/2024/01/post-1");
+  });
+});
+
+describe("matchesExcludePattern — 검사 제외 패턴", () => {
+  it("정확한 경로 일치", () => {
+    expect(matchesExcludePattern("https://e.com/admin", ["/admin"])).toBe(true);
+    expect(matchesExcludePattern("https://e.com/admin/users", ["/admin"])).toBe(false); // 정확 일치라 하위 불포함
+    expect(matchesExcludePattern("https://e.com/about", ["/admin"])).toBe(false);
+  });
+
+  it("`*` 접두 패턴은 하위 경로까지 제외", () => {
+    expect(matchesExcludePattern("https://e.com/admin/users", ["/admin/*"])).toBe(true);
+    expect(matchesExcludePattern("https://e.com/admin/", ["/admin/*"])).toBe(true);
+    expect(matchesExcludePattern("https://e.com/about", ["/admin/*"])).toBe(false);
+  });
+
+  it("`/`로 끝나는 패턴도 접두 매칭", () => {
+    expect(matchesExcludePattern("https://e.com/tag/foo", ["/tag/"])).toBe(true);
+    expect(matchesExcludePattern("https://e.com/tags", ["/tag/"])).toBe(false);
+  });
+
+  it("전체 URL 패턴은 pathname으로 매칭", () => {
+    expect(matchesExcludePattern("https://e.com/x/y", ["https://e.com/x/*"])).toBe(true);
+  });
+
+  it("leading 슬래시 없는 패턴도 허용", () => {
+    expect(matchesExcludePattern("https://e.com/private", ["private"])).toBe(true);
+  });
+
+  it("빈 패턴·빈 목록·파싱 불가는 매칭 안 됨", () => {
+    expect(matchesExcludePattern("https://e.com/a", [])).toBe(false);
+    expect(matchesExcludePattern("https://e.com/a", ["", "  "])).toBe(false);
+    expect(matchesExcludePattern("https://e.com/a", undefined)).toBe(false);
+  });
+});
+
+describe("buildSample — excludePatterns 반영", () => {
+  it("제외 패턴에 걸린 후보는 표본에서 빠진다", async () => {
+    const sitemap = `<?xml version="1.0"?><urlset>
+      <url><loc>https://e.com/about</loc></url>
+      <url><loc>https://e.com/admin/1</loc></url>
+      <url><loc>https://e.com/admin/2</loc></url>
+      <url><loc>https://e.com/blog/1</loc></url>
+    </urlset>`;
+    const fetcher = (u: string): Promise<Response> => {
+      if (u.includes("/sitemap.xml")) {
+        return Promise.resolve(new Response(sitemap, { status: 200, headers: { "content-type": "application/xml" } }));
+      }
+      if (u.includes("/robots.txt")) return Promise.resolve(new Response("", { status: 404 }));
+      const r = new Response("<!DOCTYPE html><html lang=ko><body>root</body></html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+      Object.defineProperty(r, "url", { value: "https://e.com/" });
+      return Promise.resolve(r);
+    };
+    const { buildSample } = await import("../src/crawler/buildSample");
+    const result = await buildSample("https://e.com/", { maxPages: 10, fetcher, excludePatterns: ["/admin/*"] });
+    expect(result.pages.some((p) => p.url.includes("/admin/"))).toBe(false);
+    expect(result.pages.some((p) => p.url.endsWith("/about"))).toBe(true);
   });
 });
 

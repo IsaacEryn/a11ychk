@@ -227,8 +227,54 @@ export function prioritizeUrls(urls: string[], rootUrl: string): string[] {
   return scored.map((s) => s.u);
 }
 
-/** 후보(메타 보존) 필터 — 정규화·same-origin·비HTML 제외·robots·중복 제거. */
-function filterCandidateEntries(entries: Candidate[], rootUrl: string, robots: RobotsRules): Candidate[] {
+/**
+ * 사용자가 지정한 "검사 제외" 패턴에 URL이 걸리는지 판정한다(경로 기준).
+ * - 패턴이 전체 URL이면 그 pathname을, 아니면 leading `/`를 보장한 경로로 취급.
+ * - `*`로 끝나거나 `/`로 끝나면 **접두 매칭**(예 `/admin/*`, `/tag/`), 그 외에는 **정확 일치**.
+ * - 빈 패턴·파싱 실패는 무시(매칭되지 않음). 경로 대소문자는 원형 유지.
+ */
+export function matchesExcludePattern(url: string, patterns?: string[]): boolean {
+  if (!patterns || patterns.length === 0) return false;
+  let path: string;
+  try {
+    path = new URL(url).pathname;
+  } catch {
+    return false;
+  }
+  for (const raw of patterns) {
+    const p = raw.trim();
+    if (!p) continue;
+    let patternPath: string;
+    if (/^https?:\/\//i.test(p)) {
+      try {
+        patternPath = new URL(p).pathname;
+      } catch {
+        continue;
+      }
+    } else {
+      patternPath = p.startsWith("/") ? p : "/" + p;
+    }
+    const prefix = patternPath.endsWith("*")
+      ? patternPath.slice(0, -1)
+      : patternPath.endsWith("/")
+        ? patternPath
+        : null;
+    if (prefix !== null) {
+      if (path.startsWith(prefix)) return true;
+    } else if (path === patternPath) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** 후보(메타 보존) 필터 — 정규화·same-origin·비HTML 제외·robots·제외 패턴·중복 제거. */
+function filterCandidateEntries(
+  entries: Candidate[],
+  rootUrl: string,
+  robots: RobotsRules,
+  excludePatterns?: string[],
+): Candidate[] {
   const root = new URL(rootUrl);
   const out: Candidate[] = [];
   const seen = new Set<string>();
@@ -239,6 +285,7 @@ function filterCandidateEntries(entries: Candidate[], rootUrl: string, robots: R
     const parsed = new URL(n);
     if (NON_HTML_EXT.test(parsed.pathname)) continue;
     if (!isPathAllowed(robots, parsed.pathname + parsed.search)) continue;
+    if (matchesExcludePattern(n, excludePatterns)) continue;
     seen.add(n);
     out.push({ url: n, lastmod: e.lastmod, priority: e.priority });
   }
@@ -256,6 +303,7 @@ export async function collectCandidateEntries(
   fetcher: (u: string) => Promise<Response>,
   limit: number,
   preloadedRootHtml?: string,
+  excludePatterns?: string[],
 ): Promise<{ candidates: Candidate[]; rootHtml?: string; source: CrawlResult["source"] }> {
   const origin = new URL(rootUrl).origin;
 
@@ -264,6 +312,7 @@ export async function collectCandidateEntries(
     (await fetchSitemapEntries(origin, fetcher)).map((e) => ({ url: e.loc, lastmod: e.lastmod, priority: e.priority })),
     rootUrl,
     robots,
+    excludePatterns,
   ).filter((c) => c.url !== rootUrl);
 
   // 루트 HTML은 기술 감지·링크 수집에 필요하다. canonical 해석 단계에서 이미 받아온
@@ -281,6 +330,7 @@ export async function collectCandidateEntries(
         extractLinks(rootHtml, rootUrl).map((u) => ({ url: u })),
         rootUrl,
         robots,
+        excludePatterns,
       ).filter((c) => c.url !== rootUrl);
     }
   } catch {

@@ -79,6 +79,7 @@ export async function buildSample(rootRawUrl: string, options: BuildSampleOption
     fetcher,
     CANDIDATE_POOL_LIMIT,
     canonicalHtml,
+    options.excludePatterns,
   );
   const technologies = rootHtml ? detectTechnologies(rootHtml) : ["HTML"];
 
