@@ -4,11 +4,13 @@ import { useActionState, useState } from "react";
 import { useTranslations } from "next-intl";
 import { setExcludedPaths } from "@/lib/actions";
 import type { SaveState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
+import { BTN_OUTLINE } from "@/components/buttonStyles";
 
 /**
  * 정기 검사 제외 페이지 — 소유자가 지정한 URL/경로 패턴을 스케줄 검사 표본에서 뺀다.
- * 패턴을 편집한 뒤 명시적 "적용"으로 저장(WCAG 3.2.2 — 입력만으로 제출하지 않음).
  * 적용은 이후 정기 검사부터. 일회성 검사는 검사 폼에서 따로 지정한다.
+ * 저장은 명시적 "적용"으로만 한다(ScanScheduleControl 참고 — WCAG 3.2.2).
  */
 export function ExcludedPagesControl({ domainId, paths }: { domainId: string; paths: string[] }) {
   const t = useTranslations("dashboard.domains");
@@ -40,16 +42,10 @@ export function ExcludedPagesControl({ domainId, paths }: { domainId: string; pa
           className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-2 py-1.5 font-mono text-sm"
         />
         <div className="mt-2 flex items-center gap-2">
-          <button
-            type="submit"
-            disabled={pending}
-            className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)] disabled:opacity-60"
-          >
+          <button type="submit" disabled={pending} className={BTN_OUTLINE}>
             {t("rulesApply")}
           </button>
-          <span role="status" className="text-xs text-[var(--color-ink-faint)]">
-            {state.ok ? t("settingSaved") : state.error ? t("settingFailed") : ""}
-          </span>
+          <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
         </div>
       </form>
     </details>

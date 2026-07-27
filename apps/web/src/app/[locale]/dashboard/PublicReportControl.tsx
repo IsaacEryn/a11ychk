@@ -4,6 +4,8 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { setPublicReport } from "@/lib/actions";
 import type { SaveState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
+import { BTN_OUTLINE } from "@/components/buttonStyles";
 
 export interface PublicReportOption {
   id: string;
@@ -14,10 +16,8 @@ export interface PublicReportOption {
 
 /**
  * 공개 보고서 지정 — 단일 드롭다운으로 공개 여부·디렉터리 등재·배지가 가리킬 보고서를 함께 정한다.
- * "공개 안 함 / 최신 검사(자동) / [특정 보고서]".
- *
- * 공개 범위를 바꾸는 민감한 설정이므로 select 변경만으로 제출하지 않는다(WCAG 3.2.2,
- * 키보드 탐색 중 연속 저장 방지). 명시적 "적용" 버튼 + 저장 결과 안내(role=status).
+ * "공개 안 함 / 최신 검사(자동) / [특정 보고서]". 공개 범위를 바꾸는 민감한 설정이라
+ * 명시적 "적용"으로만 저장한다(ScanScheduleControl 참고 — WCAG 3.2.2).
  */
 export function PublicReportControl({
   domainId,
@@ -70,16 +70,10 @@ export function PublicReportControl({
             </optgroup>
           )}
         </select>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)] disabled:opacity-60"
-        >
+        <button type="submit" disabled={pending} className={BTN_OUTLINE}>
           {t("scheduleApply")}
         </button>
-        <span role="status" className="text-xs text-[var(--color-ink-faint)]">
-          {state.ok ? t("settingSaved") : state.error ? t("settingFailed") : ""}
-        </span>
+        <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
       </form>
       <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
         {publicListed ? t("publicHintOn") : t("publicHintOff")}

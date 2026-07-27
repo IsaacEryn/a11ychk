@@ -8,6 +8,7 @@ export * from "./security/robots";
 export * from "./crawler/collectPages";
 export * from "./crawler/urlTemplate";
 export * from "./crawler/stratifiedSample";
+export * from "./util/locale";
 export * from "./crawler/buildSample";
 export * from "./access/checkAccess";
 export * from "./scanner/runAxe";

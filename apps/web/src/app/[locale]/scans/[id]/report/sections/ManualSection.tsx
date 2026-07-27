@@ -3,12 +3,9 @@ import {
   WCAG_CRITERIA,
   getKwcagOnlyManualItems,
   getManualChecksByWcag,
+  pickLocale as pick,
   understandingUrl,
 } from "@a11ychk/core/catalog";
-
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** A/AA 수준 배지 */
 function LevelBadge({ level, aria }: { level: string; aria: string }) {

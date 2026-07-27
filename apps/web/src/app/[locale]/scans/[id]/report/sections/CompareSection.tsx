@@ -1,11 +1,7 @@
 import { getFormatter, getTranslations } from "next-intl/server";
-import { getRuleEntry } from "@a11ychk/core/catalog";
+import { getRuleEntry, pickLocale as pick } from "@a11ychk/core/catalog";
 import { CompareSelect } from "../CompareSelect";
 import type { CompareData } from "../loadReport";
-
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** 전후 비교 — 같은 대상의 직전 검사와 비교해 개선 효과를 보여준다 */
 export async function CompareSection({

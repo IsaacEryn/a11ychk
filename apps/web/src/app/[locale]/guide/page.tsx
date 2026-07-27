@@ -1,6 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import {
   KWCAG_PRINCIPLE_LABEL,
+  pickLocale as pick,
   getKwcagOnlyManualItems,
   getManualChecksByWcag,
   type KwcagPrinciple,
@@ -13,9 +14,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t("title"), description: t("desc") };
 }
 
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** 수동 검사 가이드 — WCAG 성공기준 축(A/AA 표시), 검사 방법은 대응 KWCAG 항목에서 */
 export default async function GuidePage({ params }: { params: Promise<{ locale: string }> }) {

@@ -4,13 +4,15 @@ import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { setScanFrequency } from "@/lib/actions";
 import type { SaveState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
+import { BTN_OUTLINE } from "@/components/buttonStyles";
 
 /**
  * 정기 검사 주기 설정 + 실행 시점 안내. auto_scan이 켜진 도메인에만 노출된다.
  *
- * select 변경만으로 제출하지 않는다 — 키보드 사용자가 화살표로 옵션을 탐색하는 동안
- * change가 연속 발생해 의도치 않은 저장이 반복된다(WCAG 3.2.2 입력 시 실행).
- * 명시적 "적용" 버튼 + 저장 결과 안내(role=status)로 처리한다.
+ * 대시보드 설정 컨트롤은 select 변경만으로 저장하지 않고 명시적 "적용" 버튼을 쓴다 —
+ * 키보드로 옵션을 훑는 동안 change가 연달아 나 의도치 않게 반복 저장되는 걸 막기 위함이다
+ * (WCAG 3.2.2 입력 시 실행). 같은 이유가 이 폴더의 다른 설정 컨트롤에도 똑같이 적용된다.
  */
 export function ScanScheduleControl({ domainId, frequency }: { domainId: string; frequency: string }) {
   const t = useTranslations("dashboard.domains");
@@ -34,16 +36,10 @@ export function ScanScheduleControl({ domainId, frequency }: { domainId: string;
           <option value="weekly">{t("scheduleWeekly")}</option>
           <option value="monthly">{t("scheduleMonthly")}</option>
         </select>
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)] disabled:opacity-60"
-        >
+        <button type="submit" disabled={pending} className={BTN_OUTLINE}>
           {t("scheduleApply")}
         </button>
-        <span role="status" className="text-xs text-[var(--color-ink-faint)]">
-          {state.ok ? t("settingSaved") : state.error ? t("settingFailed") : ""}
-        </span>
+        <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
       </form>
       <p className="mt-2 text-xs text-[var(--color-ink-soft)]">{t("scheduleExplain")}</p>
     </div>

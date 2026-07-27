@@ -2,14 +2,12 @@ import { getTranslations } from "next-intl/server";
 import {
   KWCAG_ITEMS,
   getRuleEntry,
+  pickLocale as pick,
   understandingUrl,
   type LocalizedText,
 } from "@a11ychk/core/catalog";
 import { GuideText } from "@/components/GuideText";
 
-function pick(text: LocalizedText, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /**
  * 매트릭스 행 인라인 상세 (화면 전용) — 스크롤 없이 그 자리에서 펼쳐 본다.

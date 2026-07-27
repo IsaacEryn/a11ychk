@@ -1,9 +1,6 @@
 import { getTranslations } from "next-intl/server";
+import { pickLocale as pick } from "@a11ychk/core/catalog";
 import type { RuleGroup } from "../loadReport";
-
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** 우선 수정 권고 — 심각도·규모 기준 상위 규칙 액션 플랜 */
 export async function PrioritySection({ locale, ruleGroups }: { locale: string; ruleGroups: RuleGroup[] }) {

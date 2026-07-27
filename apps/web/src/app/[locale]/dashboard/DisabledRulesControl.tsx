@@ -5,11 +5,13 @@ import { useLocale, useTranslations } from "next-intl";
 import { RULE_CATALOG } from "@a11ychk/core/catalog";
 import { setDisabledRules } from "@/lib/actions";
 import type { SaveState } from "@/lib/actions";
+import { FormFeedback } from "@/components/FormFeedback";
+import { BTN_OUTLINE } from "@/components/buttonStyles";
 
 /**
  * 검사 제외 규칙(오탐 관리) — 소유자가 오탐이라 판단한 규칙을 도메인 단위로 제외한다.
- * 목록을 편집한 뒤 명시적 "적용"으로 저장(WCAG 3.2.2 — select 변경만으로 제출하지 않음).
  * 적용은 이후 검사부터이며, 보고서에는 제외 사실이 함께 표기된다.
+ * 저장은 명시적 "적용"으로만 한다(ScanScheduleControl 참고 — WCAG 3.2.2).
  */
 export function DisabledRulesControl({ domainId, disabled }: { domainId: string; disabled: string[] }) {
   const t = useTranslations("dashboard.domains");
@@ -86,16 +88,10 @@ export function DisabledRulesControl({ domainId, disabled }: { domainId: string;
       <form action={formAction} className="mt-2 flex items-center gap-2">
         <input type="hidden" name="id" value={domainId} />
         <input type="hidden" name="rules" value={rules.join(",")} />
-        <button
-          type="submit"
-          disabled={pending}
-          className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)] disabled:opacity-60"
-        >
+        <button type="submit" disabled={pending} className={BTN_OUTLINE}>
           {t("rulesApply")}
         </button>
-        <span role="status" className="text-xs text-[var(--color-ink-faint)]">
-          {state.ok ? t("settingSaved") : state.error ? t("settingFailed") : ""}
-        </span>
+        <FormFeedback state={state} okLabel={t("settingSaved")} fallback={t("settingFailed")} />
       </form>
       <p className="mt-2 text-xs text-[var(--color-ink-faint)]">{t("rulesNote")}</p>
     </details>

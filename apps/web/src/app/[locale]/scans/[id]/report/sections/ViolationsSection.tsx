@@ -1,10 +1,7 @@
 import { getTranslations } from "next-intl/server";
+import { pickLocale as pick } from "@a11ychk/core/catalog";
 import { GuideText } from "@/components/GuideText";
 import type { RuleGroup } from "../loadReport";
-
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** 위반 상세 — 규칙별 영향 페이지·개선 가이드·대표 사례 */
 export async function ViolationsSection({ locale, ruleGroups }: { locale: string; ruleGroups: RuleGroup[] }) {

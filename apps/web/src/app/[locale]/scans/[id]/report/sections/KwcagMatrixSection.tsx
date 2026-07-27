@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import {
   KWCAG_BY_ID,
   KWCAG_PRINCIPLE_LABEL,
+  pickLocale as pick,
   type ScanSummary,
   type WcagOutcome,
 } from "@a11ychk/core/catalog";
@@ -10,9 +11,6 @@ import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { kwcagRowData } from "../reportFilter";
 import type { KwcagPageRate } from "../kwcagPageRate";
 
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 // 자동 판정 상태 배지 스타일 (KWCAG status 키)
 const statusStyle: Record<string, string> = {

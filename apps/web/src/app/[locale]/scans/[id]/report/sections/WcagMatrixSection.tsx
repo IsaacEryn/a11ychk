@@ -1,12 +1,8 @@
 import { getTranslations } from "next-intl/server";
-import { WCAG_BY_ID, type ScanSummary, type WcagOutcome } from "@a11ychk/core/catalog";
+import { WCAG_BY_ID, pickLocale as pick, type ScanSummary, type WcagOutcome } from "@a11ychk/core/catalog";
 import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { wcagRowData } from "../reportFilter";
-
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** WCAG 2.2 성공기준 매트릭스 (WCAG-EM 2.0 Step 4) — 행 가시성은 reportFilter의 data 속성이 담당 */
 export async function WcagMatrixSection({

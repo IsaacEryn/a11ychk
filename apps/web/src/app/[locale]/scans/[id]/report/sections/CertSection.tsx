@@ -1,10 +1,6 @@
 import { getTranslations } from "next-intl/server";
-import { KWCAG_BY_ID } from "@a11ychk/core/catalog";
+import { KWCAG_BY_ID, pickLocale as pick } from "@a11ychk/core/catalog";
 import type { CertReadiness } from "../certReadiness";
-
-function pick(text: { ko: string; en?: string }, locale: string): string {
-  return locale === "en" && text.en ? text.en : text.ko;
-}
 
 /** 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 (KWCAG 인증 기준 귀속) */
 export async function CertSection({ locale, cert }: { locale: string; cert: CertReadiness }) {
