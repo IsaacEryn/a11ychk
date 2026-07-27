@@ -10,7 +10,7 @@
 import type { BuildSampleOptions, PageCategory, SampledPage, SampleResult } from "../types";
 import { guardedFetch } from "../security/urlGuard";
 import { fetchRobots, isPathAllowed } from "../security/robots";
-import { collectCandidates, normalizeUrl, prioritizeUrls } from "./collectPages";
+import { collectCandidates, normalizeUrl, prioritizeUrls, resolveCanonicalRoot } from "./collectPages";
 
 /** URL 경로·질의로 공통 페이지 유형을 분류 */
 export function categorizePage(url: string, isRoot: boolean): PageCategory {
@@ -73,8 +73,13 @@ function hashString(s: string): number {
  */
 export async function buildSample(rootRawUrl: string, options: BuildSampleOptions): Promise<SampleResult> {
   const fetcher = options.fetcher ?? ((u: string) => guardedFetch(u));
-  const rootUrl = normalizeUrl(rootRawUrl);
-  if (!rootUrl) throw new Error(`올바르지 않은 URL: ${rootRawUrl}`);
+  const input = normalizeUrl(rootRawUrl);
+  if (!input) throw new Error(`올바르지 않은 URL: ${rootRawUrl}`);
+
+  // 대표 도메인 확정 — apex→www 등 리다이렉트 최종 URL을 same-origin 기준·표본 루트로 삼는다.
+  // 이게 없으면 sitemap·내부 링크가 전부 다른 origin(www)으로 걸러져 표본이 루트 1개뿐이 된다.
+  const { canonicalRoot, rootHtml: canonicalHtml } = await resolveCanonicalRoot(input, fetcher);
+  const rootUrl = canonicalRoot;
   const origin = new URL(rootUrl).origin;
 
   const robots = await fetchRobots(origin);
@@ -85,7 +90,7 @@ export async function buildSample(rootRawUrl: string, options: BuildSampleOption
 
   const max = Math.max(1, options.maxPages);
   // 후보 풀은 표본보다 넉넉히 확보 (무작위 표본 선정 여지)
-  const { candidates, rootHtml, source } = await collectCandidates(rootUrl, robots, fetcher, max * 4);
+  const { candidates, rootHtml, source } = await collectCandidates(rootUrl, robots, fetcher, max * 4, canonicalHtml);
   const technologies = rootHtml ? detectTechnologies(rootHtml) : ["HTML"];
 
   // 후보를 다양성 우선으로 정렬 (루트 제외)

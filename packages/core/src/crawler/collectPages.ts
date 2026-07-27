@@ -37,6 +37,45 @@ export function isSameOrigin(a: string, b: string): boolean {
   }
 }
 
+/** 두 호스트가 www 프리픽스만 다른 같은 사이트인지 (apex ↔ www) */
+function isWwwVariant(a: string, b: string): boolean {
+  try {
+    const strip = (h: string) => h.toLowerCase().replace(/^www\./, "");
+    return strip(new URL(a).hostname) === strip(new URL(b).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * 대표(canonical) 루트 확정 — 루트를 실제로 fetch해 리다이렉트 최종 URL을 본다.
+ * apex→www(codeslog.com → www.codeslog.com)처럼 대표 도메인이 리다이렉트로
+ * 결정되는 사이트에서, 이후 sitemap·내부 링크의 same-origin 필터가 입력 origin이
+ * 아니라 실제 콘텐츠 origin을 기준으로 동작하게 한다(그렇지 않으면 전량 걸러져 수집 0).
+ *
+ * 안전장치: 최종 호스트가 입력과 www 차이뿐일 때만 canonical로 채택한다. 단축 URL이
+ * 전혀 다른 사이트로 튀는 경우 등은 입력을 유지해 예기치 않은 대상 이동을 막는다.
+ * (경로 변화 example.com → example.com/ko 는 같은 호스트라 그대로 반영된다)
+ * fetch로 얻은 루트 HTML도 함께 돌려줘 collectCandidates가 재fetch하지 않게 한다.
+ */
+export async function resolveCanonicalRoot(
+  rootUrl: string,
+  fetcher: (u: string) => Promise<Response>,
+): Promise<{ canonicalRoot: string; rootHtml?: string }> {
+  try {
+    const res = await fetcher(rootUrl);
+    const finalUrl = res.url ? normalizeUrl(res.url) : null;
+    const canonicalRoot = finalUrl && isWwwVariant(finalUrl, rootUrl) ? finalUrl : rootUrl;
+    let rootHtml: string | undefined;
+    const contentType = res.headers.get("content-type") ?? "";
+    if (res.ok && contentType.includes("html")) rootHtml = (await res.text()).slice(0, 3_000_000);
+    return { canonicalRoot, rootHtml };
+  } catch {
+    // 루트 fetch 실패(네트워크 등) — 입력을 그대로 쓰고 이후 단계가 재시도/판단한다
+    return { canonicalRoot: rootUrl };
+  }
+}
+
 /** HTML에서 <a href> 후보 추출 (경량 파서 — DOM 없이 정규식 사용) */
 export function extractLinks(html: string, baseUrl: string): string[] {
   const out = new Set<string>();
@@ -111,6 +150,7 @@ export async function collectCandidates(
   robots: RobotsRules,
   fetcher: (u: string) => Promise<Response>,
   limit: number,
+  preloadedRootHtml?: string,
 ): Promise<{ candidates: string[]; rootHtml?: string; source: CrawlResult["source"] }> {
   const origin = new URL(rootUrl).origin;
 
@@ -119,14 +159,17 @@ export async function collectCandidates(
     (u) => u !== rootUrl,
   );
 
-  // 루트 HTML은 기술 감지·링크 수집에 필요하므로 가능하면 항상 가져온다
-  let rootHtml: string | undefined;
+  // 루트 HTML은 기술 감지·링크 수집에 필요하다. canonical 해석 단계에서 이미 받아온
+  // HTML이 있으면 재fetch하지 않는다(리다이렉트 사이트에서 왕복 절약).
+  let rootHtml: string | undefined = preloadedRootHtml;
   let linkCandidates: string[] = [];
   try {
-    const res = await fetcher(rootUrl);
-    const contentType = res.headers.get("content-type") ?? "";
-    if (res.ok && contentType.includes("html")) {
-      rootHtml = (await res.text()).slice(0, 3_000_000);
+    if (rootHtml === undefined) {
+      const res = await fetcher(rootUrl);
+      const contentType = res.headers.get("content-type") ?? "";
+      if (res.ok && contentType.includes("html")) rootHtml = (await res.text()).slice(0, 3_000_000);
+    }
+    if (rootHtml) {
       linkCandidates = filterCandidates(extractLinks(rootHtml, rootUrl), rootUrl, robots).filter(
         (u) => u !== rootUrl,
       );
@@ -150,8 +193,12 @@ export async function collectCandidates(
  */
 export async function collectPages(rootRawUrl: string, options: CrawlOptions): Promise<CrawlResult> {
   const fetcher = options.fetcher ?? ((u: string) => guardedFetch(u));
-  const rootUrl = normalizeUrl(rootRawUrl);
-  if (!rootUrl) throw new Error(`올바르지 않은 URL: ${rootRawUrl}`);
+  const input = normalizeUrl(rootRawUrl);
+  if (!input) throw new Error(`올바르지 않은 URL: ${rootRawUrl}`);
+
+  // 대표 도메인 확정 — apex→www 등 리다이렉트 최종 URL을 이후 same-origin 기준으로 삼는다
+  const { canonicalRoot, rootHtml } = await resolveCanonicalRoot(input, fetcher);
+  const rootUrl = canonicalRoot;
   const origin = new URL(rootUrl).origin;
 
   const robots = await fetchRobots(origin);
@@ -164,7 +211,7 @@ export async function collectPages(rootRawUrl: string, options: CrawlOptions): P
   const pages = [rootUrl];
   if (max === 1) return { urls: pages, source: "root-only" };
 
-  const { candidates, source } = await collectCandidates(rootUrl, robots, fetcher, max * 2);
+  const { candidates, source } = await collectCandidates(rootUrl, robots, fetcher, max * 2, rootHtml);
   for (const u of prioritizeUrls(candidates, rootUrl)) {
     if (pages.length >= max) break;
     if (!pages.includes(u)) pages.push(u);
