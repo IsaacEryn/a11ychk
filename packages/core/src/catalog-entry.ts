@@ -9,6 +9,7 @@ export * from "./catalog/kwcag";
 export * from "./catalog/wcag";
 export * from "./manual/manualChecks";
 export * from "./report/aggregate";
+export * from "./crawler/urlTemplate";
 export * from "./scanner/normalize";
 export * from "./scanner/pageChecks";
 export * from "./scanner/collectSignals";

@@ -6,6 +6,7 @@ export * from "./types";
 export * from "./security/urlGuard";
 export * from "./security/robots";
 export * from "./crawler/collectPages";
+export * from "./crawler/urlTemplate";
 export * from "./crawler/buildSample";
 export * from "./access/checkAccess";
 export * from "./scanner/runAxe";
