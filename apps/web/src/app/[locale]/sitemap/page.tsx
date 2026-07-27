@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 // 사람이 읽는 사이트맵 — 상단 내비게이션과 별개로 페이지를 찾는 두 번째 방법 (WCAG 2.4.5 여러 방법)
 export async function generateMetadata({
@@ -10,7 +11,11 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "sitemap" });
-  return { title: t("title"), description: t("desc") };
+  return {
+    alternates: localeAlternates(locale, "/sitemap"),
+    title: t("title"),
+    description: t("desc"),
+  };
 }
 
 export default async function SitemapPage({ params }: { params: Promise<{ locale: string }> }) {

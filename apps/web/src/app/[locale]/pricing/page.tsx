@@ -1,11 +1,16 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { PLANS, MAX_PAGES_PER_SCAN, DOMAIN_VERIFY_LIMITS } from "@/lib/quota";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pricing" });
-  return { title: t("title"), description: t("desc") };
+  return {
+    alternates: localeAlternates(locale, "/pricing"),
+    title: t("title"),
+    description: t("desc"),
+  };
 }
 
 /**

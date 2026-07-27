@@ -5,11 +5,15 @@ import { createClient } from "@/lib/supabase/server";
 import { sanitizeNextPath } from "@/lib/safeRedirect";
 import { OAuthButtons } from "./OAuthButtons";
 import { EmailLoginForm } from "./EmailLoginForm";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "login" });
-  return { title: t("title") };
+  return {
+    alternates: localeAlternates(locale, "/login"),
+    title: t("title"),
+  };
 }
 
 export default async function LoginPage({

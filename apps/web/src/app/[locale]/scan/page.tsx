@@ -7,11 +7,15 @@ import { checkQuota, getEarnedPlan, getResets, getSampleSize, resolveLimits } fr
 import { getPlansActive } from "@/lib/appSettings";
 import { listPresets } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "scanPage" });
-  return { title: t("title") };
+  return {
+    alternates: localeAlternates(locale, "/scan"),
+    title: t("title"),
+  };
 }
 
 export default async function ScanRunPage({ params }: { params: Promise<{ locale: string }> }) {

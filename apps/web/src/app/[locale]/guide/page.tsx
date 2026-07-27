@@ -1,4 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { localeAlternates } from "@/lib/seo/alternates";
 import {
   KWCAG_PRINCIPLE_LABEL,
   pickLocale as pick,
@@ -11,7 +12,11 @@ import {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "guide" });
-  return { title: t("title"), description: t("desc") };
+  return {
+    alternates: localeAlternates(locale, "/guide"),
+    title: t("title"),
+    description: t("desc"),
+  };
 }
 
 

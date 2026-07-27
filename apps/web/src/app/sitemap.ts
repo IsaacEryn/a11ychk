@@ -1,5 +1,4 @@
 import type { MetadataRoute } from "next";
-import { createAdminClient } from "@/lib/supabase/admin";
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
@@ -8,25 +7,13 @@ const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 const PUBLIC_PATHS = ["", "/about", "/guide", "/impact", "/directory", "/scan", "/accessibility", "/notices", "/terms", "/privacy", "/login"];
 const LOCALES = ["ko", "en"] as const;
 
-/** 공개 등재된 도메인의 사이트 리졸버(`/site/{hostname}`)를 sitemap에 포함 — 롱테일 유입면. */
-async function listedSitePaths(): Promise<string[]> {
-  try {
-    const admin = createAdminClient();
-    const { data } = await admin
-      .from("domains")
-      .select("hostname")
-      .eq("verified", true)
-      .eq("public_listed", true)
-      .then((r) => r, () => ({ data: null }));
-    return (data ?? []).map((d: { hostname: string }) => d.hostname);
-  } catch {
-    return [];
-  }
-}
+// `/site/{hostname}` 리졸버는 여기 넣지 않는다. 302로 보고서로 넘기는데 그 목적지가
+// robots.txt에서 막혀 있어, 색인될 수 없는 주소를 색인해 달라고 내미는 꼴이었다.
+// 등재 도메인이 늘면 리졸버 대신 색인 가능한 요약 페이지를 만들어 넣는 게 맞다.
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+export default function sitemap(): MetadataRoute.Sitemap {
   const now = new Date();
-  const localized = LOCALES.flatMap((locale) =>
+  return LOCALES.flatMap((locale) =>
     PUBLIC_PATHS.map((path) => ({
       url: `${SITE}/${locale}${path}`,
       lastModified: now,
@@ -37,14 +24,4 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       },
     })),
   );
-
-  // 로케일 무관 사이트 리졸버 — 방문자 언어로 302하므로 언어별 alternates 없이 1건씩.
-  const sites = (await listedSitePaths()).map((hostname) => ({
-    url: `${SITE}/site/${encodeURIComponent(hostname)}`,
-    lastModified: now,
-    changeFrequency: "weekly" as const,
-    priority: 0.6,
-  }));
-
-  return [...localized, ...sites];
 }

@@ -1,7 +1,20 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { getCachedUser } from "@/lib/supabase/user";
+import { localeAlternates } from "@/lib/seo/alternates";
+import { JsonLd, webApplicationJsonLd } from "@/components/JsonLd";
 import { TeaserScanForm } from "./TeaserScanForm";
+
+export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
+  const { locale } = await params;
+  const t = await getTranslations({ locale, namespace: "landing" });
+  return {
+    alternates: localeAlternates(locale),
+    // 홈은 layout의 기본 제목을 그대로 쓰지 않는다 — 검색에서 찾는 말이 앞에 와야 한다
+    title: { absolute: t("seoTitle") },
+    description: t("seoDescription"),
+  };
+}
 
 export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -11,29 +24,9 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
   // (헤더가 이미 같은 렌더 패스에서 getCachedUser를 호출하므로 추가 왕복 없음)
   const user = await getCachedUser();
 
-  // 검색엔진 구조화 데이터 — 정적 값만 사용(사용자 입력 없음)
-  const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "WebApplication",
-    name: "A11y Check",
-    url: "https://www.a11ychk.com",
-    applicationCategory: "DeveloperApplication",
-    operatingSystem: "Web",
-    description:
-      locale === "en"
-        ? "Automated web accessibility audit reports based on WCAG 2.2 and KWCAG 2.2"
-        : "WCAG 2.2 + KWCAG 2.2 기준 웹 접근성 자동 점검 보고서·개선 가이드",
-    offers: { "@type": "Offer", price: "0", priceCurrency: "KRW" },
-    inLanguage: ["ko", "en"],
-  };
-
   return (
     <div className="mx-auto max-w-6xl px-4 sm:px-6">
-      <script
-        type="application/ld+json"
-        // 정적 JSON-LD (표준 패턴) — 사용자 입력이 섞이지 않는 리터럴만 직렬화
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+      <JsonLd data={webApplicationJsonLd(locale)} />
       {/* ─── Hero ─── */}
       <section className="grid gap-10 py-16 md:grid-cols-[1.2fr_1fr] md:items-center md:py-24">
         <div>

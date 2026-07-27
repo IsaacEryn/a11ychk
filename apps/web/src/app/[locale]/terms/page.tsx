@@ -1,4 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 /**
  * 서비스 이용약관 — 조문이 길어 messages json 대신 페이지 내 정의.
@@ -148,7 +149,10 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  return { title: CONTENT[locale === "en" ? "en" : "ko"].title };
+  return {
+    alternates: localeAlternates(locale, "/terms"),
+    title: CONTENT[locale === "en" ? "en" : "ko"].title,
+  };
 }
 
 export default async function TermsPage({ params }: { params: Promise<{ locale: string }> }) {

@@ -12,6 +12,7 @@ import { AnnouncementBanner } from "@/components/AnnouncementBanner";
 import { getAnnouncements, isBannerActive } from "@/lib/appSettings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { themeInitScript } from "@/components/ThemeToggle";
+import { JsonLd, organizationJsonLd } from "@/components/JsonLd";
 import "../globals.css";
 // Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
@@ -51,13 +52,15 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "common" });
-  const title = `${t("appName")} — 웹 접근성 점검`;
+  // 브랜드명만으로는 검색에서 찾히지 않는다 — 사람들이 실제로 넣는 말을 앞에 둔다
+  const title = t("seoTitle");
+  const description = t("seoDescription");
   return {
     title: {
       default: title,
       template: `%s — ${t("appName")}`,
     },
-    description: t("footer.tagline"),
+    description,
     metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"),
     // 사이트 소유확인 — env 설정 시에만 메타태그 삽입(셀프호스팅·포크 기본 미포함).
     // 네이버 서치어드바이저는 파일 대신 메타태그 방식으로 확인.
@@ -70,14 +73,14 @@ export async function generateMetadata({
       type: "website",
       siteName: t("appName"),
       title,
-      description: t("footer.tagline"),
+      description,
       locale: locale === "ko" ? "ko_KR" : "en_US",
       images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: title }],
     },
     twitter: {
       card: "summary_large_image",
       title,
-      description: t("footer.tagline"),
+      description,
       images: ["/opengraph-image.png"],
     },
   };
@@ -146,6 +149,7 @@ export default async function LocaleLayout({
             </noscript>
           </>
         )}
+        <JsonLd data={organizationJsonLd} />
         <a href="#main" className="skip-link">
           {t("skipToMain")}
         </a>

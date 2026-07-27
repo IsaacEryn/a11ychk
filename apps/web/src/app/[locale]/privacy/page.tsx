@@ -1,4 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 /**
  * 개인정보 처리방침 — 조문이 길어 messages json 대신 페이지 내 정의.
@@ -137,7 +138,10 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  return { title: CONTENT[locale === "en" ? "en" : "ko"].title };
+  return {
+    alternates: localeAlternates(locale, "/privacy"),
+    title: CONTENT[locale === "en" ? "en" : "ko"].title,
+  };
 }
 
 export default async function PrivacyPage({ params }: { params: Promise<{ locale: string }> }) {

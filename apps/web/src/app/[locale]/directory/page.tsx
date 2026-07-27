@@ -2,11 +2,16 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { unstable_cache } from "next/cache";
 import { Link } from "@/i18n/navigation";
 import { collectListedSites } from "@/lib/directory";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "directory" });
-  return { title: t("title"), description: t("desc") };
+  return {
+    alternates: localeAlternates(locale, "/directory"),
+    title: t("title"),
+    description: t("desc"),
+  };
 }
 
 /** 공개 등재 사이트 목록 — 60초 캐시 (등재·검사 변경이 곧 반영되도록 짧게, opt-in 도메인만) */

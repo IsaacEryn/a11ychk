@@ -2,11 +2,16 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { unstable_cache } from "next/cache";
 import { Link } from "@/i18n/navigation";
 import { collectImpactStats } from "@/lib/impactStats";
+import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "impact" });
-  return { title: t("title"), description: t("desc") };
+  return {
+    alternates: localeAlternates(locale, "/impact"),
+    title: t("title"),
+    description: t("desc"),
+  };
 }
 
 /** 공개 임팩트 지표 — 1시간 캐시 (집계는 lib/impactStats 공유) */

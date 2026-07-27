@@ -51,7 +51,9 @@
       "close": "Dismiss notice",
       "aria": "Service notice",
       "moreAria": "Read the full notice: {title}"
-    }
+    },
+    "seoTitle": "Web Accessibility Checker — WCAG 2.2 AA & KWCAG 2.2 | A11y Check",
+    "seoDescription": "Automated web accessibility testing against WCAG 2.2 AA and KWCAG 2.2, Korea's national accessibility guidelines. Scan a site from one URL and get a report with remediation guidance."
   },
   "landing": {
     "heroEyebrow": "Automated web accessibility audits & remediation guides",
@@ -170,7 +172,9 @@
         }
       },
       "caption": "106 automated rules detect 30 of the 55 WCAG 2.2 A/AA success criteria (54.5%). Our manual review workflow guides you through the rest — no automated tool alone can guarantee conformance."
-    }
+    },
+    "seoTitle": "Web Accessibility Checker — WCAG 2.2 AA & KWCAG 2.2 | A11y Check",
+    "seoDescription": "Free web accessibility checker. Enter one URL to crawl representative pages and audit them against WCAG 2.2 AA and KWCAG 2.2 (Korea's 33 accessibility checkpoints), with remediation guidance for every finding. Try a single page without signing in."
   },
   "login": {
     "title": "Sign in",
