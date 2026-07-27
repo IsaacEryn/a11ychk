@@ -571,7 +571,8 @@
       "legend": "통합 준수율은 각 성공기준에 대해 점검자 판정이 있으면 그 결과를, 없으면 자동 판정을 사용합니다.",
       "violations": "위반 항목",
       "violationNodes": "위반 요소",
-      "unit": "{count}건"
+      "unit": "{count}건",
+      "bestPracticeNote": "이 중 모범 사례 권고 {types}종(요소 {nodes}개)은 WCAG 성공기준에 직접 대응하지 않아 준수율에 반영되지 않습니다. 아래 위반 상세에서 ‘모범 사례’로 표시됩니다."
     },
     "impact": {
       "title": "심각도별 위반 요소",

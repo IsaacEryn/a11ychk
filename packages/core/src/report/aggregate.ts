@@ -83,9 +83,24 @@ export function aggregateScan(
   for (const id of failedRules) passedRules.delete(id);
   for (const id of failedRules) incompleteRules.delete(id);
 
-  // KWCAG 매트릭스
+  // 모범 사례(best-practice) 규칙 판별 — WCAG 성공기준에 대응하지 않는(wcag 매핑이 빈) 규칙.
+  // axe의 best-practice 규칙(region·heading-order·landmark-* 등)이 여기 해당한다.
+  // 이들은 준수율(적합성)에 영향을 주지 않는 '권고'이므로 WCAG·KWCAG 두 축 모두에서
+  // 적합성 판정(pass/fail/review)에 넣지 않고, 별도 권고 목록으로만 보고한다.
+  // (WCAG 축은 wcag가 비어 자연히 제외되고, KWCAG 축은 아래 루프에서 명시적으로 건너뛴다)
+  const advisoryCache = new Map<string, boolean>();
+  const isAdvisory = (id: string, tags: string[] = []): boolean => {
+    const cached = advisoryCache.get(id);
+    if (cached !== undefined) return cached;
+    const v = getRuleEntry(id, tags).wcag.length === 0;
+    advisoryCache.set(id, v);
+    return v;
+  };
+
+  // KWCAG 매트릭스 (모범 사례 규칙은 제외 — WCAG 축과 동일 기준)
   const kwcagFail = new Map<string, { count: number; rules: Set<string> }>();
   for (const [ruleId, kwcagIds] of ruleKwcag) {
+    if (isAdvisory(ruleId)) continue;
     for (const kw of kwcagIds) {
       const cur = kwcagFail.get(kw) ?? { count: 0, rules: new Set<string>() };
       cur.count += byRule[ruleId] ?? 0;
@@ -95,11 +110,13 @@ export function aggregateScan(
   }
   const kwcagPass = new Set<string>();
   for (const id of passedRules) {
+    if (isAdvisory(id)) continue;
     for (const kw of getRuleEntry(id).kwcag) kwcagPass.add(kw);
   }
   const kwcagReview = new Set<string>();
   const kwcagReviewRules = new Map<string, Set<string>>();
   for (const id of incompleteRules) {
+    if (isAdvisory(id)) continue;
     for (const kw of getRuleEntry(id).kwcag) {
       kwcagReview.add(kw);
       (kwcagReviewRules.get(kw) ?? kwcagReviewRules.set(kw, new Set()).get(kw)!).add(id);
@@ -170,6 +187,12 @@ export function aggregateScan(
   // ── 세 가지 준수율 (WCAG-EM 2.0 Step 5.4 — 선택적 종합 점수의 자체 구현): 자동 / 수동 / 통합 ──
   const scores = computeScores(wcagMatrix, options.reviews?.wcag ?? {}, options.reviews?.kwcag ?? {});
 
+  // 모범 사례 권고 — WCAG 성공기준에 대응하지 않는 위반(적합성 판정 미포함). 보고서에서 별도 표시.
+  const bestPractice = [...failedRules]
+    .filter((id) => isAdvisory(id))
+    .map((id) => ({ ruleId: id, count: byRule[id] ?? 0 }))
+    .sort((a, b) => b.count - a.count || a.ruleId.localeCompare(b.ruleId));
+
   return {
     pageCount: options.plannedPageCount ?? pages.length,
     scannedPageCount: pages.length,
@@ -183,6 +206,7 @@ export function aggregateScan(
     scores,
     engine: { name: "axe-core", axeVersion },
     ...(options.sample ? { sample: options.sample } : {}),
+    ...(bestPractice.length > 0 ? { bestPractice } : {}),
   };
 }
 

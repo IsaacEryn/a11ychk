@@ -50,6 +50,60 @@ describe("aggregateScan", () => {
     expect(s.complianceRate).toBeCloseTo(66.7, 1);
   });
 
+  it("모범 사례(best-practice) 위반은 준수율에 넣지 않고 bestPractice로 분리한다", () => {
+    // region·heading-order 등은 WCAG 성공기준 매핑이 없어 적합성 판정에 넣지 않는다
+    const s = aggregateScan(
+      [
+        page({
+          violations: [
+            {
+              ruleId: "region",
+              impact: "moderate",
+              tags: ["cat.keyboard", "best-practice"],
+              helpUrl: "",
+              nodes: [{ selector: "div", html: "<div>", failureSummary: "" }],
+            },
+          ],
+          passes: ["image-alt"],
+        }),
+      ],
+      "4.10.0",
+      { conformanceTarget: "AA" },
+    );
+    // 위반 수·요소는 집계되지만
+    expect(s.totalViolations).toBe(1);
+    // WCAG 매트릭스에는 failed 성공기준이 없어 통합 준수율이 떨어지지 않는다
+    expect(s.wcagMatrix.some((r) => r.outcome === "failed")).toBe(false);
+    expect(s.scores?.combined.failed).toBe(0);
+    // KWCAG 축도 region(6.4.1)을 fail로 잡지 않는다 (축 간 일치)
+    expect(s.kwcagMatrix.find((r) => r.itemId === "6.4.1")?.status).not.toBe("fail");
+    // 별도 권고 목록에 담긴다
+    expect(s.bestPractice).toEqual([{ ruleId: "region", count: 1 }]);
+  });
+
+  it("성공기준 매핑이 있는 위반은 준수율에 반영되고 bestPractice에 없다", () => {
+    const s = aggregateScan(
+      [
+        page({
+          violations: [
+            {
+              ruleId: "color-contrast",
+              impact: "serious",
+              tags: ["wcag2aa", "wcag143"],
+              helpUrl: "",
+              nodes: [{ selector: "p", html: "<p>", failureSummary: "" }],
+            },
+          ],
+        }),
+      ],
+      "4.10.0",
+      { conformanceTarget: "AA" },
+    );
+    expect(s.wcagMatrix.find((r) => r.scId === "1.4.3")?.outcome).toBe("failed");
+    expect(s.scores?.combined.failed).toBeGreaterThanOrEqual(1);
+    expect(s.bestPractice).toBeUndefined();
+  });
+
   it("한 페이지라도 위반이면 해당 규칙은 위반으로 집계", () => {
     const s = aggregateScan(
       [

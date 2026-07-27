@@ -7,6 +7,9 @@ const IMPACT_ORDER: Impact[] = ["critical", "serious", "moderate", "minor"];
 export async function ScoreSection({ summary }: { summary: ScanSummary }) {
   const t = await getTranslations("report");
   const maxImpact = Math.max(1, ...IMPACT_ORDER.map((k) => summary.byImpact[k]));
+  // 모범 사례 권고 — WCAG 성공기준에 해당하지 않아 준수율에 반영되지 않음(위반 수/준수율 불일치 설명)
+  const bp = summary.bestPractice ?? [];
+  const bpNodes = bp.reduce((n, r) => n + r.count, 0);
   return (
     <section aria-labelledby="score-heading" className="blind-mask print-avoid-break mt-8">
       <h2 id="score-heading" className="sr-only">
@@ -60,6 +63,11 @@ export async function ScoreSection({ summary }: { summary: ScanSummary }) {
                 <strong className="text-[var(--color-crit)]">{t("scores.unit", { count: summary.totalViolationNodes })}</strong>
               </span>
             </p>
+            {bp.length > 0 && (
+              <p className="mt-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-warm)] px-3 py-2 text-xs leading-relaxed text-[var(--color-ink-soft)]">
+                {t("scores.bestPracticeNote", { types: bp.length, nodes: bpNodes })}
+              </p>
+            )}
             <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("scores.legend")}</p>
           </div>
         ) : (
@@ -79,6 +87,11 @@ export async function ScoreSection({ summary }: { summary: ScanSummary }) {
                 <strong className="text-[var(--color-crit)]">{t("score.unit", { count: summary.totalViolationNodes })}</strong>
               </span>
             </p>
+            {bp.length > 0 && (
+              <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-soft)]">
+                {t("scores.bestPracticeNote", { types: bp.length, nodes: bpNodes })}
+              </p>
+            )}
             <p className="mt-4 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("score.desc")}</p>
           </div>
         )}

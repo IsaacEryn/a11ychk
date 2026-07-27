@@ -279,6 +279,11 @@ export interface ScanSummary {
   sample?: SampleSummary;
   /** 검사에서 제외하도록 설정돼 적용된 규칙 id (도메인 오탐 관리) — 보고서에 투명하게 고지 */
   excludedRules?: string[];
+  /**
+   * 모범 사례(best-practice) 권고 — WCAG 성공기준에 대응하지 않는 규칙의 위반.
+   * 적합성(준수율) 판정에는 넣지 않고 별도 권고로 표시한다(예: region·heading-order·landmark-*).
+   */
+  bestPractice?: { ruleId: string; count: number }[];
 }
 
 export interface CrawlOptions {
