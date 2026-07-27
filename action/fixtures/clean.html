@@ -1,0 +1,43 @@
+<!doctype html>
+<!-- CI 자기 점검용 픽스처 — 심각 이상 위반이 없어야 하는 페이지.
+     fail-on: serious 게이트가 통과하는지 확인한다. -->
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>A11y Check fixture — clean</title>
+    <style>
+      body { color: #1a1a1a; background: #ffffff; font-family: system-ui, sans-serif; }
+      /* WCAG 2.5.8(대상 크기, AA) 24×24 CSS px 이상 — 링크·버튼 모두 여유를 둔다 */
+      a, button, input { display: inline-block; min-height: 32px; min-width: 32px; padding: 6px 10px; }
+      a { margin: 4px 0; }
+    </style>
+  </head>
+  <body>
+    <header>
+      <a href="#main">본문 바로가기</a>
+    </header>
+    <main id="main">
+      <h1>접근 가능한 페이지</h1>
+      <p>이 페이지에는 심각 이상 등급의 자동 검사 위반이 없어야 합니다.</p>
+
+      <img
+        src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7"
+        width="40"
+        height="40"
+        alt="예시 이미지"
+      />
+
+      <form>
+        <label for="q">검색어</label>
+        <input id="q" type="text" name="q" />
+        <button type="submit">검색</button>
+      </form>
+
+      <a href="https://www.a11ychk.com/">A11y Check 홈으로</a>
+    </main>
+    <footer>
+      <p>픽스처 페이지</p>
+    </footer>
+  </body>
+</html>

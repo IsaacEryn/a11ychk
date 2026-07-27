@@ -1,0 +1,30 @@
+<!doctype html>
+<!-- CI 자기 점검용 픽스처 — 일부러 위반을 심어 둔 페이지.
+     러너가 위반을 실제로 찾아내는지 확인하는 용도라 고치지 말 것. -->
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>A11y Check fixture — with violations</title>
+    <style>
+      .faint { color: #bbb; background: #fff; }
+    </style>
+  </head>
+  <body>
+    <h1>위반이 있는 페이지</h1>
+
+    <!-- 대체 텍스트 없는 이미지 -->
+    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7" width="40" height="40" />
+
+    <!-- 이름 없는 버튼 -->
+    <button></button>
+
+    <!-- 레이블 없는 입력 -->
+    <input type="text" name="q" />
+
+    <!-- 명도 대비 미달 -->
+    <p class="faint">읽기 어려운 대비의 문단입니다.</p>
+
+    <!-- 링크 텍스트 없음 -->
+    <a href="https://example.com/"><span></span></a>
+  </body>
+</html>

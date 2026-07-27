@@ -3,7 +3,7 @@
 # 실행한다. 결과는 스텝 요약(Markdown)으로 남고, fail-on 기준 초과 시 잡이 실패한다.
 #
 # 사용 예:
-#   - uses: IsaacEryn/a11ychk@main
+#   - uses: IsaacEryn/a11ychk@v1
 #     with:
 #       urls: |
 #         https://example.com/
@@ -36,6 +36,8 @@ outputs:
     description: "위반 규칙 수"
     value: ${{ steps.scan.outputs.violation-rules }}
 
+# 모든 스텝은 action/ 안에서 돈다. 이 저장소는 모노레포지만 action/은 workspaces에
+# 속하지 않는 독립 패키지라, 소비자 CI가 웹앱·확장 의존성까지 받는 일이 없다.
 runs:
   using: "composite"
   steps:
@@ -45,23 +47,47 @@ runs:
 
     - name: Install dependencies
       shell: bash
-      working-directory: ${{ github.action_path }}
+      working-directory: ${{ github.action_path }}/action
       run: npm ci --ignore-scripts
 
-    - name: Install chromium
+    # 브라우저 캐시 키는 lockfile이 고정한 playwright 버전을 쓴다.
+    # hashFiles()는 워크스페이스 기준이라 action_path 안의 파일을 못 읽는다.
+    - name: Resolve playwright version
+      id: pw
       shell: bash
-      working-directory: ${{ github.action_path }}
+      working-directory: ${{ github.action_path }}/action
+      run: |
+        echo "version=$(node -p "require('./package-lock.json').packages['node_modules/playwright'].version")" >> "$GITHUB_OUTPUT"
+
+    - name: Cache chromium
+      id: pw-cache
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/ms-playwright
+        key: a11ychk-playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}
+
+    # 캐시가 맞으면 브라우저 바이너리(~170MB) 내려받기를 건너뛰고 시스템 라이브러리만 맞춘다.
+    - name: Install chromium
+      if: steps.pw-cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}/action
       run: npx playwright install --with-deps chromium
+
+    - name: Install chromium system deps
+      if: steps.pw-cache.outputs.cache-hit == 'true'
+      shell: bash
+      working-directory: ${{ github.action_path }}/action
+      run: npx playwright install-deps chromium
 
     - name: Scan
       id: scan
       shell: bash
-      working-directory: ${{ github.action_path }}
+      working-directory: ${{ github.action_path }}/action
       env:
         INPUT_URLS: ${{ inputs.urls }}
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
-        npx esbuild action/run.ts --bundle --platform=node --format=esm \
+        npx esbuild run.ts --bundle --platform=node --format=esm \
           --external:playwright --external:axe-core --external:undici \
-          --outfile=action/.run.mjs --log-level=error
-        node action/.run.mjs
+          --outfile=.run.mjs --log-level=error
+        node .run.mjs

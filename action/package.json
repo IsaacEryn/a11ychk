@@ -1,0 +1,20 @@
+{
+  "name": "@a11ychk/action",
+  "version": "1.0.0",
+  "description": "A11y Check GitHub Action runner — 러너가 실제로 쓰는 것만 선언한다",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "//": "action.yml이 이 디렉터리에서 npm ci를 돌린다. 루트 workspaces에 속하지 않는 독립 패키지 — 소비자 CI가 웹앱·확장 의존성까지 받지 않도록 분리했다. run.ts는 ../packages/core 소스를 esbuild로 번들하고, 아래 세 런타임 패키지는 external로 남아 여기 node_modules에서 해결된다 (axe-core는 locales/ko.json도 런타임 require).",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axe-core": "^4.10.3",
+    "playwright": "^1.53.0",
+    "undici": "^8.7.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0"
+  }
+}

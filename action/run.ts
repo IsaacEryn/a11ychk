@@ -124,7 +124,7 @@ async function main() {
       md.push(`| ${IMPACT_LABEL[r.impact]} | ${r.entry.title.ko} (\`${r.ruleId}\`) | ${r.nodes} | ${refs} |`);
     }
   } else {
-    md.push("자동 검사 위반이 없습니다. 🎉 (자동 도구는 일부 기준만 검출합니다 — 수동 점검 병행 권장)");
+    md.push("자동 검사 위반이 없습니다. (자동 도구는 일부 기준만 검출합니다 — 수동 점검 병행 권장)");
   }
   if (failedUrls.length > 0) {
     md.push("");

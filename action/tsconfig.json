@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "types": ["node"],
+    "baseUrl": ".",
+    // core 소스를 같이 검사하는데, core는 루트 node_modules의 playwright-core 타입을 보고
+    // run.ts는 여기 있는 playwright(→playwright-core)를 본다. 버전이 달라 Page 타입이
+    // 서로 남남이 되므로, 실제로 번들·실행되는 이쪽 사본으로 통일한다.
+    "paths": {
+      "playwright-core": ["./node_modules/playwright-core"],
+      "axe-core": ["./node_modules/axe-core"],
+      "undici": ["./node_modules/undici"]
+    }
+  },
+  "include": ["run.ts", "../packages/core/src"]
+}

@@ -14,7 +14,7 @@
     "build": "npm run build -w apps/web",
     "test": "npm run test -w @a11ychk/core && npm run test -w apps/web",
     "lint": "npm run lint -w apps/web",
-    "typecheck": "npm run typecheck --workspaces --if-present"
+    "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck --prefix action"
   },
   "engines": {
     "node": ">=20"
