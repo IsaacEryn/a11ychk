@@ -817,7 +817,7 @@
       "csvFindings": "Violations CSV (Excel)",
       "csvKwcag": "KWCAG matrix CSV (Excel)",
       "aiFixJson": "AI fix request (.json)",
-      "reportToolV2": "WCAG-EM 2.0 (JSON)"
+      "reportToolV2": "WCAG-EM Report Tool (JSON · 2.0)"
     },
     "manualProgress": {
       "title": "Manual review progress",
