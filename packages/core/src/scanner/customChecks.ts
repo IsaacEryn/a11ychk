@@ -12,11 +12,11 @@ import { customFindingsFromSignals, type CustomResult, type PageCheckSignals } f
 export type { CustomResult } from "./pageChecks";
 
 /**
- * 현재 뷰포트에서 실행하는 검사 (클릭 핸들러·포커스·미디어·대체텍스트·자동재생·타깃 크기).
- * ⚠️ 반환 형태는 PageCheckSignals 계약 — 크롬 확장의 collectPageSignals(popup.ts)와
- * 동기 유지할 것. 판정 로직은 pageChecks.customFindingsFromSignals에서 공용.
+ * 페이지 컨텍스트에서 실행할 신호 수집 스크립트 (클릭 핸들러·포커스·미디어·대체텍스트·
+ * 자동재생·타깃 크기). 반환 형태는 PageCheckSignals 계약이며, 크롬 확장의
+ * collectPageSignals와 동일한 값을 계산해야 한다(패리티 테스트 대상). 판정 로직은
+ * pageChecks.customFindingsFromSignals에서 공용으로 처리한다.
  */
-/** 신호 수집 스크립트 — 확장 collectPageSignals와 동일한 PageCheckSignals를 계산해야 한다 (패리티 테스트 대상) */
 export const BASE_SCRIPT = `(function(){
   var res = { inlineClickNonInteractive: [], focusSampled: 0, focusNoOutline: 0, focusExamples: [],
     hasMedia: false, altSampled: 0, altFilename: [], altGeneric: [], autoplay: [], genericLinks: 0,

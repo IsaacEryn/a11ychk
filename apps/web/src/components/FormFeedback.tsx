@@ -20,7 +20,7 @@ export function FormFeedback({
   if (state.ok) {
     return (
       <span role="status" className="text-xs font-bold text-[var(--color-seal)]">
-        ✓ {okLabel}
+        <span aria-hidden="true">✓</span> {okLabel}
       </span>
     );
   }

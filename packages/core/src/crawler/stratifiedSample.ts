@@ -14,6 +14,7 @@
 import type { Candidate } from "./collectPages";
 import { prioritizeUrls } from "./collectPages";
 import { isRepeatingKey, normalizeForDedup, templateKey } from "./urlTemplate";
+import { hashString } from "../util/hash";
 import type { PageCategory, RepeatingCluster, SampledPage } from "../types";
 
 /** URL 경로·질의로 공통 페이지 유형을 분류. content = 유형 미상(반복 콘텐츠 후보 포함). */
@@ -34,16 +35,6 @@ export function categorizePage(url: string, isRoot: boolean): PageCategory {
   if (/(search|검색)/.test(path)) return "search";
   if (/(join|signup|sign-up|register|가입|주문|order|checkout|결제|apply|신청)/.test(path)) return "form";
   return "content";
-}
-
-/** 결정적 tiebreak용 콘텐츠 해시 (FNV-1a). 사이트별로 시드해 URL 순서 편향을 없앤다. */
-function hashString(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
 }
 
 function depthOf(url: string): number {

@@ -347,8 +347,9 @@ export async function collectCandidateEntries(
 }
 
 /**
- * 후보 URL 수집 (문자열 버전, 하위 호환). collectCandidateEntries를 감싸 URL만 돌려준다.
- * collectPages()·기존 호출부가 의존하는 계약을 유지한다.
+ * 후보 URL 수집 (문자열 버전). collectCandidateEntries를 감싸 URL만 돌려주는 얇은 래퍼.
+ * 실사용 파이프라인은 메타를 쓰는 buildSample 경로이고, 이 문자열 버전은 아래 collectPages()와
+ * E2E 테스트에서만 쓰인다.
  */
 export async function collectCandidates(
   rootUrl: string,

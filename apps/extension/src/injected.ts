@@ -83,7 +83,7 @@ export interface OverlayHelpers {
  * 오버레이 공용 헬퍼 설치 — 컨테이너 생성·스크롤/리사이즈 추종 재배치를 window에
  * 1회 설치한다. ISOLATED world는 확장별로 공유되므로 이후 주입되는 오버레이
  * 함수들이 재사용할 수 있다 (예전에는 동일 헬퍼가 함수마다 4중 복붙돼 있었다).
- * ⚠️ 오버레이 계열 함수보다 먼저 주입할 것 — panel/tools.ts의 runOverlayInPage가 보장.
+ * 주의: 오버레이 계열 함수보다 먼저 주입할 것 — panel/tools.ts의 runOverlayInPage가 보장.
  */
 export function installOverlayHelpersInPage(): void {
   const w = window as unknown as { __a11ychkHelpers?: OverlayHelpers };

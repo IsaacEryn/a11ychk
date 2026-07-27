@@ -12,6 +12,7 @@ import { guardedFetch } from "../security/urlGuard";
 import { fetchRobots, isPathAllowed } from "../security/robots";
 import { collectCandidateEntries, normalizeUrl, resolveCanonicalRoot } from "./collectPages";
 import { categorizePage, stratifiedSample } from "./stratifiedSample";
+import { hashString } from "../util/hash";
 
 /** 후보 풀 상한 — 반복 콘텐츠 클러스터 크기를 정확히 가늠하기 위해 넉넉히 확보(CPU만 소모). */
 const CANDIDATE_POOL_LIMIT = 5000;
@@ -39,15 +40,6 @@ function seededRandom(seed: number): () => number {
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
   };
-}
-
-function hashString(s: string): number {
-  let h = 2166136261;
-  for (let i = 0; i < s.length; i++) {
-    h ^= s.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
 }
 
 /**

@@ -1,5 +1,5 @@
 /** 패널 셸 UI — 상단 탭(ARIA Tabs 패턴)과 테마 전환 */
-const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
+import { $ } from "./panel/state";
 
 // ─── 스크린리더 고지 (단일 라이브 리전 #srLive) ───
 let announceTimer: ReturnType<typeof setTimeout> | undefined;

@@ -18,7 +18,6 @@ const ReviewSchema = z.object({
   note: z.string().max(5000).default(""),
 });
 
-/** 점검자 판정 저장 (upsert). 빈 outcome 전달 시 판정 삭제 */
 /**
  * 점검자 판정 변경 후 summary.scores(수동·통합 준수율)만 다시 계산해 저장.
  * 자동 판정 매트릭스는 그대로이므로 전체 재집계 없이 점수만 갱신한다.
@@ -51,6 +50,7 @@ async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<
   }
 }
 
+/** 점검자 판정 저장 (upsert). 빈 outcome 전달 시 판정 삭제 */
 export async function saveReview(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
 

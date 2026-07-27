@@ -14,9 +14,15 @@ import { updateScanCache } from "./scan";
 import { populateSaveTargets } from "./save";
 
 export const IMPACTS: Impact[] = ["critical", "serious", "moderate", "minor"];
+const IMPACT_MSG_KEY: Record<Impact, string> = {
+  critical: "impactCritical",
+  serious: "impactSerious",
+  moderate: "impactModerate",
+  minor: "impactMinor",
+};
 /** 심각도 라벨 — initI18n 이후에 호출되도록 지연 평가(모듈 로드 시점 msg() 금지) */
 export function impactLabel(impact: Impact): string {
-  return msg({ critical: "impactCritical", serious: "impactSerious", moderate: "impactModerate", minor: "impactMinor" }[impact]);
+  return msg(IMPACT_MSG_KEY[impact]);
 }
 
 /** 결과가 렌더된 URL — 같은 URL 재렌더(심사 결정 등)면 필터 상태를 유지한다 */
