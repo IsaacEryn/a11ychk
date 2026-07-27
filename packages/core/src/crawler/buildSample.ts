@@ -3,34 +3,18 @@
  *
  * 페이지 분류(categorizePage)는 2.0 Step 2.1(공통 뷰: 홈·로그인·문의 등)과
  * 2.3(표본 유형 다양성)에, 무작위 표본은 Step 3.2(구조 표본의 10%)에 대응한다.
- * collectPages의 후보 수집을 재사용하되, 페이지를 분류(공통 페이지 등)하고
- * 구조 표본(structured) + 무작위 표본(random 10%)으로 태깅한다.
+ * 구조 표본은 stratifiedSample(층화 표집 + 반복 콘텐츠 한도 비례 배분)이 선정하고,
+ * 이 파일은 후보 수집·기술 감지·무작위 표본 추가·요약 문구 구성을 담당한다.
  * 프로세스(process) 표본은 자동 크롤 불가이므로 크롬 확장에 위임한다.
  */
-import type { BuildSampleOptions, PageCategory, SampledPage, SampleResult } from "../types";
+import type { BuildSampleOptions, SampledPage, SampleResult } from "../types";
 import { guardedFetch } from "../security/urlGuard";
 import { fetchRobots, isPathAllowed } from "../security/robots";
-import { collectCandidates, normalizeUrl, prioritizeUrls, resolveCanonicalRoot } from "./collectPages";
+import { collectCandidateEntries, normalizeUrl, resolveCanonicalRoot } from "./collectPages";
+import { categorizePage, stratifiedSample } from "./stratifiedSample";
 
-/** URL 경로·질의로 공통 페이지 유형을 분류 */
-export function categorizePage(url: string, isRoot: boolean): PageCategory {
-  if (isRoot) return "home";
-  const path = (() => {
-    try {
-      return (new URL(url).pathname + new URL(url).search).toLowerCase();
-    } catch {
-      return url.toLowerCase();
-    }
-  })();
-  if (/(^|\/)(login|signin|sign-in|auth|account\/login|로그인)/.test(path)) return "login";
-  if (/(contact|문의|inquiry|고객|support|1:1)/.test(path)) return "contact";
-  if (/sitemap|사이트맵/.test(path)) return "sitemap";
-  if (/(help|faq|도움말|가이드|guide|고객센터)/.test(path)) return "help";
-  if (/(privacy|terms|policy|약관|개인정보|이용약관)/.test(path)) return "legal";
-  if (/(search|검색)/.test(path)) return "search";
-  if (/(join|signup|sign-up|register|가입|주문|order|checkout|결제|apply|신청)/.test(path)) return "form";
-  return "content";
-}
+/** 후보 풀 상한 — 반복 콘텐츠 클러스터 크기를 정확히 가늠하기 위해 넉넉히 확보(CPU만 소모). */
+const CANDIDATE_POOL_LIMIT = 5000;
 
 /** 루트 문서 HTML에서 의존 기술을 감지 */
 export function detectTechnologies(html: string): string[] {
@@ -68,7 +52,7 @@ function hashString(s: string): number {
 
 /**
  * 대표 표본 구성.
- * - 구조 표본: 루트(home) + 공통 페이지 유형별 대표 1개 + 섹션 다양성 (최대 maxPages)
+ * - 구조 표본: 루트(home) + 공통 페이지 유형별 대표 + 반복 콘텐츠 대표(한도 비례) — stratifiedSample
  * - 무작위 표본: 남은 후보에서 시드 기반으로 ceil(구조표본 × 10%) 추가 선정
  */
 export async function buildSample(rootRawUrl: string, options: BuildSampleOptions): Promise<SampleResult> {
@@ -89,56 +73,46 @@ export async function buildSample(rootRawUrl: string, options: BuildSampleOption
   }
 
   const max = Math.max(1, options.maxPages);
-  // 후보 풀은 표본보다 넉넉히 확보 (무작위 표본 선정 여지)
-  const { candidates, rootHtml, source } = await collectCandidates(rootUrl, robots, fetcher, max * 4, canonicalHtml);
+  const { candidates, rootHtml, source } = await collectCandidateEntries(
+    rootUrl,
+    robots,
+    fetcher,
+    CANDIDATE_POOL_LIMIT,
+    canonicalHtml,
+  );
   const technologies = rootHtml ? detectTechnologies(rootHtml) : ["HTML"];
 
-  // 후보를 다양성 우선으로 정렬 (루트 제외)
-  const ordered = prioritizeUrls(candidates, rootUrl);
-
-  // ── 구조 표본 ──
-  const structured: SampledPage[] = [{ url: rootUrl, category: "home", sampleType: "structured" }];
-  const usedCategories = new Set<PageCategory>(["home"]);
-  const chosen = new Set<string>([rootUrl]);
-
-  // 1) 공통/특수 페이지 유형별 대표 먼저
-  for (const u of ordered) {
-    if (structured.length >= max) break;
-    const cat = categorizePage(u, false);
-    if (cat !== "content" && !usedCategories.has(cat) && !chosen.has(u)) {
-      structured.push({ url: u, category: cat, sampleType: "structured" });
-      usedCategories.add(cat);
-      chosen.add(u);
-    }
-  }
-  // 2) 남은 자리를 다양성 순으로 채움
-  for (const u of ordered) {
-    if (structured.length >= max) break;
-    if (chosen.has(u)) continue;
-    structured.push({ url: u, category: categorizePage(u, false), sampleType: "structured" });
-    chosen.add(u);
-  }
+  // ── 구조 표본 (층화 + 반복 콘텐츠 한도 비례 배분) ──
+  const { structured, clusters } = stratifiedSample({ rootUrl, candidates, max });
+  const chosen = new Set(structured.map((p) => p.url));
 
   // ── 무작위 표본 (구조 표본의 10%, 최소 1개, 남은 후보가 있을 때만) ──
-  const remaining = ordered.filter((u) => !chosen.has(u));
+  const remaining = candidates.filter((c) => !chosen.has(c.url));
   const randomTarget = remaining.length === 0 ? 0 : Math.max(1, Math.ceil(structured.length * 0.1));
   const rand = seededRandom(hashString(rootUrl));
   const shuffled = [...remaining].sort(() => rand() - 0.5);
-  const random: SampledPage[] = shuffled.slice(0, randomTarget).map((u) => ({
-    url: u,
-    category: categorizePage(u, false),
+  const random: SampledPage[] = shuffled.slice(0, randomTarget).map((c) => ({
+    url: c.url,
+    category: categorizePage(c.url, false),
     sampleType: "random",
   }));
 
+  const clusterNote =
+    clusters.length > 0
+      ? ` — 반복 콘텐츠 ${clusters.length}종(${clusters
+          .map((c) => `${c.templateKey} ${c.sampled}/${c.total}`)
+          .join(", ")})`
+      : "";
   const sampleMethod =
     random.length > 0
-      ? `구조 표본 ${structured.length}개(공통 페이지·페이지 유형별 대표) + 무작위 표본 ${random.length}개(전체 후보에서 시드 기반 무작위 선정, WCAG-EM 2.0 Step 3.2 — 구조 표본의 10%)`
-      : `구조 표본 ${structured.length}개(후보가 적어 무작위 표본 없음)`;
+      ? `구조 표본 ${structured.length}개(공통 페이지·유형별 대표 + 반복 콘텐츠 한도 비례) + 무작위 표본 ${random.length}개(전체 후보에서 시드 기반 무작위 선정, WCAG-EM 2.0 Step 3.2 — 구조 표본의 10%)${clusterNote}`
+      : `구조 표본 ${structured.length}개(후보가 적어 무작위 표본 없음)${clusterNote}`;
 
   return {
     pages: [...structured, ...random],
     technologies,
     sampleMethod,
     source,
+    clusters: clusters.length > 0 ? clusters : undefined,
   };
 }

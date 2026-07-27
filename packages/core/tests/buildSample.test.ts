@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSample, categorizePage, detectTechnologies } from "../src/crawler/buildSample";
+import { buildSample, detectTechnologies } from "../src/crawler/buildSample";
+import { categorizePage } from "../src/crawler/stratifiedSample";
 
 describe("categorizePage", () => {
   it("루트는 home", () => {
@@ -70,5 +71,54 @@ describe("buildSample", () => {
     expect(result.technologies).toContain("CSS");
     expect(result.technologies).toContain("JavaScript");
     expect(result.sampleMethod).toContain("무작위");
+  });
+});
+
+describe("buildSample — 반복 콘텐츠(게시판) 대표 수집", () => {
+  // sitemap에 게시글 40개(/blog/{n}) + 공통 페이지. 한도가 작아도 대표 글이 포함돼야 한다.
+  const sitemap = () => {
+    const posts = Array.from({ length: 40 }, (_, i) => `<url><loc>https://b.com/blog/${i + 1}</loc></url>`).join("");
+    return `<?xml version="1.0"?><urlset>
+      <url><loc>https://b.com/login</loc></url>
+      <url><loc>https://b.com/contact</loc></url>
+      ${posts}
+    </urlset>`;
+  };
+  const fetcher = (u: string): Promise<Response> => {
+    if (u.includes("/sitemap.xml")) {
+      return Promise.resolve(new Response(sitemap(), { status: 200, headers: { "content-type": "application/xml" } }));
+    }
+    if (u.includes("/robots.txt")) return Promise.resolve(new Response("", { status: 404 }));
+    const r = new Response("<!DOCTYPE html><html lang=ko><body>root</body></html>", {
+      status: 200,
+      headers: { "content-type": "text/html" },
+    });
+    Object.defineProperty(r, "url", { value: "https://b.com/" });
+    return Promise.resolve(r);
+  };
+
+  it("free=5에서도 게시판 대표 글이 최소 1개 포함된다", async () => {
+    const result = await buildSample("https://b.com/", { maxPages: 5, fetcher });
+    const structured = result.pages.filter((p) => p.sampleType === "structured");
+    const reps = structured.filter((p) => p.isRepeating && p.templateKey === "/blog/{n}");
+    expect(reps.length).toBeGreaterThanOrEqual(1);
+    // 클러스터 요약이 결과에 실린다
+    const cluster = result.clusters?.find((c) => c.templateKey === "/blog/{n}");
+    expect(cluster).toMatchObject({ total: 40 });
+    expect(cluster!.sampled).toBeGreaterThanOrEqual(1);
+  });
+
+  it("한도가 크면 대표 글이 비례해서 더 많이 수집된다", async () => {
+    const small = await buildSample("https://b.com/", { maxPages: 5, fetcher });
+    const large = await buildSample("https://b.com/", { maxPages: 20, fetcher });
+    const repCount = (r: Awaited<ReturnType<typeof buildSample>>) =>
+      r.pages.filter((p) => p.sampleType === "structured" && p.templateKey === "/blog/{n}").length;
+    expect(repCount(large)).toBeGreaterThan(repCount(small));
+  });
+
+  it("결정적 — 같은 입력이면 같은 표본", async () => {
+    const a = await buildSample("https://b.com/", { maxPages: 12, fetcher });
+    const b = await buildSample("https://b.com/", { maxPages: 12, fetcher });
+    expect(a.pages.map((p) => p.url)).toEqual(b.pages.map((p) => p.url));
   });
 });

@@ -204,6 +204,16 @@ export type PageCategory =
 
 export type SampleType = "structured" | "random" | "process";
 
+/** 반복 콘텐츠(게시판·포스트·상품) 클러스터의 표집 요약 */
+export interface RepeatingCluster {
+  /** URL 템플릿 키 (예 "/blog/{slug}") */
+  templateKey: string;
+  /** 클러스터에 속한 (중복 제거된) 페이지 수 */
+  total: number;
+  /** 그중 표본에 선정된 대표 페이지 수 */
+  sampled: number;
+}
+
 /** WCAG-EM 2.0 Step 2·3 결과 요약 (ScanSummary.sample에 저장) */
 export interface SampleSummary {
   structuredCount: number;
@@ -215,6 +225,8 @@ export interface SampleSummary {
   technologies: string[];
   /** 4.c: 무작위 표본이 구조 표본에 없는 새 위반 규칙을 드러냈는지 */
   randomSurfacedNewRules: string[];
+  /** 반복 콘텐츠 클러스터 표집 요약 (없거나 구버전 스캔엔 없음) */
+  repeatingClusters?: RepeatingCluster[];
 }
 
 /** 한 종류의 준수율 계산 결과 (자동/수동/통합 공통) */
@@ -287,6 +299,10 @@ export interface SampledPage {
   url: string;
   category: PageCategory;
   sampleType: SampleType;
+  /** 반복 콘텐츠 클러스터의 대표로 선정됐는가 (게시글·포스트·상품 등) */
+  isRepeating?: boolean;
+  /** 속한 URL 템플릿 키 (isRepeating일 때) */
+  templateKey?: string;
 }
 
 export interface SampleResult {
@@ -296,6 +312,8 @@ export interface SampleResult {
   /** 표본 선정 방법 설명 */
   sampleMethod: string;
   source: CrawlResult["source"];
+  /** 반복 콘텐츠 클러스터 표집 요약 */
+  clusters?: RepeatingCluster[];
 }
 
 export interface BuildSampleOptions extends CrawlOptions {
