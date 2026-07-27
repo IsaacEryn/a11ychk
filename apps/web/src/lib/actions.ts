@@ -12,6 +12,7 @@ export {
   toggleNotify,
   setScanFrequency,
   setDisabledRules,
+  setExcludedPaths,
   setPublicReport,
   verifyDomain,
   setupCloudflareDns,

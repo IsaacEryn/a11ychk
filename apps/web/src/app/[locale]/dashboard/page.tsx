@@ -26,6 +26,7 @@ import { DomainVerify } from "./DomainVerify";
 import { BadgeEmbed } from "./BadgeEmbed";
 import { ScanScheduleControl } from "./ScanScheduleControl";
 import { DisabledRulesControl } from "./DisabledRulesControl";
+import { ExcludedPagesControl } from "./ExcludedPagesControl";
 import { PublicReportControl } from "./PublicReportControl";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -382,6 +383,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 {/* 정기 검사 주기 설정 + 실행 시점 안내 (자동 검사 켜짐일 때만) */}
                 {d.auto_scan && (
                   <ScanScheduleControl domainId={d.id} frequency={(d.scan_frequency as string) ?? "daily"} />
+                )}
+                {/* 정기 검사 제외 페이지 — migration 0032 미적용 환경에서는 컬럼 부재로 빈 목록 */}
+                {d.auto_scan && (
+                  <ExcludedPagesControl
+                    domainId={d.id}
+                    paths={Array.isArray(d.excluded_paths) ? (d.excluded_paths as string[]) : []}
+                  />
                 )}
                 {/* 검사 제외 규칙(오탐 관리) — migration 0023 미적용 환경에서는 컬럼 부재로 빈 목록 표시 */}
                 <DisabledRulesControl

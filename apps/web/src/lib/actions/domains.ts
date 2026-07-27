@@ -114,6 +114,34 @@ export async function setDisabledRules(_prev: SaveState, formData: FormData): Pr
 }
 
 /**
+ * 정기 검사 제외 페이지 설정 (domains.excluded_paths — migration 0032).
+ * 소유자가 지정한 URL/경로 패턴을 정기(스케줄) 검사 표본에서 제외한다 — 크론이 검사를
+ * 만들 때 scope.excludePatterns로 주입된다. 개행/콤마 구분, 최대 30개·각 300자. useActionState 시그니처.
+ */
+export async function setExcludedPaths(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { user } = await requireUser();
+  const id = z.string().uuid().safeParse(formData.get("id"));
+  if (!id.success) return { error: "invalid" };
+  const paths = [
+    ...new Set(
+      String(formData.get("paths") ?? "")
+        .split(/[\n,]/)
+        .map((s) => s.trim())
+        .filter(Boolean),
+    ),
+  ];
+  if (paths.length > 30 || paths.some((p) => p.length > 300)) return { error: "invalid" };
+  const { error } = await createAdminClient()
+    .from("domains")
+    .update({ excluded_paths: paths })
+    .eq("id", id.data)
+    .eq("user_id", user.id);
+  if (error) return { error: "failed" };
+  revalidateLocalized("/dashboard");
+  return { ok: true };
+}
+
+/**
  * 공개 보고서 지정 — 단일 컨트롤로 공개 여부·디렉터리 등재·배지가 가리킬 보고서를 함께 정한다.
  * value: "off"(비공개) | "latest"(최신 검사 자동) | <scanId>(특정 보고서 고정).
  * 소유 확인된 도메인만 공개 가능. 특정 scan은 소유자·done·같은 호스트인지 검증한다.

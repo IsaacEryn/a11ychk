@@ -109,7 +109,10 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
     // 도메인 연결(hostname 정확 일치로 같은 domain_id)·표본 크기·scope 저장까지 공통 처리.
     // 예전 직접 insert는 reclaim을 건너뛰고 유니크 충돌 시 last_auto_scan_at만 갱신돼
     // 도메인이 한 주기 통째로 밀렸다(scope도 null로 저장됨).
-    const created = await createScanForUser(d.user_id, url, DEFAULT_SCOPE, { source: "scheduled" });
+    // 도메인에 지정된 제외 경로(0032)를 정기 검사 표본에서 뺀다 (컬럼 미적용 환경은 undefined → 무시)
+    const excludePaths = Array.isArray(d.excluded_paths) ? (d.excluded_paths as string[]) : [];
+    const scheduledScope = excludePaths.length > 0 ? { ...DEFAULT_SCOPE, excludePatterns: excludePaths } : DEFAULT_SCOPE;
+    const created = await createScanForUser(d.user_id, url, scheduledScope, { source: "scheduled" });
     if (created.ok) {
       // 직접 실행하지 않고 큐에 남긴다(queued 상태로 생성됨) — 아래 drainQueue가 전역 상한
       // 내에서 분리 인보케이션으로 소진하고, 회귀 알림은 각 검사 완료 시 run-scan 엔드포인트가
