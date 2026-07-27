@@ -645,6 +645,8 @@
       "random": "Random",
       "process": "Process",
       "method": "Sampling method",
+      "clusters": "Repeated content sampled",
+      "clusterLine": "{key} — {sampled} of {total} sampled as representatives",
       "representativeness": "Representativeness (Step 4.3)",
       "repOk": "The random sample surfaced no violation types absent from the structured sample. The sample is sufficiently representative.",
       "repNew": "The random sample surfaced {count} additional violation rule(s) not in the structured sample. A broader sample may be warranted for the full site.",

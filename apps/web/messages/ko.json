@@ -645,6 +645,8 @@
       "random": "무작위",
       "process": "프로세스",
       "method": "표본 선정 방법",
+      "clusters": "반복 콘텐츠 대표",
+      "clusterLine": "{key} — 총 {total}개 중 {sampled}개 대표 검사",
       "representativeness": "대표성 검토 (Step 4.3)",
       "repOk": "무작위 표본이 구조 표본에 없는 새 위반 유형을 드러내지 않았습니다. 표본이 충분히 대표적입니다.",
       "repNew": "무작위 표본이 구조 표본에 없던 위반 규칙 {count}종을 추가로 드러냈습니다. 실제 사이트는 더 넓은 표본 검사가 필요할 수 있습니다.",

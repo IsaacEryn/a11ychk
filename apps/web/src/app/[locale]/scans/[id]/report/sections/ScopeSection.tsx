@@ -57,6 +57,18 @@ export async function ScopeSection({
               <dt className="font-bold">{t("em.method")}</dt>
               <dd className="mt-1 text-[var(--color-ink-soft)]">{sample.method}</dd>
             </div>
+            {sample.repeatingClusters && sample.repeatingClusters.length > 0 && (
+              <div>
+                <dt className="font-bold">{t("em.clusters")}</dt>
+                <dd className="mt-1 space-y-0.5 text-[var(--color-ink-soft)]">
+                  {sample.repeatingClusters.map((c) => (
+                    <div key={c.templateKey}>
+                      {t("em.clusterLine", { key: c.templateKey, total: c.total, sampled: c.sampled })}
+                    </div>
+                  ))}
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="font-bold">{t("em.representativeness")}</dt>
               <dd className="mt-1 text-[var(--color-ink-soft)]">

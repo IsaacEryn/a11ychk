@@ -464,6 +464,7 @@ export async function runScan(scanId: string): Promise<void> {
       method: sample.sampleMethod,
       technologies: sample.technologies,
       randomSurfacedNewRules,
+      ...(sample.clusters && sample.clusters.length > 0 ? { repeatingClusters: sample.clusters } : {}),
     };
     const summary = aggregateScan(results, AXE_VERSION, {
       conformanceTarget,
