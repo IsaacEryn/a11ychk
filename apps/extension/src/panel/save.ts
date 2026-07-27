@@ -1,6 +1,7 @@
 // 계정 저장 + AI 수정요청 내보내기
 import { getRuleEntry } from "@a11ychk/core/catalog";
 import { isEnglish, msg, pick } from "../i18n";
+import * as log from "../log";
 import { $, SITE_ORIGIN, state, type PageResult } from "./state";
 import { getSession } from "./session";
 import { getReviewState } from "./review";
@@ -43,8 +44,9 @@ export async function populateSaveTargets(accessToken: string, pageUrl: string) 
     }
     // 같은 사이트 보고서가 있으면 기본 선택(페이지 추가가 자연스러움), 없으면 새 보고서
     sel.value = firstSameHostId || "new";
-  } catch {
+  } catch (e) {
     // 목록 조회 실패 시 "새 보고서로 저장"만 사용 가능 — 저장 자체는 동작
+    log.warn("save-target list fetch failed", e);
   }
 }
 
@@ -102,7 +104,8 @@ export async function saveToAccount() {
       // 새로 만든/갱신된 보고서가 다음 저장 시 선택지에 나타나도록 목록 갱신
       void populateSaveTargets(session.accessToken, state.lastPage!.url);
     }
-  } catch {
+  } catch (e) {
+    log.warn("report save failed", e);
     msgEl.textContent = "";
     const err = document.createElement("span");
     err.className = "err";

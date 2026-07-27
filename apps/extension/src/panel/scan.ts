@@ -14,6 +14,7 @@ import { deriveIncompleteFindings } from "../incomplete";
 import { collectPageSignals, configureAxeLocaleInPage, runAxeInPage } from "../injected";
 import { announce } from "../ui";
 import { isEnglish, msg } from "../i18n";
+import * as log from "../log";
 // axe 공식 한국어 로케일 — UI가 한국어일 때 진단 메시지를 한국어로
 import axeKoLocale from "axe-core/locales/ko.json";
 import { $, AXE_VERSION, SITE_ORIGIN, getActiveTab, state, withTimeout } from "./state";
@@ -125,8 +126,9 @@ export async function scan() {
         page.passes.push(...custom.passes);
         page.incomplete.push(...custom.incomplete);
       }
-    } catch {
-      // 커스텀 검사 실패 — axe 결과만으로 진행
+    } catch (e) {
+      // 커스텀 검사 실패 — axe 결과만으로 진행(진단용 흔적만 남김)
+      log.warn("custom checks failed; proceeding with axe results only", e);
     }
 
     const summary = aggregateScan([page], AXE_VERSION);

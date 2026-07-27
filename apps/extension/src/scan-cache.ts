@@ -4,6 +4,7 @@
  * 페이지가 그새 바뀌었을 수 있으므로 복원 시 "이전 결과" 안내와 함께 표시한다.
  */
 import type { Finding, PageScanResult } from "@a11ychk/core/catalog";
+import * as log from "./log";
 
 export interface CachedScan {
   page: PageScanResult;
@@ -50,8 +51,9 @@ export async function setCachedScan(url: string, data: CachedScan): Promise<void
   try {
     await chrome.storage.session.set({ [PREFIX + normalizeUrlKey(url)]: data });
     await evictOldest();
-  } catch {
-    // 쿼터 초과 등 — 캐시는 편의 기능이므로 실패를 무시한다
+  } catch (e) {
+    // 쿼터 초과 등 — 캐시는 편의 기능이라 동작은 계속하되 흔적은 남긴다
+    log.warn("scan cache write failed", e);
   }
 }
 

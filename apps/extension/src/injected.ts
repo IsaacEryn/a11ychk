@@ -77,6 +77,10 @@ export function clearOverlayInPage(): void {
 export interface OverlayHelpers {
   makeOverlay(): HTMLElement;
   trackReposition(overlay: HTMLElement, tracked: [Element, HTMLElement][]): void;
+  /** 요소 위에 테두리 박스 하나를 그려 container에 붙이고 반환. minSize 미만은 확대 표시. */
+  drawBox(container: HTMLElement, el: Element, color: string, minSize: number, background?: string): HTMLElement;
+  /** 박스 좌상단에 라벨 태그를 붙인다(위반 유형·번호 등). */
+  boxTag(box: HTMLElement, label: string, color: string): void;
 }
 
 /**
@@ -121,6 +125,26 @@ export function installOverlayHelpersInPage(): void {
     window.addEventListener("scroll", onChange, { passive: true, capture: true });
     window.addEventListener("resize", onChange, { passive: true });
     },
+    drawBox(container: HTMLElement, el: Element, color: string, minSize: number, background?: string): HTMLElement {
+      const r = el.getBoundingClientRect();
+      const box = document.createElement("div");
+      box.style.cssText =
+        "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
+        `border:2px solid ${color};` +
+        (background ? `background:${background};` : "") +
+        `left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
+        `width:${Math.max(r.width, minSize)}px;height:${Math.max(r.height, minSize)}px;`;
+      container.appendChild(box);
+      return box;
+    },
+    boxTag(box: HTMLElement, label: string, color: string): void {
+      const tag = document.createElement("span");
+      tag.textContent = label;
+      tag.style.cssText =
+        "all:initial;position:absolute;left:0;top:-16px;font:700 11px/16px sans-serif;" +
+        `background:${color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
+      box.appendChild(tag);
+    },
   };
 }
 
@@ -152,19 +176,8 @@ export function overlayMarkersInPage(markers: { selector: string; color: string;
     const r = el.getBoundingClientRect();
     if (r.width <= 0 && r.height <= 0) continue;
     drawn++;
-    const box = document.createElement("div");
-    box.style.cssText =
-      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
-      `border:2px solid ${m.color};` +
-      `left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
-      `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
-    const tag = document.createElement("span");
-    tag.textContent = m.label;
-    tag.style.cssText =
-      "all:initial;position:absolute;left:0;top:-16px;font:700 11px/16px sans-serif;" +
-      `background:${m.color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
-    box.appendChild(tag);
-    c.appendChild(box);
+    const box = H.drawBox(c, el, m.color, 8);
+    H.boxTag(box, m.label, m.color);
     pairs.push([el, box]);
   }
   document.body.appendChild(c);
@@ -213,19 +226,8 @@ export function overlayStructureInPage(kind: "headings" | "landmarks" | "focus",
   const c = H.makeOverlay();
   const pairs: [Element, HTMLElement][] = [];
   for (const m of markers) {
-    const r = m.el.getBoundingClientRect();
-    const box = document.createElement("div");
-    box.style.cssText =
-      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
-      `border:2px solid ${m.color};left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
-      `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
-    const tag = document.createElement("span");
-    tag.textContent = m.label;
-    tag.style.cssText =
-      "all:initial;position:absolute;left:0;top:-16px;font:700 11px/16px sans-serif;" +
-      `background:${m.color};color:#fff;padding:0 5px;white-space:nowrap;border-radius:2px;`;
-    box.appendChild(tag);
-    c.appendChild(box);
+    const box = H.drawBox(c, m.el, m.color, 8);
+    H.boxTag(box, m.label, m.color);
     pairs.push([m.el, box]);
   }
   document.body.appendChild(c);
@@ -291,18 +293,8 @@ export function overlayTargetSizeInPage(): number {
     n++;
     const small = r.width < 24 || r.height < 24;
     const color = small ? "#e0533d" : "#0b6b5e";
-    const box = document.createElement("div");
-    box.style.cssText =
-      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
-      `border:2px solid ${color};left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
-      `width:${Math.max(r.width, 4)}px;height:${Math.max(r.height, 4)}px;`;
-    const tag = document.createElement("span");
-    tag.textContent = `${Math.round(r.width)}×${Math.round(r.height)}`;
-    tag.style.cssText =
-      "all:initial;position:absolute;left:0;top:-15px;font:700 10px/15px sans-serif;" +
-      `background:${color};color:#fff;padding:0 4px;white-space:nowrap;border-radius:2px;`;
-    box.appendChild(tag);
-    c.appendChild(box);
+    const box = H.drawBox(c, el, color, 4);
+    H.boxTag(box, `${Math.round(r.width)}×${Math.round(r.height)}`, color);
     pairs.push([el, box]);
   });
   document.body.appendChild(c);
@@ -327,13 +319,7 @@ export function overlayQueryInPage(selector: string, tagSome: string, tagNone: s
     const r = el.getBoundingClientRect();
     if (r.width <= 0 && r.height <= 0) return;
     n++;
-    const box = document.createElement("div");
-    box.style.cssText =
-      "all:initial;position:absolute;box-sizing:border-box;pointer-events:none;" +
-      "border:2px solid #c9761b;background:rgba(201,118,27,.12);" +
-      `left:${r.left + window.scrollX}px;top:${r.top + window.scrollY}px;` +
-      `width:${Math.max(r.width, 8)}px;height:${Math.max(r.height, 8)}px;`;
-    c.appendChild(box);
+    const box = H.drawBox(c, el, "#c9761b", 8, "rgba(201,118,27,.12)");
     pairs.push([el, box]);
   });
   const tag = document.createElement("div");

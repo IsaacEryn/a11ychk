@@ -12,6 +12,7 @@ import {
 } from "../injected";
 import { announce } from "../ui";
 import { msg } from "../i18n";
+import * as log from "../log";
 import { $, getActiveTab, state } from "./state";
 import { impactLabel } from "./render";
 import { renderManual, setReview, type Verdict } from "./review";
@@ -38,7 +39,9 @@ async function runInPage<Args extends unknown[], R>(
     // chrome.scripting은 주입 함수가 Promise를 반환하면 값을 resolve해 전달한다
     const r = await chrome.scripting.executeScript({ target: { tabId: state.currentTabId }, func, args });
     return r[0]?.result as Awaited<R> | undefined;
-  } catch {
+  } catch (e) {
+    // 주입 실패(권한·CSP·탭 이동 등) — 호출부가 성공 여부로 UI 상태를 판단하도록 undefined 반환
+    log.warn(`page injection failed: ${func.name || "anonymous"}`, e);
     return undefined;
   }
 }
@@ -78,8 +81,9 @@ async function setIssuesView(on: boolean) {
         label: impactLabel(v.impact),
       })),
     );
-    await runOverlayInPage(overlayMarkersInPage, markers);
-    toolState.currentView = "issues";
+    // 주입이 실패하면(undefined) 오버레이가 안 그려진 것이므로 뷰를 켜짐으로 표시하지 않는다
+    const drawn = await runOverlayInPage(overlayMarkersInPage, markers);
+    if (drawn !== undefined) toolState.currentView = "issues";
   } else {
     await clearOverlayView();
   }
@@ -89,15 +93,18 @@ async function setIssuesView(on: boolean) {
 /** 구조·크기 오버레이 토글 */
 async function setStructView(kind: StructKind, on: boolean) {
   if (on) {
-    if (kind === "targets") await runOverlayInPage(overlayTargetSizeInPage);
-    else await runOverlayInPage(overlayStructureInPage, kind, msg("skippedLabel"));
-    toolState.currentView = kind;
+    const drawn =
+      kind === "targets"
+        ? await runOverlayInPage(overlayTargetSizeInPage)
+        : await runOverlayInPage(overlayStructureInPage, kind, msg("skippedLabel"));
+    if (drawn !== undefined) toolState.currentView = kind;
   } else {
     await clearOverlayView();
   }
-  // 초점 순서 오버레이가 켜진 동안만 6.1.2 판정 카드 노출 (확인→판정 즉시 기입)
-  $("focusJudge").hidden = !(on && kind === "focus");
-  if (on && kind === "focus") $("focusJudgeMsg").textContent = "";
+  // 초점 순서 오버레이가 실제로 켜진 동안만 6.1.2 판정 카드 노출 (확인→판정 즉시 기입)
+  const focusShown = kind === "focus" && toolState.currentView === "focus";
+  $("focusJudge").hidden = !focusShown;
+  if (focusShown) $("focusJudgeMsg").textContent = "";
   syncToolButtons();
 }
 
