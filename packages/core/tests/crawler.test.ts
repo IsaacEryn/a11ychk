@@ -169,6 +169,32 @@ describe("resolveCanonicalRoot — 리다이렉트 최종(canonical) 루트 확�
     );
     expect(canonicalRoot).toBe("https://example.com/");
   });
+
+  it("리다이렉트가 없어도(res.url이 apex 그대로) HTML og:url이 www면 www를 채택한다", async () => {
+    // codeslog.com: apex가 200을 주지만 og:url·sitemap이 www에만 있는 사이트
+    const htmlWww =
+      '<!DOCTYPE html><html><head><meta property="og:url" content="https://www.codeslog.com/"></head><body>x</body></html>';
+    const fetcher = (url: string) => {
+      const r = new Response(htmlWww, { status: 200, headers: { "content-type": "text/html" } });
+      Object.defineProperty(r, "url", { value: url });
+      return Promise.resolve(r);
+    };
+    const out = await resolveCanonicalRoot("https://codeslog.com/", () => fetcher("https://codeslog.com/"));
+    expect(out.canonicalRoot).toBe("https://www.codeslog.com/");
+  });
+
+  it("<link rel=canonical>이 www면 채택하되, 남의 도메인이면 무시한다(하이재킹 방지)", async () => {
+    const mk = (canonical: string) => (url: string) => {
+      const html = `<!DOCTYPE html><html><head><link rel="canonical" href="${canonical}"></head><body>x</body></html>`;
+      const r = new Response(html, { status: 200, headers: { "content-type": "text/html" } });
+      Object.defineProperty(r, "url", { value: url });
+      return Promise.resolve(r);
+    };
+    const ok = await resolveCanonicalRoot("https://codeslog.com/", mk("https://www.codeslog.com/"));
+    expect(ok.canonicalRoot).toBe("https://www.codeslog.com/");
+    const evil = await resolveCanonicalRoot("https://codeslog.com/", mk("https://evil.example.com/"));
+    expect(evil.canonicalRoot).toBe("https://codeslog.com/");
+  });
 });
 
 describe("buildSample — apex→www 리다이렉트 사이트 수집", () => {

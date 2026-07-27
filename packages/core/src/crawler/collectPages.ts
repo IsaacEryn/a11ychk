@@ -51,16 +51,29 @@ function isWwwVariant(a: string, b: string): boolean {
   }
 }
 
+/** 루트 HTML에서 사이트가 선언한 대표 URL(<link rel=canonical> 우선, 없으면 og:url)을 추출. */
+export function extractDeclaredCanonical(html: string): string | null {
+  const linkTag = /<link\b[^>]*\brel\s*=\s*["']canonical["'][^>]*>/i.exec(html)?.[0];
+  const fromLink = linkTag ? /\bhref\s*=\s*["']([^"']+)["']/i.exec(linkTag)?.[1] : undefined;
+  if (fromLink) return fromLink.trim();
+  const ogTag = /<meta\b[^>]*\bproperty\s*=\s*["']og:url["'][^>]*>/i.exec(html)?.[0];
+  const fromOg = ogTag ? /\bcontent\s*=\s*["']([^"']+)["']/i.exec(ogTag)?.[1] : undefined;
+  return fromOg ? fromOg.trim() : null;
+}
+
 /**
- * 대표(canonical) 루트 확정 — 루트를 실제로 fetch해 리다이렉트 최종 URL을 본다.
- * apex→www(codeslog.com → www.codeslog.com)처럼 대표 도메인이 리다이렉트로
- * 결정되는 사이트에서, 이후 sitemap·내부 링크의 same-origin 필터가 입력 origin이
- * 아니라 실제 콘텐츠 origin을 기준으로 동작하게 한다(그렇지 않으면 전량 걸러져 수집 0).
+ * 대표(canonical) 루트 확정 — 루트를 실제로 fetch해 대표 도메인을 정한다.
+ * apex↔www처럼 대표 도메인이 갈리는 사이트에서, 이후 sitemap·내부 링크의 same-origin
+ * 필터가 입력 origin이 아니라 실제 콘텐츠 origin을 기준으로 동작하게 한다(안 그러면 전량 걸러져 수집 0).
  *
- * 안전장치: 최종 호스트가 입력과 www 차이뿐일 때만 canonical로 채택한다. 단축 URL이
- * 전혀 다른 사이트로 튀는 경우 등은 입력을 유지해 예기치 않은 대상 이동을 막는다.
- * (경로 변화 example.com → example.com/ko 는 같은 호스트라 그대로 반영된다)
- * fetch로 얻은 루트 HTML도 함께 돌려줘 collectCandidates가 재fetch하지 않게 한다.
+ * 두 가지 신호를 본다.
+ * 1) 리다이렉트 최종 URL(res.url) — 예: codeslog.com → www.codeslog.com 리다이렉트.
+ * 2) 리다이렉트가 없을 때는 루트 HTML의 선언된 대표 URL(<link rel=canonical>·og:url) —
+ *    예: apex가 200을 주지만 og:url이 www를 가리키고 sitemap·콘텐츠가 www에만 있는 사이트.
+ *
+ * 안전장치: 두 경우 모두 대상 호스트가 입력과 **www 차이뿐**일 때만 채택한다. 단축 URL이
+ * 전혀 다른 사이트로 튀거나, 페이지가 선언한 canonical이 남의 도메인이어도 무시한다(하이재킹 방지).
+ * 경로는 입력 그대로 두고 호스트만 교체한다. fetch로 얻은 루트 HTML도 함께 돌려줘 재fetch를 아낀다.
  */
 export async function resolveCanonicalRoot(
   rootUrl: string,
@@ -69,10 +82,24 @@ export async function resolveCanonicalRoot(
   try {
     const res = await fetcher(rootUrl);
     const finalUrl = res.url ? normalizeUrl(res.url) : null;
-    const canonicalRoot = finalUrl && isWwwVariant(finalUrl, rootUrl) ? finalUrl : rootUrl;
+    let canonicalRoot = finalUrl && isWwwVariant(finalUrl, rootUrl) ? finalUrl : rootUrl;
     let rootHtml: string | undefined;
     const contentType = res.headers.get("content-type") ?? "";
     if (res.ok && contentType.includes("html")) rootHtml = (await res.text()).slice(0, 3_000_000);
+
+    // 리다이렉트로 www가 결정되지 않았다면, 루트 HTML이 선언한 대표 URL을 본다(호스트만, www 변형만).
+    if (canonicalRoot === rootUrl && rootHtml) {
+      const declared = extractDeclaredCanonical(rootHtml);
+      const norm = declared ? normalizeUrl(declared, rootUrl) : null;
+      if (norm && isWwwVariant(norm, rootUrl)) {
+        const declaredHost = new URL(norm).hostname;
+        if (declaredHost !== new URL(rootUrl).hostname) {
+          const adopted = new URL(rootUrl);
+          adopted.hostname = declaredHost;
+          canonicalRoot = adopted.toString();
+        }
+      }
+    }
     return { canonicalRoot, rootHtml };
   } catch {
     // 루트 fetch 실패(네트워크 등) — 입력을 그대로 쓰고 이후 단계가 재시도/판단한다
