@@ -1,6 +1,5 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
-import { KWCAG_BY_ID, type KwcagMatrixRow } from "@a11ychk/core/catalog";
 import { Link } from "@/i18n/navigation";
 import { CERT_TARGET_RATE } from "@/app/[locale]/scans/[id]/report/certReadiness";
 import { createClient } from "@/lib/supabase/server";
@@ -28,6 +27,7 @@ import { ScanScheduleControl } from "./ScanScheduleControl";
 import { DisabledRulesControl } from "./DisabledRulesControl";
 import { ExcludedPagesControl } from "./ExcludedPagesControl";
 import { PublicReportControl } from "./PublicReportControl";
+import { deriveDashboard, loadItemChanges, type TrendRow } from "./loadDashboard";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -75,119 +75,13 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const verifiedCount = (domains ?? []).filter((d) => d.verified).length;
   const atVerifyLimit = verifiedCount >= verifyLimit;
 
-  // 등록 도메인(codeslog.com)과 검사 URL(www.codeslog.com)을 잇도록 www.은 접어서 비교 (lib/host 공용)
-  const trendByHost = new Map<string, { date: string; rate: number }[]>();
-  for (const row of trendRows ?? []) {
-    const rate = Number(row.combined ?? row.auto);
-    if (!Number.isFinite(rate)) continue;
-    try {
-      const host = foldHost(new URL(row.root_url as string).hostname);
-      const list = trendByHost.get(host) ?? [];
-      if (list.length < 12) list.push({ date: row.created_at as string, rate: Math.round(rate * 10) / 10 });
-      trendByHost.set(host, list);
-    } catch {
-      /* root_url 파싱 실패 — 건너뜀 */
-    }
-  }
-  for (const list of trendByHost.values()) list.reverse();
+  // 추이·총괄·공개 후보를 한 번의 순회로 (등록 도메인과 검사 URL은 www.을 접어 잇는다)
+  const { trendByHost, overview, reportsByHost, latestTwoByHost } = deriveDashboard(
+    (trendRows ?? []) as unknown as TrendRow[],
+  );
+  // KWCAG 항목별 변화 — 호스트별 최신 2개 검사의 kwcagMatrix diff (마이그레이션 불요)
+  const itemChangesByHost = await loadItemChanges(supabase, latestTwoByHost, locale);
 
-  // ── KWCAG 항목별 변화 — 호스트별 최신 2개 검사의 kwcagMatrix diff (마이그레이션 불요) ──
-  // trendRows는 최신순이므로 앞의 2개가 최신·직전. 페이로드 상한: 호스트 20개(스캔 40건).
-  const latestTwoByHost = new Map<string, string[]>();
-  for (const row of trendRows ?? []) {
-    try {
-      const host = foldHost(new URL(row.root_url as string).hostname);
-      const ids = latestTwoByHost.get(host) ?? [];
-      if (ids.length < 2) ids.push(row.id as string);
-      latestTwoByHost.set(host, ids);
-    } catch {
-      /* 건너뜀 */
-    }
-  }
-  const pairHosts = [...latestTwoByHost.entries()].filter(([, ids]) => ids.length === 2).slice(0, 20);
-  interface ItemChange {
-    itemId: string;
-    name: string;
-    delta: number; // 위반 수 변화 (음수 = 개선)
-  }
-  const itemChangesByHost = new Map<string, { improved: ItemChange[]; worsened: ItemChange[] }>();
-  if (pairHosts.length > 0) {
-    const { data: matrixRows } = await supabase
-      .from("scans")
-      .select("id, matrix:summary->kwcagMatrix")
-      .in("id", pairHosts.flatMap(([, ids]) => ids));
-    const matrixById = new Map((matrixRows ?? []).map((r) => [r.id as string, r.matrix]));
-    const countsOf = (scanId: string): Map<string, number> | null => {
-      const rows = matrixById.get(scanId);
-      if (!Array.isArray(rows)) return null; // 구버전 스캔 — kwcagMatrix 부재
-      return new Map((rows as unknown as KwcagMatrixRow[]).map((r) => [r.itemId, r.violationCount ?? 0]));
-    };
-    for (const [host, [latestId, prevId]] of pairHosts) {
-      const latest = countsOf(latestId!);
-      const prevCounts = countsOf(prevId!);
-      if (!latest || !prevCounts) continue;
-      const changes: ItemChange[] = [];
-      for (const [itemId, count] of latest) {
-        const delta = count - (prevCounts.get(itemId) ?? 0);
-        if (delta === 0) continue;
-        const item = KWCAG_BY_ID.get(itemId);
-        const name = item ? (locale === "en" && item.name.en ? item.name.en : item.name.ko) : itemId;
-        changes.push({ itemId, name, delta });
-      }
-      if (changes.length === 0) continue;
-      itemChangesByHost.set(host, {
-        improved: changes.filter((c) => c.delta < 0).sort((a, b) => a.delta - b.delta).slice(0, 3),
-        worsened: changes.filter((c) => c.delta > 0).sort((a, b) => b.delta - a.delta).slice(0, 3),
-      });
-    }
-  }
-
-  // ── 도메인 총괄 — 호스트별 최신 완료 검사 요약 (trendRows 재사용, 추가 쿼리 없음) ──
-  const latestByHost = new Map<
-    string,
-    { host: string; scanId: string; date: string; rate: number; nodes: number }
-  >();
-  for (const row of trendRows ?? []) {
-    const rate = Number(row.combined ?? row.auto);
-    if (!Number.isFinite(rate)) continue;
-    try {
-      const host = foldHost(new URL(row.root_url as string).hostname);
-      if (!latestByHost.has(host)) {
-        latestByHost.set(host, {
-          host,
-          scanId: row.id as string,
-          date: row.created_at as string,
-          rate: Math.round(rate * 10) / 10,
-          nodes: Number(row.nodes) || 0,
-        });
-      }
-    } catch {
-      /* 건너뜀 */
-    }
-  }
-  const overview = [...latestByHost.values()].sort((a, b) => a.host.localeCompare(b.host));
-
-  // ── 공개 보고서 선택용 — 호스트별 완료 검사 목록 (trendRows 재사용, 도메인당 최근 15건) ──
-  const reportsByHost = new Map<string, { id: string; date: string; rate: number; title: string | null }[]>();
-  for (const row of trendRows ?? []) {
-    const rate = Number(row.combined ?? row.auto);
-    if (!Number.isFinite(rate)) continue;
-    try {
-      const host = foldHost(new URL(row.root_url as string).hostname);
-      const list = reportsByHost.get(host) ?? [];
-      if (list.length < 15) {
-        list.push({
-          id: row.id as string,
-          date: row.created_at as string,
-          rate: Math.round(rate * 10) / 10,
-          title: (row.title as string | null) ?? null,
-        });
-      }
-      reportsByHost.set(host, list);
-    } catch {
-      /* 건너뜀 */
-    }
-  }
   const autoScanHosts = new Set(
     (domains ?? []).filter((d) => d.auto_scan).map((d) => foldHost((d.hostname as string).toLowerCase())),
   );
