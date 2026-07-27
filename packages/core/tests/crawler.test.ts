@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { extractLinks, isSameOrigin, normalizeUrl, prioritizeUrls, resolveCanonicalRoot } from "../src/crawler/collectPages";
 
 describe("normalizeUrl", () => {
-  it("fragment 제거·후행 슬래시 통일", () => {
-    expect(normalizeUrl("https://Example.com/a/#section")).toBe("https://example.com/a");
-    expect(normalizeUrl("https://example.com/a/")).toBe("https://example.com/a");
+  it("fragment 제거·hostname 소문자화, 후행 슬래시는 보존", () => {
+    expect(normalizeUrl("https://Example.com/a/#section")).toBe("https://example.com/a/");
+    // 회귀 방지: canonical 슬래시를 떼면 /a → /a/ 308 리다이렉트 → 빈 문서 axe 유령 위반
+    expect(normalizeUrl("https://example.com/a/")).toBe("https://example.com/a/");
+    expect(normalizeUrl("https://example.com/a")).toBe("https://example.com/a");
     expect(normalizeUrl("https://example.com/")).toBe("https://example.com/");
+    expect(normalizeUrl("https://example.com")).toBe("https://example.com/");
   });
 
   it("상대 경로 해석", () => {

@@ -12,7 +12,14 @@ import { fetchRobots, isPathAllowed, type RobotsRules } from "../security/robots
 const NON_HTML_EXT =
   /\.(png|jpe?g|gif|webp|avif|svg|ico|css|js|mjs|json|xml|pdf|zip|gz|tar|mp3|mp4|webm|mov|avi|woff2?|ttf|otf|eot|txt|csv|xlsx?|docx?|pptx?|hwpx?)$/i;
 
-/** URL 정규화: fragment 제거, 기본 포트 제거, 후행 슬래시 통일 */
+/**
+ * URL 정규화: fragment 제거, hostname 소문자화.
+ * 후행 슬래시는 **보존**한다 — 사이트의 canonical 형태(sitemap/링크에 적힌 그대로)를
+ * 유지해야 불필요한 리다이렉트를 유발하지 않는다. 예전엔 슬래시를 떼어 `/a/`를 `/a`로
+ * 바꿨는데, 트레일링 슬래시를 canonical로 쓰는 사이트(Hugo·Jekyll 등)에서 `/a` 요청이
+ * 308로 리다이렉트되고, 그 빈 응답 본문에 axe가 돌아 html-has-lang·document-title 등
+ * 유령 위반이 생겼다. new URL(...)은 루트 경로에 한해 `/`를 붙이므로 루트는 항상 `/`로 남는다.
+ */
 export function normalizeUrl(raw: string, base?: string): string | null {
   let url: URL;
   try {
@@ -23,9 +30,6 @@ export function normalizeUrl(raw: string, base?: string): string | null {
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
   url.hash = "";
   url.hostname = url.hostname.toLowerCase();
-  if (url.pathname !== "/" && url.pathname.endsWith("/")) {
-    url.pathname = url.pathname.slice(0, -1);
-  }
   return url.toString();
 }
 
