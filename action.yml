@@ -41,9 +41,11 @@ outputs:
 runs:
   using: "composite"
   steps:
+    # undici 8이 Node 22.19+ 를 요구한다. 이 스텝은 잡 전체의 node 버전을 바꾸므로,
+    # 호출부가 다른 버전을 쓰고 있다면 이 액션 뒤에 다시 setup-node를 걸어야 한다.
     - uses: actions/setup-node@v4
       with:
-        node-version: "20"
+        node-version: "22"
 
     - name: Install dependencies
       shell: bash
