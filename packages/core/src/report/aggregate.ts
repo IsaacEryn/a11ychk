@@ -97,31 +97,50 @@ export function aggregateScan(
     return v;
   };
 
-  // KWCAG 매트릭스 (모범 사례 규칙은 제외 — WCAG 축과 동일 기준)
-  const kwcagFail = new Map<string, { count: number; rules: Set<string> }>();
-  for (const [ruleId, kwcagIds] of ruleKwcag) {
-    if (isAdvisory(ruleId)) continue;
-    for (const kw of kwcagIds) {
-      const cur = kwcagFail.get(kw) ?? { count: 0, rules: new Set<string>() };
-      cur.count += byRule[ruleId] ?? 0;
-      cur.rules.add(ruleId);
-      kwcagFail.set(kw, cur);
+  /**
+   * 규칙 판정(위반·통과·확인필요)을 기준 축(KWCAG 항목 또는 WCAG 성공기준)으로 접는다.
+   * 두 축이 같은 집계를 하고 매핑만 다르므로, 규칙→기준 매핑 함수만 바꿔 재사용한다.
+   * skipAdvisory: 모범 사례 규칙을 적합성 판정에서 뺄지 (KWCAG 축에서만 명시적으로 필요 —
+   * WCAG 축은 매핑이 비어 자연히 빠진다).
+   */
+  const foldByCriterion = (criteriaOf: (ruleId: string) => string[], skipAdvisory: boolean) => {
+    const fail = new Map<string, { count: number; rules: Set<string> }>();
+    for (const ruleId of failedRules) {
+      if (skipAdvisory && isAdvisory(ruleId)) continue;
+      for (const c of criteriaOf(ruleId)) {
+        const cur = fail.get(c) ?? { count: 0, rules: new Set<string>() };
+        cur.count += byRule[ruleId] ?? 0;
+        cur.rules.add(ruleId);
+        fail.set(c, cur);
+      }
     }
-  }
-  const kwcagPass = new Set<string>();
-  for (const id of passedRules) {
-    if (isAdvisory(id)) continue;
-    for (const kw of getRuleEntry(id).kwcag) kwcagPass.add(kw);
-  }
-  const kwcagReview = new Set<string>();
-  const kwcagReviewRules = new Map<string, Set<string>>();
-  for (const id of incompleteRules) {
-    if (isAdvisory(id)) continue;
-    for (const kw of getRuleEntry(id).kwcag) {
-      kwcagReview.add(kw);
-      (kwcagReviewRules.get(kw) ?? kwcagReviewRules.set(kw, new Set()).get(kw)!).add(id);
+    const pass = new Set<string>();
+    for (const id of passedRules) {
+      if (skipAdvisory && isAdvisory(id)) continue;
+      for (const c of criteriaOf(id)) pass.add(c);
     }
-  }
+    const review = new Set<string>();
+    const reviewRules = new Map<string, Set<string>>();
+    for (const id of incompleteRules) {
+      if (skipAdvisory && isAdvisory(id)) continue;
+      for (const c of criteriaOf(id)) {
+        review.add(c);
+        const set = reviewRules.get(c) ?? new Set<string>();
+        set.add(id);
+        reviewRules.set(c, set);
+      }
+    }
+    return { fail, pass, review, reviewRules };
+  };
+
+  // KWCAG 매트릭스 (모범 사례 규칙은 제외 — WCAG 축과 동일 기준).
+  // 위반 규칙의 KWCAG 매핑은 태그 폴백을 반영한 ruleKwcag를 그대로 쓴다.
+  const {
+    fail: kwcagFail,
+    pass: kwcagPass,
+    review: kwcagReview,
+    reviewRules: kwcagReviewRules,
+  } = foldByCriterion((id) => ruleKwcag.get(id) ?? getRuleEntry(id).kwcag, true);
 
   const notPresentScs = new Set(options.notPresentScs ?? []);
   const kwcagMatrix: KwcagMatrixRow[] = KWCAG_ITEMS.map((item) => {
@@ -144,25 +163,12 @@ export function aggregateScan(
   });
 
   // ── WCAG 2.2 성공기준(SC) 매트릭스 (WCAG-EM 2.0 Step 4) ──
-  const scFail = new Map<string, { count: number; rules: Set<string> }>();
-  for (const ruleId of failedRules) {
-    for (const sc of getRuleEntry(ruleId).wcag) {
-      const cur = scFail.get(sc) ?? { count: 0, rules: new Set<string>() };
-      cur.count += byRule[ruleId] ?? 0;
-      cur.rules.add(ruleId);
-      scFail.set(sc, cur);
-    }
-  }
-  const scPass = new Set<string>();
-  for (const id of passedRules) for (const sc of getRuleEntry(id).wcag) scPass.add(sc);
-  const scReview = new Set<string>();
-  const scReviewRules = new Map<string, Set<string>>();
-  for (const id of incompleteRules) {
-    for (const sc of getRuleEntry(id).wcag) {
-      scReview.add(sc);
-      (scReviewRules.get(sc) ?? scReviewRules.set(sc, new Set()).get(sc)!).add(id);
-    }
-  }
+  const {
+    fail: scFail,
+    pass: scPass,
+    review: scReview,
+    reviewRules: scReviewRules,
+  } = foldByCriterion((id) => getRuleEntry(id).wcag, false);
 
   const wcagMatrix: WcagMatrixRow[] = criteriaForTarget(options.conformanceTarget ?? "AA").map((c) => {
     const fail = scFail.get(c.id);
