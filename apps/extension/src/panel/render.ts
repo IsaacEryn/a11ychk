@@ -3,11 +3,13 @@ import {
   aggregateScan,
   getRuleEntry,
   type Impact,
+  type LocalizedText,
 } from "@a11ychk/core/catalog";
 import { applyIncompleteDecision, type IncompleteDecision } from "../incomplete";
 import { highlightInPage } from "../injected";
 import { announce } from "../ui";
 import { msg, pick } from "../i18n";
+import * as log from "../log";
 import { $, AXE_VERSION, state, type PageResult } from "./state";
 import { getSession } from "./session";
 import { updateScanCache } from "./scan";
@@ -23,6 +25,49 @@ const IMPACT_MSG_KEY: Record<Impact, string> = {
 /** 심각도 라벨 — initI18n 이후에 호출되도록 지연 평가(모듈 로드 시점 msg() 금지) */
 export function impactLabel(impact: Impact): string {
   return msg(IMPACT_MSG_KEY[impact]);
+}
+
+/** "표시" 버튼이 원래 라벨로 돌아오기까지의 시간 */
+const SHOW_RESET_MS = 2500;
+
+/**
+ * 페이지에서 요소를 강조하는 "표시" 버튼. 위반 목록과 확인필요 심사 섹션이 공유한다.
+ * 클릭 시 selector를 강조하고 결과에 따라 버튼 텍스트·스크린리더 고지를 갱신, 잠시 후 복원.
+ */
+function makeShowButton(tabId: number, selector: string, ariaLabel?: string): HTMLButtonElement {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "locate";
+  btn.textContent = msg("show");
+  if (ariaLabel) btn.setAttribute("aria-label", ariaLabel);
+  btn.addEventListener("click", async () => {
+    try {
+      const r = await chrome.scripting.executeScript({ target: { tabId }, args: [selector], func: highlightInPage });
+      const found = Boolean(r[0]?.result);
+      btn.textContent = found ? msg("shown") : msg("notFound");
+      announce(found ? msg("srShown") : msg("srNotFound"));
+    } catch (e) {
+      log.warn("highlight injection failed", e);
+      btn.textContent = msg("failedShort");
+      announce(msg("srNotFound"));
+    }
+    setTimeout(() => (btn.textContent = msg("show")), SHOW_RESET_MS);
+  });
+  return btn;
+}
+
+/** 규칙 가이드 첫 단락을 접기형 details로. 가이드가 없으면 null. 위반·확인필요 공용. */
+function guideDetails(guide: LocalizedText): HTMLDetailsElement | null {
+  const first = pick(guide).split("\n\n")[0]?.trim();
+  if (!first) return null;
+  const details = document.createElement("details");
+  details.className = "vguide";
+  const summaryEl = document.createElement("summary");
+  summaryEl.textContent = msg("guide");
+  const p = document.createElement("p");
+  p.textContent = first;
+  details.append(summaryEl, p);
+  return details;
 }
 
 /** 결과가 렌더된 URL — 같은 URL 재렌더(심사 결정 등)면 필터 상태를 유지한다 */
@@ -183,31 +228,7 @@ function renderViolationList() {
       sel.textContent = node.selector;
       sel.title = node.html;
       nli.appendChild(sel);
-      if (tabId) {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.className = "locate";
-        btn.textContent = msg("show");
-        btn.setAttribute("aria-label", msg("showAria", [node.selector]));
-        btn.addEventListener("click", async () => {
-          try {
-            const r = await chrome.scripting.executeScript({
-              target: { tabId },
-              args: [node.selector],
-              func: highlightInPage,
-            });
-            const found = Boolean(r[0]?.result);
-            btn.textContent = found ? msg("shown") : msg("notFound");
-            // 버튼 텍스트 교체만으로는 스크린리더에 결과가 전달되지 않음 — 라이브 리전 고지
-            announce(found ? msg("srShown") : msg("srNotFound"));
-          } catch {
-            btn.textContent = msg("failedShort");
-            announce(msg("srNotFound"));
-          }
-          setTimeout(() => (btn.textContent = msg("show")), 2500);
-        });
-        nli.appendChild(btn);
-      }
+      if (tabId) nli.appendChild(makeShowButton(tabId, node.selector, msg("showAria", [node.selector])));
       nodesUl.appendChild(nli);
     }
     if (v.nodes.length > 3) {
@@ -219,17 +240,8 @@ function renderViolationList() {
     li.appendChild(nodesUl);
 
     // 개선 가이드 (첫 단락) — 접기형
-    const guideFirst = pick(entry.guide).split("\n\n")[0]?.trim();
-    if (guideFirst) {
-      const details = document.createElement("details");
-      details.className = "vguide";
-      const summaryEl = document.createElement("summary");
-      summaryEl.textContent = msg("guide");
-      const p = document.createElement("p");
-      p.textContent = guideFirst;
-      details.append(summaryEl, p);
-      li.appendChild(details);
-    }
+    const guide = guideDetails(entry.guide);
+    if (guide) li.appendChild(guide);
 
     list.appendChild(li);
   }
@@ -268,42 +280,13 @@ function renderIncompleteSection() {
     }
 
     // 확인 방법 힌트 — 규칙 가이드 첫 단락 (위반 목록과 동일 패턴)
-    const guideFirst = pick(entry.guide).split("\n\n")[0]?.trim();
-    if (guideFirst) {
-      const details = document.createElement("details");
-      details.className = "vguide";
-      const summaryEl = document.createElement("summary");
-      summaryEl.textContent = msg("guide");
-      const p = document.createElement("p");
-      p.textContent = guideFirst;
-      details.append(summaryEl, p);
-      li.appendChild(details);
-    }
+    const guide = guideDetails(entry.guide);
+    if (guide) li.appendChild(guide);
 
     const actions = document.createElement("div");
     actions.className = "inc-actions";
     if (tabId && finding && finding.nodes.length > 0) {
-      const showBtn = document.createElement("button");
-      showBtn.type = "button";
-      showBtn.className = "locate";
-      showBtn.textContent = msg("show");
-      const combined = finding.nodes.map((n) => n.selector).join(", ");
-      showBtn.addEventListener("click", async () => {
-        try {
-          const r = await chrome.scripting.executeScript({
-            target: { tabId },
-            args: [combined],
-            func: highlightInPage,
-          });
-          const found = Boolean(r[0]?.result);
-          showBtn.textContent = found ? msg("shown") : msg("notFound");
-          announce(found ? msg("srShown") : msg("srNotFound"));
-        } catch {
-          showBtn.textContent = msg("failedShort");
-        }
-        setTimeout(() => (showBtn.textContent = msg("show")), 2500);
-      });
-      actions.appendChild(showBtn);
+      actions.appendChild(makeShowButton(tabId, finding.nodes.map((n) => n.selector).join(", ")));
     }
     const failBtn = document.createElement("button");
     failBtn.type = "button";

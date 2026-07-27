@@ -135,7 +135,9 @@ export const manualView = { undoneOnly: false };
 async function applyVerdict(
   url: string,
   itemId: string,
-  group: HTMLElement,
+  // 판정 버튼이 든 범위 — 상단 라디오와 가이드형 예/아니오 버튼이 별도 서브트리라
+  // 항목 전체(li)를 넘겨 양쪽 aria-pressed를 함께 맞춘다.
+  scope: HTMLElement,
   value: Verdict | undefined,
 ) {
   if (value) await setReview(url, itemId, { outcome: value });
@@ -144,9 +146,9 @@ async function applyVerdict(
     delete cur[itemId];
     await chrome.storage.local.set({ [reviewKey(url)]: cur });
   }
-  group.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
+  scope.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
   if (value) {
-    group.querySelector(`.verdict.v-${value}`)?.setAttribute("aria-pressed", "true");
+    scope.querySelectorAll(`.verdict.v-${value}`).forEach((b) => b.setAttribute("aria-pressed", "true"));
   }
   announce(value ? msg("srVerdictSaved", [itemId]) : msg("srVerdictCleared", [itemId]));
   await updateManualProgress(url);
@@ -225,7 +227,7 @@ export async function renderManual(url: string) {
       btn.setAttribute("aria-pressed", String(reviews[entry.id]?.outcome === v.value));
       btn.addEventListener("click", async () => {
         const already = btn.getAttribute("aria-pressed") === "true";
-        await applyVerdict(url, entry.id, group, already ? undefined : v.value);
+        await applyVerdict(url, entry.id, li, already ? undefined : v.value);
       });
       group.appendChild(btn);
     }
@@ -278,8 +280,9 @@ export async function renderManual(url: string) {
         b.type = "button";
         b.className = `verdict v-${value}`;
         b.textContent = msg(labelKey);
+        b.setAttribute("aria-pressed", String(reviews[entry.id]?.outcome === value));
         b.addEventListener("click", async () => {
-          await applyVerdict(url, entry.id, group, value);
+          await applyVerdict(url, entry.id, li, value);
           guide.open = false;
         });
         return b;
