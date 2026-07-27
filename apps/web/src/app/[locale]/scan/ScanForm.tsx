@@ -209,12 +209,19 @@ export function ScanForm({
 
   return (
     <>
-      {/* 검사 옵션 프리셋 — 불러오기(select) + 이름 저장 + 삭제. 폼 밖에 둬 중첩 폼을 피한다 */}
-      <section aria-label={labels.presetTitle} className="mt-4 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-3">
-        <div className="flex flex-wrap items-end gap-2">
+      {/* 검사 옵션 프리셋 — 불러오기(select) + 이름 저장 + 삭제. 폼 밖에 둬 중첩 폼을 피한다.
+          기본 접힘(저장된 프리셋이 있으면 펼침)으로 폼 상단 번잡함을 줄인다 */}
+      <details
+        open={presets.length > 0}
+        className="mt-4 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-3"
+      >
+        <summary className="cursor-pointer text-sm font-semibold">
+          {labels.presetTitle} {presets.length > 0 ? `(${presets.length})` : ""}
+        </summary>
+        <div className="mt-3 flex flex-wrap items-end gap-2">
           <div className="min-w-40 flex-1">
             <label htmlFor="preset-load" className="mb-1 block text-sm font-semibold">
-              {labels.presetTitle}
+              {labels.presetLoadLabel}
             </label>
             <select
               id="preset-load"
@@ -244,7 +251,7 @@ export function ScanForm({
         </div>
         <form action={saveAction} className="mt-2 flex flex-wrap items-center gap-2">
           <label htmlFor="preset-name" className="sr-only">
-            {labels.presetLoadLabel}
+            {labels.presetNamePlaceholder}
           </label>
           <input
             id="preset-name"
@@ -267,7 +274,7 @@ export function ScanForm({
           <FormFeedback state={saveState} okLabel={labels.presetSaved} errors={labels.presetErrors} fallback={labels.presetErrors.failed} />
         </form>
         <p className="mt-2 text-xs text-[var(--color-ink-faint)]">{labels.presetHint}</p>
-      </section>
+      </details>
 
       <form onSubmit={onSubmit} className="mt-4">
         <label htmlFor="scan-url" className="mb-1 block text-sm font-semibold">

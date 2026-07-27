@@ -247,8 +247,8 @@
     "excludePlaceholder": "/admin/*\n/tag/\nhttps://example.com/login",
     "excludeHint": "자동 수집 표본에서 뺄 페이지입니다. 정확한 주소, 또는 /admin/* · /tag/ 처럼 * 나 / 로 끝나면 하위 경로까지 제외합니다. 최대 30개.",
     "preset": {
-      "title": "저장된 검사 옵션 불러오기",
-      "loadLabel": "프리셋 이름",
+      "title": "검사 옵션 프리셋",
+      "loadLabel": "저장된 프리셋 불러오기",
       "loadPlaceholder": "프리셋 선택…",
       "namePlaceholder": "프리셋 이름 (예: 우리 회사 홈)",
       "save": "현재 옵션 저장",

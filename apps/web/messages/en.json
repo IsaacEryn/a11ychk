@@ -247,8 +247,8 @@
     "excludePlaceholder": "/admin/*\n/tag/\nhttps://example.com/login",
     "excludeHint": "Pages to drop from the auto-collected sample. Use an exact address, or end with * or / (e.g. /admin/*, /tag/) to exclude a whole subtree. Up to 30.",
     "preset": {
-      "title": "Load saved scan options",
-      "loadLabel": "Preset name",
+      "title": "Scan option presets",
+      "loadLabel": "Load a saved preset",
       "loadPlaceholder": "Select a preset…",
       "namePlaceholder": "Preset name (e.g. Company site)",
       "save": "Save current options",
