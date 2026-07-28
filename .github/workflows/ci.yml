@@ -27,6 +27,22 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
           NEXT_PUBLIC_SITE_URL: https://www.a11ychk.com
 
+      # 방금 빌드한 앱을 띄워 응답 자체를 확인한다. 유닛 테스트로는 상태 코드를 못 본다 —
+      # 없는 주소가 404 화면을 보여 주면서 200을 반환하던 적이 있고(soft 404) 그때 아무도
+      # 눈치채지 못했다. canonical·hreflang·구조화 데이터도 조용히 빠지는 축이라 같이 본다.
+      - name: Route responses
+        working-directory: apps/web
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
+          NEXT_PUBLIC_SITE_URL: https://www.a11ychk.com
+        run: |
+          npx next start -p 3210 &
+          echo $! > /tmp/next.pid
+          npm run test:routes
+          kill "$(cat /tmp/next.pid)"
+
   # 배포한 GitHub Action을 우리가 먼저 써 본다. 남의 CI에서 처음 돌아가는 일이 없도록,
   # 로컬 픽스처 두 장으로 "위반을 찾는가"와 "게이트가 실제로 막는가"를 모두 확인한다.
   action:
