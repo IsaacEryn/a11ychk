@@ -13,6 +13,8 @@ import { getAnnouncements, isBannerActive } from "@/lib/appSettings";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { themeInitScript } from "@/components/ThemeToggle";
 import { JsonLd, organizationJsonLd } from "@/components/JsonLd";
+import { AuthSync } from "@/components/AuthSync";
+import { getCachedUser } from "@/lib/supabase/user";
 import "../globals.css";
 // Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
@@ -111,6 +113,10 @@ export default async function LocaleLayout({
     () => null,
   );
 
+  // AuthSync용 로그인 상태 — Header가 같은 렌더 패스에서 부르는 getCachedUser와
+  // React cache로 공유되므로 추가 왕복은 없다
+  const user = await getCachedUser();
+
   return (
     // suppressHydrationWarning: 테마 초기화 스크립트가 hydration 전에 data-theme를
     // 설정하므로 html 속성 불일치 경고를 억제한다 (theme attribute 표준 패턴)
@@ -154,6 +160,7 @@ export default async function LocaleLayout({
           {t("skipToMain")}
         </a>
         <NextIntlClientProvider>
+          <AuthSync wasLoggedIn={!!user} />
           <ServiceStatusBanner />
           {activeNotice && (
             <AnnouncementBanner
