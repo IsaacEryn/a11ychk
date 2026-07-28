@@ -9,7 +9,7 @@ carries its own version in the Web Store.*
 
 ---
 
-## v1.0.0 — WCAG 2.2 · KWCAG 2.2 접근성 검사 게이트 / Accessibility gate
+## 웹접근성 점검 도구 (WCAG + KWCAG 적용) / Web Accessibility Checker (WCAG + KWCAG) — v1.0.0
 
 ```yaml
 - uses: IsaacEryn/a11ychk@v1
