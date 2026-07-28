@@ -8,6 +8,7 @@ URL 하나로 대표 페이지를 수집해 접근성을 점검하고, **한국�
 AI 코딩 도구용 수정 요청 문서까지 생성하는 오픈소스 서비스입니다.
 
 [![CI](https://github.com/IsaacEryn/a11ychk/actions/workflows/ci.yml/badge.svg)](https://github.com/IsaacEryn/a11ychk/actions/workflows/ci.yml)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-A11y%20Check-1a7f6e.svg)](https://github.com/marketplace/actions/a11y-check)
 [![core: Apache-2.0](https://img.shields.io/badge/core-Apache--2.0-1a7f6e.svg)](packages/core/LICENSE)
 [![app: AGPL-3.0](https://img.shields.io/badge/app-AGPL--3.0-1a7f6e.svg)](apps/web/LICENSE)
 [![WCAG 2.2](https://img.shields.io/badge/WCAG-2.2%20A%2FAA-1a7f6e.svg)](https://www.w3.org/TR/WCAG22/)

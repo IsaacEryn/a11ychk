@@ -1,0 +1,46 @@
+# 우리 서비스를 우리 액션으로 검사한다.
+#
+# CI의 self-test는 `uses: ./`로 로컬 경로를 쓰기 때문에, Marketplace에서 태그로
+# 받아오는 경로는 아무도 밟아 보지 않는다. 여기서는 일부러 `@v1`을 써서 남들이
+# 쓰는 것과 똑같은 길로 돌린다 — 태그가 밀렸거나 릴리스가 깨지면 여기가 먼저 빨개진다.
+#
+# 사이트 자체의 정기 점검은 서비스 내부 크론이 따로 하고 있다. 이 워크플로의 목적은
+# 배포한 액션이 실제로 동작하는지 확인하는 쪽에 있다.
+name: a11y
+
+on:
+  schedule:
+    # 매주 월요일 03:00 KST (일요일 18:00 UTC)
+    - cron: "0 18 * * 0"
+  workflow_dispatch:
+
+# 스케줄과 수동 실행이 겹치면 나중 것만 남긴다
+concurrency:
+  group: a11y
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    name: a11ychk.com 검사
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scan public pages
+        id: scan
+        uses: IsaacEryn/a11ychk@v1
+        with:
+          urls: |
+            https://www.a11ychk.com/ko
+            https://www.a11ychk.com/en
+            https://www.a11ychk.com/ko/about
+            https://www.a11ychk.com/ko/guide
+            https://www.a11ychk.com/ko/guide/alternative-text
+            https://www.a11ychk.com/ko/directory
+          fail-on: serious
+
+      # 준수율은 잡 요약에도 남지만, 워크플로 목록에서 바로 보이도록 한 줄 더 남긴다
+      - name: Report compliance rate
+        if: always()
+        env:
+          RATE: ${{ steps.scan.outputs.compliance-rate }}
+          NODES: ${{ steps.scan.outputs.violation-nodes }}
+        run: echo "::notice::자동 검사 준수율 ${RATE}% · 위반 요소 ${NODES}개"

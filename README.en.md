@@ -9,6 +9,7 @@ structured report with **Korean-language remediation guides** and ready-to-use
 fix-request documents for AI coding tools.
 
 [![CI](https://github.com/IsaacEryn/a11ychk/actions/workflows/ci.yml/badge.svg)](https://github.com/IsaacEryn/a11ychk/actions/workflows/ci.yml)
+[![GitHub Marketplace](https://img.shields.io/badge/Marketplace-A11y%20Check-1a7f6e.svg)](https://github.com/marketplace/actions/a11y-check)
 [![core: Apache-2.0](https://img.shields.io/badge/core-Apache--2.0-1a7f6e.svg)](packages/core/LICENSE)
 [![app: AGPL-3.0](https://img.shields.io/badge/app-AGPL--3.0-1a7f6e.svg)](apps/web/LICENSE)
 
