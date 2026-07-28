@@ -9,6 +9,52 @@ carries its own version in the Web Store.*
 
 ---
 
+## 모범 사례를 준수율에서 분리 / Best-practice rules no longer affect the score — v1.1.0
+
+### 한국어
+
+준수율과 `fail-on` 판정이 a11ychk.com 보고서와 어긋나 있었습니다. WCAG 성공기준에
+대응하지 않는 axe 규칙(`landmark-one-main`, `region`, `heading-order` 등)을 웹 보고서는
+'권고'로만 보고하는데 액션은 감점 요소로 세고 있었습니다.
+
+이 차이는 **제3자 위젯**에서 특히 크게 벌어졌습니다. 캡차나 채팅 위젯이 iframe으로 들어오면
+그 안쪽 문서에는 `main`도 `h1`도 없는 게 보통인데, 내가 고칠 수 없는 남의 마크업 때문에
+점수가 깎이고 빌드가 실패할 수 있었습니다.
+
+- 모범 사례 규칙을 준수율·심각도 집계·`fail-on` 판정에서 제외합니다
+- 잡 요약에 "모범 사례 권고" 표를 따로 두어 그대로 보여 줍니다
+- `advisory-rules` 출력을 추가했습니다
+- WCAG 성공기준에 걸리는 위반은 그대로 잡습니다 — 예를 들어 위젯이 화면 확대를 막으면
+  `1.4.4` 위반으로 남습니다
+
+`compliance-rate`는 이제 웹 보고서의 자동 준수율과 같은 값(WCAG 성공기준 기준)이고,
+`violation-nodes`·`violation-rules`도 권고를 뺀 수치입니다. 임계값을 이 출력에 걸어 두셨다면
+한 번 확인해 주세요.
+
+### English
+
+The compliance rate and the `fail-on` gate disagreed with the report on a11ychk.com. axe
+rules that map to no WCAG success criterion (`landmark-one-main`, `region`, `heading-order`,
+and friends) are reported as advisory on the web, but this action was counting them against
+you.
+
+The gap was widest around **third-party widgets**. A captcha or chat widget arrives as an
+iframe whose document usually has no `main` and no `h1` — markup you cannot fix, dragging
+your score down and potentially failing your build.
+
+- Best-practice rules are excluded from the compliance rate, the severity totals, and the
+  `fail-on` decision
+- The job summary lists them in a separate "모범 사례 권고" table instead
+- New `advisory-rules` output
+- Real WCAG failures are still caught — if a widget blocks pinch-zoom, that remains a `1.4.4`
+  violation
+
+`compliance-rate` now matches the automated score in the web report (measured against WCAG
+success criteria), and `violation-nodes` / `violation-rules` exclude advisory findings. Worth
+a look if you gate on those outputs.
+
+---
+
 ## 웹접근성 점검 도구 (WCAG + KWCAG 적용) / Web Accessibility Checker (WCAG + KWCAG) — v1.0.0
 
 ```yaml

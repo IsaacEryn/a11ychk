@@ -96,18 +96,35 @@ async function main() {
       });
     }
   }
-  const rules = [...byRule.entries()]
+  const allRules = [...byRule.entries()]
     .map(([ruleId, r]) => ({ ruleId, ...r, entry: getRuleEntry(ruleId, r.tags) }))
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
+
+  // 모범 사례(권고) 규칙 분리 — WCAG 성공기준에 대응하지 않아 적합성 판정에 넣지 않는
+  // axe 규칙들(landmark-*·region·heading-order 등)이다. 어떤 규칙이 여기 해당하는지는
+  // aggregateScan이 이미 골라 두므로, 웹 보고서와 판정이 어긋날 일이 없다.
+  //
+  // 여기서 나누지 않으면 제3자 위젯 iframe(캡차 등)의 권고 위반이 준수율을 깎고 게이트까지
+  // 건드린다. 웹 보고서는 이를 '권고'로만 보고하는데 액션만 감점하던 불일치를 없앤다.
+  const advisoryIds = new Set((summary.bestPractice ?? []).map((b) => b.ruleId));
+  const rules = allRules.filter((r) => !advisoryIds.has(r.ruleId));
+  const advisory = allRules.filter((r) => advisoryIds.has(r.ruleId));
+
+  // 준수율·심각도·게이트는 모두 적합성 대상(권고 제외)만으로 센다.
+  // 준수율은 웹 보고서 헤드라인과 같은 값 — WCAG 성공기준 기준의 자동 점수다.
+  const complianceRate = summary.scores?.automated.rate ?? summary.complianceRate;
+  const violationNodes = rules.reduce((n, r) => n + r.nodes, 0);
+  const byImpact: Record<Impact, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+  for (const r of rules) byImpact[r.impact] += r.nodes;
 
   // ── 스텝 요약 (Markdown) ──
   const md: string[] = [];
   md.push("## A11y Check — 자동 접근성 검사 결과");
   md.push("");
-  md.push(`- 검사 페이지: ${pages.length}개 / 자동 검사 준수율: **${summary.complianceRate}%**`);
-  md.push(`- 위반: 규칙 ${rules.length}종 · 요소 ${summary.totalViolationNodes}개`);
+  md.push(`- 검사 페이지: ${pages.length}개 / 자동 검사 준수율: **${complianceRate}%**`);
+  md.push(`- 위반: 규칙 ${rules.length}종 · 요소 ${violationNodes}개`);
   md.push(
-    `- 심각도별 요소: ${IMPACT_ORDER.map((k) => `${IMPACT_LABEL[k].split(" ")[0]} ${summary.byImpact[k]}`).join(" · ")}`,
+    `- 심각도별 요소: ${IMPACT_ORDER.map((k) => `${IMPACT_LABEL[k].split(" ")[0]} ${byImpact[k]}`).join(" · ")}`,
   );
   md.push(`- 기준: WCAG 2.2 AA + KWCAG 2.2 (axe-core v${AXE_VERSION} + 자체 규칙)`);
   md.push("");
@@ -125,6 +142,18 @@ async function main() {
     }
   } else {
     md.push("자동 검사 위반이 없습니다. (자동 도구는 일부 기준만 검출합니다 — 수동 점검 병행 권장)");
+  }
+  if (advisory.length > 0) {
+    md.push("");
+    md.push("### 모범 사례 권고");
+    md.push("");
+    md.push(
+      "WCAG 성공기준에 대응하지 않는 항목이라 준수율과 실패 판정에서 제외했습니다. 고치면 더 좋지만 적합성 여부와는 별개입니다.",
+    );
+    md.push("");
+    md.push("| 규칙 | 요소 수 |");
+    md.push("|---|---:|");
+    for (const r of advisory) md.push(`| ${r.entry.title.ko} (\`${r.ruleId}\`) | ${r.nodes} |`);
   }
   if (failedUrls.length > 0) {
     md.push("");
@@ -145,7 +174,7 @@ async function main() {
   if (process.env.GITHUB_OUTPUT) {
     appendFileSync(
       process.env.GITHUB_OUTPUT,
-      `compliance-rate=${summary.complianceRate}\nviolation-nodes=${summary.totalViolationNodes}\nviolation-rules=${rules.length}\n`,
+      `compliance-rate=${complianceRate}\nviolation-nodes=${violationNodes}\nviolation-rules=${rules.length}\nadvisory-rules=${advisory.length}\n`,
     );
   }
 
@@ -154,10 +183,10 @@ async function main() {
     failOn === "none"
       ? 0
       : failOn === "any"
-        ? summary.totalViolationNodes
+        ? violationNodes
         : failOn === "critical"
-          ? summary.byImpact.critical
-          : summary.byImpact.critical + summary.byImpact.serious;
+          ? byImpact.critical
+          : byImpact.critical + byImpact.serious;
   if (gate > 0) {
     console.error(`::error::접근성 위반 기준(fail-on: ${failOn}) 초과 — 해당 요소 ${gate}개. 위 요약을 확인하세요.`);
     process.exit(1);

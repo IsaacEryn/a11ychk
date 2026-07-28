@@ -27,14 +27,17 @@ inputs:
 
 outputs:
   compliance-rate:
-    description: "자동 검사 준수율 (%)"
+    description: "자동 검사 준수율 (%) — WCAG 성공기준 기준, 모범 사례 권고는 제외"
     value: ${{ steps.scan.outputs.compliance-rate }}
   violation-nodes:
-    description: "위반 요소 수 (전체 페이지 합산)"
+    description: "위반 요소 수 (전체 페이지 합산, 권고 제외)"
     value: ${{ steps.scan.outputs.violation-nodes }}
   violation-rules:
-    description: "위반 규칙 수"
+    description: "위반 규칙 수 (권고 제외)"
     value: ${{ steps.scan.outputs.violation-rules }}
+  advisory-rules:
+    description: "모범 사례 권고 규칙 수 — 준수율·실패 판정에는 넣지 않는다"
+    value: ${{ steps.scan.outputs.advisory-rules }}
 
 # 모든 스텝은 action/ 안에서 돈다. 이 저장소는 모노레포지만 action/은 workspaces에
 # 속하지 않는 독립 패키지라, 소비자 CI가 웹앱·확장 의존성까지 받는 일이 없다.

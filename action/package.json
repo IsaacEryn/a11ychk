@@ -1,6 +1,6 @@
 {
   "name": "@a11ychk/action",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A11y Check GitHub Action runner — 러너가 실제로 쓰는 것만 선언한다",
   "private": true,
   "license": "Apache-2.0",
