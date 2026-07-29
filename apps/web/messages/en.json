@@ -1300,7 +1300,8 @@
       "improved": "Improved sites",
       "shared": "Shared reports",
       "aiFix": "AI fix downloads",
-      "since": "Traffic accumulated since {date}"
+      "since": "Traffic accumulated since {date}",
+      "npm": "MCP npm downloads (30d)"
     },
     "queue": {
       "title": "Concurrency monitor",
@@ -1482,6 +1483,10 @@
         "name": "Chrome extension",
         "desc": "Admin screens behind login and bot-blocked sites are out of a server's reach, so the extension audits them right in your browser and merges results into your site report. It also ships on-page tools: color-blindness simulation, focus-order overlay, a contrast eyedropper."
       },
+      "mcp": {
+        "name": "AI coding tool integration (MCP)",
+        "desc": "Register the MCP server (@a11ychk/mcp) in Claude Code or Cursor and the agent can scan your localhost pages in place, read per-violation remediation guides, and fix the code — using the same engine and judgment as this service."
+      },
       "badge": {
         "name": "Accessibility badge",
         "desc": "Verified domains get an SVG badge showing the latest compliance rate, ready to embed."
@@ -1540,7 +1545,8 @@
       "title": "GitHub",
       "desc": "The development history of the audit engine and the full Korean-language KWCAG 2.2 rule catalog is on GitHub. Anyone can verify and contribute.",
       "link": "View on GitHub →",
-      "traffic": "Since {since}: {views} repository views ({visitors} visitors) · {clones} clones"
+      "traffic": "Since {since}: {views} repository views ({visitors} visitors) · {clones} clones",
+      "npm": "{downloads} npm downloads of the MCP server (@a11ychk/mcp) in the last 30 days — AI coding tools calling the engine directly"
     },
     "note": "Metrics refresh hourly (last computed: {date}). Compliance rates cover the automated scope only — automated tools find part of all accessibility issues.",
     "cta": "Audit your site",

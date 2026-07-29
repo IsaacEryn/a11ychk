@@ -1,11 +1,14 @@
 # 변경 이력 / Changelog
 
-여기 붙는 버전 태그는 **GitHub Action**의 버전입니다. 웹 서비스(a11ychk.com)는
-계속 배포되므로 따로 버전을 매기지 않고, 크롬 확장은 스토어에서 자체 버전을 씁니다.
+여기 붙는 버전 태그(v*)는 **GitHub Action**의 버전입니다. 웹 서비스(a11ychk.com)는
+계속 배포되므로 따로 버전을 매기지 않고, 크롬 확장은 스토어에서, MCP 서버
+(@a11ychk/mcp)는 npm에서 각자 버전을 씁니다 — MCP 변경 이력은
+[packages/mcp/CHANGELOG.md](packages/mcp/CHANGELOG.md)에 있습니다.
 
-*Version tags in this repository track the **GitHub Action**. The web service
-(a11ychk.com) ships continuously and is not versioned here; the Chrome extension
-carries its own version in the Web Store.*
+*Version tags here (v\*) track the **GitHub Action**. The web service ships
+continuously and is not versioned; the Chrome extension and the MCP server
+(@a11ychk/mcp, see [packages/mcp/CHANGELOG.md](packages/mcp/CHANGELOG.md))
+carry their own versions.*
 
 ---
 

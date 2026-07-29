@@ -53,6 +53,8 @@ export interface ImpactStats {
   /** 개선 사이트들의 평균 준수율 상승(%p) */
   avgRateGain: number;
   github: { stars: number; forks: number } | null;
+  /** MCP 서버(@a11ychk/mcp) 최근 30일 npm 다운로드 — 게시 전/실패 시 null */
+  npm: { downloads: number } | null;
   /** 저장소 누적 트래픽 (repo_stats 크론 축적분 — migration 0007 전엔 null) */
   traffic: { views: number; uniqueViews: number; clones: number; since: string } | null;
   /** 공유 링크가 켜진 보고서 수 (migration 0012 전엔 0) */
@@ -138,6 +140,20 @@ export async function collectImpactStats(): Promise<ImpactStats> {
     // GitHub API 실패 — 생략
   }
 
+  // MCP 서버 npm 다운로드 (최근 30일) — 게시 전에는 404라 null 유지
+  let npm: ImpactStats["npm"] = null;
+  try {
+    const res = await fetch("https://api.npmjs.org/downloads/point/last-month/@a11ychk/mcp", {
+      next: { revalidate: 3600 },
+    });
+    if (res.ok) {
+      const data = (await res.json()) as { downloads?: number };
+      if (typeof data.downloads === "number") npm = { downloads: data.downloads };
+    }
+  } catch {
+    // npm API 실패 — 생략
+  }
+
   // 활용 지표 (컬럼/테이블 미적용 시 0으로 폴백)
   const { count: sharedCount } = await admin
     .from("scans")
@@ -161,6 +177,7 @@ export async function collectImpactStats(): Promise<ImpactStats> {
     rescannedSites,
     avgRateGain,
     github,
+    npm,
     traffic,
     sharedReports: sharedCount ?? 0,
     aiFixDownloads: Number(counterRow?.count ?? 0),

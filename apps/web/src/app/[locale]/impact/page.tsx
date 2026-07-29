@@ -136,6 +136,12 @@ export default async function ImpactPage({ params }: { params: Promise<{ locale:
               })}
             </p>
           )}
+          {/* MCP 서버 npm 다운로드 — 게시 전(null)이나 0이면 표시하지 않는다 */}
+          {stats.npm && stats.npm.downloads > 0 && (
+            <p className="mt-2 text-sm text-[var(--color-ink-soft)]">
+              {t("oss.npm", { downloads: n(stats.npm.downloads) })}
+            </p>
+          )}
         </section>
       </div>
 

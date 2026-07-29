@@ -47,6 +47,17 @@ diagnosis into **artifacts that drive remediation**:
 | [`packages/core`](packages/core) | Apache-2.0 | Scanner engine, crawler, rule catalog, SSRF guard — embeddable |
 | [`apps/web`](apps/web) | AGPL-3.0 | Next.js service: reports, scheduled scans, badges, public directory, no-login teaser check, referral tiers |
 | [`apps/extension`](apps/extension) | Apache-2.0 | Chrome MV3 side-panel: audit pages behind login, visual tools, expert judgment |
+| [`packages/mcp`](packages/mcp) | Apache-2.0 | MCP server for AI coding tools — scan localhost pages, get Korean fix guides in the loop |
+
+## Use it from an AI coding tool (MCP)
+
+```bash
+claude mcp add a11ychk -- npx -y @a11ychk/mcp
+```
+
+The agent can then scan pages (including localhost dev servers), read per-violation
+remediation guides mapped to both WCAG 2.2 and KWCAG 2.2, fix the code, and re-scan —
+all inside the conversation. See [docs/mcp.md](docs/mcp.md).
 
 ## Quick start
 

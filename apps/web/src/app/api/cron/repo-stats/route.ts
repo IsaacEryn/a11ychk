@@ -90,6 +90,7 @@ async function sendMonthlySnapshot(): Promise<boolean> {
     ${line("등록 도메인", domains ?? 0)}
     ${line("GitHub", stats.github ? `★${stats.github.stars} / fork ${stats.github.forks}` : "-")}
     ${line("저장소 트래픽(누적)", stats.traffic ? `view ${stats.traffic.views} / clone ${stats.traffic.clones}` : "-")}
+    ${line("MCP npm 다운로드(30일)", stats.npm ? stats.npm.downloads : "-")}
   </table>
   <p style="margin:14px 0 0;font-size:12px;color:#5d6a66">이 메일은 매월 1일 자동 발송됩니다. 시점 기록으로 보관하세요. 공개 지표: https://www.a11ychk.com/ko/impact</p>
 </div>`;

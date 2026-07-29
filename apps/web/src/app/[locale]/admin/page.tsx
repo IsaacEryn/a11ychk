@@ -227,6 +227,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             { label: t("growth.improved"), value: format.number(growth.improvedSites) },
             { label: t("growth.shared"), value: format.number(growth.sharedReports) },
             { label: t("growth.aiFix"), value: format.number(growth.aiFixDownloads) },
+            { label: t("growth.npm"), value: growth.npm ? format.number(growth.npm.downloads) : "—" },
           ].map((s) => (
             <div key={s.label} className="border-l-[3px] border-[var(--color-seal)] pl-3">
               <dt className="text-sm font-medium text-[var(--color-ink-soft)]">{s.label}</dt>

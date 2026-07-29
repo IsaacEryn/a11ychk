@@ -59,6 +59,7 @@ remediation guides for all 33 KWCAG 2.2 checkpoints.*
 | **맛보기** | 로그인 없이 URL 1개를 즉석 검사(1페이지) — 랜딩에서 바로 체험, 봇 방지·횟수 제한 |
 | **운영** | 도메인 소유확인, 정기 자동 점검, 회귀 알림, 임베드 배지, 공개 점검 목록, 친구 초대 등급 |
 | **CI** | GitHub Action으로 PR·배포 전 자동 검사 게이트 — [사용법](docs/github-action.md) |
+| **MCP** | Claude Code·Cursor 등 AI 코딩 도구가 검사·한국어 가이드를 직접 호출 — [사용법](docs/mcp.md) |
 
 ## CI에서 바로 쓰기
 
@@ -76,6 +77,25 @@ PR마다 지정 페이지를 검사하고, 심각 이상 위반이 있으면 잡
 
 입력·출력과 버전 고정 방법은 [docs/github-action.md](docs/github-action.md)에 있습니다.
 
+## AI 코딩 도구에서 바로 쓰기 (MCP)
+
+Claude Code·Cursor 같은 AI 코딩 도구에 등록하면, 개발 중인 localhost 페이지를
+그 자리에서 검사하고 위반마다 한국어 개선 가이드를 받아 바로 수정할 수 있습니다.
+
+```bash
+claude mcp add a11ychk -- npx -y @a11ychk/mcp
+```
+
+```json
+{
+  "mcpServers": {
+    "a11ychk": { "command": "npx", "args": ["-y", "@a11ychk/mcp"] }
+  }
+}
+```
+
+도구 구성과 설치 안내는 [docs/mcp.md](docs/mcp.md)에 있습니다.
+
 ## 구조 (npm workspaces 모노레포)
 
 ```
@@ -86,6 +106,7 @@ packages/core     @a11ychk/core — 검사 엔진 (오픈소스의 심장)
   src/manual/       수동 검사 항목 정의 (KWCAG 33개 중 자동 판정 불가 항목)
   src/report/       보고서 집계 (준수율, KWCAG 매트릭스, 사이트 수준 검사)
   src/security/     SSRF 가드 (사설 IP·DNS 리바인딩·redirect 차단), robots.txt 파서
+packages/mcp      @a11ychk/mcp — AI 코딩 도구용 MCP 서버 (npm)
 apps/web          Next.js 16 서비스 앱 (a11ychk.com)
 apps/extension    크롬 확장 (MV3 Side Panel)
 supabase          DB 마이그레이션 + RLS 정책
