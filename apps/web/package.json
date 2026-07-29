@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:e2e": "vitest run -c vitest.e2e.config.ts",
-    "test:routes": "node scripts/check-routes.mjs"
+    "test:routes": "node scripts/check-routes.mjs",
+    "test:i18n": "node scripts/check-i18n.mjs"
   },
   "dependencies": {
     "@a11ychk/core": "*",

@@ -17,6 +17,7 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run test
+      - run: npm run test:i18n -w apps/web
       - run: npm run lint
       - run: npm run build -w @a11ychk/extension
       # 웹 프로덕션 빌드 검증 — typecheck가 못 잡는 빌드 단계 오류(RSC 경계 등) 포착
