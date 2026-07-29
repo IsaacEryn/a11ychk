@@ -1,0 +1,51 @@
+{
+  "name": "@a11ychk/mcp",
+  "version": "0.1.0",
+  "description": "A11y Check MCP server — web accessibility scanning (WCAG 2.2 AA + KWCAG 2.2) with Korean remediation guides, for AI coding tools",
+  "license": "Apache-2.0",
+  "type": "module",
+  "bin": {
+    "a11ychk-mcp": "dist/cli.mjs"
+  },
+  "files": [
+    "dist",
+    "NOTICE"
+  ],
+  "//": "core는 npm 미게시라 esbuild가 워크스페이스 소스를 dist에 번들한다(action과 같은 패턴). 아래 dependencies는 번들에서 external로 남는 런타임 패키지들. apps/*(AGPL) 코드는 import 금지 — 이 패키지는 Apache-2.0이다.",
+  "scripts": {
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --banner:js='#!/usr/bin/env node' --external:@modelcontextprotocol/sdk --external:zod --external:axe-core --external:undici --external:playwright-core --outfile=dist/cli.mjs --log-level=warning",
+    "prepack": "npm run build",
+    "typecheck": "tsc --noEmit",
+    "smoke": "npm run build && node scripts/smoke.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IsaacEryn/a11ychk.git",
+    "directory": "packages/mcp"
+  },
+  "homepage": "https://www.a11ychk.com",
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "accessibility",
+    "a11y",
+    "wcag",
+    "kwcag",
+    "axe-core",
+    "웹접근성"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "axe-core": "^4.10.3",
+    "playwright-core": "^1.53.0",
+    "undici": "^8.7.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.0",
+    "typescript": "^5"
+  }
+}
