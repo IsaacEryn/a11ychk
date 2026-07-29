@@ -1,0 +1,45 @@
+# @a11ychk/mcp를 npm에 게시한다. mcp-v* 태그를 밀면 돈다.
+#
+#   git tag mcp-v0.1.0 && git push origin mcp-v0.1.0
+#
+# provenance 증명을 붙이므로 로컬 npm publish가 아니라 이 워크플로로만 게시한다.
+# 사전 준비(1회): npm에 a11ychk 조직 생성 + automation 토큰을 NPM_TOKEN 시크릿으로 등록.
+name: publish-mcp
+
+on:
+  push:
+    tags: ["mcp-v*"]
+
+permissions:
+  contents: read
+  id-token: write # npm provenance
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+
+      # 태그와 package.json 버전이 어긋난 채 게시되는 사고 방지
+      - name: Tag matches package version
+        run: |
+          tag="${GITHUB_REF_NAME#mcp-v}"
+          ver="$(node -p "require('./packages/mcp/package.json').version")"
+          if [ "$tag" != "$ver" ]; then
+            echo "태그($tag)와 package.json 버전($ver)이 다릅니다"; exit 1
+          fi
+
+      # 게시 전 마지막 검증 — 빌드·스모크·산출물 목록
+      - run: npm run build -w @a11ychk/mcp
+      - run: node packages/mcp/scripts/smoke.mjs
+      - run: npm pack --dry-run -w @a11ychk/mcp
+
+      - run: npm publish -w @a11ychk/mcp --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

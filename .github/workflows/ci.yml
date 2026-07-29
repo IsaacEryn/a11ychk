@@ -43,6 +43,55 @@ jobs:
           npm run test:routes
           kill "$(cat /tmp/next.pid)"
 
+  # MCP 서버 스모크 — 브라우저 없이 도는 검사. 클라이언트 라이브러리 없이 stdio로
+  # JSON-RPC를 직접 주고받고, stdout 전 줄을 JSON.parse로 강제해 로그 오염을 잡는다.
+  # 표본 수집(crawl_sample)도 브라우저가 필요 없어 여기서 픽스처로 확인한다.
+  mcp-smoke:
+    name: mcp smoke
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @a11ychk/mcp
+      - name: Serve fixtures
+        run: |
+          python3 -m http.server 8899 --bind 127.0.0.1 --directory action/fixtures &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8899/clean.html > /dev/null && exit 0
+            sleep 1
+          done
+          echo "픽스처 서버가 뜨지 않았다"; exit 1
+      - run: node packages/mcp/scripts/smoke.mjs --crawl http://127.0.0.1:8899/
+
+  # MCP 서버 통합 — chromium으로 실제 검사까지. 위반 픽스처에서 위반·가이드·권고
+  # 분리를, 정상 픽스처에서 위반 0을 확인한다 (action self-test와 같은 픽스처).
+  mcp-integration:
+    name: mcp integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w @a11ychk/mcp
+      - run: npx playwright install --with-deps chromium
+      - name: Serve fixtures
+        run: |
+          python3 -m http.server 8899 --bind 127.0.0.1 --directory action/fixtures &
+          for _ in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8899/clean.html > /dev/null && exit 0
+            sleep 1
+          done
+          echo "픽스처 서버가 뜨지 않았다"; exit 1
+      - run: node packages/mcp/scripts/smoke.mjs --scan http://127.0.0.1:8899/violations.html
+      - run: node packages/mcp/scripts/smoke.mjs --scan http://127.0.0.1:8899/clean.html
+
   # 배포한 GitHub Action을 우리가 먼저 써 본다. 남의 CI에서 처음 돌아가는 일이 없도록,
   # 로컬 픽스처 두 장으로 "위반을 찾는가"와 "게이트가 실제로 막는가"를 모두 확인한다.
   action:
