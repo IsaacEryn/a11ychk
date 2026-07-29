@@ -40,15 +40,25 @@ const onlyEn = [...enSet].filter((k) => !koSet.has(k));
 
 // '{placeholder}' — ICU 이스케이프로 자리표시자가 죽는 패턴
 const quoted = [];
+// 키별 자리표시자 집합 — 같은 키인데 한쪽만 {count}를 쓰면 그 언어에서만 값이 사라진다
+const placeholders = { ko: new Map(), en: new Map() };
 for (const [name, tree] of [["ko", ko], ["en", en]]) {
   const walk = (node, path) => {
     if (typeof node === "string") {
       if (/'\{[a-zA-Z0-9_]+\}'/.test(node)) quoted.push(`${name}: ${path}`);
+      const found = [...node.matchAll(/\{([a-zA-Z0-9_]+)\}/g)].map((m) => m[1]).sort();
+      if (found.length > 0) placeholders[name].set(path, found.join(","));
     } else if (node && typeof node === "object") {
       for (const [k, v] of Object.entries(node)) walk(v, `${path}${path ? "." : ""}${k}`);
     }
   };
   walk(tree, "");
+}
+const phMismatch = [];
+for (const key of new Set([...placeholders.ko.keys(), ...placeholders.en.keys()])) {
+  const k = placeholders.ko.get(key) ?? "";
+  const e = placeholders.en.get(key) ?? "";
+  if (koSet.has(key) && enSet.has(key) && k !== e) phMismatch.push(`${key} — ko:{${k}} vs en:{${e}}`);
 }
 
 let failed = false;
@@ -66,6 +76,11 @@ if (quoted.length > 0) {
   failed = true;
   console.error(`작은따옴표로 감싼 ICU 자리표시자 ('{…}' — 리터럴로 출력됨):`);
   for (const k of quoted) console.error(`  - ${k}`);
+}
+if (phMismatch.length > 0) {
+  failed = true;
+  console.error(`자리표시자 집합이 언어별로 다른 키 ${phMismatch.length}개:`);
+  for (const k of phMismatch) console.error(`  - ${k}`);
 }
 
 if (failed) process.exit(1);
