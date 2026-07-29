@@ -11,9 +11,8 @@ import {
   AXE_VERSION,
   aggregateScan,
   getRuleEntry,
-  runAxeOnPage,
+  scanUrls,
   type Impact,
-  type PageScanResult,
 } from "../packages/core/src/index";
 
 const IMPACT_ORDER: Impact[] = ["critical", "serious", "moderate", "minor"];
@@ -52,30 +51,13 @@ async function main() {
     console.log(`::warning::URL이 ${urls.length}개라 앞 ${MAX_URLS}개만 검사합니다.`);
   }
 
+  // 스캔 루프는 core와 공유 (MCP 서버도 같은 루프) — 진행 표시만 여기서 출력
   const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
-  const pages: PageScanResult[] = [];
-  const failedUrls: { url: string; reason: string }[] = [];
-  try {
-    for (const url of urls.slice(0, MAX_URLS)) {
-      const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "ko-KR" });
-      const page = await context.newPage();
-      try {
-        await page.goto(url, { waitUntil: "load", timeout: 60_000 });
-        await page.waitForTimeout(500); // 늦은 렌더 안정화
-        pages.push(await runAxeOnPage(page));
-        console.log(`✓ ${url}`);
-      } catch (e) {
-        const reason = ((e as Error).message ?? "unknown").split("\n")[0]!.slice(0, 200);
-        failedUrls.push({ url, reason });
-        console.log(`✗ ${url} — ${reason}`);
-      } finally {
-        await context.close().catch(() => undefined);
-      }
-    }
-  } finally {
-    await browser.close().catch(() => undefined);
-  }
+  const { pages, failedUrls } = await scanUrls(urls, {
+    launch: () => chromium.launch({ headless: true }),
+    maxUrls: MAX_URLS,
+    onResult: (url, ok, reason) => console.log(ok ? `✓ ${url}` : `✗ ${url} — ${reason}`),
+  });
 
   if (pages.length === 0) {
     console.error("::error::모든 URL에서 페이지를 열지 못했습니다.");

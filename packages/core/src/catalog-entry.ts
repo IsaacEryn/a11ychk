@@ -10,6 +10,7 @@ export * from "./catalog/kwcagSlug";
 export * from "./catalog/wcag";
 export * from "./manual/manualChecks";
 export * from "./report/aggregate";
+export * from "./report/aiFix";
 export * from "./crawler/urlTemplate";
 export * from "./util/locale";
 export * from "./scanner/normalize";
