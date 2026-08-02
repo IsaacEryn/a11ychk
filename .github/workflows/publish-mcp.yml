@@ -3,7 +3,8 @@
 #   git tag mcp-v0.1.0 && git push origin mcp-v0.1.0
 #
 # provenance 증명을 붙이므로 로컬 npm publish가 아니라 이 워크플로로만 게시한다.
-# 사전 준비(1회): npm에 a11ychk 조직 생성 + automation 토큰을 NPM_TOKEN 시크릿으로 등록.
+# 인증은 trusted publishing(OIDC) — 토큰·시크릿 없음. 사전 준비(1회): npmjs.com의
+# @a11ychk/mcp 패키지 Settings에서 Trusted Publisher로 이 저장소의 publish-mcp.yml을 연결.
 name: publish-mcp
 
 on:
@@ -12,7 +13,7 @@ on:
 
 permissions:
   contents: read
-  id-token: write # npm provenance
+  id-token: write # trusted publishing(OIDC) + provenance
 
 jobs:
   publish:
@@ -40,6 +41,6 @@ jobs:
       - run: node packages/mcp/scripts/smoke.mjs
       - run: npm pack --dry-run -w @a11ychk/mcp
 
+      # trusted publishing은 npm 11.5.1+ 필요 — Node 22 번들 npm(10.x)으로는 OIDC 교환이 안 된다
+      - run: npm install -g npm@11
       - run: npm publish -w @a11ychk/mcp --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
