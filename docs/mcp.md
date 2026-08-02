@@ -37,6 +37,9 @@ npx playwright install chromium
 설치하지 않아도 서버는 뜹니다 — 검사 도구를 처음 부를 때 설치된 Chrome으로
 폴백을 시도하고, 그것도 없으면 정확한 설치 명령을 안내합니다.
 
+공식 MCP 레지스트리에는 [`com.a11ychk/mcp`](https://registry.modelcontextprotocol.io/v0.1/servers?search=com.a11ychk/mcp)로
+등재되어 있습니다 (도메인 인증 네임스페이스).
+
 ## 도구
 
 | 도구 | 하는 일 | 브라우저 |
