@@ -1,0 +1,22 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.a11ychk/mcp",
+  "title": "A11y Check",
+  "description": "Web accessibility scanning (WCAG 2.2 AA + KWCAG 2.2 dual mapping) with Korean remediation guides — same engine as a11ychk.com",
+  "websiteUrl": "https://www.a11ychk.com",
+  "repository": {
+    "url": "https://github.com/IsaacEryn/a11ychk",
+    "source": "github"
+  },
+  "version": "0.1.1",
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@a11ychk/mcp",
+      "version": "0.1.1",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

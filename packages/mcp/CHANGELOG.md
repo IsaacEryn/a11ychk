@@ -2,6 +2,13 @@
 
 npm 패키지 자체 버전을 따른다 (루트 CHANGELOG.md는 GitHub Action의 버전 축).
 
+## 0.1.1
+
+공식 MCP 레지스트리(registry.modelcontextprotocol.io) 등재를 위한 릴리스입니다.
+레지스트리가 npm 패키지 소유를 확인할 때 참조하는 `mcpName` 필드(`com.a11ychk/mcp`)를
+package.json에 추가하고, 레지스트리 메타데이터인 server.json을 함께 둡니다.
+서버 동작 변경은 없습니다.
+
 ## 0.1.0
 
 첫 릴리스. AI 코딩 도구(Claude Code·Cursor 등)에서 웹 접근성 검사를 직접 호출하는
