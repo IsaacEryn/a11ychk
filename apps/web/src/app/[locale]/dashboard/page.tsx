@@ -19,6 +19,7 @@ import {
 import { getPlansActive } from "@/lib/appSettings";
 import { toggleAutoScan, toggleNotify } from "@/lib/actions";
 import { AddDomainForm, DeleteDomainButton } from "./DomainForms";
+import { RerunScanButton } from "@/app/[locale]/scans/[id]/report/RescanButtons";
 import { StatusBadge } from "@/components/StatusBadge";
 import { TrendChart } from "@/components/TrendChart";
 import { DomainVerify } from "./DomainVerify";
@@ -98,10 +99,56 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   const extLimit = getExtDailyLimit(profile?.scan_limit_override, earned);
   const pageLimit = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive, earned });
 
+  // 진행 중 검사 — 최근 8건 조회를 재사용 (추가 쿼리 없음)
+  const activeScan = (scans ?? []).find((s) => s.status === "queued" || s.status === "running");
+
   return (
     <div className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
       <h1 className="font-display text-3xl font-bold">{t("title")}</h1>
       <p className="mt-1 text-[var(--color-ink-soft)]">{t("greeting", { name: profile?.nickname ?? "" })}</p>
+
+      {/* 진행 중 검사 — 목록에 묻혀 있던 상태를 상단으로 (concurrent 거부를 만나기 전에 안내) */}
+      {activeScan && (
+        <p className="mt-4 flex flex-wrap items-center gap-3 border-l-[3px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] px-4 py-3 text-sm font-medium">
+          <StatusBadge
+            status={activeScan.status}
+            label={t(`status.${activeScan.status as "queued" | "running"}`)}
+          />
+          <span className="min-w-0 flex-1 truncate">{activeScan.root_url}</span>
+          <Link href={`/scans/${activeScan.id}`} className="font-bold underline underline-offset-4">
+            {t("recent.viewProgress")}
+          </Link>
+        </p>
+      )}
+
+      {/* 첫 사용자 안내 — 검사가 하나도 없을 때만: 시작 순서를 한 카드로 */}
+      {(scans ?? []).length === 0 && (
+        <section aria-labelledby="onboarding-heading" className="doc-card mt-6 p-6">
+          <h2 id="onboarding-heading" className="font-display text-xl font-bold">
+            {t("onboarding.title")}
+          </h2>
+          <ol className="mt-3 list-decimal space-y-2 pl-5 text-sm">
+            <li>
+              <Link href="/scan" className="font-bold text-[var(--color-seal)] underline underline-offset-4">
+                {t("onboarding.step1")}
+              </Link>{" "}
+              <span className="text-[var(--color-ink-soft)]">{t("onboarding.step1Desc")}</span>
+            </li>
+            <li>
+              <span className="font-semibold">{t("onboarding.step2")}</span>{" "}
+              <span className="text-[var(--color-ink-soft)]">{t("onboarding.step2Desc")}</span>
+            </li>
+            <li>
+              <span className="font-semibold">{t("onboarding.step3")}</span>{" "}
+              <span className="text-[var(--color-ink-soft)]">{t("onboarding.step3Desc")}</span>
+            </li>
+            <li>
+              <span className="font-semibold">{t("onboarding.step4")}</span>{" "}
+              <span className="text-[var(--color-ink-soft)]">{t("onboarding.step4Desc")}</span>
+            </li>
+          </ol>
+        </section>
+      )}
 
       <div className="mt-8 grid gap-6 lg:grid-cols-[1.4fr_1fr]">
         {/* 새 검사 CTA — 검사 수행은 전용 페이지에서 */}
@@ -274,22 +321,28 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                     <DeleteDomainButton domainId={d.id} hostname={d.hostname as string} />
                   </div>
                 </div>
-                {/* 정기 검사 주기 설정 + 실행 시점 안내 (자동 검사 켜짐일 때만) */}
-                {d.auto_scan && (
-                  <ScanScheduleControl domainId={d.id} frequency={(d.scan_frequency as string) ?? "daily"} />
-                )}
-                {/* 정기 검사 제외 페이지 — migration 0032 미적용 환경에서는 컬럼 부재로 빈 목록 */}
-                {d.auto_scan && (
-                  <ExcludedPagesControl
+                {/* 관리 설정 — 카드가 세로로 끝없이 길어지던 컨트롤들을 접는다 (서버 렌더, JS 불필요) */}
+                <details className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3">
+                  <summary className="cursor-pointer text-sm font-bold text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
+                    {t("domains.settingsToggle")}
+                  </summary>
+                  {/* 정기 검사 주기 설정 + 실행 시점 안내 (자동 검사 켜짐일 때만) */}
+                  {d.auto_scan && (
+                    <ScanScheduleControl domainId={d.id} frequency={(d.scan_frequency as string) ?? "daily"} />
+                  )}
+                  {/* 정기 검사 제외 페이지 — migration 0032 미적용 환경에서는 컬럼 부재로 빈 목록 */}
+                  {d.auto_scan && (
+                    <ExcludedPagesControl
+                      domainId={d.id}
+                      paths={Array.isArray(d.excluded_paths) ? (d.excluded_paths as string[]) : []}
+                    />
+                  )}
+                  {/* 검사 제외 규칙(오탐 관리) — migration 0023 미적용 환경에서는 컬럼 부재로 빈 목록 표시 */}
+                  <DisabledRulesControl
                     domainId={d.id}
-                    paths={Array.isArray(d.excluded_paths) ? (d.excluded_paths as string[]) : []}
+                    disabled={Array.isArray(d.disabled_rules) ? (d.disabled_rules as string[]) : []}
                   />
-                )}
-                {/* 검사 제외 규칙(오탐 관리) — migration 0023 미적용 환경에서는 컬럼 부재로 빈 목록 표시 */}
-                <DisabledRulesControl
-                  domainId={d.id}
-                  disabled={Array.isArray(d.disabled_rules) ? (d.disabled_rules as string[]) : []}
-                />
+                </details>
                 {(trendByHost.get(foldHost(d.hostname))?.length ?? 0) >= 2 && (
                   <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3">
                     <p className="text-sm font-semibold text-[var(--color-ink-soft)]">{t("domains.trendTitle")}</p>
@@ -372,8 +425,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                   </div>
                 )}
                 {d.verified && (
-                  <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
-                    <p className="mb-2 font-semibold">{t("domains.badgeTitle")}</p>
+                  <details className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
+                    <summary className="cursor-pointer font-bold text-[var(--color-ink-soft)] hover:text-[var(--color-ink)]">
+                      {t("domains.badgeTitle")}
+                    </summary>
                     {/* 공개 보고서 지정 — 공개 여부·디렉터리 등재·배지 링크 대상을 한 컨트롤로 */}
                     <PublicReportControl
                       domainId={d.id}
@@ -389,7 +444,7 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                       publicListed={d.public_listed === true}
                       alt={t("domains.badgeAlt")}
                     />
-                  </div>
+                  </details>
                 )}
               </li>
             ))}
@@ -437,6 +492,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                 >
                   {s.status === "done" ? t("recent.viewReport") : t("recent.viewProgress")}
                 </Link>
+                {/* 재검사 진입점 — 보고서를 열지 않고도 어제 검사한 대상을 바로 다시 돌린다 */}
+                {(s.status === "done" || s.status === "failed") && !activeScan && (
+                  <RerunScanButton scanId={s.id} />
+                )}
               </li>
             ))}
           </ul>

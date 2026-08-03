@@ -289,7 +289,9 @@
         "invalid": "The name or options are invalid.",
         "limit": "You've reached the maximum number of saved presets.",
         "failed": "Could not save. Please try again shortly."
-      }
+      },
+      "deleteConfirm": "Delete this preset? This cannot be undone.",
+      "overwriteConfirm": "Your current input will be replaced by the preset. Continue?"
     },
     "apiErrors": {
       "blocked": "This account cannot run scans.",
@@ -326,7 +328,8 @@
     },
     "autoPagesLabel": "Pages to audit automatically",
     "autoPagesMax": "Max pages per audit: {max}",
-    "viewRunning": "View running scan"
+    "viewRunning": "View running scan",
+    "manualEmptyHint": "Enter one page URL per line to enable the start button."
   },
   "accessCheck": {
     "title": "Bot-block checker",
@@ -526,7 +529,8 @@
       "rulesRemoveAria": "Stop excluding {rule}",
       "rulesNote": "Use exclusions carefully — hiding real violations makes the compliance rate diverge from reality. Up to 20 rules.",
       "excludeTitle": "Scheduled-scan excluded pages",
-      "excludeHint": "URLs/paths to drop from scheduled (auto) scan samples. One per line. Use an exact address, or end with * or / (e.g. /admin/*, /tag/) to exclude a whole subtree. Up to 30."
+      "excludeHint": "URLs/paths to drop from scheduled (auto) scan samples. One per line. Use an exact address, or end with * or / (e.g. /admin/*, /tag/) to exclude a whole subtree. Up to 30.",
+      "settingsToggle": "Manage settings (schedule, exclusions, rules)"
     },
     "recent": {
       "title": "Recent audits",
@@ -549,6 +553,17 @@
       "lastScan": "Last scan {date}",
       "autoOn": "Scheduled scans on",
       "report": "View report"
+    },
+    "onboarding": {
+      "title": "Getting started",
+      "step1": "Run your first scan",
+      "step1Desc": "Enter a site URL and representative pages are collected and scanned automatically.",
+      "step2": "Read the report",
+      "step2Desc": "Review the compliance rate and per-violation remediation guides.",
+      "step3": "Verify domain ownership",
+      "step3Desc": "Verifying in the domain section below raises your per-scan page limit.",
+      "step4": "Enable scheduled scans",
+      "step4Desc": "Verified domains can run scheduled scans with regression alerts."
     }
   },
   "scan": {

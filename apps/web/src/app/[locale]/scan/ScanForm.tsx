@@ -40,6 +40,9 @@ export interface ScanFormLabels {
   presetNamePlaceholder: string;
   presetSave: string;
   presetDelete: string;
+  presetDeleteConfirm: string;
+  presetOverwriteConfirm: string;
+  manualEmptyHint: string;
   presetSaved: string;
   presetHint: string;
   /** 프리셋 저장 에러 코드 → 문구 (invalid/limit/failed) */
@@ -155,11 +158,17 @@ export function ScanForm({
     [url, mode, target, autoPages, manualPages, excludePatterns, notes],
   );
 
-  // 프리셋 불러오기 — 폼 상태만 채우고 제출은 명시적 버튼(WCAG 3.2.2)
+  // 프리셋 불러오기 — 폼 상태만 채우고 제출은 명시적 버튼(WCAG 3.2.2).
+  // 작성 중인 값이 있으면 덮어쓰기 전에 확인 — 실수 선택으로 입력이 사라지는 것 방지
   function loadPreset(id: string) {
-    setSelectedPresetId(id);
     const p = presets.find((x) => x.id === id);
-    if (!p) return;
+    if (!p) {
+      setSelectedPresetId(id);
+      return;
+    }
+    const dirty = url.trim() !== "" || pagesText.trim() !== "" || notes.trim() !== "";
+    if (dirty && !window.confirm(labels.presetOverwriteConfirm)) return;
+    setSelectedPresetId(id);
     const o = p.options;
     setUrl(o.url ?? "");
     setMode(o.mode ?? "auto");
@@ -220,11 +229,8 @@ export function ScanForm({
   return (
     <>
       {/* 검사 옵션 프리셋 — 불러오기(select) + 이름 저장 + 삭제. 폼 밖에 둬 중첩 폼을 피한다.
-          기본 접힘(저장된 프리셋이 있으면 펼침)으로 폼 상단 번잡함을 줄인다 */}
-      <details
-        open={presets.length > 0}
-        className="mt-4 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-3"
-      >
+          항상 기본 접힘 — 반복 사용자의 첫 시야는 URL 입력이어야 한다 (프리셋이 있으면 개수만 표시) */}
+      <details className="mt-4 rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-3">
         <summary className="cursor-pointer text-sm font-semibold">
           {labels.presetTitle} {presets.length > 0 ? `(${presets.length})` : ""}
         </summary>
@@ -248,7 +254,13 @@ export function ScanForm({
             </select>
           </div>
           {selectedPresetId && (
-            <form action={deletePreset}>
+            <form
+              action={deletePreset}
+              onSubmit={(e) => {
+                // 파괴적 삭제 — 도메인 삭제와 같은 확인 단계
+                if (!window.confirm(labels.presetDeleteConfirm)) e.preventDefault();
+              }}
+            >
               <input type="hidden" name="id" value={selectedPresetId} />
               <button
                 type="submit"
@@ -441,6 +453,10 @@ export function ScanForm({
           <p id="manual-pages-hint" className="mt-1 text-xs text-[var(--color-ink-faint)]">
             {labels.manualOriginHint}
           </p>
+          {/* 비어 있으면 시작 버튼이 왜 눌리지 않는지 설명 (침묵 비활성 방지) */}
+          {manualPages.length === 0 && (
+            <p className="mt-1.5 text-xs font-semibold text-[var(--color-ink-soft)]">{labels.manualEmptyHint}</p>
+          )}
           {invalidLines.length > 0 && (
             <div
               id="manual-pages-host-error"
