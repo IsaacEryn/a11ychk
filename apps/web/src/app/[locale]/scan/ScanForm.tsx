@@ -54,6 +54,7 @@ function fill(template: string, vars: Record<string, string | number>): string {
 }
 
 export function ScanForm({
+  initialUrl,
   recentUrls = [],
   verifiedSize,
   unverifiedSize,
@@ -61,6 +62,8 @@ export function ScanForm({
   presets = [],
   labels,
 }: {
+  /** 딥링크(?url=) 프리필 — 서버가 sanitizePrefillUrl로 거른 값만 온다 */
+  initialUrl?: string;
   /** 최근 검사한 URL — 입력 자동완성(datalist) */
   recentUrls?: string[];
   verifiedSize: number;
@@ -71,7 +74,7 @@ export function ScanForm({
   labels: ScanFormLabels;
 }) {
   const router = useRouter();
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl ?? "");
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [pagesText, setPagesText] = useState("");
   const [excludeText, setExcludeText] = useState("");

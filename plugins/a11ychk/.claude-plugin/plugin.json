@@ -1,0 +1,13 @@
+{
+  "name": "a11ychk",
+  "version": "0.1.0",
+  "description": "Web accessibility audit skills (WCAG 2.2 AA + KWCAG 2.2 dual mapping) with the @a11ychk/mcp scanner. Scan localhost or public pages, fix violations with Korean remediation guides, and audit against all 33 KWCAG checkpoints. / 웹 접근성 감사 스킬 — 검사·수정·재검사 루프와 KWCAG 33항목 점검.",
+  "author": {
+    "name": "IsaacEryn",
+    "url": "https://github.com/IsaacEryn"
+  },
+  "homepage": "https://www.a11ychk.com",
+  "repository": "https://github.com/IsaacEryn/a11ychk",
+  "license": "Apache-2.0",
+  "keywords": ["accessibility", "a11y", "wcag", "kwcag", "audit", "웹접근성", "axe-core"]
+}

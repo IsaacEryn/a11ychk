@@ -8,6 +8,7 @@ import { getPlansActive } from "@/lib/appSettings";
 import { listPresets } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
 import { localeAlternates } from "@/lib/seo/alternates";
+import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -18,17 +19,29 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   };
 }
 
-export default async function ScanRunPage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function ScanRunPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ url?: string }>;
+}) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("scanPage");
   const tDash = await getTranslations("dashboard");
+  // AI 스킬·MCP 딥링크가 검사 대상을 프리필한다 (제출은 항상 사용자 몫 — WCAG 3.2.2)
+  const initialUrl = sanitizePrefillUrl((await searchParams).url);
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(`/${locale}/login`);
+  if (!user) {
+    // next 없이 튕기면 딥링크의 ?url= 이 소실된다 — 로그인 후 프리필 유지
+    const dest = `/${locale}/scan${initialUrl ? `?url=${encodeURIComponent(initialUrl)}` : ""}`;
+    redirect(`/${locale}/login?next=${encodeURIComponent(dest)}`);
+  }
 
   const [{ data: profile }, { data: verifiedDomains }, { data: recentScans }] = await Promise.all([
     supabase.from("profiles").select("scan_limit_override, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
@@ -73,6 +86,7 @@ export default async function ScanRunPage({ params }: { params: Promise<{ locale
           {tDash("scanForm.legend")}
         </h2>
         <ScanForm
+          initialUrl={initialUrl ?? undefined}
           recentUrls={recentUrls}
           verifiedSize={verifiedSize}
           unverifiedSize={unverifiedSize}

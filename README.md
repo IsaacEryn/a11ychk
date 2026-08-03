@@ -77,10 +77,21 @@ PR마다 지정 페이지를 검사하고, 심각 이상 위반이 있으면 잡
 
 입력·출력과 버전 고정 방법은 [docs/github-action.md](docs/github-action.md)에 있습니다.
 
-## AI 코딩 도구에서 바로 쓰기 (MCP)
+## AI 코딩 도구에서 바로 쓰기 (플러그인 · MCP)
 
-Claude Code·Cursor 같은 AI 코딩 도구에 등록하면, 개발 중인 localhost 페이지를
-그 자리에서 검사하고 위반마다 한국어 개선 가이드를 받아 바로 수정할 수 있습니다.
+Claude Code에서는 플러그인 하나로 감사 스킬 2종과 검사 엔진(MCP 서버)이 함께 설치됩니다.
+개발 중인 localhost 페이지를 그 자리에서 검사하고, 위반마다 한국어 개선 가이드를 받아
+수정하고, 재검사까지 한 대화에서 돕니다.
+
+```
+/plugin marketplace add IsaacEryn/a11ychk
+/plugin install a11ychk@a11ychk
+```
+
+- `/a11ychk:a11y-audit` — 검사 → 수정 → 재검사 루프 (배포 전 점검)
+- `/a11ychk:kwcag-audit` — KWCAG 2.2 33개 검사항목 관점 점검
+
+MCP 서버만 쓰려면 (Cursor 등 다른 클라이언트 포함):
 
 ```bash
 claude mcp add a11ychk -- npx -y @a11ychk/mcp

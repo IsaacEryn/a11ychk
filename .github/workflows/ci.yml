@@ -18,6 +18,9 @@ jobs:
       - run: npm run typecheck
       - run: npm run test
       - run: npm run test:i18n -w apps/web
+      # 플러그인 매니페스트 회귀 방지 — JSON 파싱·필수 필드·스킬 파일 존재
+      # (claude CLI의 plugin validate는 러너에 없어 구조 검사로 대신한다)
+      - run: node scripts/check-plugin.mjs
       - run: npm run lint
       - run: npm run build -w @a11ychk/extension
       # 웹 프로덕션 빌드 검증 — typecheck가 못 잡는 빌드 단계 오류(RSC 경계 등) 포착

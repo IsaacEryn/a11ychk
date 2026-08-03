@@ -12,7 +12,17 @@ localhost 개발 서버를 검사할 수 있습니다 — AI가 검사하고, �
 
 ## 설치
 
-Claude Code:
+Claude Code — **플러그인**으로 설치하면 MCP 서버와 감사 스킬 2종이 함께 등록됩니다(권장):
+
+```
+/plugin marketplace add IsaacEryn/a11ychk
+/plugin install a11ychk@a11ychk
+```
+
+- `/a11ychk:a11y-audit` — 검사 → `guide`(한국어 수정 지침)로 코드 수정 → 재검사 루프
+- `/a11ychk:kwcag-audit` — KWCAG 2.2 33개 검사항목 관점 점검 (자동/수동 구분 매트릭스)
+
+MCP 서버만 등록하려면:
 
 ```bash
 claude mcp add a11ychk -- npx -y @a11ychk/mcp

@@ -38,10 +38,11 @@ const IMPACT_COLOR: Record<TeaserRule["impact"], string> = {
  * 비로그인 맛보기 검사 — URL 1개를 즉석 검사해 같은 자리에서 결과를 보여준다.
  * 결과는 저장되지 않으며(고지), 위반 위치는 규칙당 1개만 표시된다(나머지는 가입 후).
  */
-export function TeaserScanForm() {
+export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
   const t = useTranslations("landing.teaser");
   const locale = useLocale() === "en" ? "en" : "ko";
-  const [url, setUrl] = useState("");
+  // 딥링크 프리필 — 제출은 Turnstile 통과 후 사용자 클릭으로만 (자동 제출 없음)
+  const [url, setUrl] = useState(initialUrl ?? "");
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorCode, setErrorCode] = useState<string>("");

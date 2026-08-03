@@ -1,0 +1,16 @@
+{
+  "name": "a11ychk",
+  "description": "A11y Check — web accessibility audit skills and MCP scanner (WCAG 2.2 AA + KWCAG 2.2, Korean-first) / 웹 접근성 감사 플러그인",
+  "owner": {
+    "name": "IsaacEryn",
+    "url": "https://www.a11ychk.com"
+  },
+  "plugins": [
+    {
+      "name": "a11ychk",
+      "source": "./plugins/a11ychk",
+      "description": "Web accessibility audit skills (WCAG 2.2 AA + KWCAG 2.2) powered by the @a11ychk/mcp scanner — Korean-first remediation guides / 웹 접근성 감사 스킬",
+      "version": "0.1.0"
+    }
+  ]
+}

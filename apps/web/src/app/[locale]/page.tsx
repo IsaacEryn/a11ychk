@@ -1,6 +1,8 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { getCachedUser } from "@/lib/supabase/user";
+import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 import { localeAlternates } from "@/lib/seo/alternates";
 import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
 import { TeaserScanForm } from "./TeaserScanForm";
@@ -16,13 +18,31 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   };
 }
 
-export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
+export default async function LandingPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ locale: string }>;
+  searchParams: Promise<{ url?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string }>;
+}) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("landing");
   // 맛보기 검사는 비로그인 방문자 전용 — 회원은 대시보드에서 본검사를 쓰면 된다
   // (헤더가 이미 같은 렌더 패스에서 getCachedUser를 호출하므로 추가 왕복 없음)
   const user = await getCachedUser();
+
+  // AI 스킬·MCP 딥링크(?url=): 회원은 본검사 폼으로 보내고, 비회원은 맛보기 폼에 프리필.
+  // 리다이렉트 시 utm은 보존한다 — GA4가 /scan 쪽 페이지뷰에서 유입을 잡을 수 있게.
+  const sp = await searchParams;
+  const prefillUrl = sanitizePrefillUrl(sp.url);
+  if (user && prefillUrl) {
+    const qs = new URLSearchParams({ url: prefillUrl });
+    for (const k of ["utm_source", "utm_medium", "utm_campaign"] as const) {
+      if (sp[k]) qs.set(k, sp[k]);
+    }
+    redirect(`/${locale}/scan?${qs.toString()}`);
+  }
   // 화면 렌더와 FAQPage 구조화 데이터가 같은 배열을 쓰도록 한 번만 읽는다
   const faq = t.raw("faq.items") as { q: string; a: string }[];
 
@@ -134,7 +154,7 @@ export default async function LandingPage({ params }: { params: Promise<{ locale
       </section>
 
       {/* ─── 비로그인 맛보기 검사 — 로그인 없이 1페이지 즉석 검사 (회원에겐 미노출) ─── */}
-      {!user && <TeaserScanForm />}
+      {!user && <TeaserScanForm initialUrl={prefillUrl ?? undefined} />}
 
       {/* ─── 기능 ─── */}
       <section aria-labelledby="features-heading" className="py-14">

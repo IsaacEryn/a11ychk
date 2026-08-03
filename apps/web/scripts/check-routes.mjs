@@ -29,6 +29,10 @@ const ROUTES = [
   ["/en/nonexistent", 404, "없는 경로 (영문)"],
   ["/ko/guide/nope", 404, "없는 슬러그 (동적 라우트의 notFound)"],
   ["/ko/dashboard/nope", 404, "차단 구간 하위의 없는 경로"],
+
+  // AI 스킬·MCP 딥링크 — 랜딩 프리필은 200, 비로그인 /scan 딥링크는 로그인으로 리다이렉트
+  ["/ko?url=https%3A%2F%2Fexample.com", 200, "딥링크 프리필 (랜딩)"],
+  ["/ko/scan?url=https%3A%2F%2Fexample.com", 307, "딥링크 /scan (비로그인 → 로그인, next 보존)"],
 ];
 
 /**
@@ -69,6 +73,16 @@ async function main() {
     const ok = res.status === expected;
     console.log(`  ${ok ? "✓" : "✗"} ${String(res.status).padEnd(3)} ${path.padEnd(30)} ${what}`);
     if (!ok) failures.push(`${path} — ${expected} 기대, ${res.status} 받음 (${what})`);
+  }
+
+  // 딥링크 리다이렉트가 next에 ?url= 을 보존하는지 — 상태 코드만으로는 파라미터
+  // 소실(과거 next 없는 redirect 버그)이 안 잡힌다
+  {
+    const res = await fetch(`${BASE}/ko/scan?url=https%3A%2F%2Fexample.com`, { redirect: "manual" });
+    const loc = res.headers.get("location") ?? "";
+    const ok = loc.includes("next=") && loc.includes(encodeURIComponent("url=https"));
+    console.log(`  ${ok ? "✓" : "✗"} ${"/ko/scan?url= → login".padEnd(34)} next에 딥링크 보존`);
+    if (!ok) failures.push(`/ko/scan?url= 리다이렉트가 next에 url을 보존하지 않음 (location: ${loc})`);
   }
 
   console.log("");
