@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { localeAlternates } from "@/lib/seo/alternates";
+import { JsonLd } from "@/components/JsonLd";
 import {
   KWCAG_ITEMS,
   KWCAG_PRINCIPLE_LABEL,
@@ -40,6 +41,19 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12 sm:px-6">
+      {/* 허브→스포크 목록의 구조화 데이터 — 33개 항목 페이지의 관계를 명시 */}
+      <JsonLd
+        data={{
+          "@context": "https://schema.org",
+          "@type": "ItemList",
+          itemListElement: KWCAG_ITEMS.map((item, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            name: `${item.id} ${item.name.ko}`,
+            url: `https://www.a11ychk.com/${locale}/guide/${kwcagSlug(item)}`,
+          })),
+        }}
+      />
       <h1 className="font-display text-4xl font-bold">{t("title")}</h1>
       <p className="mt-3 max-w-2xl text-lg text-[var(--color-ink-soft)]">{t("desc")}</p>
 

@@ -3,6 +3,7 @@ import { unstable_cache } from "next/cache";
 import { Link } from "@/i18n/navigation";
 import { collectListedSites } from "@/lib/directory";
 import { localeAlternates } from "@/lib/seo/alternates";
+import { JsonLd } from "@/components/JsonLd";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -33,6 +34,21 @@ export default async function DirectoryPage({ params }: { params: Promise<{ loca
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      {/* 등재 목록 구조화 데이터 — 상세 페이지(/directory/{host})를 항목으로 */}
+      {sites.length > 0 && (
+        <JsonLd
+          data={{
+            "@context": "https://schema.org",
+            "@type": "ItemList",
+            itemListElement: sites.map((s, i) => ({
+              "@type": "ListItem",
+              position: i + 1,
+              name: s.siteName ?? s.hostname,
+              url: `${siteUrl}/${locale}/directory/${encodeURIComponent(s.hostname)}`,
+            })),
+          }}
+        />
+      )}
       <p className="text-sm font-bold uppercase tracking-widest text-[var(--color-seal)]">{t("eyebrow")}</p>
       <h1 className="font-display mt-1 text-3xl font-bold">{t("title")}</h1>
       <p className="mt-2 max-w-2xl leading-relaxed text-[var(--color-ink-soft)]">{t("desc")}</p>
@@ -65,12 +81,13 @@ export default async function DirectoryPage({ params }: { params: Promise<{ loca
                   })}
                 </time>
               )}
-              <a
-                href={`${siteUrl}/site/${encodeURIComponent(s.hostname)}`}
+              {/* 색인 가능한 사이트 요약 페이지로 — 전체 보고서 링크는 상세 안에 (크롤 막다른 길 해소) */}
+              <Link
+                href={`/directory/${encodeURIComponent(s.hostname)}`}
                 className="inline-flex min-h-[44px] items-center text-sm font-bold text-[var(--color-seal)] underline underline-offset-4"
               >
-                {t("viewReport")}
-              </a>
+                {t("viewDetail")}
+              </Link>
             </li>
           ))}
         </ul>

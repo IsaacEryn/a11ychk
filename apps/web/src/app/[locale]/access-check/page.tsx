@@ -1,4 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { localeAlternates } from "@/lib/seo/alternates";
 import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -7,7 +8,12 @@ import { AccessCheckClient } from "./AccessCheckClient";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "accessCheck" });
-  return { title: t("title") };
+  return {
+    alternates: localeAlternates(locale, "/access-check"),
+    title: t("title"),
+    description: t("desc"),
+    robots: { index: false },
+  };
 }
 
 export default async function AccessCheckPage({ params }: { params: Promise<{ locale: string }> }) {

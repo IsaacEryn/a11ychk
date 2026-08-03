@@ -272,6 +272,10 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     name: { ko: "기본 언어 표시", en: "Language of page" },
     wcag: ["3.1.1"],
     autoCoverage: "full",
+    howToTest: {
+      ko: "페이지 소스에서 <html> 요소에 lang 속성이 있는지, 값이 실제 주 언어와 일치하는지(한국어 페이지는 lang=\"ko\") 확인하세요. 자동 검사가 속성 존재와 형식을 판정하지만, 값이 콘텐츠의 실제 언어와 맞는지는 사람이 확인해야 합니다. 스크린 리더는 이 값으로 발음 엔진을 고르므로 잘못 표기하면 낭독이 통째로 어긋납니다.",
+      en: "Check that the <html> element has a lang attribute matching the page's primary language (e.g., lang=\"ko\" for Korean). Automated checks verify presence and format, but whether the value matches the actual content language needs human review — screen readers pick their speech engine from this value.",
+    },
   },
   {
     id: "7.2.1",
@@ -374,6 +378,10 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     // WCAG_BY_ID 필터로 자동 제외한다. 비우면 'KWCAG 고유 항목' 판별과 충돌하므로 유지.
     wcag: ["4.1.1"],
     autoCoverage: "full",
+    howToTest: {
+      ko: "요소의 여닫기, 속성 중복, 잘못된 중첩 같은 마크업 오류가 있는지 확인하세요. 자동 검사가 id 중복·잘못된 ARIA 참조 등 보조기술에 실제 영향을 주는 오류를 판정합니다. W3C Nu HTML Checker(validator.w3.org/nu)로 전체 문법을 점검하되, 보조기술 해석에 영향을 주는 오류(중복 id, 깨진 참조, 잘못된 중첩)를 우선 수정하면 됩니다.",
+      en: "Check for markup errors such as unclosed elements, duplicate attributes, and improper nesting. Automated checks catch errors that actually affect assistive technology (duplicate ids, broken ARIA references). Use the W3C Nu HTML Checker for full syntax, prioritizing errors that change how assistive technology parses the page.",
+    },
   },
   {
     id: "8.2.1",

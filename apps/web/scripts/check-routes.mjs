@@ -33,6 +33,9 @@ const ROUTES = [
   // AI 스킬·MCP 딥링크 — 랜딩 프리필은 200, 비로그인 /scan 딥링크는 로그인으로 리다이렉트
   ["/ko?url=https%3A%2F%2Fexample.com", 200, "딥링크 프리필 (랜딩)"],
   ["/ko/scan?url=https%3A%2F%2Fexample.com", 307, "딥링크 /scan (비로그인 → 로그인, next 보존)"],
+
+  // 디렉터리 상세 — 미등재 호스트는 목록 기준 그대로 404
+  ["/ko/directory/nonexistent-host.example", 404, "디렉터리 미등재 호스트"],
 ];
 
 /**
@@ -48,7 +51,13 @@ const BODY_CHECKS = [
   ["/ko", /hreflang="x-default"/i, "hreflang x-default"],
   ["/ko", /"@type":"FAQPage"/, "FAQ 구조화 데이터"],
   ["/ko/guide/alternative-text", /"@type":"HowTo"/, "가이드 항목 구조화 데이터"],
+  // SEO 회귀 — sitemap에서 로그인 게이트 제거·x-default 유지, 허브 ItemList, 가이드 상호 링크
+  ["/sitemap.xml", /x-default/, "sitemap x-default"],
+  ["/ko/guide", /"@type":"ItemList"/, "가이드 허브 ItemList"],
 ];
+
+/** sitemap.xml에 있으면 안 되는 것 — 로그인 게이트 주소를 색인 요청하지 않는다 */
+const BODY_ABSENT = [["/sitemap.xml", /\/ko\/scan</, "sitemap에 /scan 없음"]];
 
 async function waitForReady() {
   const deadline = Date.now() + READY_TIMEOUT_MS;
@@ -91,6 +100,13 @@ async function main() {
     const ok = pattern.test(html);
     console.log(`  ${ok ? "✓" : "✗"} ${path.padEnd(34)} ${what}`);
     if (!ok) failures.push(`${path} — ${what}(${pattern})가 응답에 없다`);
+  }
+
+  for (const [path, pattern, what] of BODY_ABSENT) {
+    const html = await fetch(`${BASE}${path}`).then((r) => r.text());
+    const ok = !pattern.test(html);
+    console.log(`  ${ok ? "✓" : "✗"} ${path.padEnd(34)} ${what}`);
+    if (!ok) failures.push(`${path} — ${what} 위반 (${pattern} 발견)`);
   }
 
   if (failures.length > 0) {

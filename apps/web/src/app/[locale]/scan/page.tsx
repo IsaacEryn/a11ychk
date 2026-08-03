@@ -16,6 +16,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     alternates: localeAlternates(locale, "/scan"),
     title: t("title"),
+    description: t("desc"),
+    // 로그인 게이트 — 크롤러에게는 리다이렉트만 보인다
+    robots: { index: false },
   };
 }
 

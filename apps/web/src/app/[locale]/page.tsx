@@ -5,7 +5,26 @@ import { getCachedUser } from "@/lib/supabase/user";
 import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 import { localeAlternates } from "@/lib/seo/alternates";
 import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
+import { KWCAG_ITEMS, kwcagSlug } from "@a11ychk/core/catalog";
 import { TeaserScanForm } from "./TeaserScanForm";
+
+/** 카테고리 → 대표 KWCAG 항목 — 그리드에서 개선 가이드로 곧장 (33개 페이지에 내부 링크 공급) */
+const CATEGORY_GUIDE: Record<string, string> = {
+  images: "5.1.1",
+  forms: "7.4.1",
+  keyboard: "6.1.1",
+  structure: "7.3.1",
+  links: "6.4.3",
+  language: "7.1.1",
+  media: "5.2.1",
+  contrast: "5.4.1",
+  wcag22: "7.4.3",
+};
+
+function guidePathFor(categoryKey: string): string | null {
+  const item = KWCAG_ITEMS.find((it) => it.id === CATEGORY_GUIDE[categoryKey]);
+  return item ? `/guide/${kwcagSlug(item)}` : null;
+}
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -209,12 +228,23 @@ export default async function LandingPage({
               "contrast",
               "wcag22",
             ] as const
-          ).map((key) => (
-            <li key={key} className="border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-5">
-              <h3 className="font-display text-lg font-bold">{t(`categories.items.${key}.title`)}</h3>
-              <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t(`categories.items.${key}.desc`)}</p>
-            </li>
-          ))}
+          ).map((key) => {
+            const guidePath = guidePathFor(key);
+            return (
+              <li key={key} className="border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-5">
+                <h3 className="font-display text-lg font-bold">
+                  {guidePath ? (
+                    <Link href={guidePath} className="hover:text-[var(--color-seal)] hover:underline underline-offset-4">
+                      {t(`categories.items.${key}.title`)}
+                    </Link>
+                  ) : (
+                    t(`categories.items.${key}.title`)
+                  )}
+                </h3>
+                <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t(`categories.items.${key}.desc`)}</p>
+              </li>
+            );
+          })}
         </ul>
         {/* 실측 커버리지 정직 고지 — docs/coverage.md 수치 인용 */}
         <p className="mt-6 border-l-[3px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">

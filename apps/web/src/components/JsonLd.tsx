@@ -1,14 +1,14 @@
 /**
  * 검색엔진용 구조화 데이터(schema.org JSON-LD).
  *
- * 넘기는 값은 **반드시 정적 리터럴**이어야 한다 — 사용자 입력이 섞이면 script 안에서
- * 직렬화되므로, 여기로는 코드에 박아 둔 값과 카탈로그 상수만 보낸다.
+ * `<`를 유니코드 이스케이프해 `</script>` 조기 종료·주입을 원천 차단한다 —
+ * 번역 메시지·카탈로그·디렉터리 호스트명 등 코드 밖에서 온 문자열도 안전하게 담는다.
  */
 export function JsonLd({ data }: { data: Record<string, unknown> }) {
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(data) }}
+      dangerouslySetInnerHTML={{ __html: JSON.stringify(data).replace(/</g, "\\u003c") }}
     />
   );
 }
@@ -22,7 +22,8 @@ export const organizationJsonLd = {
   name: "A11y Check",
   alternateName: "알리첵",
   url: SITE,
-  logo: `${SITE}/icon.svg`,
+  // 구글 Organization logo는 래스터만 지원 — SVG는 무시된다
+  logo: `${SITE}/icon-512.png`,
   description:
     "WCAG 2.2와 KWCAG 2.2를 이중 매핑한 웹접근성 자동 점검 서비스. 한국어 개선 가이드를 함께 제공한다.",
   sameAs: ["https://github.com/IsaacEryn/a11ychk"],
@@ -34,7 +35,7 @@ export function webApplicationJsonLd(locale: string) {
     "@context": "https://schema.org",
     "@type": "WebApplication",
     name: "A11y Check",
-    url: SITE,
+    url: `${SITE}/${locale === "en" ? "en" : "ko"}`,
     applicationCategory: "DeveloperApplication",
     operatingSystem: "Web",
     description:

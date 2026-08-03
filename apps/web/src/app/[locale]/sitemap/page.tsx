@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { KWCAG_ITEMS, kwcagSlug, pickLocale } from "@a11ychk/core/catalog";
 import { Link } from "@/i18n/navigation";
 import { localeAlternates } from "@/lib/seo/alternates";
 
@@ -31,7 +32,8 @@ export default async function SitemapPage({ params }: { params: Promise<{ locale
         ["/", t("home")],
         ["/scan", t("scan")],
         ["/access-check", t("accessCheck")],
-        ["/extension", t("extension")],
+        // /extension은 페이지가 없다(connect만 존재) — 404 링크였음
+        ["/extension/connect", t("extension")],
       ],
     },
     {
@@ -53,6 +55,7 @@ export default async function SitemapPage({ params }: { params: Promise<{ locale
         ["/directory", t("directory")],
         ["/impact", t("impact")],
         ["/accessibility", t("accessibility")],
+        ["/notices", t("notices")],
       ],
     },
     {
@@ -93,6 +96,28 @@ export default async function SitemapPage({ params }: { params: Promise<{ locale
           </section>
         ))}
       </div>
+
+      {/* KWCAG 33항목 가이드 — 발견용 페이지의 핵심 콘텐츠 자산 */}
+      <section aria-labelledby="sitemap-guide-items" className="mt-10">
+        <h2
+          id="sitemap-guide-items"
+          className="font-display border-b-[1.5px] border-[var(--color-ink)] pb-2 text-lg font-bold"
+        >
+          {t("groupGuideItems")}
+        </h2>
+        <ul className="mt-3 grid gap-2 sm:grid-cols-2">
+          {KWCAG_ITEMS.map((item) => (
+            <li key={item.id}>
+              <Link
+                href={`/guide/${kwcagSlug(item)}`}
+                className="font-medium underline underline-offset-4 hover:text-[var(--color-seal)]"
+              >
+                {item.id} {pickLocale(item.name, locale)}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </section>
     </div>
   );
 }

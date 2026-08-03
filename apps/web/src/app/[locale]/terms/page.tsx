@@ -152,6 +152,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     alternates: localeAlternates(locale, "/terms"),
     title: CONTENT[locale === "en" ? "en" : "ko"].title,
+    description:
+      locale === "en"
+        ? "Terms of service for A11y Check, the web accessibility scanning service."
+        : "웹 접근성 점검 서비스 A11y Check의 이용약관.",
   };
 }
 

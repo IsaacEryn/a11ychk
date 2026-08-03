@@ -32,7 +32,10 @@
       "accessibility": "접근성 선언문",
       "sitemap": "사이트맵",
       "pricing": "요금제",
-      "notices": "공지사항"
+      "notices": "공지사항",
+      "guide": "접근성 가이드",
+      "directory": "공개 디렉터리",
+      "about": "소개"
     },
     "localeSwitcher": "언어 선택",
     "menu": {
@@ -254,7 +257,8 @@
       "reissue": "코드가 만료됐나요? 다시 시도",
       "errInvalidCode": "코드가 올바르지 않습니다. 앱의 최신 코드로 다시 시도해 주세요.",
       "errGeneric": "처리 중 오류가 발생했습니다. 새로고침 후 다시 시도해 주세요."
-    }
+    },
+    "metaDescription": "A11y Check 로그인 — Google·GitHub·이메일로 시작하세요."
   },
   "scanPage": {
     "title": "검사 수행",
@@ -1644,7 +1648,20 @@
     "lastScanned": "최근 점검 {date}",
     "viewReport": "보고서 보기",
     "cta": "내 사이트도 점검하고 배지를 발행하려면",
-    "ctaLink": "대시보드에서 시작하세요"
+    "ctaLink": "대시보드에서 시작하세요",
+    "viewDetail": "상세 보기",
+    "detail": {
+      "breadcrumb": "탐색 경로",
+      "metaTitle": "{name} 웹 접근성 준수 현황 | A11y Check",
+      "metaDescription": "{name}의 웹 접근성 자동 검사 준수율 {rate}% — KWCAG 2.2·WCAG 2.2 기준 점검 결과와 개선 항목.",
+      "rateLabel": "자동 검사 준수율",
+      "scannedAt": "점검일",
+      "pages": "검사 페이지",
+      "violations": "위반 요소",
+      "itemsTitle": "개선이 필요한 검사항목",
+      "itemsDesc": "자동 검사에서 위반이 확인된 KWCAG 항목입니다. 항목명을 누르면 개선 방법 가이드로 이동합니다.",
+      "scanCta": "내 사이트도 검사하기"
+    }
   },
   "reset": {
     "title": "새 비밀번호 설정",
@@ -1682,7 +1699,9 @@
     "accessibility": "접근성 선언문",
     "terms": "이용약관",
     "privacy": "개인정보 처리방침",
-    "directory": "점검 사이트"
+    "directory": "점검 사이트",
+    "groupGuideItems": "KWCAG 검사항목 가이드",
+    "notices": "공지사항"
   },
   "serviceStatus": {
     "offlineTitle": "인터넷 연결이 끊겼습니다",
@@ -1730,7 +1749,8 @@
   "notices": {
     "title": "공지사항",
     "intro": "A11y Check의 새 소식과 변경 사항을 안내합니다.",
-    "empty": "등록된 공지가 없습니다."
+    "empty": "등록된 공지가 없습니다.",
+    "metaDescription": "A11y Check 서비스 공지사항 — 기능 추가·변경 소식."
   },
   "guideItem": {
     "metaTitle": "{name} 검사 방법 — KWCAG {id} | A11y Check",
@@ -1755,6 +1775,7 @@
     "rulesEmpty": "이 항목을 자동으로 판정하는 규칙은 없습니다. 위 검사 방법에 따라 직접 확인해 주세요.",
     "ctaTitle": "내 사이트는 어떤지 확인해 보세요",
     "ctaDesc": "주소만 넣으면 이 항목을 포함한 KWCAG 33항목을 한 번에 점검해 드립니다. 로그인 없이 한 페이지를 바로 검사해 볼 수 있습니다.",
-    "ctaButton": "무료로 검사하기"
+    "ctaButton": "무료로 검사하기",
+    "relatedTitle": "관련 검사항목"
   }
 }

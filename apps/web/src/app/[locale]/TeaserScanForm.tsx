@@ -84,7 +84,7 @@ export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
   const errorKey = errorKeys.includes(errorCode) ? errorCode : "scanFailed";
 
   return (
-    <section aria-labelledby="teaser-heading" className="py-10">
+    <section id="teaser" aria-labelledby="teaser-heading" className="scroll-mt-24 py-10">
       <div className="doc-card p-6 sm:p-8">
         <h2 id="teaser-heading" className="font-display text-2xl font-bold">
           {t("title")}

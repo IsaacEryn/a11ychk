@@ -11,6 +11,22 @@ export async function Footer() {
           <p className="font-display text-base font-bold text-[var(--color-ink)]">{t("appName")}</p>
           <p className="mt-1">{t("footer.tagline")}</p>
           <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1">
+            {/* 콘텐츠 자산 링크 — 전 페이지 반복 슬롯을 법적 고지에만 쓰지 않는다 */}
+            <li>
+              <Link href="/guide" className={legalLinkCls}>
+                {t("footer.guide")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/directory" className={legalLinkCls}>
+                {t("footer.directory")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/about" className={legalLinkCls}>
+                {t("footer.about")}
+              </Link>
+            </li>
             <li>
               <Link href="/notices" className={legalLinkCls}>
                 {t("footer.notices")}

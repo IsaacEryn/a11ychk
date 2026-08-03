@@ -29,11 +29,15 @@ export async function generateMetadata({
   if (!item) return {};
   const t = await getTranslations({ locale, namespace: "guideItem" });
   const name = pick(item.name, locale);
+  // 항목 고유 문장(검사 방법 첫 문장)을 앞세워 33개 준-중복 description을 차별화 —
+  // 템플릿만으로는 검색엔진이 자체 생성 스니펫으로 대체해 버린다
+  const unique = item.howToTest ? pick(item.howToTest, locale).split(/(?<=[.다])\s/)[0]?.slice(0, 110) : null;
+  const base = t("metaDescription", { id: item.id, name, wcag: item.wcag.join(", ") });
   return {
     alternates: localeAlternates(locale, `/guide/${slug}`),
     // layout의 "%s — A11y Check" 템플릿을 태우면 제목이 검색 결과에서 잘릴 만큼 길어진다
     title: { absolute: t("metaTitle", { id: item.id, name }) },
-    description: t("metaDescription", { id: item.id, name, wcag: item.wcag.join(", ") }),
+    description: unique ? `${unique} ${base}`.slice(0, 300) : base,
   };
 }
 
@@ -65,6 +69,25 @@ export default async function GuideItemPage({
   const idx = KWCAG_ITEMS.findIndex((i) => i.id === item.id);
   const prev = idx > 0 ? KWCAG_ITEMS[idx - 1] : null;
   const next = idx < KWCAG_ITEMS.length - 1 ? KWCAG_ITEMS[idx + 1] : null;
+
+  // 관련 항목 — 같은 원칙 + 같은 WCAG SC 공유 + 같은 자동 규칙 공유 (토픽 클러스터 상호 링크)
+  const relatedIds = new Set<string>();
+  for (const other of KWCAG_ITEMS) {
+    if (other.id === item.id) continue;
+    const samePrinciple = other.principle === item.principle;
+    const sharedSc = other.wcag.some((sc) => item.wcag.includes(sc));
+    const sharedRule = rules.some((r) => r.kwcag.includes(other.id));
+    if (sharedSc || sharedRule || samePrinciple) {
+      // 강한 연관(SC·규칙 공유)을 먼저 채우고, 같은 원칙은 자리가 남을 때만
+      if (sharedSc || sharedRule) relatedIds.add(other.id);
+      else if (relatedIds.size < 4) relatedIds.add(other.id);
+    }
+    if (relatedIds.size >= 6) break;
+  }
+  const related = [...relatedIds]
+    .map((id) => KWCAG_ITEMS.find((i) => i.id === id)!)
+    .filter((i) => i.id !== prev?.id && i.id !== next?.id)
+    .slice(0, 4);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
@@ -185,13 +208,32 @@ export default async function GuideItemPage({
           {t("ctaTitle")}
         </h2>
         <p className="mt-2 leading-relaxed text-[var(--color-ink-soft)]">{t("ctaDesc")}</p>
+        {/* 랜딩 상단이 아니라 맛보기 폼으로 직행 — 검색 유입의 이탈을 줄인다 */}
         <Link
-          href="/"
+          href="/#teaser"
           className="mt-4 inline-block rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] hover:border-[var(--color-seal-deep)]"
         >
           {t("ctaButton")}
         </Link>
       </section>
+
+      {/* 관련 항목 — 같은 성공기준·규칙·원칙으로 묶이는 항목 상호 링크 */}
+      {related.length > 0 && (
+        <section aria-labelledby="related-heading" className="mt-10">
+          <h2 id="related-heading" className="font-display text-lg font-bold">
+            {t("relatedTitle")}
+          </h2>
+          <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
+            {related.map((r) => (
+              <li key={r.id}>
+                <Link href={`/guide/${kwcagSlug(r)}`} className="font-semibold underline underline-offset-4 hover:text-[var(--color-seal)]">
+                  {r.id} {pick(r.name, locale)}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       {/* 앞뒤 항목 */}
       <nav aria-label={t("siblingLabel")} className="mt-10 flex flex-wrap justify-between gap-4 border-t-[1.5px] border-[var(--color-line)] pt-6">

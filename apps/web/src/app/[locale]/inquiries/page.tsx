@@ -1,4 +1,5 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import { localeAlternates } from "@/lib/seo/alternates";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { InquiryForm } from "./InquiryForm";
@@ -6,7 +7,11 @@ import { InquiryForm } from "./InquiryForm";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "inquiries" });
-  return { title: t("title") };
+  return {
+    alternates: localeAlternates(locale, "/inquiries"),
+    title: t("title"),
+    description: t("desc"),
+  };
 }
 
 export default async function InquiriesPage({ params }: { params: Promise<{ locale: string }> }) {

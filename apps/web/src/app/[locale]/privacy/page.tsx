@@ -141,6 +141,10 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     alternates: localeAlternates(locale, "/privacy"),
     title: CONTENT[locale === "en" ? "en" : "ko"].title,
+    description:
+      locale === "en"
+        ? "Privacy policy for A11y Check — what we collect, why, and for how long."
+        : "A11y Check 개인정보처리방침 — 수집 항목·목적·보유 기간 안내.",
   };
 }
 

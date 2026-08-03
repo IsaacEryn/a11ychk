@@ -32,7 +32,10 @@
       "accessibility": "Accessibility",
       "sitemap": "Sitemap",
       "pricing": "Pricing",
-      "notices": "Notices"
+      "notices": "Notices",
+      "guide": "Accessibility guide",
+      "directory": "Public directory",
+      "about": "About"
     },
     "localeSwitcher": "Select language",
     "menu": {
@@ -254,7 +257,8 @@
       "reissue": "Code expired? Try again",
       "errInvalidCode": "Invalid code. Try again with the latest code from your app.",
       "errGeneric": "Something went wrong. Refresh and try again."
-    }
+    },
+    "metaDescription": "Sign in to A11y Check with Google, GitHub, or email."
   },
   "scanPage": {
     "title": "Run Audit",
@@ -1644,7 +1648,20 @@
     "lastScanned": "Last audited {date}",
     "viewReport": "View report",
     "cta": "To audit your own site and issue a badge,",
-    "ctaLink": "start from the dashboard"
+    "ctaLink": "start from the dashboard",
+    "viewDetail": "View details",
+    "detail": {
+      "breadcrumb": "Breadcrumb",
+      "metaTitle": "{name} web accessibility status | A11y Check",
+      "metaDescription": "Automated accessibility compliance of {name}: {rate}% — audited against KWCAG 2.2 and WCAG 2.2, with improvement areas.",
+      "rateLabel": "Automated compliance",
+      "scannedAt": "Scanned",
+      "pages": "Pages scanned",
+      "violations": "Violations",
+      "itemsTitle": "Checkpoints needing improvement",
+      "itemsDesc": "KWCAG checkpoints with automated violations. Each links to a remediation guide.",
+      "scanCta": "Scan your site too"
+    }
   },
   "reset": {
     "title": "Set a new password",
@@ -1682,7 +1699,9 @@
     "accessibility": "Accessibility statement",
     "terms": "Terms of service",
     "privacy": "Privacy policy",
-    "directory": "Audited sites"
+    "directory": "Audited sites",
+    "groupGuideItems": "KWCAG checkpoint guides",
+    "notices": "Notices"
   },
   "serviceStatus": {
     "offlineTitle": "You are offline",
@@ -1730,7 +1749,8 @@
   "notices": {
     "title": "Notices",
     "intro": "News and changes to A11y Check.",
-    "empty": "No notices yet."
+    "empty": "No notices yet.",
+    "metaDescription": "A11y Check service notices — feature updates and changes."
   },
   "guideItem": {
     "metaTitle": "How to test {name} — KWCAG {id} | A11y Check",
@@ -1755,6 +1775,7 @@
     "rulesEmpty": "No automated rule covers this checkpoint. Follow the testing instructions above.",
     "ctaTitle": "See how your own site does",
     "ctaDesc": "Enter a URL and we will check this checkpoint along with the other 32. One page can be audited without signing in.",
-    "ctaButton": "Run a free check"
+    "ctaButton": "Run a free check",
+    "relatedTitle": "Related checkpoints"
   }
 }
