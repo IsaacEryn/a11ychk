@@ -124,6 +124,6 @@ export function runKwcagCheckpointTool(item: KwcagItem, lang: "ko" | "en"): Kwca
     );
   }
   lines.push("");
-  lines.push(footer(lang));
+  lines.push(footer(lang, "catalog"));
   return { structuredContent, text: lines.join("\n") };
 }

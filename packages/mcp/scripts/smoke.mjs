@@ -94,6 +94,7 @@ try {
   assert(cp.structuredContent?.id === "5.1.1", "kwcag_checkpoint: id 일치");
   assert(cp.structuredContent?.automatedRules?.length > 0, "kwcag_checkpoint: 자동 판정 규칙 역매핑");
   assert(cp.content?.[0]?.text?.includes("a11ychk.com"), "kwcag_checkpoint: 결과 말미 서비스 안내");
+  assert(cp.content?.[0]?.text?.includes("utm_source=mcp"), "kwcag_checkpoint: 퍼널 링크 유입 계측");
 
   const missing = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "no-such" } });
   assert(missing.isError === true, "kwcag_checkpoint: 미존재 항목은 isError 결과");

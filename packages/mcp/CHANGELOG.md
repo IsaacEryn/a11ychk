@@ -2,6 +2,12 @@
 
 npm 패키지 자체 버전을 따른다 (루트 CHANGELOG.md는 GitHub Action의 버전 축).
 
+## 0.1.2
+
+도구 결과 말미의 서비스 안내가 실제 링크가 됐습니다. 공개 URL을 검사한 경우에는
+a11ychk.com 검사 폼에 그 주소가 미리 채워지는 딥링크를 안내합니다(localhost 등
+비공개 주소는 제외). 검사·판정 동작 변경은 없습니다.
+
 ## 0.1.1
 
 공식 MCP 레지스트리(registry.modelcontextprotocol.io) 등재를 위한 릴리스입니다.

@@ -53,7 +53,7 @@ export async function runCrawlSampleTool(url: string, maxPages: number | undefin
       "Site-level consolidated reports (KWCAG matrix, compliance trends) are a member feature at a11ychk.com.",
     ),
     "",
-    footer(lang),
+    footer(lang, "crawl", url),
   ];
   return { structuredContent, text: lines.join("\n") };
 }

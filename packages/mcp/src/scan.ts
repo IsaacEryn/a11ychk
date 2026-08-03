@@ -110,10 +110,10 @@ export async function runScanTool(
     })),
   };
 
-  return { structuredContent, text: renderText(structuredContent, lang) };
+  return { structuredContent, text: renderText(structuredContent, lang, urls[0]) };
 }
 
-function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en"): string {
+function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en", rootUrl?: string): string {
   const L = (ko: string, en: string) => (lang === "en" ? en : ko);
   const lines: string[] = [];
   lines.push(
@@ -152,6 +152,6 @@ function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en"): 
     ),
   );
   lines.push("");
-  lines.push(footer(lang));
+  lines.push(footer(lang, "scan", rootUrl));
   return lines.join("\n");
 }
