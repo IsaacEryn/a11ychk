@@ -95,17 +95,39 @@ export async function ViolationsSection({ locale, ruleGroups }: { locale: string
                   </li>
                 ))}
                 {rows.length > 5 && (
-                  <li className="text-xs text-[var(--color-ink-faint)]">+ {rows.length - 5}</li>
+                  <li className="text-xs text-[var(--color-ink-faint)]">
+                    {/* 나머지 예시 — 화면에서는 펼쳐 볼 수 있게, 인쇄물은 5개 요약 유지 */}
+                    <details className="no-print">
+                      <summary className="cursor-pointer font-bold text-[var(--color-seal)] underline underline-offset-2">
+                        {t("violations.moreExamples", { count: rows.length - 5 })}
+                      </summary>
+                      <ul className="mt-2 space-y-3">
+                        {rows.slice(5).map((row, i) => (
+                          <li key={i} className="border-l-[3px] border-[var(--color-line)] pl-3 text-sm">
+                            <p className="break-all text-xs text-[var(--color-ink-faint)]">
+                              {t("violations.pageLabel")}: {row.scan_pages?.url} · {t("violations.selectorLabel")}:{" "}
+                              <code>{row.selector}</code>
+                            </p>
+                            <pre tabIndex={0} className="mt-1.5 overflow-x-auto rounded bg-[var(--color-paper-warm)] p-2.5 text-[0.8rem]">
+                              <code>{row.html_snippet}</code>
+                            </pre>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                    <span className="print-only">+ {rows.length - 5}</span>
+                  </li>
                 )}
               </ul>
 
               {rows[0]?.help_url && (
                 <a
                   href={rows[0].help_url}
+                  target="_blank"
                   rel="noopener"
                   className="no-print mt-4 inline-block text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4"
                 >
-                  {t("violations.axeHelp")} ↗
+                  {t("violations.axeHelp")} ↗<span className="sr-only"> {t("violations.newWindow")}</span>
                 </a>
               )}
             </article>

@@ -246,6 +246,11 @@ a[data-btn] {
   box-shadow: 5px 5px 0 0 var(--color-line);
 }
 
+/* 인쇄 전용 요소 — 화면에서는 숨기고 @media print에서 표시 */
+.print-only {
+  display: none;
+}
+
 /* 관리자 상세 드로어 — 네이티브 dialog의 배경 흐림·본문 스크롤 잠금 */
 .admin-drawer::backdrop {
   background: color-mix(in srgb, var(--color-ink) 45%, transparent);
@@ -356,6 +361,9 @@ html:has(dialog.admin-drawer[open]) {
   }
   .no-print {
     display: none !important;
+  }
+  .print-only {
+    display: inline !important;
   }
   .doc-card {
     box-shadow: none;

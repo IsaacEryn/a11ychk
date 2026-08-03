@@ -1,5 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import type { Impact, ScanSummary } from "@a11ychk/core/catalog";
+import { ScoresCard } from "./ScoresCard";
 
 const IMPACT_ORDER: Impact[] = ["critical", "serious", "moderate", "minor"];
 
@@ -17,59 +18,13 @@ export async function ScoreSection({ summary }: { summary: ScanSummary }) {
       </h2>
       <div className="grid gap-5 lg:grid-cols-[1.15fr_1fr]">
         {summary.scores ? (
-          <div className="doc-card p-6">
-            {/* 통합 준수율 (headline) */}
-            <div className="flex items-baseline justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold text-[var(--color-ink-soft)]">{t("scores.combined")}</p>
-                <p className="font-display mt-1 text-6xl font-extrabold leading-none text-[var(--color-seal)]">
-                  {summary.scores.combined.rate}
-                  <span className="text-2xl">%</span>
-                </p>
-              </div>
-              <p className="max-w-[13rem] text-right text-xs leading-relaxed text-[var(--color-ink-faint)]">
-                {t("scores.combinedDesc")}
-              </p>
-            </div>
-            {/* 자동 / 수동 분해 */}
-            <div className="mt-5 grid grid-cols-2 gap-3">
-              {(["automated", "manual"] as const).map((kind) => {
-                const s = summary.scores![kind];
-                return (
-                  <div key={kind} className="rounded-md border border-[var(--color-line)] bg-[var(--color-paper-warm)] p-3.5">
-                    <p className="text-xs font-bold text-[var(--color-ink-soft)]">{t(`scores.${kind}`)}</p>
-                    <p className="font-display mt-0.5 text-3xl font-extrabold leading-none">
-                      {s.evaluated === 0 ? "—" : `${s.rate}%`}
-                    </p>
-                    <p className="mt-1.5 text-[11px] leading-tight text-[var(--color-ink-faint)]">
-                      {s.evaluated === 0
-                        ? t("scores.noManual")
-                        : t("scores.passFail", { passed: s.passed, failed: s.failed })}
-                    </p>
-                    <p className="text-[11px] leading-tight text-[var(--color-ink-faint)]">
-                      {t("scores.coverage", { evaluated: s.evaluated, total: summary.scores!.totalCriteria })}
-                    </p>
-                  </div>
-                );
-              })}
-            </div>
-            <p className="mt-3.5 flex flex-wrap gap-x-4 gap-y-1 text-sm">
-              <span>
-                {t("scores.violations")}{" "}
-                <strong className="text-[var(--color-crit)]">{t("scores.unit", { count: summary.totalViolations })}</strong>
-              </span>
-              <span>
-                {t("scores.violationNodes")}{" "}
-                <strong className="text-[var(--color-crit)]">{t("scores.unit", { count: summary.totalViolationNodes })}</strong>
-              </span>
-            </p>
-            {bp.length > 0 && (
-              <p className="mt-2 rounded-md border border-[var(--color-line)] bg-[var(--color-paper-warm)] px-3 py-2 text-xs leading-relaxed text-[var(--color-ink-soft)]">
-                {t("scores.bestPracticeNote", { types: bp.length, nodes: bpNodes })}
-              </p>
-            )}
-            <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-faint)]">{t("scores.legend")}</p>
-          </div>
+          <ScoresCard
+            initial={summary.scores}
+            totalViolations={summary.totalViolations}
+            totalViolationNodes={summary.totalViolationNodes}
+            bpTypes={bp.length}
+            bpNodes={bpNodes}
+          />
         ) : (
           <div className="doc-card flex flex-col items-center justify-center px-10 py-8 text-center">
             <p className="text-sm font-bold text-[var(--color-ink-soft)]">{t("score.title")}</p>

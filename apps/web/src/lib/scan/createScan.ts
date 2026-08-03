@@ -17,6 +17,8 @@ export type CreateScanResult =
       /** i18n 코드 — 클라이언트가 로케일에 맞게 번역 */
       code: string;
       params?: Record<string, string | number>;
+      /** concurrent 전용 — 진행 중인 검사로 바로 갈 수 있게 */
+      scanId?: string;
     };
 
 interface CreateScanOptions {
@@ -105,13 +107,21 @@ export async function createScanForUser(
 
   // 동시 실행 제한 — 사용자당 1건 (빠른 사전 검사; 원자적 보장은 아래
   // 부분 유니크 인덱스 scans_one_active_per_user가 담당 — migration 0011)
-  const { count: runningCount } = await admin
+  // id를 함께 돌려줘 폼이 "진행 중인 검사 보기" 링크를 만들 수 있게 한다
+  const { data: runningRows } = await admin
     .from("scans")
-    .select("id", { count: "exact", head: true })
+    .select("id")
     .eq("user_id", userId)
-    .in("status", ["queued", "running"]);
-  if ((runningCount ?? 0) > 0) {
-    return { ok: false, status: 409, error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요.", code: "concurrent" };
+    .in("status", ["queued", "running"])
+    .limit(1);
+  if ((runningRows ?? []).length > 0) {
+    return {
+      ok: false,
+      status: 409,
+      error: "이미 진행 중인 검사가 있습니다. 완료 후 다시 시도해 주세요.",
+      code: "concurrent",
+      scanId: runningRows![0].id as string,
+    };
   }
 
   // 도메인 연결 + 요금제·소유확인 기반 표본 크기.

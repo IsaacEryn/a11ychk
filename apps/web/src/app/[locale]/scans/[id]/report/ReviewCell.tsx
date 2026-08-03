@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { saveReview, type SaveState } from "@/lib/actions";
+import { saveReview, type ReviewSaveState } from "@/lib/actions";
+import { useReviews } from "./ReviewsProvider";
 
 export interface ReviewValue {
   outcome: string;
@@ -13,6 +14,8 @@ export interface ReviewValue {
 /**
  * 점검자 판정 기입 셀 — 매트릭스 행(WCAG SC / KWCAG 항목)마다 렌더.
  * 자동 판정을 점검자가 직접 확인·정정하고 관찰 내용을 기록한다.
+ * 저장은 서버 재렌더 없이 응답만 받아 ReviewsProvider가 진행률·점수를 갱신하고,
+ * "다음 미판정" 버튼으로 순차 기입을 잇는다.
  * 화면 전용(no-print) — 인쇄물에는 저장된 판정·메모가 본문에 반영된다.
  */
 export function ReviewCell({
@@ -30,14 +33,32 @@ export function ReviewCell({
   pageUrls?: string[];
 }) {
   const t = useTranslations("report.review");
-  const [state, formAction, pending] = useActionState<SaveState, FormData>(saveReview, {});
+  const reviews = useReviews();
+  const [state, formAction, pending] = useActionState<ReviewSaveState, FormData>(saveReview, {});
+  // 마지막으로 제출한 outcome — 응답(state)에는 없으므로 제출 시점에 붙잡아 둔다
+  const lastOutcome = useRef<string | null>(null);
+  const appliedState = useRef<ReviewSaveState | null>(null);
+
+  useEffect(() => {
+    // 같은 응답을 두 번 반영하지 않게 상태 객체 동일성으로 가드
+    if (!state.ok || appliedState.current === state) return;
+    appliedState.current = state;
+    reviews?.apply(standard, itemId, lastOutcome.current === "" ? null : lastOutcome.current, state.scores);
+  }, [state, reviews, standard, itemId]);
 
   return (
-    <details className="no-print">
+    <details id={`review-${standard}-${itemId}`} className="no-print">
       <summary className="cursor-pointer text-xs font-bold text-[var(--color-seal)] underline underline-offset-2">
         {current ? t("edit") : t("add")}
       </summary>
-      <form action={formAction} className="mt-2 w-[min(16rem,78vw)] space-y-2 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-3">
+      <form
+        action={formAction}
+        onSubmit={(e) => {
+          const fd = new FormData(e.currentTarget);
+          lastOutcome.current = (fd.get("outcome") as string) ?? null;
+        }}
+        className="mt-2 w-[min(16rem,78vw)] space-y-2 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] p-3"
+      >
         <input type="hidden" name="scanId" value={scanId} />
         <input type="hidden" name="standard" value={standard} />
         <input type="hidden" name="itemId" value={itemId} />
@@ -91,7 +112,7 @@ export function ReviewCell({
             </div>
           </fieldset>
         )}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             type="submit"
             disabled={pending}
@@ -103,6 +124,15 @@ export function ReviewCell({
             <span role="status" className="text-xs font-semibold text-[var(--color-seal)]">
               {t("saved")}
             </span>
+          )}
+          {state.ok && reviews && (
+            <button
+              type="button"
+              onClick={() => reviews.focusNext(standard, itemId)}
+              className="rounded border-[1.5px] border-[var(--color-ink)] px-2.5 py-1 text-xs font-bold hover:bg-[var(--color-paper-warm)]"
+            >
+              {t("next")}
+            </button>
           )}
           {state.error && (
             <span role="alert" className="text-xs font-semibold text-[var(--color-crit)]">

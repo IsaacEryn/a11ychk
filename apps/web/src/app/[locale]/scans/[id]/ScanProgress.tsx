@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { useRouter, Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { appFetch, notifyServiceDegraded } from "@/lib/serviceStatus";
+import { classifyScanError } from "@/lib/scanError";
 import { StatusBadge } from "@/components/StatusBadge";
 import { RerunScanButton } from "./report/RescanButtons";
 
@@ -48,10 +49,21 @@ export function ScanProgress({
 }) {
   const router = useRouter();
   const tq = useTranslations("scan.queued");
+  const tp = useTranslations("scan.progress");
+  const tReason = useTranslations("report.failedPages.reasons");
   const [status, setStatus] = useState(initialStatus);
   const [error, setError] = useState(initialError);
   const [pages, setPages] = useState<PageRow[]>([]);
   const [queue, setQueue] = useState<QueueInfo | null>(null);
+  // 경과 시간 — "멈춘 건가?"를 판단할 근거. 화면에 들어온 시점부터 잰다
+  const [elapsedSec, setElapsedSec] = useState(0);
+
+  useEffect(() => {
+    if (status === "done" || status === "failed") return;
+    const started = Date.now();
+    const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [status]);
 
   useEffect(() => {
     if (status === "done" || status === "failed") return;
@@ -110,22 +122,56 @@ export function ScanProgress({
 
   const statusLabel = labels.status[status as keyof Labels["status"]] ?? status;
   const isQueued = status === "queued";
+  const isRunning = status === "running";
   const aheadText = queue ? (queue.ahead > 0 ? tq("ahead", { n: queue.ahead }) : tq("aheadNone")) : null;
   const etaText = queue && queue.ahead > 0 ? tq("eta", { min: queue.estMinutes }) : null;
+  const doneCount = pages.filter((p) => p.status === "done" || p.status === "failed").length;
+  const elapsedText =
+    elapsedSec >= 60 ? tp("elapsedMin", { min: Math.floor(elapsedSec / 60), sec: elapsedSec % 60 }) : tp("elapsedSec", { sec: elapsedSec });
 
   return (
     <div className="mt-8">
       {/* 스크린 리더에 상태 변화 알림 */}
-      <div aria-live="polite" className="doc-card flex items-center gap-3 p-5">
+      <div aria-live="polite" className="doc-card flex flex-wrap items-center gap-3 p-5">
         <StatusBadge status={status} label={statusLabel} />
         <span className="text-sm text-[var(--color-ink-soft)]">
           {status === "failed"
             ? labels.failedTitle
             : isQueued
               ? tq("desc")
-              : labels.runningDesc}
+              : pages.length === 0
+                ? tp("collecting")
+                : labels.runningDesc}
         </span>
+        {(isQueued || isRunning) && (
+          <span className="ml-auto text-xs tabular-nums text-[var(--color-ink-faint)]">{elapsedText}</span>
+        )}
       </div>
+
+      {/* 진행률 — 페이지가 잡히면 N/M과 막대로 (배지를 세지 않아도 되게) */}
+      {isRunning && pages.length > 0 && (
+        <div className="mt-4">
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-bold">{tp("bar")}</span>
+            <span className="text-sm tabular-nums text-[var(--color-ink-soft)]">
+              {tp("count", { done: doneCount, total: pages.length })}
+            </span>
+          </div>
+          <div
+            role="progressbar"
+            aria-valuenow={doneCount}
+            aria-valuemin={0}
+            aria-valuemax={pages.length}
+            aria-label={tp("bar")}
+            className="mt-1.5 h-2.5 overflow-hidden rounded-full border border-[var(--color-line)] bg-[var(--color-paper-warm)]"
+          >
+            <div
+              className="h-full bg-[var(--color-seal)] transition-[width]"
+              style={{ width: `${Math.round((doneCount / pages.length) * 100)}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* 대기열 현황 — queued일 때만: 앞선 대기 수·예상 시간을 정직하게 안내 */}
       {isQueued && (
@@ -145,7 +191,15 @@ export function ScanProgress({
       {status === "failed" && (
         <div role="alert" className="mt-4 border-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] p-4">
           <p className="font-bold text-[var(--color-crit)]">{labels.failedTitle}</p>
-          {error && <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{error}</p>}
+          {/* 원문 에러 대신 분류된 친화 문구 — 원문은 관리자 로그에만 (페이지 단위 실패와 동일 기준) */}
+          {error && <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{tReason(classifyScanError(error))}</p>}
+          {classifyScanError(error) === "blocked" && (
+            <p className="mt-1 text-sm">
+              <Link href="/access-check" className="font-semibold underline underline-offset-4">
+                {tp("accessCheckLink")}
+              </Link>
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-3">
             <RerunScanButton scanId={scanId} />
             <Link href="/dashboard" className="font-semibold underline underline-offset-4">

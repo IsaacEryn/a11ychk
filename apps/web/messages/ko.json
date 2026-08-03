@@ -325,7 +325,8 @@
       "checkFailed": "진단에 실패했습니다. 잠시 후 다시 시도해 주세요."
     },
     "autoPagesLabel": "자동 점검할 페이지 수",
-    "autoPagesMax": "한번에 점검 가능한 페이지 수: {max}"
+    "autoPagesMax": "한번에 점검 가능한 페이지 수: {max}",
+    "viewRunning": "진행 중인 검사 보기"
   },
   "accessCheck": {
     "title": "봇 차단 검증",
@@ -566,6 +567,14 @@
       "aheadNone": "다음 차례입니다",
       "eta": "예상 대기 약 {min}분",
       "starting": "곧 시작됩니다…"
+    },
+    "progress": {
+      "collecting": "검사할 페이지를 수집하고 있습니다 (sitemap·내부 링크 탐색)…",
+      "bar": "검사 진행",
+      "count": "{done} / {total} 페이지 완료",
+      "elapsedSec": "경과 {sec}초",
+      "elapsedMin": "경과 {min}분 {sec}초",
+      "accessCheckLink": "봇 차단 여부 진단하기"
     }
   },
   "report": {
@@ -653,7 +662,8 @@
         "forbidden": "권한 없음",
         "failed": "저장 실패"
       },
-      "relatedPages": "관련 페이지"
+      "relatedPages": "관련 페이지",
+      "next": "다음 미판정 항목"
     },
     "pages": {
       "title": "표본 페이지 상세",
@@ -756,7 +766,9 @@
       "selectorLabel": "선택자",
       "axeHelp": "axe-core 규칙 문서",
       "affectedPages": "영향받은 페이지 {count}곳",
-      "diagLabel": "자동 진단(axe)"
+      "diagLabel": "자동 진단(axe)",
+      "moreExamples": "예시 {count}개 더 보기",
+      "newWindow": "(새 창)"
     },
     "manual": {
       "title": "수동 검사 필요 항목",
@@ -870,12 +882,20 @@
       "csvFindings": "위반 목록 CSV (엑셀)",
       "csvKwcag": "KWCAG 매트릭스 CSV (엑셀)",
       "aiFixJson": "AI 수정 요청 (.json)",
-      "reportToolV2": "WCAG-EM Report Tool (JSON · 2.0)"
+      "reportToolV2": "WCAG-EM Report Tool (JSON · 2.0)",
+      "descCsvFindings": "위반 요소 전체 목록 — 스프레드시트로 분류·추적",
+      "descCsvKwcag": "KWCAG 33항목별 판정 요약표",
+      "descAiFix": "AI 코딩 도구에 붙여넣는 수정 요청 문서",
+      "descAiFixJson": "수정 요청의 기계 판독용 JSON",
+      "descEarl": "W3C EARL 형식 — 타 도구와 결과 교환",
+      "descReportTool": "W3C Report Tool에 불러오기 (1.0 호환)",
+      "descReportToolV2": "WCAG-EM 2.0 구조 그대로 내보내기"
     },
     "manualProgress": {
       "title": "수동 판정 진행률",
       "desc": "자동 도구가 확정하지 못한 항목 중 점검자가 판정을 기입한 비율입니다.",
-      "line": "{done} / {total} 항목 판정 완료"
+      "line": "{done} / {total} 항목 판정 완료",
+      "jump": "미판정 항목으로"
     },
     "cert": {
       "title": "인증 준비 요약",
@@ -905,7 +925,23 @@
       "primary": "무료로 내 사이트 검사하기",
       "secondary": "공개 사이트 목록 보기"
     },
-    "excludedRulesNote": "이 검사에는 도메인 설정에 따라 {count}개 규칙이 제외되었습니다:"
+    "excludedRulesNote": "이 검사에는 도메인 설정에 따라 {count}개 규칙이 제외되었습니다:",
+    "pdf": {
+      "download": "PDF 다운로드",
+      "generating": "PDF 생성 중…",
+      "generatingHint": "서버가 보고서를 렌더하고 있습니다. 수십 초 걸릴 수 있어요.",
+      "failed": "PDF 생성에 실패했습니다. 잠시 후 다시 시도해 주세요."
+    },
+    "toc": {
+      "label": "보고서 요약과 목차",
+      "score": "요약 점수",
+      "scope": "평가 범위",
+      "pages": "표본 페이지",
+      "matrix": "항목별 매트릭스",
+      "priority": "우선 수정 권고",
+      "violations": "위반 상세",
+      "statement": "평가 성명"
+    }
   },
   "mypage": {
     "title": "마이페이지",

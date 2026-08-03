@@ -18,14 +18,20 @@ const ReviewSchema = z.object({
   note: z.string().max(5000).default(""),
 });
 
+/** saveReview 응답 — 갱신된 점수를 실어 클라이언트가 서버 재렌더 없이 화면을 갱신한다 */
+export interface ReviewSaveState extends SaveState {
+  scores?: ScanSummary["scores"] | null;
+}
+
 /**
  * 점검자 판정 변경 후 summary.scores(수동·통합 준수율)만 다시 계산해 저장.
  * 자동 판정 매트릭스는 그대로이므로 전체 재집계 없이 점수만 갱신한다.
+ * 갱신된 scores를 반환 — saveReview가 응답에 실어 클라이언트가 라이브 갱신한다.
  */
-async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<void> {
+async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<ScanSummary["scores"] | null> {
   const { data: scan } = await supabase.from("scans").select("summary").eq("id", scanId).maybeSingle();
   const summary = scan?.summary as ScanSummary | null;
-  if (!summary?.wcagMatrix) return;
+  if (!summary?.wcagMatrix) return null;
 
   const { data: reviews } = await supabase
     .from("scan_reviews")
@@ -48,10 +54,16 @@ async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<
   if (rpcErr) {
     await supabase.from("scans").update({ summary: { ...summary, scores } }).eq("id", scanId);
   }
+  return scores;
 }
 
-/** 점검자 판정 저장 (upsert). 빈 outcome 전달 시 판정 삭제 */
-export async function saveReview(_prev: SaveState, formData: FormData): Promise<SaveState> {
+/**
+ * 점검자 판정 저장 (upsert). 빈 outcome 전달 시 판정 삭제.
+ * revalidate를 부르지 않는다 — 판정 1건마다 무거운 보고서 전체를 RSC 재렌더하는
+ * 대신, 갱신된 scores를 응답에 실어 클라이언트(ReviewsProvider)가 진행률·점수를
+ * 라이브 갱신한다 (33항목 연속 기입의 반복 비용 제거).
+ */
+export async function saveReview(_prev: ReviewSaveState, formData: FormData): Promise<ReviewSaveState> {
   const { supabase, user } = await requireUser();
 
   const scanId = z.string().uuid().safeParse(formData.get("scanId"));
@@ -72,9 +84,8 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
       .eq("standard", standard.data)
       .eq("item_id", itemId.data);
     if (error) return { error: "failed" };
-    await refreshScores(supabase, scanId.data);
-    revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
-    return { ok: true };
+    const scores = await refreshScores(supabase, scanId.data);
+    return { ok: true, scores };
   }
 
   const parsed = ReviewSchema.safeParse({
@@ -115,9 +126,8 @@ export async function saveReview(_prev: SaveState, formData: FormData): Promise<
     ({ error } = await supabase.from("scan_reviews").upsert(row, { onConflict: "scan_id,standard,item_id" }));
   }
   if (error) return { error: "failed" };
-  await refreshScores(supabase, parsed.data.scanId);
-  revalidateLocalized(`/scans/${scanId.data}`, `/scans/${scanId.data}/report`);
-  return { ok: true };
+  const scores = await refreshScores(supabase, parsed.data.scanId);
+  return { ok: true, scores };
 }
 
 const ReportMetaSchema = z.object({

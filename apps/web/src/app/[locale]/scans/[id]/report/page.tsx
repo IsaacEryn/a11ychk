@@ -9,6 +9,7 @@ import { ReportMetaForm } from "./ReportMetaForm";
 import { RerunScanButton } from "./RescanButtons";
 import { ShareLinkButton } from "./ShareLinkButton";
 import { ReportControls } from "./ReportControls";
+import { ReviewsProvider } from "./ReviewsProvider";
 import { ExportMenu } from "./sections/ExportMenu";
 import { CoverHeader } from "./sections/CoverHeader";
 import { ExecSummary } from "./sections/ExecSummary";
@@ -86,6 +87,29 @@ export default async function ReportPage({
     donePages.length,
   );
 
+  // 수동 판정 대상 항목 — 진행률·"다음 미판정" 이동의 기준 (매트릭스 표시 순서)
+  const wcagManualIds = (summary.wcagMatrix ?? [])
+    .filter((r) => r.outcome === "notChecked" || r.outcome === "cannotTell")
+    .map((r) => r.scId);
+  const kwcagManualIds = (summary.kwcagMatrix ?? [])
+    .filter((r) => r.status === "manual" || r.status === "review")
+    .map((r) => r.itemId);
+  const manualInitial = {
+    wcag: { done: wcagManualIds.filter((id) => effectiveWcagReviews.has(id)).length, total: wcagManualIds.length },
+    kwcag: { done: kwcagManualIds.filter((id) => effectiveKwcagReviews.has(id)).length, total: kwcagManualIds.length },
+  };
+
+  // 화면 전용 목차 — 인쇄 산출물(WCAG-EM 순서)은 그대로 두고 탐색만 보탠다
+  const toc: { href: string; label: string }[] = [
+    { href: "#sec-score", label: t("toc.score") },
+    { href: "#sec-scope", label: t("toc.scope") },
+    { href: "#sec-pages", label: t("toc.pages") },
+    { href: "#sec-matrix", label: t("toc.matrix") },
+    { href: "#sec-priority", label: t("toc.priority") },
+    { href: "#sec-violations", label: t("toc.violations") },
+    { href: "#sec-statement", label: t("toc.statement") },
+  ];
+
   // 판정(outcome) 배지 스타일 — WCAG·KWCAG 매트릭스가 공유
   const outcomeStyle: Record<WcagOutcome, string> = {
     passed: "bg-[var(--color-seal-tint)] text-[var(--color-pass)] border-[var(--color-seal)]",
@@ -97,6 +121,14 @@ export default async function ReportPage({
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 sm:px-6">
+      {/* 판정 라이브 상태 — 저장 응답만으로 진행률·점수를 갱신 (전체 RSC 재렌더 제거) */}
+      <ReviewsProvider
+        initialScores={summary.scores ?? null}
+        initialWcag={Object.fromEntries(wcagReviews)}
+        initialKwcag={Object.fromEntries(kwcagReviews)}
+        wcagManualIds={wcagManualIds}
+        kwcagManualIds={kwcagManualIds}
+      >
       {/* 출력 범위(view)·표시 표준(std) 토글 — 클라이언트 상태로 서버 재페치 없이 CSS 필터 */}
       <ReportControls
         canEdit={canEdit}
@@ -122,11 +154,46 @@ export default async function ReportPage({
         rightActions={
           <>
             {canEdit && <RerunScanButton scanId={scan.id} />}
-            <PrintButton label={t("print")} />
             <ExportMenu scanId={scan.id} locale={locale} />
           </>
         }
+        printAction={<PrintButton label={t("print")} />}
       >
+
+      {/* ─── 화면 전용 요약 스트립 + 목차 — 첫 화면에서 핵심 수치와 섹션 이동 제공 ─── */}
+      <nav aria-label={t("toc.label")} className="no-print mb-8 rounded border-[1.5px] border-[var(--color-line)] p-4">
+        <p className="flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          <span>
+            {summary.scores ? t("scores.combined") : t("score.title")}{" "}
+            <strong className="font-display text-lg text-[var(--color-seal)]">
+              {summary.scores?.combined.rate ?? summary.complianceRate}%
+            </strong>
+          </span>
+          <span>
+            {t("scores.violations")}{" "}
+            <strong className="text-[var(--color-crit)]">{summary.totalViolations}</strong>
+          </span>
+          {manualInitial.kwcag.total + manualInitial.wcag.total > 0 && (
+            <span>
+              {t("manualProgress.title")}{" "}
+              <strong className="tabular-nums">
+                {preferred === "wcag"
+                  ? `${manualInitial.wcag.done}/${manualInitial.wcag.total}`
+                  : `${manualInitial.kwcag.done}/${manualInitial.kwcag.total}`}
+              </strong>
+            </span>
+          )}
+        </p>
+        <ul className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t border-[var(--color-line)] pt-3 text-sm">
+          {toc.map((item) => (
+            <li key={item.href}>
+              <a href={item.href} className="font-semibold text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-seal)]">
+                {item.label}
+              </a>
+            </li>
+          ))}
+        </ul>
+      </nav>
 
       {/* ─── 보고서 정보 입력 (점검자, 화면 전용) ─── */}
       {canEdit && <ReportMetaForm scanId={scan.id} meta={meta} />}
@@ -144,19 +211,25 @@ export default async function ReportPage({
       <ExecSummary meta={meta} />
 
       {/* ─── WCAG-EM 2.0 Step 1·2·3: 평가 범위 + 표본 ─── */}
-      <ScopeSection scope={scope} sample={summary.sample} />
+      <div id="sec-scope">
+        <ScopeSection scope={scope} sample={summary.sample} />
+      </div>
 
       {/* ─── 표본 페이지 상세 (Step 3 + 검사 상태) ─── */}
-      <PagesSection pages={pages} canEdit={canEdit} scanId={scan.id} />
+      <div id="sec-pages">
+        <PagesSection pages={pages} canEdit={canEdit} scanId={scan.id} />
+      </div>
 
       {/* ─── 요약: 자동/수동/통합 준수율 + 심각도별 위반 ─── */}
-      <ScoreSection summary={summary} />
+      <div id="sec-score">
+        <ScoreSection summary={summary} />
+      </div>
 
       {/* ─── 전후 비교 — 같은 대상의 직전 검사와 비교해 개선 효과를 보여준다 ─── */}
       <CompareSection locale={locale} compare={compare} compareOptions={compareOptions} compareParam={compareParam} />
 
-      {/* ─── 수동 판정 진행률 ─── */}
-      <ManualProgressSection summary={summary} wcagReviews={effectiveWcagReviews} kwcagReviews={effectiveKwcagReviews} preferred={preferred} />
+      {/* ─── 수동 판정 진행률 (판정 저장 시 라이브 갱신) ─── */}
+      <ManualProgressSection initial={manualInitial} preferred={preferred} canEdit={canEdit} />
 
       {/* ─── 표준별 매트릭스 — std로 선택, preferred로 순서 결정 ─── */}
       {(() => {
@@ -191,16 +264,20 @@ export default async function ReportPage({
         );
 
         // 두 블록을 항상 렌더(우선 표준 순서)하고, std 단일 보기 숨김은 CSS(data-std)가 담당.
-        return preferred === "wcag" ? (
-          <>
-            {wcagBlock}
-            {kwcagBlock}
-          </>
-        ) : (
-          <>
-            {kwcagBlock}
-            {wcagBlock}
-          </>
+        return (
+          <div id="sec-matrix">
+            {preferred === "wcag" ? (
+              <>
+                {wcagBlock}
+                {kwcagBlock}
+              </>
+            ) : (
+              <>
+                {kwcagBlock}
+                {wcagBlock}
+              </>
+            )}
+          </div>
         );
       })()}
 
@@ -213,10 +290,14 @@ export default async function ReportPage({
       )}
 
       {/* ─── 우선 수정 권고 — 심각도·규모 기준 상위 규칙 액션 플랜 ─── */}
-      <PrioritySection locale={locale} ruleGroups={ruleGroups} />
+      <div id="sec-priority">
+        <PrioritySection locale={locale} ruleGroups={ruleGroups} />
+      </div>
 
       {/* ─── 위반 상세 ─── */}
-      <ViolationsSection locale={locale} ruleGroups={ruleGroups} />
+      <div id="sec-violations">
+        <ViolationsSection locale={locale} ruleGroups={ruleGroups} />
+      </div>
 
       {/* ─── 확인용 수집 자료 — 값은 존재하나 품질은 사람이 확증 (view=all 전용) ─── */}
       <ReviewDataSection pages={pages} />
@@ -225,12 +306,14 @@ export default async function ReportPage({
       {canEdit && <ManualSection locale={locale} />}
 
       {/* ─── WCAG-EM 2.0 평가 성명 (Step 5.3) ─── */}
-      <StatementSection
-        scope={scope}
-        summary={summary}
-        rootUrl={scan.root_url as string}
-        date={(scan.finished_at ?? scan.created_at) as string}
-      />
+      <div id="sec-statement">
+        <StatementSection
+          scope={scope}
+          summary={summary}
+          rootUrl={scan.root_url as string}
+          date={(scan.finished_at ?? scan.created_at) as string}
+        />
+      </div>
 
       {/* ─── 비소유자(배지·공유 링크 방문자) 전환 CTA — 화면 전용, 인쇄 제외 ─── */}
       {!canEdit && <ViewerCta />}
@@ -241,6 +324,7 @@ export default async function ReportPage({
         <p className="mt-2">{t("generatedBy")}</p>
       </footer>
       </ReportControls>
+      </ReviewsProvider>
     </div>
   );
 }

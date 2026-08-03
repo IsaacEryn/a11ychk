@@ -197,8 +197,9 @@ export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
             <div className="mt-6 border-l-[3px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] px-4 py-3">
               <p className="font-semibold">{t("lockedTitle")}</p>
               <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("lockedFeatures")}</p>
+              {/* 방금 검사한 URL을 로그인 너머까지 인계 — 가입 후 /scan 폼에 프리필된 채 도착 */}
               <Link
-                href="/login"
+                href={`/login?next=${encodeURIComponent(`/${locale}/scan${url ? `?url=${encodeURIComponent(url)}` : ""}`)}`}
                 className="mt-3 inline-block rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
               >
                 {t("signupCta")}

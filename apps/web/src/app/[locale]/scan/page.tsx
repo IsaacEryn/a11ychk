@@ -131,6 +131,7 @@ export default async function ScanRunPage({
             presetHint: t("preset.hint"),
             presetErrors: t.raw("preset.errors") as Record<string, string>,
             errors: t.raw("apiErrors") as Record<string, string>,
+            viewRunning: t("viewRunning"),
           }}
         />
         <p className="mt-3 text-sm text-[var(--color-ink-faint)]">{tDash("scanForm.hint")}</p>

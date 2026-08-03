@@ -2,6 +2,7 @@
 
 import { useActionState, useState, type ReactNode } from "react";
 import { savePublicView } from "@/lib/actions";
+import { PdfButton } from "./PdfButton";
 
 type View = "all" | "auto" | "done" | "issues";
 type Std = "both" | "wcag" | "kwcag";
@@ -25,6 +26,7 @@ export function ReportControls({
   labels,
   leftActions,
   rightActions,
+  printAction,
   children,
 }: {
   /** 소유자만 컨트롤(내보내기·표시 토글·공개 보기 저장)을 조작할 수 있다. 비소유자는 읽기 전용 */
@@ -50,6 +52,8 @@ export function ReportControls({
   };
   leftActions: ReactNode;
   rightActions: ReactNode;
+  /** 인쇄 버튼 — 공유 수신자에게도 열어준다 (보고서를 받아본 담당자·심사자의 저장 수단) */
+  printAction: ReactNode;
   children: ReactNode;
 }) {
   const [view, setView] = useState<View>(initialView);
@@ -59,10 +63,12 @@ export function ReportControls({
   const [blind, setBlind] = useState(false);
   const [saveState, saveAction, saving] = useActionState(savePublicView, {} as Awaited<ReturnType<typeof savePublicView>>);
 
-  // 비소유자(공유 링크·배지) — 읽기 전용: 소유자가 지정한 표시 모드로 고정, 컨트롤 없음.
+  // 비소유자(공유 링크·배지) — 읽기 전용: 소유자가 지정한 표시 모드로 고정.
+  // 인쇄만 열어준다 (수신자가 브라우저 인쇄를 찾아 헤매지 않게).
   if (!canEdit) {
     return (
       <div data-view={initialView} data-std={hasWcag ? initialStd : "kwcag"} data-pref={preferred}>
+        <div className="no-print mb-8">{printAction}</div>
         {children}
       </div>
     );
@@ -119,12 +125,8 @@ export function ReportControls({
       {/* 재검사·인쇄·내보내기·PDF — 버튼 크기 통일(px-4 py-2), 한 행에서 자연 줄바꿈 */}
       <div className="no-print mb-8 flex flex-wrap items-center gap-2">
         {rightActions}
-        <a
-          href={pdfHref}
-          className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
-        >
-          {labels.downloadPdf}
-        </a>
+        {printAction}
+        <PdfButton href={pdfHref} filename={`a11ychk-report-${scanId}.pdf`} />
       </div>
 
       {/* 표시 설정 — 출력 범위·표시 표준 토글과 '공개 보기 저장'을 한 묶음으로 그룹핑.
@@ -174,15 +176,11 @@ export function ReportControls({
           {labels.blind.notice}
         </p>
       )}
-      {/* 안내문 — 상태에 따라 표시 (인쇄·PDF 포함) */}
-      {view !== "all" && (
+      {/* 표시 상태 안내 — 활성 항목을 한 박스로 (인쇄·PDF 포함, 문단 누적 방지) */}
+      {(view !== "all" || (hasWcag && std !== "both")) && (
         <p role="note" className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
-          {labels.viewNotice[view]}
-        </p>
-      )}
-      {hasWcag && std !== "both" && (
-        <p role="note" className="mb-6 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
-          {labels.stdNotice[std]}
+          {view !== "all" && <span className="block">{labels.viewNotice[view]}</span>}
+          {hasWcag && std !== "both" && <span className="block">{labels.stdNotice[std]}</span>}
         </p>
       )}
 

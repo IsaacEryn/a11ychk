@@ -325,7 +325,8 @@
       "checkFailed": "The check failed. Please try again shortly."
     },
     "autoPagesLabel": "Pages to audit automatically",
-    "autoPagesMax": "Max pages per audit: {max}"
+    "autoPagesMax": "Max pages per audit: {max}",
+    "viewRunning": "View running scan"
   },
   "accessCheck": {
     "title": "Bot-block checker",
@@ -566,6 +567,14 @@
       "aheadNone": "You are next in line",
       "eta": "Estimated wait ~{min} min",
       "starting": "Starting soon…"
+    },
+    "progress": {
+      "collecting": "Collecting pages to scan (sitemap and internal links)…",
+      "bar": "Scan progress",
+      "count": "{done} / {total} pages done",
+      "elapsedSec": "{sec}s elapsed",
+      "elapsedMin": "{min}m {sec}s elapsed",
+      "accessCheckLink": "Check for bot blocking"
     }
   },
   "report": {
@@ -653,7 +662,8 @@
         "forbidden": "Not allowed",
         "failed": "Save failed"
       },
-      "relatedPages": "Related pages"
+      "relatedPages": "Related pages",
+      "next": "Next unreviewed item"
     },
     "pages": {
       "title": "Sample pages",
@@ -756,7 +766,9 @@
       "selectorLabel": "Selector",
       "axeHelp": "axe-core rule docs",
       "affectedPages": "{count} affected page(s)",
-      "diagLabel": "Automated diagnosis (axe)"
+      "diagLabel": "Automated diagnosis (axe)",
+      "moreExamples": "Show {count} more examples",
+      "newWindow": "(new window)"
     },
     "manual": {
       "title": "Checkpoints requiring manual testing",
@@ -870,12 +882,20 @@
       "csvFindings": "Violations CSV (Excel)",
       "csvKwcag": "KWCAG matrix CSV (Excel)",
       "aiFixJson": "AI fix request (.json)",
-      "reportToolV2": "WCAG-EM Report Tool (JSON · 2.0)"
+      "reportToolV2": "WCAG-EM Report Tool (JSON · 2.0)",
+      "descCsvFindings": "Full list of violating elements — triage in a spreadsheet",
+      "descCsvKwcag": "Per-checkpoint KWCAG summary table",
+      "descAiFix": "Fix-request document to paste into AI coding tools",
+      "descAiFixJson": "Machine-readable JSON of the fix request",
+      "descEarl": "W3C EARL format — exchange results with other tools",
+      "descReportTool": "Import into the W3C Report Tool (1.0 compatible)",
+      "descReportToolV2": "Export in the WCAG-EM 2.0 structure"
     },
     "manualProgress": {
       "title": "Manual review progress",
       "desc": "Share of items the automated tool could not decide that a reviewer has now judged.",
-      "line": "{done} / {total} items reviewed"
+      "line": "{done} / {total} items reviewed",
+      "jump": "Go to unreviewed"
     },
     "cert": {
       "title": "Certification readiness",
@@ -905,7 +925,23 @@
       "primary": "Audit my site for free",
       "secondary": "Browse the public directory"
     },
-    "excludedRulesNote": "{count} rule(s) were excluded from this scan per domain settings:"
+    "excludedRulesNote": "{count} rule(s) were excluded from this scan per domain settings:",
+    "pdf": {
+      "download": "Download PDF",
+      "generating": "Generating PDF…",
+      "generatingHint": "The server is rendering the report. This can take up to a minute.",
+      "failed": "Failed to generate the PDF. Please try again shortly."
+    },
+    "toc": {
+      "label": "Report summary and contents",
+      "score": "Score summary",
+      "scope": "Evaluation scope",
+      "pages": "Sampled pages",
+      "matrix": "Criteria matrix",
+      "priority": "Priority fixes",
+      "violations": "Violation details",
+      "statement": "Evaluation statement"
+    }
   },
   "mypage": {
     "title": "My Page",

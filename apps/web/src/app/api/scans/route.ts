@@ -96,7 +96,10 @@ export async function POST(request: Request) {
     requestedPages: manualPages ? undefined : parsed.data.pageCount,
   });
   if (!result.ok) {
-    return NextResponse.json({ error: result.error, code: result.code, params: result.params }, { status: result.status });
+    return NextResponse.json(
+      { error: result.error, code: result.code, params: result.params, scanId: result.scanId },
+      { status: result.status },
+    );
   }
 
   // 6) 응답 반환 후 백그라운드에서 큐 드레인 — 전역 동시 상한(MAX) 내에서만 실행,

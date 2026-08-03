@@ -24,7 +24,7 @@ export type { ScanPreset, PresetOptions } from "./actions/presets";
 
 export { submitReferralAppeal } from "./actions/referral";
 export { saveReview, saveReportMeta, savePublicView, toggleShareLink } from "./actions/reports";
-export type { ShareState } from "./actions/reports";
+export type { ShareState, ReviewSaveState } from "./actions/reports";
 
 export {
   refreshRepoStats,

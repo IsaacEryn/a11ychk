@@ -21,7 +21,7 @@ export function ReportMetaForm({ scanId, meta }: { scanId: string; meta: ReportM
   ];
 
   return (
-    <details className="no-print doc-card mb-8 p-5" open={!meta}>
+    <details className="no-print doc-card mb-8 p-5">
       <summary className="cursor-pointer font-display text-lg font-bold">{t("legend")}</summary>
       <p className="mt-1 text-sm text-[var(--color-ink-faint)]">{t("hint")}</p>
       <form action={formAction} className="mt-4">

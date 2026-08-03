@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { useRouter } from "@/i18n/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { appFetch } from "@/lib/serviceStatus";
 import { deletePreset, savePreset, type ScanPreset, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
@@ -46,6 +46,8 @@ export interface ScanFormLabels {
   presetErrors: Record<string, string>;
   /** 서버 에러 코드 → 번역 템플릿 ({limit} {count} {url} 플레이스홀더) */
   errors: Record<string, string>;
+  /** concurrent 오류 옆 "진행 중인 검사 보기" */
+  viewRunning: string;
 }
 
 /** 메시지 템플릿의 {key} 플레이스홀더를 모두 치환 (replace는 첫 항목만 바꿔 버그가 됐었음) */
@@ -82,6 +84,8 @@ export function ScanForm({
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // concurrent 오류일 때 진행 중 검사 id — "진행 중인 검사 보기" 링크용
+  const [errorScanId, setErrorScanId] = useState<string | null>(null);
   const [presetName, setPresetName] = useState("");
   const [selectedPresetId, setSelectedPresetId] = useState("");
   const [saveState, saveAction] = useActionState<SaveState, FormData>(savePreset, {});
@@ -192,11 +196,14 @@ export function ScanForm({
         error?: string;
         code?: string;
         params?: Record<string, string | number>;
+        scanId?: string;
       };
       if (!res.ok || !data.id) {
         // 코드가 있으면 로케일 번역 템플릿 사용, 없으면 서버 문자열 폴백
         const template = data.code ? labels.errors[data.code] : undefined;
         setError(template ? fill(template, data.params ?? {}) : (data.error ?? labels.errors.generic));
+        // concurrent — 진행 중 검사로 바로 가는 링크를 함께 보여준다
+        setErrorScanId(data.code === "concurrent" ? (data.scanId ?? null) : null);
         setSubmitting(false);
         return;
       }
@@ -314,6 +321,14 @@ export function ScanForm({
       {error && (
         <p id="scan-url-error" role="alert" className="mt-2 text-sm font-medium text-[var(--color-crit)]">
           {error}
+          {errorScanId && (
+            <Link
+              href={`/scans/${errorScanId}`}
+              className="ml-2 font-bold text-[var(--color-seal)] underline underline-offset-2"
+            >
+              {labels.viewRunning}
+            </Link>
+          )}
         </p>
       )}
 
