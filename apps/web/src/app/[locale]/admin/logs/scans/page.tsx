@@ -65,7 +65,13 @@ export default async function AdminScanLogsPage({
   let total = 0;
 
   if (typeFilter === "teaser") {
-    // 맛보기 — 성공 검사만 기록되는 테이블(상태 항상 done). q는 호스트명 검색으로 동작.
+    // 맛보기 — 성공 검사만 기록되는 테이블(상태 항상 done)·비로그인이라 닉네임 없음.
+    // done 외 상태나 닉네임 검색이 걸려 있으면 해당 없음(0건) — 필터를 무시하면 오독을 만든다.
+    if ((filter && filter !== "done") || nick) {
+      rows = [];
+      total = 0;
+    } else {
+    // q는 호스트명 검색으로 동작
     let query = admin
       .from("teaser_scans")
       .select("id, hostname, rate, created_at", { count: "exact" })
@@ -87,6 +93,7 @@ export default async function AdminScanLogsPage({
       profiles: null,
     }));
     total = count ?? 0;
+    }
   } else {
     // 닉네임 검색 — profiles 선조회 후 user_id로 좁힌다 (0건이면 단락)
     let userIds: string[] | null = null;
@@ -95,6 +102,7 @@ export default async function AdminScanLogsPage({
         .from("profiles")
         .select("id")
         .ilike("nickname", `%${escapeLike(nick)}%`)
+        .order("created_at", { ascending: false })
         .limit(100);
       userIds = (data ?? []).map((p) => p.id as string);
     }

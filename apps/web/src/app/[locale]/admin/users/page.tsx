@@ -52,6 +52,7 @@ export default async function AdminUsersPage({
       .select("user_id")
       .ilike("email", `%${escapeLike(search)}%`)
       .not("user_id", "is", null)
+      .order("created_at", { ascending: false })
       .limit(500);
     emailMatchIds = [...new Set((data ?? []).map((r) => r.user_id as string))];
   }
@@ -221,6 +222,7 @@ export default async function AdminUsersPage({
 
       {drawer && (
         <UserDrawer
+          key={drawer.u.id}
           closeHref={closeHref}
           userId={drawer.u.id}
           title={drawer.u.nickname}

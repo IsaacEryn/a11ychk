@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useState, type ReactNode } from "react";
 import { savePublicView } from "@/lib/actions";
 import { PdfButton } from "./PdfButton";
 
@@ -62,6 +62,19 @@ export function ReportControls({
   // 클라이언트 상태: URL·공개 보기 저장·PDF에 반영하지 않는다.
   const [blind, setBlind] = useState(false);
   const [saveState, saveAction, saving] = useActionState(savePublicView, {} as Awaited<ReturnType<typeof savePublicView>>);
+
+  // 판정 워크플로의 "다음 미판정" 이동이 숨은 행을 만나면 전체 보기로 전환 요청을 보낸다.
+  // (조기 return 위에 두어야 하는 훅 — 비소유자에게는 이 이벤트가 발생하지 않는다)
+  useEffect(() => {
+    const onViewAll = () => {
+      setView("all");
+      const url = new URL(window.location.href);
+      url.searchParams.delete("view");
+      window.history.replaceState(null, "", url.toString());
+    };
+    window.addEventListener("a11ychk:view-all", onViewAll);
+    return () => window.removeEventListener("a11ychk:view-all", onViewAll);
+  }, []);
 
   // 비소유자(공유 링크·배지) — 읽기 전용: 소유자가 지정한 표시 모드로 고정.
   // 인쇄만 열어준다 (수신자가 브라우저 인쇄를 찾아 헤매지 않게).

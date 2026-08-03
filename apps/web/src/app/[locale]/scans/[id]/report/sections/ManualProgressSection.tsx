@@ -38,7 +38,7 @@ export function ManualProgressSection({
         {t("manualProgress.title")}
       </h2>
       <p className="mt-1.5 text-sm text-[var(--color-ink-soft)]">{t("manualProgress.desc")}</p>
-      <div className="mt-4 space-y-4" aria-live="polite">
+      <div className="mt-4 space-y-4">
         {manualProgress.map((x) => {
           const pct = Math.round((x.done / x.total) * 100);
           return (

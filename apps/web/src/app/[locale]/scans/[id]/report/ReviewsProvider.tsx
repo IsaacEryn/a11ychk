@@ -52,6 +52,17 @@ export function ReviewsProvider({
   const [wcag, setWcag] = useState<Record<string, ReviewValue>>(initialWcag);
   const [kwcag, setKwcag] = useState<Record<string, ReviewValue>>(initialKwcag);
 
+  // 서버 재렌더(재검사·비교 내비 등)가 더 새로운 값을 들고 오면 로컬 상태를 재시드 —
+  // 없으면 재검사로 바뀐 점수를 이 컨텍스트의 낡은 값이 계속 덮어쓴다
+  const seedKey = JSON.stringify([initialScores, initialWcag, initialKwcag]);
+  const [seededKey, setSeededKey] = useState(seedKey);
+  if (seedKey !== seededKey) {
+    setSeededKey(seedKey);
+    setScores(initialScores);
+    setWcag(initialWcag);
+    setKwcag(initialKwcag);
+  }
+
   // 유효 판정(직접+파생) — 서버 렌더와 같은 core 파생 규칙으로 재계산
   const effective = useMemo(() => {
     const wcagMap = new Map(Object.entries(wcag));
@@ -97,9 +108,16 @@ export function ReviewsProvider({
       if (!nextId) return;
       const cell = document.getElementById(`review-${std}-${nextId}`);
       if (!(cell instanceof HTMLDetailsElement)) return;
-      cell.open = true;
-      cell.scrollIntoView({ block: "center" });
-      cell.querySelector<HTMLElement>("summary")?.focus();
+      // 출력 범위 필터(view=done 등)가 대상 행을 숨기고 있으면 전체 보기로 되돌린다 —
+      // 숨은 요소에는 scrollIntoView/focus가 무효라 버튼이 침묵 실패한다
+      if (cell.offsetParent === null) {
+        window.dispatchEvent(new CustomEvent("a11ychk:view-all"));
+      }
+      requestAnimationFrame(() => {
+        cell.open = true;
+        cell.scrollIntoView({ block: "center" });
+        cell.querySelector<HTMLElement>("summary")?.focus();
+      });
     },
     [manualIds, effective],
   );

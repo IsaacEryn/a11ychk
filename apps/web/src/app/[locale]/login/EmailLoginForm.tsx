@@ -101,7 +101,9 @@ export function EmailLoginForm({
       email: email.trim(),
       password,
       options: {
-        emailRedirectTo: `${origin}/auth/confirm?next=/${locale}/dashboard`,
+        // 딥링크(?next=)로 온 가입도 확인 메일 후 목적지를 유지 — 대시보드 하드코딩이면
+        // 맛보기→가입 인계(프리필 URL)가 이메일 경로에서만 끊긴다
+        emailRedirectTo: `${origin}/auth/confirm?next=${encodeURIComponent(next ?? `/${locale}/dashboard`)}`,
         data: { locale },
         ...captcha(),
       },

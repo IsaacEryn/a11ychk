@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { useRouter, Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -58,10 +58,15 @@ export function ScanProgress({
   // 경과 시간 — "멈춘 건가?"를 판단할 근거. 화면에 들어온 시점부터 잰다
   const [elapsedSec, setElapsedSec] = useState(0);
 
+  const startedRef = useRef<number | null>(null);
   useEffect(() => {
     if (status === "done" || status === "failed") return;
-    const started = Date.now();
-    const timer = setInterval(() => setElapsedSec(Math.floor((Date.now() - started) / 1000)), 1000);
+    // 상태 전환(queued→running)에도 리셋되지 않게 최초 진입 시각을 고정
+    startedRef.current ??= Date.now();
+    const timer = setInterval(
+      () => setElapsedSec(Math.floor((Date.now() - startedRef.current!) / 1000)),
+      1000,
+    );
     return () => clearInterval(timer);
   }, [status]);
 

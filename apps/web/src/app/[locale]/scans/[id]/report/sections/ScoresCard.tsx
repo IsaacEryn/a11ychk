@@ -28,7 +28,7 @@ export function ScoresCard({
   const scores = reviews?.scores ?? initial;
 
   return (
-    <div className="doc-card p-6" aria-live="polite">
+    <div className="doc-card p-6">
       {/* 통합 준수율 (headline) */}
       <div className="flex items-baseline justify-between gap-4">
         <div>

@@ -166,7 +166,7 @@ export function ScanForm({
       setSelectedPresetId(id);
       return;
     }
-    const dirty = url.trim() !== "" || pagesText.trim() !== "" || notes.trim() !== "";
+    const dirty = url.trim() !== "" || pagesText.trim() !== "" || excludeText.trim() !== "" || notes.trim() !== "";
     if (dirty && !window.confirm(labels.presetOverwriteConfirm)) return;
     setSelectedPresetId(id);
     const o = p.options;

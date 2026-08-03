@@ -70,24 +70,15 @@ export default async function GuideItemPage({
   const prev = idx > 0 ? KWCAG_ITEMS[idx - 1] : null;
   const next = idx < KWCAG_ITEMS.length - 1 ? KWCAG_ITEMS[idx + 1] : null;
 
-  // 관련 항목 — 같은 원칙 + 같은 WCAG SC 공유 + 같은 자동 규칙 공유 (토픽 클러스터 상호 링크)
-  const relatedIds = new Set<string>();
-  for (const other of KWCAG_ITEMS) {
-    if (other.id === item.id) continue;
-    const samePrinciple = other.principle === item.principle;
-    const sharedSc = other.wcag.some((sc) => item.wcag.includes(sc));
-    const sharedRule = rules.some((r) => r.kwcag.includes(other.id));
-    if (sharedSc || sharedRule || samePrinciple) {
-      // 강한 연관(SC·규칙 공유)을 먼저 채우고, 같은 원칙은 자리가 남을 때만
-      if (sharedSc || sharedRule) relatedIds.add(other.id);
-      else if (relatedIds.size < 4) relatedIds.add(other.id);
-    }
-    if (relatedIds.size >= 6) break;
-  }
-  const related = [...relatedIds]
-    .map((id) => KWCAG_ITEMS.find((i) => i.id === id)!)
-    .filter((i) => i.id !== prev?.id && i.id !== next?.id)
-    .slice(0, 4);
+  // 관련 항목 — 2-패스: 강한 연관(같은 SC·같은 자동 규칙)을 전부 모은 뒤,
+  // 남는 자리만 같은 원칙(약한 연관)으로 채운다. 단일 루프로 섞으면 ID가 인접한
+  // 원칙 이웃이 앞자리를 선점해 의도가 뒤집힌다.
+  const others = KWCAG_ITEMS.filter((o) => o.id !== item.id && o.id !== prev?.id && o.id !== next?.id);
+  const strong = others.filter(
+    (o) => o.wcag.some((sc) => item.wcag.includes(sc)) || rules.some((r) => r.kwcag.includes(o.id)),
+  );
+  const weak = others.filter((o) => o.principle === item.principle && !strong.includes(o));
+  const related = [...strong, ...weak].slice(0, 4);
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">

@@ -15,11 +15,20 @@ import { JsonLd, breadcrumbJsonLd } from "@/components/JsonLd";
 
 const getDetail = unstable_cache(getListedSiteDetail, ["directory-site-detail"], { revalidate: 60 });
 
+/** 깨진 퍼센트 인코딩(%zz)이 오면 decodeURIComponent가 throw — 500 대신 404로 */
+function safeDecode(raw: string): string | null {
+  try {
+    return decodeURIComponent(raw);
+  } catch {
+    return null;
+  }
+}
+
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; hostname: string }> }) {
   const { locale, hostname: raw } = await params;
-  const hostname = decodeURIComponent(raw);
-  const detail = await getDetail(hostname);
-  if (!detail) return {};
+  const hostname = safeDecode(raw);
+  const detail = hostname ? await getDetail(hostname) : null;
+  if (!detail || !hostname) return {};
   const t = await getTranslations({ locale, namespace: "directory" });
   return {
     alternates: localeAlternates(locale, `/directory/${encodeURIComponent(hostname)}`),
@@ -35,9 +44,9 @@ export default async function DirectorySitePage({
 }) {
   const { locale, hostname: raw } = await params;
   setRequestLocale(locale);
-  const hostname = decodeURIComponent(raw);
-  const detail = await getDetail(hostname);
-  // 미등재·소유 미확인·임계 미만 — 목록과 같은 기준으로 404
+  const hostname = safeDecode(raw);
+  const detail = hostname ? await getDetail(hostname) : null;
+  // 미등재·소유 미확인·임계 미만·깨진 인코딩 — 목록과 같은 기준으로 404
   if (!detail) notFound();
 
   const t = await getTranslations("directory");

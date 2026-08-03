@@ -16,9 +16,11 @@ function publicUrl(raw: string | undefined): string | null {
     const u = new URL(raw);
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
     const host = u.hostname.toLowerCase();
+    // URL.hostname은 IPv6을 브래킷 포함으로 돌려준다 ("[::1]")
     if (
       host === "localhost" ||
-      host === "::1" ||
+      host === "[::1]" ||
+      /^169\.254\./.test(host) ||
       host.endsWith(".local") ||
       /^127\./.test(host) ||
       /^10\./.test(host) ||
@@ -27,6 +29,9 @@ function publicUrl(raw: string | undefined): string | null {
     ) {
       return null;
     }
+    // 자격증명이 딥링크 쿼리에 실리지 않게 제거
+    u.username = "";
+    u.password = "";
     return u.toString();
   } catch {
     return null;

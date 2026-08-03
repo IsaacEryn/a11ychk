@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useEffect, useRef } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { saveReview, type ReviewSaveState } from "@/lib/actions";
 import { useReviews } from "./ReviewsProvider";
@@ -38,18 +38,23 @@ export function ReviewCell({
   // 마지막으로 제출한 outcome — 응답(state)에는 없으므로 제출 시점에 붙잡아 둔다
   const lastOutcome = useRef<string | null>(null);
   const appliedState = useRef<ReviewSaveState | null>(null);
+  // 저장 성공을 로컬에도 반영 — current(서버 prop)는 저장 후에도 낡아 있어,
+  // 이것 없이는 첫 저장 직후 "판정 해제" 옵션이 안 나타난다
+  const [localHasReview, setLocalHasReview] = useState(!!current);
 
   useEffect(() => {
     // 같은 응답을 두 번 반영하지 않게 상태 객체 동일성으로 가드
     if (!state.ok || appliedState.current === state) return;
     appliedState.current = state;
-    reviews?.apply(standard, itemId, lastOutcome.current === "" ? null : lastOutcome.current, state.scores);
+    const cleared = lastOutcome.current === "";
+    setLocalHasReview(!cleared);
+    reviews?.apply(standard, itemId, cleared ? null : lastOutcome.current, state.scores);
   }, [state, reviews, standard, itemId]);
 
   return (
     <details id={`review-${standard}-${itemId}`} className="no-print">
       <summary className="cursor-pointer text-xs font-bold text-[var(--color-seal)] underline underline-offset-2">
-        {current ? t("edit") : t("add")}
+        {localHasReview ? t("edit") : t("add")}
       </summary>
       <form
         action={formAction}
@@ -76,7 +81,7 @@ export function ReviewCell({
             <option value="failed">{t("outcomes.failed")}</option>
             <option value="cannotTell">{t("outcomes.cannotTell")}</option>
             <option value="notPresent">{t("outcomes.notPresent")}</option>
-            {current && <option value="">{t("outcomes.clear")}</option>}
+            {localHasReview && <option value="">{t("outcomes.clear")}</option>}
           </select>
         </div>
         <div>

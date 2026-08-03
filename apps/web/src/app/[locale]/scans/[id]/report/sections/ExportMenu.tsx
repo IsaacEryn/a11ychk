@@ -19,7 +19,10 @@ export function ExportMenu({ scanId, locale }: { scanId: string; locale: string 
       if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
+      if (e.key === "Escape") {
+        setOpen(false);
+        rootRef.current?.querySelector("button")?.focus();
+      }
     };
     document.addEventListener("pointerdown", onPointer);
     document.addEventListener("keydown", onKey);
@@ -44,7 +47,6 @@ export function ExportMenu({ scanId, locale }: { scanId: string; locale: string 
       <button
         type="button"
         aria-expanded={open}
-        aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
         className="rounded border-[1.5px] border-[var(--color-ink)] px-4 py-2 font-semibold hover:bg-[var(--color-paper-warm)]"
       >

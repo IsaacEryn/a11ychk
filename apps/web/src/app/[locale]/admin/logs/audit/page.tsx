@@ -52,6 +52,7 @@ export default async function AdminAuditLogsPage({
       .from("profiles")
       .select("id")
       .ilike("nickname", `%${escapeLike(actor)}%`)
+      .order("created_at", { ascending: false })
       .limit(100);
     actorIds = (data ?? []).map((p) => p.id as string);
   }
@@ -141,7 +142,7 @@ export default async function AdminAuditLogsPage({
         {t("logs.auditTitle")}
       </h3>
 
-      {unavailable && (
+      {unavailable && page === 1 && (
         <p className="mt-2 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-ink-soft)]">
           {t("logs.notMigrated")}
         </p>

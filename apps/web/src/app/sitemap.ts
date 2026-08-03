@@ -1,6 +1,10 @@
 import type { MetadataRoute } from "next";
+import { unstable_cache } from "next/cache";
 import { KWCAG_ITEMS, kwcagSlug } from "@a11ychk/core/catalog";
 import { collectListedSites } from "@/lib/directory";
+
+// 디렉터리 목록 페이지와 같은 60초 캐시 — sitemap 요청마다 도메인당 조회가 도는 것 방지
+const getListedSites = unstable_cache(collectListedSites, ["directory-sites"], { revalidate: 60 });
 
 const SITE = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
@@ -46,7 +50,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
         // head의 hreflang(x-default 포함)과 일치해야 한다 — 어긋나면 묶음 전체가 무시될 수 있다
         languages: {
           ...Object.fromEntries(LOCALES.map((l) => [l, `${SITE}/${l}${path}`])),
-          "x-default": `${SITE}/ko${path}`,
+          // head(alternates.ts)의 x-default와 동일해야 한다 — 무접두 주소
+          "x-default": `${SITE}${path || "/"}`,
         },
       },
     })),
@@ -55,7 +60,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 등재 사이트 요약(/directory/{host}) — UGC를 색인 자산으로. 실패 시 정적 목록만
   let siteEntries: MetadataRoute.Sitemap = [];
   try {
-    const sites = await collectListedSites();
+    const sites = await getListedSites();
     siteEntries = LOCALES.flatMap((locale) =>
       sites.map((s) => {
         const path = `/directory/${encodeURIComponent(s.hostname)}`;
@@ -67,7 +72,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
           alternates: {
             languages: {
               ...Object.fromEntries(LOCALES.map((l) => [l, `${SITE}/${l}${path}`])),
-              "x-default": `${SITE}/ko${path}`,
+              // head(alternates.ts)의 x-default와 동일해야 한다 — 무접두 주소
+          "x-default": `${SITE}${path || "/"}`,
             },
           },
         };

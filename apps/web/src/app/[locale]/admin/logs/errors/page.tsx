@@ -66,7 +66,7 @@ export default async function AdminErrorLogsPage({
         {t("logs.errorsTitle")}
       </h3>
 
-      {res.error != null && (
+      {res.error != null && page === 1 && (
         <p className="mt-2 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-ink-soft)]">
           {t("logs.errorsNotMigrated")}
         </p>
