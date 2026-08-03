@@ -246,6 +246,14 @@ a[data-btn] {
   box-shadow: 5px 5px 0 0 var(--color-line);
 }
 
+/* 관리자 상세 드로어 — 네이티브 dialog의 배경 흐림·본문 스크롤 잠금 */
+.admin-drawer::backdrop {
+  background: color-mix(in srgb, var(--color-ink) 45%, transparent);
+}
+html:has(dialog.admin-drawer[open]) {
+  overflow: hidden;
+}
+
 /* 페이지 로드 스태거 리빌 */
 @keyframes rise-in {
   from {

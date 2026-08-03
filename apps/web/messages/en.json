@@ -1081,7 +1081,10 @@
           "invalidUrl": "The URL cannot be scanned.",
           "createFailed": "Failed to create the retry. (Check migration 0028.)"
         }
-      }
+      },
+      "searchUrl": "Search URL",
+      "searchNick": "Search nickname",
+      "allMembers": "All (members)"
     },
     "plansControl": {
       "active": "Plans active",
@@ -1176,7 +1179,12 @@
           "noEmail": "No email found for this user.",
           "sendFailed": "Sending failed. Try again shortly."
         }
-      }
+      },
+      "colPlan": "Plan",
+      "colExt": "Ext. today",
+      "manage": "Manage",
+      "close": "Close",
+      "emailHint": "Include @ to search by email (users who signed in within 90 days)"
     },
     "inquiriesSection": {
       "title": "Inquiry management",
@@ -1188,7 +1196,6 @@
       "label": "Admin menu",
       "dashboard": "Dashboard",
       "users": "Users",
-      "scans": "Scan log",
       "inquiries": "Inquiries",
       "settings": "Settings",
       "logs": "Logs",
@@ -1283,7 +1290,20 @@
       "outcome": {
         "success": "Success",
         "mfa_failed": "2FA failed"
-      }
+      },
+      "tabs": {
+        "scans": "Scans",
+        "logins": "Logins",
+        "audit": "Admin audit",
+        "errors": "Server errors"
+      },
+      "apply": "Apply",
+      "searchEmail": "Search email",
+      "outcomeAll": "All",
+      "actionAll": "All actions",
+      "actorSearch": "Actor nickname",
+      "pathSearch": "Search path",
+      "messageSearch": "Search message"
     },
     "growth": {
       "title": "Growth & reach",
@@ -1393,6 +1413,12 @@
       "bannerDaysHint": "After this period the banner comes down automatically; the notice stays on the notices page. The banner also stops after a user dismisses it or has seen it 5 times.",
       "until": "Banner ends: {date}",
       "untilNone": "No end date"
+    },
+    "pager": {
+      "label": "Pagination",
+      "prev": "Previous",
+      "next": "Next",
+      "range": "{from}–{to} of {total}"
     }
   },
   "guide": {

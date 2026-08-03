@@ -8,7 +8,6 @@ interface AdminNavLabels {
   users: string;
   referrals: string;
   teaser: string;
-  scans: string;
   inquiries: string;
   settings: string;
   logs: string;
@@ -27,7 +26,6 @@ export function AdminNav({ labels, basePath }: { labels: AdminNavLabels; basePat
     { href: `${basePath}/users`, label: labels.users },
     { href: `${basePath}/referrals`, label: labels.referrals },
     { href: `${basePath}/teaser`, label: labels.teaser },
-    { href: `${basePath}/scans`, label: labels.scans },
     { href: `${basePath}/inquiries`, label: labels.inquiries },
     { href: `${basePath}/settings`, label: labels.settings },
     { href: `${basePath}/logs`, label: labels.logs },

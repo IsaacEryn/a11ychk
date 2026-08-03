@@ -1081,7 +1081,10 @@
           "invalidUrl": "검사할 수 없는 주소입니다.",
           "createFailed": "재검사 생성에 실패했습니다. (migration 0028 적용 여부를 확인하세요)"
         }
-      }
+      },
+      "searchUrl": "URL 검색",
+      "searchNick": "닉네임 검색",
+      "allMembers": "전체 (회원)"
     },
     "plansControl": {
       "active": "요금제 시행 중",
@@ -1176,7 +1179,12 @@
           "noEmail": "이 사용자의 이메일을 찾을 수 없습니다.",
           "sendFailed": "발송에 실패했습니다. 잠시 후 다시 시도해 주세요."
         }
-      }
+      },
+      "colPlan": "요금제",
+      "colExt": "오늘 확장 사용",
+      "manage": "관리",
+      "close": "닫기",
+      "emailHint": "@ 포함 시 이메일로 검색 (최근 90일 내 로그인한 사용자만)"
     },
     "inquiriesSection": {
       "title": "문의 관리",
@@ -1188,7 +1196,6 @@
       "label": "관리자 메뉴",
       "dashboard": "대시보드",
       "users": "사용자",
-      "scans": "검사 로그",
       "inquiries": "문의",
       "settings": "운영 설정",
       "logs": "로그",
@@ -1283,7 +1290,20 @@
       "outcome": {
         "success": "성공",
         "mfa_failed": "2단계 인증 실패"
-      }
+      },
+      "tabs": {
+        "scans": "검사",
+        "logins": "로그인",
+        "audit": "관리자 감사",
+        "errors": "서버 오류"
+      },
+      "apply": "적용",
+      "searchEmail": "이메일 검색",
+      "outcomeAll": "전체",
+      "actionAll": "전체 행위",
+      "actorSearch": "수행자 닉네임",
+      "pathSearch": "경로 검색",
+      "messageSearch": "메시지 검색"
     },
     "growth": {
       "title": "성장·확산 지표",
@@ -1393,6 +1413,12 @@
       "bannerDaysHint": "기간이 지나면 배너만 자동으로 내려가고 공지사항 페이지에는 계속 남습니다. 사용자가 닫거나 5회 본 뒤에도 배너는 표시되지 않습니다.",
       "until": "배너 종료: {date}",
       "untilNone": "기간 제한 없음"
+    },
+    "pager": {
+      "label": "페이지 이동",
+      "prev": "이전",
+      "next": "다음",
+      "range": "{from}–{to} / {total}건"
     }
   },
   "guide": {

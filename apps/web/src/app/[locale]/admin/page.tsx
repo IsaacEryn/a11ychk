@@ -251,7 +251,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             <h2 id="admin-recent-scans-heading" className="font-display text-xl font-bold">
               {t("dashboard.recentScans")}
             </h2>
-            <Link href={`${base}/scans`} className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4">
+            <Link href={`${base}/logs/scans`} className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4">
               {t("dashboard.viewAll")}
             </Link>
           </div>

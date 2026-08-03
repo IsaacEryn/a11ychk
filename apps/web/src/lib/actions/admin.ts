@@ -375,7 +375,7 @@ export async function adminRetryScan(
   after(() => runScan(result.id));
 
   await logAdminAction(admin, actor.id, "scan.admin_retry", id.data, { newScanId: result.id });
-  revalidateLocalized("/admin/scans");
+  revalidateLocalized("/admin/logs/scans");
   return { ok: true };
 }
 
