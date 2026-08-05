@@ -2,8 +2,8 @@
   "summary": {
     "generatedFrom": "packages/core/src/catalog (RULE_CATALOG, WCAG_CRITERIA, KWCAG_ITEMS)",
     "rules": {
-      "total": 106,
-      "axe": 93,
+      "total": 111,
+      "axe": 98,
       "custom": 13
     },
     "wcag": {
@@ -543,7 +543,7 @@
       "name": "네임·역할·값",
       "level": "A",
       "principle": "robust",
-      "axeRules": 29,
+      "axeRules": 30,
       "customRules": 0,
       "coverage": "automated"
     },
@@ -660,7 +660,7 @@
       "id": "6.4.1",
       "name": "반복 영역 건너뛰기",
       "autoCoverage": "partial",
-      "axeRules": 8,
+      "axeRules": 12,
       "customRules": 1
     },
     {
@@ -786,7 +786,7 @@
       "id": "8.2.1",
       "name": "웹 애플리케이션 접근성 준수",
       "autoCoverage": "partial",
-      "axeRules": 25,
+      "axeRules": 26,
       "customRules": 0
     }
   ]

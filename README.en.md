@@ -28,7 +28,7 @@ fix-request documents for AI coding tools.
 Most automated checkers stop at listing violations in English. A11y Check turns
 diagnosis into **artifacts that drive remediation**:
 
-- 🇰🇷 **KWCAG 2.2 rule catalog** — 106 rules in [`packages/core/src/catalog`](packages/core/src/catalog),
+- 🇰🇷 **KWCAG 2.2 rule catalog** — 111 rules in [`packages/core/src/catalog`](packages/core/src/catalog),
   each dual-mapped to WCAG 2.2 success criteria **and** all 33 checkpoints of KWCAG 2.2
   (Korea's national accessibility guideline), with Korean remediation guidance per rule.
 - 🔧 **Diagnosis → fix** — every finding ships with a remediation guide plus an
@@ -48,6 +48,23 @@ diagnosis into **artifacts that drive remediation**:
 | [`apps/web`](apps/web) | AGPL-3.0 | Next.js service: reports, scheduled scans, badges, public directory, no-login teaser check, referral tiers |
 | [`apps/extension`](apps/extension) | Apache-2.0 | Chrome MV3 side-panel: audit pages behind login, visual tools, expert judgment |
 | [`packages/mcp`](packages/mcp) | Apache-2.0 | MCP server for AI coding tools — scan localhost pages, get Korean fix guides in the loop |
+| [`action`](action) | Apache-2.0 | GitHub Action runner — scan pages on every PR and gate the job |
+
+## Use it in CI
+
+Scan the pages you care about on every PR and fail the job when serious violations
+appear. Results land in the job summary as a Markdown table.
+
+```yaml
+- uses: IsaacEryn/a11ychk@v1
+  with:
+    urls: |
+      https://example.com/
+      https://example.com/login
+    fail-on: serious
+```
+
+Inputs, outputs, and version pinning: [docs/github-action.md](docs/github-action.md).
 
 ## Use it from an AI coding tool (MCP)
 

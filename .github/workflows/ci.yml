@@ -5,6 +5,10 @@ on:
     branches: [main]
   pull_request:
 
+# 워크플로가 쓰는 것은 체크아웃뿐 — 토큰 권한을 읽기로 좁힌다
+permissions:
+  contents: read
+
 jobs:
   ci:
     runs-on: ubuntu-latest
@@ -21,6 +25,12 @@ jobs:
       # 플러그인 매니페스트 회귀 방지 — JSON 파싱·필수 필드·스킬 파일 존재
       # (claude CLI의 plugin validate는 러너에 없어 구조 검사로 대신한다)
       - run: node scripts/check-plugin.mjs
+      # 규칙 카탈로그를 고치고 커버리지 문서를 재생성하지 않으면 공개 문서가 조용히 낡는다
+      - name: Coverage docs up to date
+        run: |
+          npm run coverage -w @a11ychk/core
+          git diff --exit-code docs/coverage.md docs/coverage.json \
+            || { echo '::error::규칙 카탈로그가 바뀌었다 — npm run coverage -w @a11ychk/core 로 문서를 재생성해 커밋할 것'; exit 1; }
       - run: npm run lint
       - run: npm run build -w @a11ychk/extension
       # 웹 프로덕션 빌드 검증 — typecheck가 못 잡는 빌드 단계 오류(RSC 경계 등) 포착

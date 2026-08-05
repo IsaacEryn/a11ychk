@@ -19,6 +19,9 @@ concurrency:
   group: a11y
   cancel-in-progress: true
 
+# 자사 공개 페이지를 검사만 한다 — 저장소 권한이 필요 없다
+permissions: {}
+
 jobs:
   scan:
     name: a11ychk.com 검사

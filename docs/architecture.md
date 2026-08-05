@@ -11,7 +11,8 @@
 ```
 [사용자] POST /api/scans
   1. 인증 (Supabase Auth) → 2. Zod 입력 검증 → 3. SSRF 가드 (스킴·DNS·사설 IP)
-  4. 차단 계정·횟수 제한(24시간 3회 / 7일 10회 / 30일 20회, 롤링 윈도우) → 5. 동시 실행 1건 제한
+  4. 차단 계정·횟수 제한(무료 등급 기준 일 3회 / 주 5회 / 월 10회, 롤링 윈도우 — 실제 수치는
+     `lib/quota.ts`의 PLANS) → 5. 동시 실행 1건 제한
   6. scans 행 생성(queued) → 202 응답 → after()로 큐 드레인(drainQueue)
 [drainQueue 드레이너]  (apps/web/src/lib/scan/drain.ts)
   claim_scans(MAX): 남은 용량(MAX − running)만큼 oldest queued를 원자적으로 running 전환
@@ -120,7 +121,8 @@
 
 ## 알려진 한계 (의도된 트레이드오프)
 
-- Vercel 함수 시간 제한 내 순차 스캔 → 페이지 수 상한 10. 초과 수요 시 별도 워커로 이전
+- Vercel 함수 시간 제한 내 배치 스캔 → 표본 페이지 상한 30(MAX_PAGES_PER_SCAN, 등급별 5~30).
+  초과 수요 시 별도 워커로 이전
   (core가 Page 주입형이라 이전 비용 낮음).
 - 스캔 진행 표시는 폴링(대기 길이에 따라 2.5~12s 백오프). 트래픽 증가 시 Supabase Realtime으로 교체 가능.
 - axe `incomplete` 결과는 "확인 필요"로만 표시 — 오탐을 위반으로 단정하지 않는다.

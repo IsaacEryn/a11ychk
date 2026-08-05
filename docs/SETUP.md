@@ -13,7 +13,9 @@
    - `0024_referrals.sql` — 친구 초대 등급 시스템 (초대 기록·부정 방지)
    - `0025_teaser_usage.sql` — 비로그인 맛보기 검사 어뷰즈 카운터 (안 하면 맛보기만 비활성)
    - `0026_teaser_stats.sql` — 맛보기 검사 관리자 통계
-   - `0027_is_admin_aal2.sql` — **(선택) 관리자 RLS에 2단계 인증(AAL2) 요구 — 반드시 관리자 TOTP 등록을 마친 뒤 적용** (아래 "관리자 2단계 인증" 참고)
+   - `0027_is_admin_aal2.sql` — **관리자 RLS에 2단계 인증(AAL2) 요구 — 관리자 TOTP 등록을 마친 뒤 적용할 것.** 미적용이면 비밀번호만 탈취해도 PostgREST로 직접 전체 데이터를 읽을 수 있다 (아래 "관리자 2단계 인증" 참고)
+   - `0033_scan_presets.sql` — 검사 옵션 프리셋 (안 하면 프리셋 저장만 비활성)
+   - `0035_rpc_grants.sql` — **SECURITY DEFINER 함수의 anon·authenticated 실행 권한 회수 — 보안상 필수**
 3. **Authentication → Providers**에서 Google, GitHub OAuth 활성화
    - Google: [Google Cloud Console](https://console.cloud.google.com)에서 OAuth 클라이언트 생성,
      승인된 리디렉션 URI에 `https://<프로젝트>.supabase.co/auth/v1/callback` 추가
@@ -53,7 +55,7 @@ SESSION_MAX_HOURS                # (선택) 전 회원 세션 절대 유지 시�
 1. Supabase Dashboard → Authentication → Users → 해당 사용자 → MFA factors 삭제
 2. SQL Editor: `delete from auth.mfa_factors where user_id = '<관리자 uuid>';`
 
-migration 0027(선택)을 적용했다면 관리자 RLS가 AAL2 세션을 요구하므로,
+migration 0027을 적용하면 관리자 RLS가 AAL2 세션을 요구하므로,
 **반드시 TOTP 등록을 마친 뒤** 적용하세요.
 
 ## 크롬 확장 빌드 (Phase 3)

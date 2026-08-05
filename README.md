@@ -34,7 +34,7 @@ remediation guides for all 33 KWCAG 2.2 checkpoints.*
 멈추지 않고 **개선 작업으로 이어지는 산출물**을 만듭니다.
 
 - 🇰🇷 **KWCAG 2.2 한국어 규칙 카탈로그** — [`packages/core/src/catalog`](packages/core/src/catalog)에
-  **106개 규칙**을 WCAG 2.2 성공기준과 **KWCAG 2.2 검사항목(33개)에 이중 매핑**하고, 규칙마다 한국어
+  **111개 규칙**을 WCAG 2.2 성공기준과 **KWCAG 2.2 검사항목(33개)에 이중 매핑**하고, 규칙마다 한국어
   개선 가이드를 담았습니다. 이 카탈로그 자체가 접근성 실무자·개발자에게 독립적으로 유용한 자산입니다.
 - 🔧 **진단 → 수정 연결** — 위반마다 한국어 개선 방법 + AI 코딩 도구(Cursor·Copilot 등)에 그대로 투입
   가능한 **수정 요청 문서(Markdown·JSON)**를 자동 생성합니다.
@@ -113,13 +113,14 @@ claude mcp add a11ychk -- npx -y @a11ychk/mcp
 packages/core     @a11ychk/core — 검사 엔진 (오픈소스의 심장)
   src/crawler/      대표 페이지 수집 (sitemap → 내부 링크, robots.txt 존중)
   src/scanner/      axe-core 실행·결과 정규화 (Playwright Page 주입형) + 2-패스 안정성 필터
-  src/catalog/      106개 규칙 → WCAG 2.2 · KWCAG 2.2 이중 매핑 + 한국어 개선 가이드
+  src/catalog/      111개 규칙 → WCAG 2.2 · KWCAG 2.2 이중 매핑 + 한국어 개선 가이드
   src/manual/       수동 검사 항목 정의 (KWCAG 33개 중 자동 판정 불가 항목)
   src/report/       보고서 집계 (준수율, KWCAG 매트릭스, 사이트 수준 검사)
   src/security/     SSRF 가드 (사설 IP·DNS 리바인딩·redirect 차단), robots.txt 파서
 packages/mcp      @a11ychk/mcp — AI 코딩 도구용 MCP 서버 (npm)
 apps/web          Next.js 16 서비스 앱 (a11ychk.com)
 apps/extension    크롬 확장 (MV3 Side Panel)
+action            GitHub Action 러너 (워크스페이스 밖 독립 패키지 — 소비자 CI가 직접 설치)
 supabase          DB 마이그레이션 + RLS 정책
 docs              아키텍처 · 로드맵 · 운영 설정
 ```
@@ -145,7 +146,7 @@ Supabase (Auth + PostgreSQL/RLS) · playwright-core + @sparticuz/chromium · axe
 ## 테스트
 
 ```bash
-npm run test                        # core 유닛 테스트 (102개) + 웹 테스트
+npm run test                        # core 유닛 테스트 + 웹 테스트
 npm run test:e2e -w @a11ychk/core   # 실제 크로미엄으로 fixture 스캔 E2E
 npm run typecheck && npm run lint
 ```
@@ -168,7 +169,8 @@ npm run typecheck && npm run lint
 
 **분할 라이선싱** — 자세한 내용은 [LICENSING.md](LICENSING.md) 참고.
 
-- **검사 엔진·규칙 카탈로그** (`packages/core`) · **크롬 확장** (`apps/extension`) → [Apache-2.0](packages/core/LICENSE):
+- **검사 엔진·규칙 카탈로그** (`packages/core`) · **MCP 서버** (`packages/mcp`) · **크롬 확장**
+  (`apps/extension`) · **GitHub Action** (`action/`) → [Apache-2.0](packages/core/LICENSE):
   자유롭게 사용·수정·재배포·통합할 수 있습니다.
 - **서비스 앱** (`apps/web`) → [AGPL-3.0-only](apps/web/LICENSE): 열려 있지만, 이 앱을 수정해
   네트워크 서비스로 운영하면 수정 소스를 공개해야 합니다.
