@@ -83,7 +83,13 @@ export async function buildSample(rootRawUrl: string, options: BuildSampleOption
   const remaining = candidates.filter((c) => !chosen.has(c.url));
   const randomTarget = remaining.length === 0 ? 0 : Math.max(1, Math.ceil(structured.length * 0.1));
   const rand = seededRandom(hashString(rootUrl));
-  const shuffled = [...remaining].sort(() => rand() - 0.5);
+  // Fisher-Yates — sort의 비교 함수로 무작위를 흉내내면 분포가 치우쳐 앞쪽 후보가
+  // 과대 대표되고, 결과가 엔진의 정렬 구현에 묶인다(같은 시드여도 엔진이 바뀌면 달라짐)
+  const shuffled = [...remaining];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(rand() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j]!, shuffled[i]!];
+  }
   const random: SampledPage[] = shuffled.slice(0, randomTarget).map((c) => ({
     url: c.url,
     category: categorizePage(c.url, false),

@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_CONCURRENT_SCANS } from "@/lib/scan/drain";
@@ -7,6 +8,8 @@ import { estimateWaitMinutes } from "@/lib/scan/queueEstimate";
 /** 대기열 예상 시간 계산용 평균 검사 소요(분). 검사 예산(SCAN_BUDGET_MS≈3.5분) 기반 보수적 상수. */
 const AVG_SCAN_MINUTES = 3;
 
+const IdSchema = z.string().uuid();
+
 /**
  * 대기열 현황 — queued 검사가 "앞에 N명 · 예상 ~M분"을 표시하기 위한 집계.
  * 소유권은 사용자 클라이언트(RLS)로 검증하고, 전역 카운트만 관리자 클라이언트로 조회한다
@@ -14,6 +17,10 @@ const AVG_SCAN_MINUTES = 3;
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  // 형제 라우트와 동일하게 형식부터 거른다 — uuid가 아니면 DB 왕복 없이 400
+  if (!IdSchema.safeParse(id).success) {
+    return NextResponse.json({ error: "invalid request" }, { status: 400 });
+  }
 
   const supabase = await createClient();
   const {

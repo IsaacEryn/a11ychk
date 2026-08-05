@@ -68,26 +68,30 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
   // 관리자 행위 감사(audit_logs)는 감사 목적상 보존한다.
   const logCutoff = new Date(Date.now() - 90 * 24 * 3600_000).toISOString();
   const cleaned: Record<string, number> = {};
+  // supabase-js는 쿼리 실패를 throw하지 않고 { error }로 돌려준다 — try/catch가 아니라
+  // error를 직접 봐야 삭제 실패가 "0건 삭제"로 위장되지 않는다(보존 정책 미이행이 무증상이 된다).
   for (const table of ["login_logs", "app_errors", "cron_runs"] as const) {
-    try {
-      const { count } = await admin.from(table).delete({ count: "exact" }).lt("created_at", logCutoff);
-      cleaned[table] = count ?? 0;
-    } catch (e) {
-      // 정리 실패는 크론을 멈추지 않되, 무증상이 되지 않게 기록 (마이그레이션은 이미 전부 적용됨)
-      await logAppError(admin, `log cleanup failed: ${table}: ${String(e).slice(0, 300)}`, {
+    const { count, error } = await admin.from(table).delete({ count: "exact" }).lt("created_at", logCutoff);
+    if (error) {
+      // 정리 실패는 크론을 멈추지 않되, 무증상이 되지 않게 기록
+      await logAppError(admin, `log cleanup failed: ${table}: ${error.message.slice(0, 300)}`, {
         path: "cron.scheduled-scans",
       });
+      continue;
     }
+    cleaned[table] = count ?? 0;
   }
   // 맛보기 검사 어뷰즈 카운터 — 일 단위라 2일 지난 행은 무의미(개인정보 최소화: 해시도 짧게 보존)
-  try {
+  {
     const dayCutoff = new Date(Date.now() - 2 * 24 * 3600_000).toISOString().slice(0, 10);
-    const { count } = await admin.from("teaser_usage").delete({ count: "exact" }).lt("day", dayCutoff);
-    cleaned["teaser_usage"] = count ?? 0;
-  } catch (e) {
-    await logAppError(admin, `teaser_usage cleanup failed: ${String(e).slice(0, 300)}`, {
-      path: "cron.scheduled-scans",
-    });
+    const { count, error } = await admin.from("teaser_usage").delete({ count: "exact" }).lt("day", dayCutoff);
+    if (error) {
+      await logAppError(admin, `teaser_usage cleanup failed: ${error.message.slice(0, 300)}`, {
+        path: "cron.scheduled-scans",
+      });
+    } else {
+      cleaned["teaser_usage"] = count ?? 0;
+    }
   }
 
   const results: { hostname: string; status: string }[] = [];

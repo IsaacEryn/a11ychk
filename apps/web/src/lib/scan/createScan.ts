@@ -56,7 +56,8 @@ export const DEFAULT_SCOPE: EvaluationScope = {
 /**
  * 스캔 생성 공통 정책 — 신규 검사와 동일 조건 재검사가 공유한다.
  * 계정 상태·한도·동시 실행을 검증하고 scans 행(queued)을 만든다.
- * (호출자는 성공 시 after(() => runScan(id))로 실행을 예약할 것)
+ * (호출자는 성공 시 after(() => drainQueue())로 실행을 예약할 것 — runScan을 직접 부르면
+ *  전역 동시 실행 상한을 우회하고 드레이너와 이중 실행될 수 있다)
  */
 export async function createScanForUser(
   userId: string,

@@ -175,6 +175,14 @@ export async function assertPublicHttpUrl(raw: string): Promise<URL> {
 
 export const SCANNER_USER_AGENT = "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)";
 
+/** 호출자 헤더를 형태(객체·배열·Headers)와 무관하게 병합하고 기본 user-agent를 채운다 */
+function mergeHeaders(input: RequestInit["headers"]): Record<string, string> {
+  const out: Record<string, string> = {};
+  if (input) new Headers(input as HeadersInit).forEach((value, key) => { out[key] = value; });
+  if (!("user-agent" in out)) out["user-agent"] = SCANNER_USER_AGENT;
+  return out;
+}
+
 /**
  * SSRF-safe fetch.
  * - redirect를 수동으로 따라가며 매 hop을 재검증한다.
@@ -209,7 +217,8 @@ export async function guardedFetch(rawUrl: string, init: RequestInit = {}): Prom
         ...(init as Parameters<typeof undiciFetch>[1]),
         dispatcher: agent,
         redirect: "manual",
-        headers: { "user-agent": SCANNER_USER_AGENT, ...(init.headers as Record<string, string>) },
+        // Headers 인스턴스는 자체 열거 속성이 없어 스프레드하면 조용히 사라진다 — 정규화 후 병합
+        headers: mergeHeaders(init.headers),
         signal: init.signal ?? AbortSignal.timeout(15_000),
       })) as unknown as Response;
     } catch (e) {

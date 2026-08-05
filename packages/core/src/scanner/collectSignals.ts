@@ -141,14 +141,25 @@ export function collectPageSignals(): PageCheckSignals {
     res.hasNav = !!document.querySelector("nav, [role=navigation]");
     const links0 = document.querySelectorAll("a[href]");
     const SKIP = /건너뛰|본문\s*바로|바로\s*가기|skip|main content/i;
+    // 대상이 본문 영역인 앵커만 건너뛰기 링크로 본다 — 페이지 내 아무 앵커(#faq 같은
+    // 목차 링크)나 통과시키면 실제로 건너뛰기 링크가 없는 페이지가 2.4.1 통과로 찍힌다.
+    const MAIN_ID = /^(main|content|container|body|skip|wrap)/i;
     for (let sk = 0; sk < links0.length && sk < 8; sk++) {
       const a0 = links0[sk];
       if (!a0) continue;
       const h0 = a0.getAttribute("href") || "";
       const t0 = (a0.textContent || "").trim();
-      if ((h0.charAt(0) === "#" && h0.length > 1) || SKIP.test(t0)) {
+      if (SKIP.test(t0)) {
         res.skipLinkPresent = true;
         break;
+      }
+      if (h0.charAt(0) === "#" && h0.length > 1) {
+        let tgt: HTMLElement | null = null;
+        try { tgt = document.getElementById(h0.slice(1)); } catch { /* 무시 */ }
+        if (tgt && (MAIN_ID.test(tgt.id) || tgt.matches?.("main, [role=main]"))) {
+          res.skipLinkPresent = true;
+          break;
+        }
       }
     }
   } catch { /* 무시 */ }

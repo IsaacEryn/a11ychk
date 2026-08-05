@@ -15,6 +15,7 @@ import type {
   WcagMatrixRow,
   WcagOutcome,
 } from "../types";
+import type { RuleCatalogEntry } from "../types";
 import { getRuleEntry } from "../catalog/rules";
 import { deriveWcagReviewsFromKwcag } from "../manual/manualChecks";
 import { KWCAG_ITEMS } from "../catalog/kwcag";
@@ -50,8 +51,9 @@ export function aggregateScan(
   let totalViolationNodes = 0;
   let totalViolations = 0;
 
-  // 규칙별 KWCAG 매핑 캐시 (violation의 태그 기반 fallback 포함)
-  const ruleKwcag = new Map<string, string[]>();
+  // 규칙별 axe 태그 — 카탈로그 미등재 규칙의 WCAG·KWCAG 폴백 판정에 쓴다.
+  // 태그는 위반에만 실려 오므로(passes/incomplete는 규칙 id뿐) 위반 루프에서 모아 둔다.
+  const ruleTags = new Map<string, string[]>();
 
   for (const page of pages) {
     for (const v of page.violations) {
@@ -60,7 +62,7 @@ export function aggregateScan(
       byImpact[v.impact] += v.nodes.length;
       byRule[v.ruleId] = (byRule[v.ruleId] ?? 0) + v.nodes.length;
       failedRules.add(v.ruleId);
-      if (!ruleKwcag.has(v.ruleId)) ruleKwcag.set(v.ruleId, getRuleEntry(v.ruleId, v.tags).kwcag);
+      if (!ruleTags.has(v.ruleId)) ruleTags.set(v.ruleId, v.tags);
     }
     for (const id of page.passes) passedRules.add(id);
     for (const id of page.incomplete) incompleteRules.add(id);
@@ -71,7 +73,6 @@ export function aggregateScan(
     if (sc.outcome === "failed") {
       failedRules.add(sc.ruleId);
       byRule[sc.ruleId] = (byRule[sc.ruleId] ?? 0) + sc.count;
-      if (!ruleKwcag.has(sc.ruleId)) ruleKwcag.set(sc.ruleId, getRuleEntry(sc.ruleId).kwcag);
     } else if (sc.outcome === "passed") {
       passedRules.add(sc.ruleId);
     } else {
@@ -88,14 +89,19 @@ export function aggregateScan(
   // 이들은 준수율(적합성)에 영향을 주지 않는 '권고'이므로 WCAG·KWCAG 두 축 모두에서
   // 적합성 판정(pass/fail/review)에 넣지 않고, 별도 권고 목록으로만 보고한다.
   // (WCAG 축은 wcag가 비어 자연히 제외되고, KWCAG 축은 아래 루프에서 명시적으로 건너뛴다)
-  const advisoryCache = new Map<string, boolean>();
-  const isAdvisory = (id: string, tags: string[] = []): boolean => {
-    const cached = advisoryCache.get(id);
-    if (cached !== undefined) return cached;
-    const v = getRuleEntry(id, tags).wcag.length === 0;
-    advisoryCache.set(id, v);
-    return v;
+  // 카탈로그 조회는 반드시 이 함수로 — 미등재 규칙은 수집해 둔 axe 태그로 WCAG를 복원해야
+  // 한다. 태그 없이 조회하면 wcag가 빈 배열이 되어 실제 적합성 위반이 '권고'로 강등되고,
+  // 해당 성공기준이 위반 없는 것으로(통과로) 잘못 표시된다.
+  const entryCache = new Map<string, RuleCatalogEntry>();
+  const entryOf = (id: string): RuleCatalogEntry => {
+    let entry = entryCache.get(id);
+    if (!entry) {
+      entry = getRuleEntry(id, ruleTags.get(id) ?? []);
+      entryCache.set(id, entry);
+    }
+    return entry;
   };
+  const isAdvisory = (id: string): boolean => entryOf(id).wcag.length === 0;
 
   /**
    * 규칙 판정(위반·통과·확인필요)을 기준 축(KWCAG 항목 또는 WCAG 성공기준)으로 접는다.
@@ -133,14 +139,13 @@ export function aggregateScan(
     return { fail, pass, review, reviewRules };
   };
 
-  // KWCAG 매트릭스 (모범 사례 규칙은 제외 — WCAG 축과 동일 기준).
-  // 위반 규칙의 KWCAG 매핑은 태그 폴백을 반영한 ruleKwcag를 그대로 쓴다.
+  // KWCAG 매트릭스 (모범 사례 규칙은 제외 — WCAG 축과 동일 기준)
   const {
     fail: kwcagFail,
     pass: kwcagPass,
     review: kwcagReview,
     reviewRules: kwcagReviewRules,
-  } = foldByCriterion((id) => ruleKwcag.get(id) ?? getRuleEntry(id).kwcag, true);
+  } = foldByCriterion((id) => entryOf(id).kwcag, true);
 
   const notPresentScs = new Set(options.notPresentScs ?? []);
   const kwcagMatrix: KwcagMatrixRow[] = KWCAG_ITEMS.map((item) => {
@@ -168,7 +173,7 @@ export function aggregateScan(
     pass: scPass,
     review: scReview,
     reviewRules: scReviewRules,
-  } = foldByCriterion((id) => getRuleEntry(id).wcag, false);
+  } = foldByCriterion((id) => entryOf(id).wcag, false);
 
   const wcagMatrix: WcagMatrixRow[] = criteriaForTarget(options.conformanceTarget ?? "AA").map((c) => {
     const fail = scFail.get(c.id);

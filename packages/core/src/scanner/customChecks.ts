@@ -27,10 +27,20 @@ export const BASE_SCRIPT = `(function(){
     res.hasNav = !!document.querySelector('nav, [role=navigation]');
     var links0 = document.querySelectorAll('a[href]');
     var SKIP = /건너뛰|본문\\s*바로|바로\\s*가기|skip|main content/i;
+    // 대상이 본문 영역인 앵커만 건너뛰기 링크로 본다 — 페이지 내 아무 앵커(#faq 같은
+    // 목차 링크)나 통과시키면 실제로 건너뛰기 링크가 없는 페이지가 2.4.1 통과로 찍힌다.
+    var MAIN_ID = /^(main|content|container|body|skip|wrap)/i;
     for (var sk=0; sk<links0.length && sk<8; sk++){
       var h0 = (links0[sk].getAttribute('href')||'');
       var t0 = (links0[sk].textContent||'').trim();
-      if ((h0.charAt(0)==='#' && h0.length>1) || SKIP.test(t0)) { res.skipLinkPresent = true; break; }
+      if (SKIP.test(t0)) { res.skipLinkPresent = true; break; }
+      if (h0.charAt(0)==='#' && h0.length>1) {
+        var tgt = null;
+        try { tgt = document.getElementById(h0.slice(1)); } catch(e){}
+        if (tgt && (MAIN_ID.test(tgt.id) || (tgt.matches && tgt.matches('main, [role=main]')))) {
+          res.skipLinkPresent = true; break;
+        }
+      }
     }
   } catch(e){}
   try {
@@ -110,6 +120,8 @@ export const BASE_SCRIPT = `(function(){
     }
   } catch(e){}
   try {
+    // 2.4.7 — 초점 시 시각 변화 표본 검사 (기존 초점 복원)
+    var prevFocus = document.activeElement;
     var focusables = document.querySelectorAll('a[href], button:not([disabled]), input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex^="-"])');
     var limit = Math.min(focusables.length, 20);
     for (var j=0;j<limit;j++){
@@ -130,6 +142,9 @@ export const BASE_SCRIPT = `(function(){
         if (res.focusExamples.length < 5) res.focusExamples.push({ selector: cssPath(f), html: f.outerHTML.slice(0,200) });
       }
     }
+    // 표본 검사가 남긴 초점을 되돌린다 — 이후 리플로우 검사·시그니처 추출이
+    // "드롭다운이 열린" 상태에서 돌지 않게 한다 (collectSignals와 동일 동작)
+    try { (prevFocus || document.body).focus({ preventScroll: true }); } catch(e){}
   } catch(e){}
   function cssPath(el){
     try {

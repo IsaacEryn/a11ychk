@@ -43,8 +43,16 @@ function toImpact(value: string | null | undefined): Impact {
   return VALID_IMPACTS.includes(value as Impact) ? (value as Impact) : "moderate";
 }
 
+/** 선택자 길이 상한 — 확장이 보낸 결과를 받는 API 스키마(2000자)와 맞춘다 */
+const MAX_SELECTOR_LENGTH = 2000;
+
 function toSelector(target: unknown[]): string {
-  return target.map((t) => (Array.isArray(t) ? t.join(" >> ") : String(t))).join(", ");
+  // 그림자 DOM 중첩 타깃은 선택자가 수천 자로 늘어날 수 있다. 자르지 않으면
+  // 그런 노드 하나 때문에 확장→서버 저장 전체가 스키마 검증에서 거절된다.
+  return target
+    .map((t) => (Array.isArray(t) ? t.join(" >> ") : String(t)))
+    .join(", ")
+    .slice(0, MAX_SELECTOR_LENGTH);
 }
 
 export function normalizeAxeResults(url: string, raw: AxeRunResults): PageScanResult {

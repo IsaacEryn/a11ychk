@@ -12,7 +12,10 @@ export async function fetchAllRows<T>(
   const rows: T[] = [];
   for (let from = 0; ; from += pageSize) {
     const { data, error } = await query(from, from + pageSize - 1);
-    if (error || !data || data.length === 0) break;
+    // 조회 오류를 "끝"으로 취급하면 부분 결과가 완전한 결과처럼 흘러가고,
+    // 보고서 캐시나 재집계된 summary에 그대로 굳는다. 호출자가 알게 던진다.
+    if (error) throw new Error(`행 조회 실패(offset ${from}): ${error.message}`);
+    if (!data || data.length === 0) break;
     rows.push(...data);
     if (data.length < pageSize) break;
   }

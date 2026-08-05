@@ -370,9 +370,11 @@ export async function adminRetryScan(
     return { error: result.status === 409 ? "userBusy" : "createFailed" };
   }
 
+  // 큐를 거쳐 실행 — 직접 runScan을 부르면 전역 동시 실행 상한 밖에서 돌고
+  // 드레이너와 같은 검사를 이중 실행할 수 있다
   const { after } = await import("next/server");
-  const { runScan } = await import("@/lib/scan/runScan");
-  after(() => runScan(result.id));
+  const { drainQueue } = await import("@/lib/scan/drain");
+  after(() => drainQueue());
 
   await logAdminAction(admin, actor.id, "scan.admin_retry", id.data, { newScanId: result.id });
   revalidateLocalized("/admin/logs/scans");

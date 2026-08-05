@@ -1,7 +1,19 @@
 import { getTranslations } from "next-intl/server";
-import { pickLocale as pick } from "@a11ychk/core/catalog";
+import { WCAG_BY_ID, pickLocale as pick } from "@a11ychk/core/catalog";
 import { GuideText } from "@/components/GuideText";
 import type { RuleGroup } from "../loadReport";
+
+/** 대응 성공기준 중 가장 높은 수준 — 하나라도 AA면 AA로 표기 */
+function scLevel(scIds: string[]): "A" | "AA" | null {
+  let level: "A" | "AA" | null = null;
+  for (const id of scIds) {
+    const sc = WCAG_BY_ID.get(id);
+    if (!sc) continue;
+    if (sc.level === "AA") return "AA";
+    level = "A";
+  }
+  return level;
+}
 
 /** 위반 상세 — 규칙별 영향 페이지·개선 가이드·대표 사례 */
 export async function ViolationsSection({ locale, ruleGroups }: { locale: string; ruleGroups: RuleGroup[] }) {
@@ -44,8 +56,11 @@ export async function ViolationsSection({ locale, ruleGroups }: { locale: string
               </header>
 
               <p className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--color-ink-faint)]">
+                {/* '모범 사례' 표기는 준수율에서 빠지는 규칙(WCAG 대응이 없는 규칙)에만 —
+                    카탈로그의 level이 BP라도 대응 성공기준이 있으면 판정·점수에 반영되므로
+                    그때는 대응 성공기준에서 수준을 가져온다 */}
                 <span>
-                  {t("violations.level")}: {entry.level === "BP" ? t("violations.bp") : `WCAG ${entry.level}`}
+                  {t("violations.level")}: {entry.wcag.length === 0 ? t("violations.bp") : `WCAG ${scLevel(entry.wcag) ?? entry.level}`}
                 </span>
                 {entry.wcag.length > 0 && <span>{t("violations.wcag")} {entry.wcag.join(", ")}</span>}
                 {entry.kwcag.length > 0 && <span>{t("violations.kwcag")} {entry.kwcag.join(", ")}</span>}

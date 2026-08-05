@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireScanOwner } from "@/lib/apiAuth";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { createScanForUser } from "@/lib/scan/createScan";
-import { runScan } from "@/lib/scan/runScan";
+import { drainQueue } from "@/lib/scan/drain";
 
 export const maxDuration = 300;
 
@@ -53,6 +53,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: result.error, code: result.code, params: result.params }, { status: result.status });
   }
 
-  after(() => runScan(result.id));
+  // 큐를 거쳐 실행 — 직접 runScan을 부르면 전역 동시 실행 상한(MAX_CONCURRENT_SCANS)
+  // 밖에서 돌고, 드레이너가 같은 검사를 claim해 이중 실행될 수 있다.
+  after(() => drainQueue());
   return NextResponse.json({ id: result.id }, { status: 202 });
 }

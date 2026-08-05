@@ -34,9 +34,13 @@ import { fetchAllRows } from "@/lib/scan/fetchAll";
 const PAGE_LOAD_TIMEOUT_MS = 20_000;
 
 /**
- * 전체 스캔 시간 예산. 라우트 maxDuration=300s를 넘기면 함수가 강제 종료되어
- * 검사가 running에 갇히므로(좀비), 그 전에 루프를 멈추고 '부분 결과'로 완료한다.
- * 표본 수집(buildSample)·집계·DB 기록·브라우저 정리 여유를 두어 210s로 잡는다.
+ * 전체 스캔 시간 예산 — **함수 진입 시각 기준**(표본 수집 포함). 라우트 maxDuration=300s를
+ * 넘기면 함수가 강제 종료되어 검사가 running에 갇히므로(좀비), 그 전에 루프를 멈추고
+ * '부분 결과'로 완료한다.
+ *
+ * 예산 검사는 배치 시작 전에만 하므로 최악의 경우 마지막 배치가 예산 직전에 시작해
+ * PAGE_SCAN_TIMEOUT_MS(55s)만큼 더 돈다. 210 + 55 + 집계·정리 여유가 300s 안에 들어간다.
+ * 수집 단계를 예산 밖에 두면 이 산술이 COLLECT_BUDGET_MS만큼 초과한다.
  */
 const SCAN_BUDGET_MS = 210_000;
 
@@ -221,7 +225,8 @@ async function persistPageResult(
   }
   const counts: Record<string, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
   for (const v of result.violations) counts[v.impact] = (counts[v.impact] ?? 0) + v.nodes.length;
-  await db
+  // 상태 갱신 실패를 삼키면 결과는 집계에 들어갔는데 행은 실패로 남아 보고서가 어긋난다
+  const { error: statusError } = await db
     .from("scan_pages")
     .update({
       status: "done",
@@ -232,6 +237,7 @@ async function persistPageResult(
       scanned_at: result.scannedAt,
     })
     .eq("id", pageRowId);
+  if (statusError) throw new Error(`페이지 상태 갱신 실패: ${statusError.message}`);
 
   // 시그니처는 별도 best-effort 업데이트 (migration 0005 미적용 시 컬럼 부재로 실패 → 무시).
   // 핵심 결과 저장을 이 부가 컬럼이 막지 않도록 분리한다.
@@ -339,6 +345,8 @@ function summarizeSample(
 }
 
 export async function runScan(scanId: string): Promise<void> {
+  // 예산 기준점 — 표본 수집도 이 예산 안에서 소비된다(함수 강제 종료 방지)
+  const runStarted = Date.now();
   const db = createAdminClient();
 
   const { data: scan, error: loadError } = await db.from("scans").select("*").eq("id", scanId).single();
@@ -346,9 +354,17 @@ export async function runScan(scanId: string): Promise<void> {
   // done/failed는 재실행 방지. claim의 SKIP LOCKED + 단일 디스패치가 중복 실행을 막는다.
   if (loadError || !scan || (scan.status !== "queued" && scan.status !== "running")) return;
 
-  // 아직 queued면(직접 호출 경로) running으로 전환. 이미 running이면(claim됨) started_at 보존.
+  // 아직 queued면(인프로세스 폴백 등) running으로 전환. 이미 running이면(claim됨) started_at 보존.
+  // 전환은 status='queued' 조건부로 — 드레이너가 그 사이 claim했다면 갱신 행이 0이므로
+  // 여기서 물러난다(같은 검사를 두 실행이 동시에 진행해 페이지·위반이 중복되는 것을 막는다).
   if (scan.status === "queued") {
-    await db.from("scans").update({ status: "running", started_at: new Date().toISOString() }).eq("id", scanId);
+    const { data: claimed } = await db
+      .from("scans")
+      .update({ status: "running", started_at: new Date().toISOString() })
+      .eq("id", scanId)
+      .eq("status", "queued")
+      .select("id");
+    if (!claimed || claimed.length === 0) return;
   }
 
   const scope = (scan.scope ?? null) as EvaluationScope | null;
@@ -362,6 +378,9 @@ export async function runScan(scanId: string): Promise<void> {
     const sample = await buildScanSample(scan.root_url, scan.page_limit, scope);
 
     // 2) 페이지 행 생성 (표본 유형·분류 기록)
+    // 좀비 회수 후 재시도(reclaimStale)로 같은 검사가 다시 여기 오면 이전 실행이 남긴
+    // 페이지 행이 있다. 지우고 새로 만들어야 표본이 두 벌로 집계되지 않는다(findings는 CASCADE).
+    await db.from("scan_pages").delete().eq("scan_id", scanId);
     const { data: pageRows, error: insertError } = await db
       .from("scan_pages")
       .insert(
@@ -386,9 +405,8 @@ export async function runScan(scanId: string): Promise<void> {
     const randomRules = new Set<string>();
 
     // 시간 예산 — 초과 시 남은 페이지는 두고 부분 결과로 완료한다(강제 종료·좀비 방지)
-    const scanStarted = Date.now();
     let budgetExceeded = false;
-    const overBudget = () => Date.now() - scanStarted > SCAN_BUDGET_MS;
+    const overBudget = () => Date.now() - runStarted > SCAN_BUDGET_MS;
 
     const pages = pageRows as ScanPageRow[];
 
@@ -637,13 +655,19 @@ export async function rescanPage(scanId: string, pageId: string): Promise<{ ok: 
   if (!page) return { ok: false, error: "페이지를 찾을 수 없습니다." };
   if (page.status !== "failed") return { ok: false, error: "실패한 페이지만 재검사할 수 있습니다." };
 
-  await db.from("scan_pages").update({ status: "running", error: null }).eq("id", pageId);
-
+  // running으로 올리지 않는다 — 함수가 강제 종료되면 되돌릴 경로가 없고(좀비 회수는
+  // scans 단위로만 돈다) 재검사 버튼은 failed에만 보이므로 페이지가 영구히 갇힌다.
+  // 실패 상태를 유지하다 성공 시점에 done으로 바꾼다.
   let browser: Browser | null = null;
   try {
     await assertPublicHttpUrl(page.url);
     browser = await launchGuardedBrowser(page.url);
-    const { result, signature } = await scanSinglePage(browser, page.url);
+    // 본검사와 같은 페이지 하드 타임아웃 — 매달린 페이지가 함수를 강제 종료시키지 않게 캡
+    const { result, signature } = await withTimeout(
+      scanSinglePage(browser, page.url),
+      PAGE_SCAN_TIMEOUT_MS,
+      `페이지 검사 시간 초과 (${Math.round(PAGE_SCAN_TIMEOUT_MS / 1000)}초)`,
+    );
     // 본검사와 동일한 제외 규칙 적용 (도메인 오탐 관리)
     const { data: scanRow } = await db.from("scans").select("domain_id").eq("id", scanId).maybeSingle();
     applyDisabledRules(result, await loadDisabledRules(db, (scanRow?.domain_id as string | null) ?? null));
