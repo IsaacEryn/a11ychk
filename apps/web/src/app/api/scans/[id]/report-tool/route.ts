@@ -9,6 +9,7 @@ import {
   type WcagOutcome,
 } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { logReportExport } from "@/lib/apiAuth";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
@@ -135,6 +136,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!scan || scan.status !== "done" || !scan.summary) {
     return apiError(lang, "reportNotReady", 404);
   }
+  await logReportExport(user.id, scan, "report-tool");
 
   const summary = scan.summary as ScanSummary;
   const scope = (scan.scope ?? null) as EvaluationScope | null;

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { WCAG_BY_ID, type EvaluationScope, type ScanSummary, type WcagOutcome } from "@a11ychk/core";
 import { createClient } from "@/lib/supabase/server";
+import { logReportExport } from "@/lib/apiAuth";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 
 /**
@@ -36,12 +37,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // RLS로 소유자/관리자만 조회됨
   const { data: scan } = await supabase
     .from("scans")
-    .select("id, root_url, status, summary, scope, finished_at, created_at")
+    .select("id, user_id, root_url, status, summary, scope, finished_at, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
     return apiError(lang, "reportNotReady", 404);
   }
+  await logReportExport(user.id, scan, "earl");
 
   const summary = scan.summary as ScanSummary;
   const scope = (scan.scope ?? null) as EvaluationScope | null;

@@ -2,6 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAdminAction } from "@/lib/logs";
 
 /**
  * 확장 API 공통 인증 — Bearer 토큰 검증 → 사용자 → 프로필/차단 확인.
@@ -35,6 +36,25 @@ export async function requireExtensionUser(request: Request): Promise<
   }
 
   return { admin, user: userData.user, profile };
+}
+
+/**
+ * 관리자가 타인의 보고서를 내려받을 때 감사 기록 (개인정보 처리방침 고지 이행).
+ * 보고서 화면은 loadReport가 report.view로 남기지만, 같은 데이터를 통째로 받아가는
+ * 내보내기 경로는 RLS의 is_admin 분기로 통과하므로 여기서 별도로 남겨야 한다.
+ * 소유자 본인이면 아무것도 하지 않는다. best-effort — 실패해도 내보내기는 진행.
+ */
+export async function logReportExport(
+  viewerId: string,
+  scan: { user_id?: string | null; root_url?: string | null },
+  format: string,
+): Promise<void> {
+  const ownerId = scan.user_id ?? null;
+  if (!ownerId || ownerId === viewerId) return;
+  await logAdminAction(createAdminClient(), viewerId, "report.export", ownerId, {
+    format,
+    url: scan.root_url ?? undefined,
+  }).catch(() => {});
 }
 
 /**

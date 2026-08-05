@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { logReportExport } from "@/lib/apiAuth";
 import { signReportToken } from "@/lib/reportToken";
 import { launchBrowser } from "@/lib/scan/browser";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
@@ -30,13 +31,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (!user) {
     return apiError(locale, "loginRequired", 401);
   }
-  const { data: scan } = await supabase.from("scans").select("id, status, root_url").eq("id", id).maybeSingle();
+  const { data: scan } = await supabase
+    .from("scans")
+    .select("id, user_id, status, root_url")
+    .eq("id", id)
+    .maybeSingle();
   if (!scan) {
     return apiError(locale, "reportNotFound", 404);
   }
   if (scan.status !== "done") {
     return apiError(locale, "pdfNotDone", 409);
   }
+  // PDF는 HMAC 토큰으로 렌더하므로 loadReport의 관리자 열람 기록을 타지 않는다 — 여기서 남긴다
+  await logReportExport(user.id, scan, "pdf");
 
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000";
   const token = signReportToken(id);

@@ -3,6 +3,7 @@ import { z } from "zod";
 import { buildAiFix, type AiFixGroup, type Impact, type ScanSummary } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logReportExport } from "@/lib/apiAuth";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 
@@ -47,12 +48,13 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   // RLS로 소유자/관리자만 조회됨
   const { data: scan } = await supabase
     .from("scans")
-    .select("id, root_url, status, summary, finished_at, created_at")
+    .select("id, user_id, root_url, status, summary, finished_at, created_at")
     .eq("id", id)
     .maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
     return apiError(lang, "reportNotReady", 404);
   }
+  await logReportExport(user.id, scan, "ai-fix");
   const summary = scan.summary as ScanSummary;
 
   // 활용 지표 — AI 수정 요청 다운로드 수 (0014 미적용/실패 시 무시, best-effort)

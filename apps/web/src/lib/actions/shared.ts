@@ -1,10 +1,10 @@
 /** 서버 액션 공통 헬퍼 — "use server" 파일은 async 함수만 export 가능하므로 별도 모듈에 둔다 */
 import "server-only";
 import { revalidatePath } from "next/cache";
-import { cookies } from "next/headers";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { ADMIN_TS_COOKIE, isIdleExpired, verifyAdminTs } from "@/lib/adminIdleCookie";
+import { checkAdmin } from "@/lib/adminGuard";
 
 /** 전 경로 캐시 무효화 — 인증 상태처럼 모든 페이지에 영향이 있을 때만 사용 */
 export function revalidateAll() {
@@ -28,17 +28,35 @@ export async function requireUser() {
   return { supabase, user };
 }
 
+/** 요청 경로에서 로케일 추정 — 서버 액션은 세그먼트 파라미터를 받지 못한다 */
+async function actionLocale(): Promise<string> {
+  const path = (await headers()).get("x-pathname") ?? "";
+  return path.startsWith("/en/") || path === "/en" ? "en" : "ko";
+}
+
+/**
+ * 서버 액션용 관리자 가드 — 판정은 페이지 가드와 같은 사슬(adminGuard.checkAdmin)을 쓰고
+ * 리다이렉트 목적지만 액션 맥락에 맞춘다. 서버 액션은 페이지 가드를 거치지 않으므로
+ * 여기서 다시 확인해야 우회되지 않는다.
+ */
 export async function requireAdmin() {
-  const { supabase, user } = await requireUser();
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-  if (profile?.role !== "admin") redirect("/ko/dashboard");
-  // 페이지 가드(adminGuard.requireAdmin)와 동일한 MFA·무활동 강제 — 서버 액션 우회 방지
-  const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
-  if (aal?.nextLevel !== "aal2") redirect("/ko/login/mfa/setup");
-  if (aal.currentLevel !== "aal2") redirect("/ko/login/mfa");
-  const ts = await verifyAdminTs((await cookies()).get(ADMIN_TS_COOKIE)?.value);
-  if (ts === null || isIdleExpired(ts)) redirect("/auth/admin-timeout");
-  return { supabase, user };
+  const check = await checkAdmin();
+  if (!check.ok) {
+    const locale = await actionLocale();
+    switch (check.reason) {
+      case "unauthenticated":
+        redirect(`/${locale}/login`);
+      case "not-admin":
+        redirect(`/${locale}/dashboard`);
+      case "mfa-setup":
+        redirect(`/${locale}/login/mfa/setup`);
+      case "mfa-challenge":
+        redirect(`/${locale}/login/mfa`);
+      case "idle-expired":
+        redirect(`/auth/admin-timeout?locale=${locale}`);
+    }
+  }
+  return requireUser();
 }
 
 /** 공통 저장 결과 (useActionState 피드백용) */

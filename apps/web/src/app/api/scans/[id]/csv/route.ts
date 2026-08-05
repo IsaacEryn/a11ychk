@@ -8,6 +8,7 @@ import {
   type ScanSummary,
 } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
+import { logReportExport } from "@/lib/apiAuth";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { computeKwcagPageRates } from "@/app/[locale]/scans/[id]/report/kwcagPageRate";
@@ -69,12 +70,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   // RLS로 소유자/관리자만 조회됨
   const { data: scan } = await supabase
     .from("scans")
-    .select("id, root_url, status, summary")
+    .select("id, user_id, root_url, status, summary")
     .eq("id", id)
     .maybeSingle();
   if (!scan || scan.status !== "done" || !scan.summary) {
     return apiError(lang, "reportNotReady", 404);
   }
+  await logReportExport(user.id, scan, `csv:${type}`);
   const summary = scan.summary as ScanSummary;
 
   const { data: pages } = await supabase.from("scan_pages").select("id, status").eq("scan_id", id);

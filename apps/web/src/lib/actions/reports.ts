@@ -45,14 +45,18 @@ async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<
 
   // kwcag 판정은 computeScores가 대응 SC로 파생 소비 (wcag 직접 판정 우선)
   const scores = computeScores(summary.wcagMatrix as WcagMatrixRow[], wcagReviews, kwcagReviews);
+  // 쓰기는 service role로 — scans에는 사용자 update 정책이 없고(폴백이 조용히 0행이 된다),
+  // update_scan_summary_scores도 service role 전용이다(migration 0035). 호출자가 이미
+  // requireScanOwner로 소유를 확인한 뒤라 권한 확대가 아니다.
   // scores 키만 원자 갱신(jsonb_set RPC — migration 0011) — 동시 재집계와의
   // read-merge-write 덮어쓰기 방지. RPC 미적용 시 기존 전체 갱신으로 폴백.
-  const { error: rpcErr } = await supabase.rpc("update_scan_summary_scores", {
+  const admin = createAdminClient();
+  const { error: rpcErr } = await admin.rpc("update_scan_summary_scores", {
     p_scan_id: scanId,
     p_scores: scores,
   });
   if (rpcErr) {
-    await supabase.from("scans").update({ summary: { ...summary, scores } }).eq("id", scanId);
+    await admin.from("scans").update({ summary: { ...summary, scores } }).eq("id", scanId);
   }
   return scores;
 }
