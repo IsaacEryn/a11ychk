@@ -12,6 +12,43 @@ carry their own versions.*
 
 ---
 
+## 카탈로그에 없는 규칙의 위반을 놓치던 문제 수정 / Fix violations missed for uncatalogued rules — v1.1.1
+
+### 한국어
+
+규칙 카탈로그에 없는 axe 규칙의 위반이 '모범 사례 권고'로 잘못 분류되고 있었습니다.
+권고는 준수율과 `fail-on` 판정에서 빠지므로, **게이트가 막아야 할 위반을 통과시키는**
+경우가 생겼습니다. 같은 성공기준의 다른 규칙이 통과하면 실제 위반이 있는 기준이
+통과로 보고되기까지 했습니다.
+
+원인은 카탈로그 조회에 axe 태그를 넘기지 않은 것이었습니다. 카탈로그에 없는 규칙은
+태그에서 대응 성공기준을 복원하도록 안전망이 있었는데, 정작 그 경로에서 태그가
+전달되지 않았습니다. 이제 태그를 관통시켜 카탈로그에 없어도 적합성 위반으로 셉니다.
+
+- 실제로 이 구멍에 빠져 있던 `aria-tab-name`과 랜드마크 규칙 4개를 카탈로그에 추가
+  (총 111개) — 한국어 개선 가이드 포함
+- 건너뛰기 링크(2.4.1) 검사가 페이지 내 아무 앵커나 통과로 인정하던 것을, 대상이
+  본문 영역인 앵커만 인정하도록 조정
+- 실행되는 axe 규칙이 모두 카탈로그에 있는지 검사하는 테스트를 추가해 재발 방지
+
+입력·출력 이름과 형식 변경은 없습니다. 이전 버전에서 통과하던 페이지가 이 버전에서
+막힐 수 있는데, 그것이 이 수정의 목적입니다.
+
+### English
+
+Violations of axe rules missing from the rule catalogue were misclassified as
+best-practice advisories, which are excluded from the compliance rate and the
+`fail-on` gate — so the gate could let real violations through. The catalogue
+lookup was not receiving axe tags, disabling the fallback that recovers the
+mapped success criteria. Tags are now threaded through.
+
+Added the five rules that were actually affected (`aria-tab-name` and four
+landmark rules) to the catalogue, tightened the skip-link (2.4.1) check, and
+added a test asserting every active axe rule is catalogued. No input or output
+changes. Pages that passed before may now fail — that is the point of the fix.
+
+---
+
 ## 모범 사례를 준수율에서 분리 / Best-practice rules no longer affect the score — v1.1.0
 
 ### 한국어
