@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { sanitizeNextPath } from "@/lib/safeRedirect";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { localeFromPathname } from "@/i18n/routing";
 import { logLogin } from "@/lib/logs";
 import { captureReferral } from "@/lib/referral/capture";
 import { REFERRAL_COOKIE } from "@/lib/referral/constants";
@@ -44,7 +45,7 @@ export async function GET(request: Request) {
           .eq("id", data.user.id)
           .single();
         if (me?.role === "admin") {
-          const locale = next.startsWith("/en") ? "en" : "ko";
+          const locale = localeFromPathname(next);
           const { data: aal } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
           dest =
             aal?.nextLevel !== "aal2"

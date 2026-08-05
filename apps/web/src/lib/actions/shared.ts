@@ -5,6 +5,7 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkAdmin } from "@/lib/adminGuard";
+import { localeFromPathname } from "@/i18n/routing";
 
 /** 전 경로 캐시 무효화 — 인증 상태처럼 모든 페이지에 영향이 있을 때만 사용 */
 export function revalidateAll() {
@@ -30,8 +31,7 @@ export async function requireUser() {
 
 /** 요청 경로에서 로케일 추정 — 서버 액션은 세그먼트 파라미터를 받지 못한다 */
 async function actionLocale(): Promise<string> {
-  const path = (await headers()).get("x-pathname") ?? "";
-  return path.startsWith("/en/") || path === "/en" ? "en" : "ko";
+  return localeFromPathname((await headers()).get("x-pathname") ?? "");
 }
 
 /**
