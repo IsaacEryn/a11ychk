@@ -221,6 +221,34 @@ export function aggregateScan(
   };
 }
 
+/**
+ * 표시용 자동 점검 준수율 — 웹·GitHub Action·MCP·확장이 모두 이 값을 써야 한다.
+ *
+ * summary에는 준수율이 두 가지 있다. scores.automated는 성공기준(SC) 단위이고 모범
+ * 사례를 빼지만, complianceRate는 규칙 단위이고 모범 사례를 분모·분자에 그대로 넣는다.
+ * 두 값은 같은 검사에서 10%포인트 넘게 갈릴 수 있으므로(모범 사례 위반만 있는 사이트는
+ * 한쪽이 100%, 다른 쪽이 그보다 한참 낮다) 표시 값은 하나로 통일한다.
+ * complianceRate 폴백은 scores가 없던 시절에 저장된 요약을 위한 것이다.
+ */
+export function automatedComplianceRate(summary: Pick<ScanSummary, "scores" | "complianceRate">): number {
+  return summary.scores?.automated.rate ?? summary.complianceRate;
+}
+
+/**
+ * 규칙 목록을 적합성 위반과 모범 사례 권고로 나눈다.
+ * 세 진입점이 각자 같은 필터를 적어 두던 것을 하나로 모은 것.
+ */
+export function partitionAdvisory<T extends { ruleId: string }>(
+  summary: Pick<ScanSummary, "bestPractice">,
+  rules: T[],
+): { violations: T[]; advisory: T[] } {
+  const ids = new Set((summary.bestPractice ?? []).map((b) => b.ruleId));
+  return {
+    violations: rules.filter((r) => !ids.has(r.ruleId)),
+    advisory: rules.filter((r) => ids.has(r.ruleId)),
+  };
+}
+
 /** passed/failed 카운트로 준수율 breakdown 생성 */
 function breakdown(passed: number, failed: number, total: number): ScoreBreakdown {
   const evaluated = passed + failed;

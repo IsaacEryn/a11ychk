@@ -18,6 +18,18 @@ const IMPACT_EN: Record<Impact, string> = { critical: "Critical", serious: "Seri
 /** 규칙당 문서에 포함할 최대 발생 위치 — 나머지는 "동일 패턴 외 N곳"으로 요약 */
 export const AI_FIX_MAX_NODES_PER_RULE = 10;
 
+/**
+ * 검사 대상 페이지에서 가져온 스니펫을 감쌀 코드펜스.
+ * 스니펫에 백틱 세 개가 들어 있으면 펜스가 그 자리에서 닫히고, 뒤따르는 페이지 내용이
+ * 코드가 아니라 AI에게 주는 지시문 자리로 빠져나온다. 내용의 최장 백틱 런보다 긴
+ * 펜스를 골라 그 탈출을 막는다.
+ */
+export function codeFence(content: string): string {
+  let longest = 0;
+  for (const m of content.matchAll(/`+/g)) longest = Math.max(longest, m[0].length);
+  return "`".repeat(Math.max(3, longest + 1));
+}
+
 export interface AiFixNode {
   pageUrl: string | null;
   selector: string;
@@ -193,9 +205,10 @@ export function buildAiFix(input: AiFixInput): { markdown: string; json: Record<
       lines.push(`- ${L("페이지", "Page")}: ${n.pageUrl ?? "?"}`);
       lines.push(`  ${L("선택자", "Selector")}: \`${n.selector}\``);
       lines.push(`  ${L("현재 코드", "Current code")}:`);
-      lines.push("  ```html");
+      const fence = codeFence(n.html);
+      lines.push(`  ${fence}html`);
       lines.push(`  ${n.html.replaceAll("\n", "\n  ")}`);
-      lines.push("  ```");
+      lines.push(`  ${fence}`);
       if (n.failureSummary) {
         lines.push(`  ${L("자동 진단", "Diagnosis")}: ${n.failureSummary.replaceAll("\n", " / ")}`);
       }

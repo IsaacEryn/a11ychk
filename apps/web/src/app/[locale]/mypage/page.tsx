@@ -24,7 +24,7 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
 import { PreferredStandardForm } from "./PreferredStandardForm";
 import { MissionCard, type ReferralRow } from "./ReferralCard";
-import type { ScanSummary } from "@a11ychk/core/catalog";
+import { automatedComplianceRate, type ScanSummary } from "@a11ychk/core/catalog";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -240,7 +240,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
                       <td className="py-2.5">
                         {s.status === "done" ? (
                           <Link href={`/scans/${s.id}/report`} className="font-bold text-[var(--color-seal)] underline underline-offset-4">
-                            {summary ? t("history.complianceShort", { rate: summary.complianceRate }) : tDash("recent.viewReport")}
+                            {summary ? t("history.complianceShort", { rate: automatedComplianceRate(summary) }) : tDash("recent.viewReport")}
                           </Link>
                         ) : (
                           <Link href={`/scans/${s.id}`} className="underline underline-offset-4">

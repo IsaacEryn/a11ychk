@@ -3,6 +3,7 @@ import {
   AXE_RUN_TAGS,
   THIRD_PARTY_AD_EXCLUDE,
   aggregateScan,
+  automatedComplianceRate,
   customFindingsFromSignals,
   mergePageSignals,
   normalizeAxeResults,
@@ -18,7 +19,7 @@ import * as log from "../log";
 // axe 공식 한국어 로케일 — UI가 한국어일 때 진단 메시지를 한국어로
 import axeKoLocale from "axe-core/locales/ko.json";
 import { $, AXE_VERSION, SITE_ORIGIN, getActiveTab, state, withTimeout } from "./state";
-import { ANON_WEEKLY_LIMIT, bumpAnonUsage, getAnonUsage, getSession, setUsageNote } from "./session";
+import { ANON_WEEKLY_LIMIT, bumpAnonUsage, clearSession, getAnonUsage, getSession, renderAccount, setUsageNote } from "./session";
 import { renderResult } from "./render";
 
 /** axe 실행 최대 대기 시간 — 초과 시 친화적 오류로 전환(무한 대기 방지) */
@@ -48,6 +49,13 @@ export async function scan() {
         headers: { Authorization: `Bearer ${session.accessToken}` },
       });
       const data = (await res.json()) as { ok?: boolean; used?: number; limit?: number; error?: string };
+      if (res.status === 401) {
+        // 서버가 세션을 거절했다(로그아웃·토큰 철회). 저장된 세션을 지워 헤더 배지와
+        // 실제 동작이 어긋나지 않게 하고, 이번 검사는 비로그인 경로로 이어 간다.
+        await clearSession();
+        await renderAccount();
+        setUsageNote({ text: msg("sessionExpired"), cta: true, err: true });
+      }
       if (res.status === 429) {
         setUsageNote({ text: data.error ?? msg("usageLimitReached"), err: true });
         return;
@@ -135,7 +143,7 @@ export async function scan() {
     renderResult(page, summary, tab.url);
     updateScanCache();
     // 완료 요약은 단일 라이브 리전으로 1회 고지 (결과 섹션 전체 낭독 방지)
-    announce(msg("srScanDone", [summary.complianceRate, page.violations.length]));
+    announce(msg("srScanDone", [automatedComplianceRate(summary), page.violations.length]));
 
     // 비로그인: 로컬 사용량 증가 + 가입 유도
     if (!session) {

@@ -1,6 +1,6 @@
 import "server-only";
 import crypto from "node:crypto";
-import { getRuleEntry, type Impact, type PageScanResult, type ScanSummary } from "@a11ychk/core/catalog";
+import { automatedComplianceRate, getRuleEntry, type Impact, type PageScanResult, type ScanSummary } from "@a11ychk/core/catalog";
 
 /**
  * 비로그인 맛보기 검사(1페이지) 공용 로직 — IP 해시·한도 상수·응답 트리밍.
@@ -74,7 +74,7 @@ export function buildTeaserResult(page: PageScanResult, summary: ScanSummary, lo
       };
     });
   return {
-    rate: summary.complianceRate,
+    rate: automatedComplianceRate(summary),
     byImpact: summary.byImpact,
     ruleCount: rules.length,
     totalNodes: summary.totalViolationNodes,

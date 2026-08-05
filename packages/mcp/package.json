@@ -10,17 +10,19 @@
   },
   "files": [
     "dist",
+    "LICENSE",
     "NOTICE"
   ],
   "//": "core는 npm 미게시라 esbuild가 워크스페이스 소스를 dist에 번들한다(action과 같은 패턴). 아래 dependencies는 번들에서 external로 남는 런타임 패키지들. apps/*(AGPL) 코드는 import 금지 — 이 패키지는 Apache-2.0이다.",
   "scripts": {
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node20 --banner:js='#!/usr/bin/env node' --external:@modelcontextprotocol/sdk --external:zod --external:axe-core --external:undici --external:playwright-core --outfile=dist/cli.mjs --log-level=warning",
+    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --banner:js='#!/usr/bin/env node' --define:__PACKAGE_VERSION__=\"\\\"$npm_package_version\\\"\" --external:@modelcontextprotocol/sdk --external:zod --external:axe-core --external:undici --external:playwright-core --outfile=dist/cli.mjs --log-level=warning",
     "prepack": "npm run build",
     "typecheck": "tsc --noEmit",
     "smoke": "npm run build && node scripts/smoke.mjs"
   },
+  "//engines": "undici 8이 Node 22.19+를 요구한다. 그보다 낮게 선언하면 설치는 경고만 내고 지나간 뒤 런타임에서 깨진다.",
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19"
   },
   "repository": {
     "type": "git",

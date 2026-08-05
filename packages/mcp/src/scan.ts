@@ -9,8 +9,10 @@ import {
   AXE_VERSION,
   AI_FIX_MAX_NODES_PER_RULE,
   aggregateScan,
+  automatedComplianceRate,
   getRuleEntry,
   groupViolationsForAiFix,
+  partitionAdvisory,
   pickLocale,
   scanUrls,
   type Impact,
@@ -67,17 +69,15 @@ export async function runScanTool(
   });
 
   const summary = aggregateScan(pages, AXE_VERSION);
-  const advisoryIds = new Set((summary.bestPractice ?? []).map((b) => b.ruleId));
 
   const allGroups = groupViolationsForAiFix(pages)
     .map((g) => ({ ...g, entry: getRuleEntry(g.ruleId, g.tags) }))
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
-  const violationGroups = allGroups.filter((g) => !advisoryIds.has(g.ruleId));
-  const advisoryGroups = allGroups.filter((g) => advisoryIds.has(g.ruleId));
+  // 권고 분리·준수율 선택은 core 헬퍼로 — 웹·액션·확장과 같은 값을 쓰기 위한 단일 원천
+  const { violations: violationGroups, advisory: advisoryGroups } = partitionAdvisory(summary, allGroups);
 
   const violationNodes = violationGroups.reduce((n, g) => n + g.nodes.length, 0);
-  // 웹 보고서 헤드라인·액션과 같은 값 — WCAG 성공기준 기준 자동 점수
-  const complianceRate = summary.scores?.automated.rate ?? summary.complianceRate;
+  const complianceRate = automatedComplianceRate(summary);
 
   const structuredContent: ScanToolResult["structuredContent"] = {
     scannedPages: pages.length,

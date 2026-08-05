@@ -10,7 +10,9 @@ import { appendFileSync } from "node:fs";
 import {
   AXE_VERSION,
   aggregateScan,
+  automatedComplianceRate,
   getRuleEntry,
+  partitionAdvisory,
   scanUrls,
   type Impact,
 } from "../packages/core/src/index";
@@ -88,13 +90,11 @@ async function main() {
   //
   // 여기서 나누지 않으면 제3자 위젯 iframe(캡차 등)의 권고 위반이 준수율을 깎고 게이트까지
   // 건드린다. 웹 보고서는 이를 '권고'로만 보고하는데 액션만 감점하던 불일치를 없앤다.
-  const advisoryIds = new Set((summary.bestPractice ?? []).map((b) => b.ruleId));
-  const rules = allRules.filter((r) => !advisoryIds.has(r.ruleId));
-  const advisory = allRules.filter((r) => advisoryIds.has(r.ruleId));
+  const { violations: rules, advisory } = partitionAdvisory(summary, allRules);
 
   // 준수율·심각도·게이트는 모두 적합성 대상(권고 제외)만으로 센다.
-  // 준수율은 웹 보고서 헤드라인과 같은 값 — WCAG 성공기준 기준의 자동 점수다.
-  const complianceRate = summary.scores?.automated.rate ?? summary.complianceRate;
+  // 준수율은 웹 보고서·MCP와 같은 값 — WCAG 성공기준 기준의 자동 점수다.
+  const complianceRate = automatedComplianceRate(summary);
   const violationNodes = rules.reduce((n, r) => n + r.nodes, 0);
   const byImpact: Record<Impact, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
   for (const r of rules) byImpact[r.impact] += r.nodes;

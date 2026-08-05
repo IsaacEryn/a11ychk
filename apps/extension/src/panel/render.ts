@@ -1,6 +1,7 @@
 // 검사 결과 렌더 — 요약·위반 목록(필터)·확인 필요 심사 섹션
 import {
   aggregateScan,
+  automatedComplianceRate,
   getRuleEntry,
   type Impact,
   type LocalizedText,
@@ -84,7 +85,7 @@ export function renderResult(
   $("intro").hidden = true;
   $("result").hidden = false;
   $("cachedNote").hidden = true;
-  $("rate").textContent = String(summary.complianceRate);
+  $("rate").textContent = String(automatedComplianceRate(summary));
 
   // 같은 URL 재렌더(확인 필요 심사 결정 등)면 필터 상태 유지, 새 페이지면 초기화
   if (lastRenderedUrl !== url) {

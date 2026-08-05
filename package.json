@@ -17,7 +17,7 @@
     "typecheck": "npm run typecheck --workspaces --if-present && npm run typecheck --prefix action"
   },
   "engines": {
-    "node": ">=20"
+    "node": ">=22.19"
   },
   "devDependencies": {
     "sharp": "^0.35.3"

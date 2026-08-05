@@ -165,6 +165,9 @@
   "usageLimitReached": {
     "message": "오늘의 확장 검사 한도를 모두 사용했습니다."
   },
+  "sessionExpired": {
+    "message": "연결이 만료되었습니다. 웹에서 다시 연결해 주세요."
+  },
   "anonUsage": {
     "message": "이번 주 무료 검사 $1/$2회 사용 · 가입하면 확장 검사 하루 10회 + 보고서 저장·사이트 단위 관리.",
     "placeholders": {

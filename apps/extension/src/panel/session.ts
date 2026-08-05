@@ -2,10 +2,19 @@
 import { isEnglish, msg } from "../i18n";
 import { $, SITE_ORIGIN, type StoredSession } from "./state";
 
+/** 저장된 세션 삭제 — 만료·서버 401 공통 경로 (저장소 변경이 계정 영역 재렌더를 부른다) */
+export async function clearSession(): Promise<void> {
+  await chrome.storage.local.remove("a11ychk_session");
+}
+
 export async function getSession(): Promise<StoredSession | null> {
   const { a11ychk_session } = await chrome.storage.local.get("a11ychk_session");
   const s = a11ychk_session as StoredSession | undefined;
-  if (s && s.accessToken && s.expiresAt > Date.now()) return s;
+  if (!s?.accessToken) return null;
+  if (s.expiresAt > Date.now()) return s;
+  // 만료분은 그 자리에서 지운다 — 남겨 두면 헤더는 "연결됨"인데 검사는 비로그인
+  // 경로로 내려가 무료 횟수를 대신 소모하는 어긋난 상태가 된다
+  await clearSession();
   return null;
 }
 
@@ -16,7 +25,7 @@ function openConnect() {
 
 /** 확장 연결 해제 — 저장된 세션 삭제 */
 async function logout() {
-  await chrome.storage.local.remove("a11ychk_session");
+  await clearSession();
   await renderAccount();
 }
 

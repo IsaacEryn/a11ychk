@@ -1,9 +1,9 @@
 // 계정 저장 + AI 수정요청 내보내기
-import { getRuleEntry } from "@a11ychk/core/catalog";
+import { codeFence, getRuleEntry } from "@a11ychk/core/catalog";
 import { isEnglish, msg, pick } from "../i18n";
 import * as log from "../log";
 import { $, SITE_ORIGIN, state, type PageResult } from "./state";
-import { getSession } from "./session";
+import { clearSession, getSession, renderAccount } from "./session";
 import { getReviewState } from "./review";
 import { IMPACTS, impactLabel } from "./render";
 
@@ -50,11 +50,28 @@ export async function populateSaveTargets(accessToken: string, pageUrl: string) 
   }
 }
 
+/** 저장 실패 문구 — 서버 문구가 섞이므로 텍스트 노드로만 렌더 */
+function showSaveError(text: string) {
+  const msgEl = $("saveMsg");
+  msgEl.textContent = "";
+  const err = document.createElement("span");
+  err.className = "err";
+  err.textContent = text;
+  msgEl.appendChild(err);
+}
+
 export async function saveToAccount() {
   const session = await getSession();
-  if (!session || !state.lastPage) return;
   const saveBtn = $<HTMLButtonElement>("save");
   const msgEl = $("saveMsg");
+  if (!session || !state.lastPage) {
+    // 결과를 렌더한 뒤 세션이 끊긴 경우 — 조용히 아무 일도 안 하면 버튼이 고장난 것처럼 보인다
+    if (!session) {
+      await renderAccount();
+      showSaveError(msg("sessionExpired"));
+    }
+    return;
+  }
   saveBtn.disabled = true;
   msgEl.textContent = msg("saving");
   try {
@@ -85,12 +102,13 @@ export async function saveToAccount() {
       }),
     });
     const data = (await res.json()) as { id?: string; error?: string; merged?: boolean; rootUrl?: string };
-    if (!res.ok || !data.id) {
-      msgEl.textContent = "";
-      const err = document.createElement("span");
-      err.className = "err";
-      err.textContent = data.error ?? msg("saveFailed");
-      msgEl.appendChild(err);
+    if (res.status === 401) {
+      // 서버가 세션을 거절했다 — 저장된 세션을 지워 계정 영역이 재연결 안내로 돌아가게 한다
+      await clearSession();
+      await renderAccount();
+      showSaveError(data.error ?? msg("sessionExpired"));
+    } else if (!res.ok || !data.id) {
+      showSaveError(data.error ?? msg("saveFailed"));
     } else {
       msgEl.textContent = data.merged
         ? msg("savedMerged", [data.rootUrl ?? ""])
@@ -140,7 +158,8 @@ function buildAiFixMarkdown(page: PageResult): string {
     if (guide) lines.push("", guide);
     lines.push("");
     for (const node of v.nodes.slice(0, MAX_AIFIX_NODES)) {
-      lines.push(`- \`${node.selector}\``, "  ```html", "  " + node.html.replace(/\n/g, "\n  "), "  ```");
+      const fence = codeFence(node.html);
+      lines.push(`- \`${node.selector}\``, `  ${fence}html`, "  " + node.html.replace(/\n/g, "\n  "), `  ${fence}`);
       if (node.failureSummary) lines.push(`  - ${node.failureSummary.replace(/\s*\n\s*/g, " ")}`);
     }
     if (v.nodes.length > MAX_AIFIX_NODES) lines.push(`- ${msg("moreNodes", [v.nodes.length - MAX_AIFIX_NODES])}`);

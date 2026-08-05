@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDomainPublicScan } from "@/lib/host";
 import { gradeOf, DIRECTORY_MIN_RATE, type Grade } from "@/lib/badgeGrade";
-import type { ScanSummary } from "@a11ychk/core";
+import { automatedComplianceRate, type ScanSummary } from "@a11ychk/core";
 
 export interface ListedSite {
   hostname: string;
@@ -44,7 +44,7 @@ export async function collectListedSites(): Promise<ListedSite[]> {
     );
     const summary = scan?.summary as ScanSummary | null;
     if (!summary) continue;
-    const rate = summary.complianceRate;
+    const rate = automatedComplianceRate(summary);
     if (rate < DIRECTORY_MIN_RATE) continue; // 임계 미만 보류
     sites.push({
       hostname: d.hostname as string,
@@ -95,7 +95,7 @@ export async function getListedSiteDetail(hostname: string): Promise<ListedSiteD
   );
   const summary = scan?.summary as ScanSummary | null;
   if (!summary) return null;
-  const rate = summary.complianceRate;
+  const rate = automatedComplianceRate(summary);
   if (rate < DIRECTORY_MIN_RATE) return null;
 
   const failedItemIds = (summary.kwcagMatrix ?? [])

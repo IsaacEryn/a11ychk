@@ -2,11 +2,10 @@
  * A11y Check MCP 서버 (stdio) — AI 코딩 도구가 접근성 검사·한국어 가이드를
  * 직접 호출하는 진입점. `npx @a11ychk/mcp`로 실행된다.
  *
- * stdout은 JSON-RPC 채널이다. 어떤 경로로든 console.log가 섞이면 프로토콜이
- * 깨지므로 진입 즉시 stderr로 리바인드한다(번들된 core는 console을 쓰지 않지만
- * 의존성까지 보증할 수 없어 보험을 든다).
+ * stdout은 JSON-RPC 채널이다. 어떤 경로로든 stdout 출력이 섞이면 프로토콜이 깨지므로
+ * 리바인드를 첫 import로 둔다 — 본문에 적으면 ESM 특성상 의존성 평가 뒤에 실행된다.
  */
-console.log = console.error;
+import "./silenceStdout";
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
@@ -20,7 +19,13 @@ import { runScanTool } from "./scan";
 /** 한 호출당 검사 상한 — 클라이언트 도구 타임아웃 보호. 대량은 웹의 사이트 단위 검사로 안내 */
 const SCAN_MAX_URLS = 10;
 
-const VERSION = "0.1.0";
+/**
+ * 게시 버전 — 빌드 시 esbuild가 package.json의 version을 주입한다(build 스크립트의
+ * --define). 상수로 적어 두면 릴리스마다 갱신을 잊어 serverInfo가 실제 배포본과
+ * 어긋난다. 주입이 없는 환경(타입체크·직접 실행)에서는 dev로 보고한다.
+ */
+declare const __PACKAGE_VERSION__: string | undefined;
+const VERSION = typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "dev";
 
 const server = new McpServer({ name: "a11ychk", version: VERSION }, { instructions: SERVER_INSTRUCTIONS });
 

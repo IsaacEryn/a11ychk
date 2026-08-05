@@ -7,7 +7,10 @@ A11y Check는 **분할 라이선싱(split licensing)** 모노레포입니다. �
 | 디렉터리 | 라이선스 | 대상 |
 |---|---|---|
 | `packages/core` (`@a11ychk/core`) | **Apache-2.0** | 검사 엔진 · KWCAG 2.2 / WCAG 2.2 규칙 카탈로그 |
+| `packages/mcp` (`@a11ychk/mcp`) | **Apache-2.0** | MCP 서버 (npm 게시) |
 | `apps/extension` (`@a11ychk/extension`) | **Apache-2.0** | 크롬 확장 (배포형 클라이언트) |
+| `action/` | **Apache-2.0** | GitHub Action 러너 |
+| `plugins/a11ychk` | **Apache-2.0** | Claude Code 플러그인 |
 | `apps/web` | **AGPL-3.0-only** | 서비스 앱 (a11ychk.com) |
 | 그 외 · 저장소 루트 | **AGPL-3.0-only** | 배포되는 전체 서비스 기준 |
 
@@ -27,5 +30,6 @@ GPLv3/AGPLv3와 호환되므로, Apache 라이선스 구성요소를 AGPL 저작
 
 ## 기여
 
-기여하신 내용은 해당 디렉터리의 라이선스로 배포됩니다(core·extension = Apache-2.0,
-web = AGPL-3.0-only). 자세한 내용은 [CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요.
+기여하신 내용은 해당 디렉터리의 라이선스로 배포됩니다(core·mcp·extension·action =
+Apache-2.0, web = AGPL-3.0-only). 자세한 내용은 [CONTRIBUTING.md](CONTRIBUTING.md)를
+참고하세요.

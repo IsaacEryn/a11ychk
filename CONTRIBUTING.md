@@ -50,7 +50,8 @@ npm run typecheck && npm run lint
 이 프로젝트는 **분할 라이선싱**입니다([LICENSING.md](LICENSING.md) 참고). 기여하신 내용은
 기여한 디렉터리의 라이선스로 배포됩니다:
 
-- `packages/core`(검사 엔진·카탈로그) · `apps/extension`(크롬 확장) → **Apache-2.0**
+- `packages/core`(검사 엔진·카탈로그) · `packages/mcp`(MCP 서버) · `apps/extension`(크롬 확장) ·
+  `action/`(GitHub Action) → **Apache-2.0**
 - `apps/web`(서비스 앱) → **AGPL-3.0-only**
 
 ### DCO (Developer Certificate of Origin)

@@ -7,9 +7,18 @@
  * instructions는 일부 클라이언트가 무시하므로 도구 결과 말미에도 같은 안내를 반복한다.
  */
 
+import { isPrivateAddress } from "@a11ychk/core";
+
 const SITE = "https://www.a11ychk.com";
 
-/** 웹 서비스가 검사할 수 있는 공개 URL만 딥링크에 싣는다 — localhost·사설망은 제외 */
+/**
+ * 웹 서비스가 검사할 수 있는 공개 URL만 딥링크에 싣는다 — localhost·사설망은 제외.
+ *
+ * IP 판정은 core의 SSRF 가드와 같은 함수를 쓴다. 여기 정규식을 따로 두면 IPv4 매핑
+ * IPv6(`[::ffff:10.0.0.1]`)·링크로컬·CGNAT 같은 대역이 새서 사내망 주소가 외부로
+ * 나가는 링크에 실린다. DNS 조회가 필요한 판정은 하지 않는다 — 링크에 실을지 말지를
+ * 즉시 정해야 하고, 실제 검사 전에 웹 쪽에서 다시 가드를 거친다.
+ */
 function publicUrl(raw: string | undefined): string | null {
   if (!raw) return null;
   try {
@@ -17,15 +26,13 @@ function publicUrl(raw: string | undefined): string | null {
     if (u.protocol !== "http:" && u.protocol !== "https:") return null;
     const host = u.hostname.toLowerCase();
     // URL.hostname은 IPv6을 브래킷 포함으로 돌려준다 ("[::1]")
+    const bare = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
     if (
       host === "localhost" ||
-      host === "[::1]" ||
-      /^169\.254\./.test(host) ||
+      host.endsWith(".localhost") ||
       host.endsWith(".local") ||
-      /^127\./.test(host) ||
-      /^10\./.test(host) ||
-      /^192\.168\./.test(host) ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+      host.endsWith(".internal") ||
+      isPrivateAddress(bare)
     ) {
       return null;
     }

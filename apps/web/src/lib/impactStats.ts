@@ -80,7 +80,8 @@ export async function collectImpactStats(): Promise<ImpactStats> {
       .gte("created_at", thirtyDaysAgo),
     admin
       .from("scans")
-      .select("root_url, created_at, rate:summary->complianceRate")
+      // 표시 준수율은 SC 기준(scores.automated) — 구버전 요약만 규칙 기준으로 폴백
+      .select("root_url, created_at, rate:summary->scores->automated->>rate, legacyRate:summary->complianceRate")
       .eq("status", "done")
       .order("created_at", { ascending: true })
       .limit(5000),
@@ -95,7 +96,8 @@ export async function collectImpactStats(): Promise<ImpactStats> {
     } catch {
       continue;
     }
-    const rate = typeof s.rate === "number" ? s.rate : Number(s.rate ?? 0);
+    const raw = s.rate ?? s.legacyRate;
+    const rate = typeof raw === "number" ? raw : Number(raw ?? 0);
     const cur = byHost.get(host);
     if (!cur) byHost.set(host, { firstRate: rate, lastRate: rate, count: 1 });
     else {

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDomainPublicScan } from "@/lib/host";
 import { gradeOf, gradeColor } from "@/lib/badgeGrade";
-import type { ScanSummary } from "@a11ychk/core";
+import { automatedComplianceRate, type ScanSummary } from "@a11ychk/core";
 
 export const runtime = "nodejs";
 // 배지는 공개 임베드용 — 5분 캐시
@@ -71,7 +71,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ hostnam
     return svgResponse(badgeSvg("A11y Check", "N/A", "#9e9e9e"));
   }
 
-  const rate = summary.complianceRate;
+  const rate = automatedComplianceRate(summary);
   // 자동 점검 준수율 — 배지·디렉터리·보고서 요약 공통 밴딩
   return svgResponse(badgeSvg("A11y Check", `${rate}%`, gradeColor(gradeOf(rate))));
 }

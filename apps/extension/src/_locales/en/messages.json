@@ -165,6 +165,9 @@
   "usageLimitReached": {
     "message": "You've used today's extension scan limit."
   },
+  "sessionExpired": {
+    "message": "Your connection expired. Please reconnect from the web app."
+  },
   "anonUsage": {
     "message": "Free scans this week: $1/$2 · Sign up for 10 extension scans/day plus saved reports and site-level tracking.",
     "placeholders": {
