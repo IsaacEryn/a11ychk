@@ -10,6 +10,7 @@ import {
   AXE_VERSION,
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAppError } from "@/lib/logs";
 import { disposeBrowser, launchGuardedBrowser, scanSinglePage } from "@/lib/scan/runScan";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 import {
@@ -88,9 +89,17 @@ export async function POST(request: Request) {
 
   const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown";
 
-  // 봇 방지 — Turnstile 서버 검증 (사이트키 설정 시 필수, fail-closed)
+  // 봇 방지 — Turnstile 서버 검증 (fail-closed)
   const captcha = await verifyTurnstileToken(parsed.data.token, ip === "unknown" ? undefined : ip);
-  if (captcha === "misconfigured") return err("unavailable", 503);
+  if (captcha === "misconfigured") {
+    // 503만 내면 "맛보기가 안 된다"로만 보여 원인을 찾기 어렵다. 관리자 오류 로그에 남긴다.
+    void logAppError(
+      createAdminClient(),
+      "Turnstile 키 미설정 — 맛보기 검사 비활성. NEXT_PUBLIC_TURNSTILE_SITE_KEY·TURNSTILE_SECRET_KEY를 설정하고 재배포하거나, 의도한 것이면 TURNSTILE_DISABLED=1을 설정할 것",
+      { path: "api/teaser-scan" },
+    );
+    return err("unavailable", 503);
+  }
   if (captcha !== "ok") return err("captcha", 403);
 
   // 어뷰즈 카운터 — IP 한도 먼저(IP 제한에 걸린 스팸이 전역 예산을 소모하지 못하게), 그다음 전역 캡.

@@ -37,14 +37,35 @@ INTERNAL_API_SECRET              # openssl rand -hex 32
 CRON_SECRET                      # 정기 스캔 크론 보호 (openssl rand -hex 32)
 NEXT_PUBLIC_SITE_URL=https://www.a11ychk.com
 RESEND_API_KEY                   # 이메일 발송 (정기 스캔 회귀 알림·서버 오류 알림) — 미설정 시 발송 생략
-NEXT_PUBLIC_TURNSTILE_SITE_KEY   # (선택) Cloudflare Turnstile 사이트 키 — 가입·로그인·맛보기 검사 봇 방지
-TURNSTILE_SECRET_KEY             # 사이트 키 설정 시 함께 필수 — 맛보기 검사 서버 검증용 (없으면 맛보기 비활성)
+NEXT_PUBLIC_TURNSTILE_SITE_KEY   # Cloudflare Turnstile 사이트 키 — 아래 "봇 방지" 절 참고
+TURNSTILE_SECRET_KEY             # 같이 필수 — 맛보기 검사 서버 검증(siteverify)용
 NEXT_PUBLIC_GTM_ID                # GTM 컨테이너 ID(GA4) — 미설정 시 분석 스니펫 미삽입
 ADMIN_ALERT_EMAIL                # 서버 오류·관리자 로그인 알림 수신 주소 — 미설정 시 발송 생략
 ADMIN_PATH_SLUG                  # (선택) 관리자 비밀 경로 슬러그 — 설정 시 /admin은 404 (점 금지)
 ADMIN_IDLE_MINUTES               # (선택) 관리자 무활동 자동 로그아웃 분 (기본 20)
 SESSION_MAX_HOURS                # (선택) 전 회원 세션 절대 유지 시간 (기본 24)
 ```
+
+### 봇 방지 (Cloudflare Turnstile)
+
+비로그인 맛보기 검사는 요청마다 헤드리스 브라우저를 띄우므로 봇에 열려 있으면 비용이
+그대로 나간다. 로그인·가입 폼도 같은 위젯으로 보호한다.
+
+1. Cloudflare 대시보드 → Turnstile에서 위젯을 만들고 호스트명에 운영 도메인을 등록한다.
+2. Vercel → Settings → Environment Variables에 두 값을 넣는다.
+   - `NEXT_PUBLIC_TURNSTILE_SITE_KEY` — 공개 사이트 키
+   - `TURNSTILE_SECRET_KEY` — 시크릿 키
+3. **재배포한다.** 사이트 키는 `NEXT_PUBLIC_` 접두라 빌드 시점에 코드로 박힌다. 환경변수만
+   바꾸고 재배포하지 않으면 위젯이 계속 렌더되지 않는다.
+4. Supabase 대시보드 → Authentication → Attack Protection에서 CAPTCHA 보호를 켜고 **같은
+   시크릿 키**를 넣는다. 이걸 켜지 않으면 로그인 폼이 보내는 토큰을 아무도 검증하지 않는다.
+
+설정이 끝나면 Cloudflare Turnstile 위젯 화면에서 siteverify 호출이 잡히는지 확인한다.
+"Siteverify isn't being called" 경고가 남아 있으면 서버 검증이 실제로는 안 돌고 있다는 뜻이다.
+
+키가 빠진 배포본에서는 맛보기 검사가 503으로 비활성되고 관리자 오류 로그에 원인이 남는다
+(예전에는 조용히 전부 통과시켰다). CAPTCHA 없이 운영하려면 `TURNSTILE_DISABLED=1`로
+의도를 명시할 것 — 그 경우 맛보기 검사의 방어는 IP 일 한도와 전역 일 상한만 남는다.
 
 ### 관리자 2단계 인증(TOTP) 복구
 
