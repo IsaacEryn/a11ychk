@@ -106,6 +106,13 @@ node verify-summary.mjs                             # 전 사이트 집계
 node anonymize.mjs --in=exp-out --out=exp-out-anon --mapping=mapping.json --shots
 ```
 
+공개 전에는 반드시 검사하세요. 호스트명 치환만으로는 부족합니다 — 선택자에 남은 URL
+경로나 HTML 스니펫의 한국어 UI 문구로도 사이트가 특정됩니다.
+
+```bash
+node check-anonymity.mjs --dir=dataset --mapping=mapping.json
+```
+
 매핑은 호스트명 정렬 기준이라 결정적입니다 — 같은 데이터를 다시 익명화해도 같은 ID가
 나옵니다. **매핑표는 공개 저장소에 커밋하지 마세요.**
 

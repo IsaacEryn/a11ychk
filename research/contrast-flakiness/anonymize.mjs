@@ -123,6 +123,12 @@ function anonUrl(u) {
  * 요소 간 동일성 비교는 유지해야 하므로 selector 자리에 안정적인 대체 키를 넣는다.
  */
 const selKey = new Map();
+/** 선택자 → el-N. JSON과 마크다운이 같은 ID를 쓰도록 한 곳에서 관리한다 */
+function elIdFor(sel) {
+  if (!selKey.has(sel)) selKey.set(sel, `el-${selKey.size + 1}`);
+  return selKey.get(sel);
+}
+
 function scrubJson(obj) {
   if (Array.isArray(obj)) return obj.map(scrubJson);
   if (!obj || typeof obj !== "object") return obj;
@@ -132,8 +138,7 @@ function scrubJson(obj) {
     else if (k === "url" && typeof v === "string") out[k] = anonUrl(v);
     else if (!KEEP_SELECTORS && k === "selector" && typeof v === "string") {
       // 내용은 감추되 같은 요소가 여러 조건에 등장하는지는 비교 가능해야 한다
-      if (!selKey.has(v)) selKey.set(v, `el-${selKey.size + 1}`);
-      out[k] = selKey.get(v);
+      out[k] = elIdFor(v);
     } else if (!KEEP_SELECTORS && (k === "html" || k === "shot")) continue;
     else if (typeof v === "string") out[k] = anonText(v); // error 메시지 등에 URL이 박혀 있다
     else out[k] = scrubJson(v);
@@ -141,21 +146,38 @@ function scrubJson(obj) {
   return out;
 }
 
-/** 마크다운 리포트에서 선택자·코드 조각을 가린다 */
+/**
+ * 마크다운 리포트의 선택자·코드 조각을 가린다.
+ *
+ * 규칙(길이·패턴)으로 판별하지 않는다 — 그 방식은 URL 경로가 든 선택자
+ * (`a[href="/tta/contents?contentId=226"]`)처럼 규칙에 안 걸리는 형태를 놓친다.
+ * 대신 JSON에서 쓴 selKey 사전을 그대로 적용해 알려진 선택자를 el-N으로 바꾸고,
+ * 남은 백틱 조각 중 코드처럼 보이는 것은 통째로 가린다.
+ */
 function scrubMarkdown(text) {
   let t = anonText(text);
   if (KEEP_SELECTORS) return t;
-  // 백틱으로 감싼 선택자·HTML 조각을 마스킹 (짧은 식별자·조건명은 보존)
-  t = t.replace(/`([^`\n]{25,})`/g, (m, inner) => (/[<>]|[a-zA-Z]{4,}[_-][a-zA-Z]/.test(inner) ? "`(생략)`" : m));
+  // 긴 선택자부터 치환 (짧은 것이 긴 것의 부분 문자열일 수 있다)
+  for (const sel of [...selKey.keys()].sort((a, b) => b.length - a.length)) {
+    t = t.replaceAll(sel, selKey.get(sel));
+  }
+  // 사전에 없는 잔여 코드 조각 — HTML 태그, URL 경로, 쿼리스트링이 보이면 가린다.
+  // [\s\S]로 여러 줄에 걸친 조각까지 잡는다 — HTML 스니펫은 줄바꿈을 품고 있다.
+  t = t.replace(/`([\s\S]*?)`/g, (m, inner) =>
+    /[<>]|https?:|\/\w+\/|\?\w+=|[a-zA-Z]{4,}[_-][a-zA-Z]{3,}/.test(inner) ? "`(생략)`" : m,
+  );
+  // 스크린샷 경로는 캡처가 공개되지 않으므로 참조를 지운다
+  t = t.replace(/ ?· 캡처 shots 참조: \S+/g, "");
   return t;
 }
 
 // ── 3) 파일별 치환 ──
 fs.mkdirSync(OUT, { recursive: true });
 let files = 0;
-for (const f of fs.readdirSync(IN)) {
+// JSON을 먼저 처리해 selKey를 채운 뒤 마크다운을 처리한다 — 두 형식이 같은 el-N을 쓰도록
+const entries = fs.readdirSync(IN).filter((f) => fs.statSync(path.join(IN, f)).isFile());
+for (const f of [...entries.filter((f) => f.endsWith(".json")), ...entries.filter((f) => !f.endsWith(".json"))]) {
   const full = path.join(IN, f);
-  if (!fs.statSync(full).isFile()) continue;
   const outName = anonText(f);
   const raw = fs.readFileSync(full, "utf8");
   let content;

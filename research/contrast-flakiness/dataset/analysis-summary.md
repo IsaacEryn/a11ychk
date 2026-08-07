@@ -97,14 +97,14 @@
 base가 놓치던 진짜 위반을 드러냈는지(미탐 해소) 확인. 어느 쪽인지는 라벨링으로만 갈린다.
 
 ### site-B
-- font에서 생김 7건 — `.transition-transform`, `(생략)`, `.rounded-full` …
+- font에서 생김 7건 — `el-1`, `(생략)`, `el-3` …
 
 ### site-T
-- font에서 사라짐 1건 — `a[href="#"]:nth-child(1)`
-- rm+font에서 사라짐 1건 — `a[href="#"]:nth-child(1)`
+- font에서 사라짐 1건 — `el-9`
+- rm+font에서 사라짐 1건 — `el-9`
 
 ### site-CQ
-- rm+font에서 생김 1건 — `(생략)`
+- rm+font에서 생김 1건 — `el-62`
 
 ### site-BJ
 - font에서 생김 2건 — `(생략)`, `(생략)`
@@ -120,8 +120,8 @@ base가 놓치던 진짜 위반을 드러냈는지(미탐 해소) 확인. 어느
 - rm+font에서 생김 9건 — `(생략)`, `(생략)`, `(생략)` …
 
 ### site-DG
-- font에서 생김 1건 — `#\:r0\:`
-- rm+font에서 생김 1건 — `#\:r0\:`
+- font에서 생김 1건 — `el-66`
+- rm+font에서 생김 1건 — `el-66`
 
 ### site-AM
 - rm에서 생김 4건 — `(생략)`, `(생략)`, `(생략)` …
@@ -129,19 +129,19 @@ base가 놓치던 진짜 위반을 드러냈는지(미탐 해소) 확인. 어느
 - rm+font에서 사라짐 2건 — `(생략)`, `(생략)`
 
 ### site-L
-- font에서 사라짐 1건 — `.search-keyword-index`
-- rm+font에서 사라짐 1건 — `.search-keyword-index`
+- font에서 사라짐 1건 — `el-8`
+- rm+font에서 사라짐 1건 — `el-8`
 
 ### site-BE
-- font에서 사라짐 2건 — `.tooltip`, `.tooltip > b`
-- rm+font에서 사라짐 2건 — `.tooltip`, `.tooltip > b`
+- font에서 사라짐 2건 — `el-16`, `el-17`
+- rm+font에서 사라짐 2건 — `el-16`, `el-17`
 
 ### site-DK
 - rm+font에서 생김 2건 — `(생략)`, `(생략)`
 
 ### site-BL
 - font에서 생김 6건 — `(생략)`, `(생략)`, `(생략)` …
-- rm+font에서 생김 1건 — `.rounded-2\.5xl`
+- rm+font에서 생김 1건 — `el-28`
 
 ### site-DJ
 - rm에서 사라짐 8건 — `(생략)`, `(생략)`, `(생략)` …

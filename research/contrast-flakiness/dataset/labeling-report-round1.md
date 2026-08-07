@@ -38,164 +38,164 @@
 
 ## site-B
 ### 폰트 허용 시 새로 생긴 위반 (미탐 위험 점검) (7건)
-- [ ] 오탐 / [ ] 진탐 — `.transition-transform` · 발생률 1/5
-  - 색상 #faf8f3 on #44827a (대비 4.19), 12.0pt (16px) / weight bold · 캡처 shots 참조: shots/_skip/0.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-1` · 발생률 1/5
+  - 색상 #faf8f3 on #44827a (대비 4.19), 12.0pt (16px) / weight bold
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #44827a on #faf8f3 (대비 4.19), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/1.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-2` · 발생률 1/5
+  - 색상 #44827a on #faf8f3 (대비 4.19), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `.rounded-full` · 발생률 1/5
-  - 색상 #44827a on #faf8f3 (대비 4.19), 9.0pt (12px) / weight bold · 캡처 shots 참조: shots/_skip/2.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-3` · 발생률 1/5
+  - 색상 #44827a on #faf8f3 (대비 4.19), 9.0pt (12px) / weight bold
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727975 on #faf8f3 (대비 4.2), 10.5pt (14px) / weight bold · 캡처 shots 참조: shots/_skip/3.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-4` · 발생률 1/5
+  - 색상 #727975 on #faf8f3 (대비 4.2), 10.5pt (14px) / weight bold
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #44827a on #faf8f3 (대비 4.19), 10.5pt (14px) / weight bold · 캡처 shots 참조: shots/_skip/4.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-5` · 발생률 1/5
+  - 색상 #44827a on #faf8f3 (대비 4.19), 10.5pt (14px) / weight bold
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #828c88 on #faf8f3 (대비 3.26), 9.0pt (12px) / weight normal · 캡처 shots 참조: shots/_skip/5.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-6` · 발생률 1/5
+  - 색상 #828c88 on #faf8f3 (대비 3.26), 9.0pt (12px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `.text-center` · 발생률 1/5
-  - 색상 #828c88 on #faf8f3 (대비 3.26), 10.5pt (14px) / weight normal · 캡처 shots 참조: shots/_skip/6.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-7` · 발생률 1/5
+  - 색상 #828c88 on #faf8f3 (대비 3.26), 10.5pt (14px) / weight normal
   - `(생략)`
 
 ## site-T
 ### 폰트 허용으로 사라진 위반 (폰트 폴백 기인 오탐 후보) (1건)
-- [ ] 오탐 / [ ] 진탐 — `a[href="#"]:nth-child(1)` · 발생률 3/5
+- [ ] 오탐 / [ ] 진탐 — `el-9` · 발생률 3/5
   - 색상 #979797 on #404041 (대비 3.54), 9.8pt (13px) / weight normal
-  - `<a href="#">교내외주요사이트</a>`
+  - `(생략)`
 
 ## site-BJ
 ### 폰트 허용 시 새로 생긴 위반 (미탐 위험 점검) (2건)
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 3/5
-  - 색상 #db2230 on #f3f3f6 (대비 4.42), 9.0pt (12px) / weight bold · 캡처 shots 참조: shots/_skip/1.jpg
-  - `<i>NEW</i>`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 3/5
-  - 색상 #db2230 on #f3f3f6 (대비 4.42), 9.0pt (12px) / weight bold · 캡처 shots 참조: shots/_skip/2.jpg
-  - `<i>NEW</i>`
+- [ ] 오탐 / [ ] 진탐 — `el-18` · 발생률 3/5
+  - 색상 #db2230 on #f3f3f6 (대비 4.42), 9.0pt (12px) / weight bold
+  - `(생략)`
+- [ ] 오탐 / [ ] 진탐 — `el-19` · 발생률 3/5
+  - 색상 #db2230 on #f3f3f6 (대비 4.42), 9.0pt (12px) / weight bold
+  - `(생략)`
 
 ## site-DD
 ### RM 적용 시 새로 생긴 위반 (미탐 위험 점검) (3건)
-- [ ] 오탐 / [ ] 진탐 — `a[href="\/tta\/contents\?contentId\=226"]` · 발생률 1/5
-  - 색상 #6d7882 on #f4f5f6 (대비 4.12), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/9.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-63` · 발생률 1/5
+  - 색상 #6d7882 on #f4f5f6 (대비 4.12), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `a[href="\/tta\/contents\?contentId\=224"]` · 발생률 1/5
-  - 색상 #6d7882 on #f4f5f6 (대비 4.12), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/10.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-64` · 발생률 1/5
+  - 색상 #6d7882 on #f4f5f6 (대비 4.12), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `a[href="\/tta\/contents\?contentId\=223"]` · 발생률 1/5
-  - 색상 #6d7882 on #f4f5f6 (대비 4.12), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/11.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-65` · 발생률 1/5
+  - 색상 #6d7882 on #f4f5f6 (대비 4.12), 12.0pt (16px) / weight normal
   - `(생략)`
 
 ## site-BN
 ### RM 적용 시 새로 생긴 위반 (미탐 위험 점검) (25건)
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/1.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-29` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/2.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-30` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/3.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-31` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/4.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-32` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/5.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-33` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/6.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-34` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/7.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-35` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/site-BN/rm/8.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-36` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/0.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-37` · 발생률 2/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/_skip/2.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-38` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/3.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-39` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/_skip/4.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-40` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/_skip/5.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-41` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/6.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-42` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/_skip/7.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-43` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/8.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-44` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/_skip/9.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-45` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/_skip/2.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-46` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/3.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-47` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/_skip/4.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-48` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/_skip/5.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-49` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/6.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-50` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/_skip/7.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-51` · 발생률 1/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/_skip/8.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-52` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 1/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/_skip/9.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-53` · 발생률 1/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
 ### 폰트 허용 시 새로 생긴 위반 (미탐 위험 점검) (9건)
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/font/0.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-37` · 발생률 2/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/site-BN/font/2.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-54` · 발생률 2/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/font/3.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-55` · 발생률 2/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/site-BN/font/4.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-56` · 발생률 2/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/site-BN/font/5.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-57` · 발생률 2/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/font/6.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-58` · 발생률 2/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal · 캡처 shots 참조: shots/site-BN/font/7.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-59` · 발생률 2/5
+  - 색상 #727780 on #f3f5f7 (대비 4.11), 9.8pt (13px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal · 캡처 shots 참조: shots/site-BN/font/8.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-60` · 발생률 2/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 12.0pt (16px) / weight normal
   - `(생략)`
-- [ ] 오탐 / [ ] 진탐 — `(생략)` · 발생률 2/5
-  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal · 캡처 shots 참조: shots/site-BN/font/9.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-61` · 발생률 2/5
+  - 색상 #ea1917 on #f3f5f7 (대비 4.13), 14.3pt (19px) / weight normal
   - `(생략)`
 
 ## site-DG
 ### 폰트 허용 시 새로 생긴 위반 (미탐 위험 점검) (1건)
-- [ ] 오탐 / [ ] 진탐 — `#\:r0\:` · 발생률 1/5
-  - 색상 #858688 on #ffffff (대비 3.64), 10.5pt (14px) / weight normal · 캡처 shots 참조: shots/_skip/9.jpg
+- [ ] 오탐 / [ ] 진탐 — `el-66` · 발생률 1/5
+  - 색상 #858688 on #ffffff (대비 3.64), 10.5pt (14px) / weight normal
   - `(생략)`
 
