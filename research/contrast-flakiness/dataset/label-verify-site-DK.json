@@ -1,0 +1,25 @@
+{
+  "host": "site-DK",
+  "url": "https://site-DK/",
+  "runs": 5,
+  "okRuns": 5,
+  "confirmedFP": 2,
+  "confirmedTP": 0,
+  "borderline": 0,
+  "detail": [
+    {
+      "selector": "el-100",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-101",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    }
+  ]
+}

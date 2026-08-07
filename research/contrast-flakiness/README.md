@@ -132,6 +132,24 @@ node anonymize.mjs --in=exp-out --out=exp-out-anon --mapping=mapping.json --shot
 | `label-verify-<host>.json` | 사이트별 반복 검증 결과 |
 | `label-verify-summary.md` | 전 사이트 라벨 확정 집계 (논문 표 3) |
 
+## 공개 데이터셋 (`dataset/`)
+
+논문 실험의 측정 결과입니다. 사이트는 익명 ID(`site-A`, `site-B`, …)로, 요소는
+`el-N`으로 치환했습니다.
+
+```bash
+node analyze.mjs --in=dataset/results-combined.json
+node verify-summary.mjs   # dataset/의 label-verify-*.json 집계
+```
+
+**측정값만 담았습니다.** CSS 선택자·HTML 스니펫·URL 경로는 검색하면 원 사이트를
+특정할 수 있어 제거했습니다. 요소 식별자(`el-N`)는 안정적이라 같은 요소가 여러 조건에
+등장하는지는 비교할 수 있지만, 그 요소가 원 사이트의 어느 부분인지는 알 수 없습니다.
+스크린샷도 화면 자체가 식별 정보라 제외했습니다.
+
+조건별 위반 수, 발생률, 대비값, 라벨 판정은 모두 그대로이므로 논문의 표 1~3은 전부
+재현됩니다. 실명 매핑표는 연구자가 비공개로 보관합니다.
+
 ## 라이선스
 
 Apache-2.0. 상위 저장소의 검사 엔진(`packages/core`)과 같은 라이선스입니다.

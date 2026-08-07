@@ -1,0 +1,18 @@
+{
+  "host": "site-CQ",
+  "url": "https://site-CQ/",
+  "runs": 5,
+  "okRuns": 5,
+  "confirmedFP": 0,
+  "confirmedTP": 1,
+  "borderline": 0,
+  "detail": [
+    {
+      "selector": "el-62",
+      "direction": "added",
+      "proposed": "진탐",
+      "stableIncidence": 1,
+      "verdict": "진탐 확정"
+    }
+  ]
+}

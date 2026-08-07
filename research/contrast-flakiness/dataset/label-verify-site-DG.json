@@ -1,0 +1,18 @@
+{
+  "host": "site-DG",
+  "url": "https://site-DG/",
+  "runs": 5,
+  "okRuns": 5,
+  "confirmedFP": 0,
+  "confirmedTP": 0,
+  "borderline": 1,
+  "detail": [
+    {
+      "selector": "el-66",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0.2,
+      "verdict": "경계(안정 상태도 비결정)"
+    }
+  ]
+}

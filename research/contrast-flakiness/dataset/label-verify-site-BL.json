@@ -1,0 +1,53 @@
+{
+  "host": "site-BL",
+  "url": "https://site-BL/",
+  "runs": 5,
+  "okRuns": 5,
+  "confirmedFP": 6,
+  "confirmedTP": 0,
+  "borderline": 0,
+  "detail": [
+    {
+      "selector": "el-23",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-24",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-25",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-26",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-27",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-28",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    }
+  ]
+}

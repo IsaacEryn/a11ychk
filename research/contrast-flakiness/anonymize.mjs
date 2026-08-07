@@ -9,14 +9,20 @@
  * 같은 데이터를 다시 익명화해도 같은 ID가 나온다. 매핑표(mapping.json)를 비공개로
  * 보관하면 나중에 특정 site-X가 어디였는지 되짚을 수 있어 연구 무결성이 유지된다.
  *
+ * 호스트명 치환만으로는 익명성이 보장되지 않는다. CSS 선택자의 고유 클래스명, HTML
+ * 스니펫의 제품명·가격, URL 경로(`/site/xxx_kor/main.do`)는 검색하면 원 사이트를
+ * 특정할 수 있다. 기본 모드(--measurements-only)는 이런 필드를 아예 제거하고 측정값만
+ * 남긴다 — 논문 표는 전부 재현되지만 개별 요소를 원 사이트에서 되찾을 수는 없다.
+ *
  * 익명화 대상:
- *   - results-*.json / labeling-assist.json  : host·url 필드
- *   - label-verify-<host>.json               : 파일명과 내부 host·url
- *   - *.md 리포트                             : 본문에 등장하는 호스트 문자열
- *   - shots/<host>/                          : 디렉터리명 (--shots 지정 시)
+ *   - host·url                : 익명 ID로 치환 (url은 경로 제거)
+ *   - selector·html           : 제거 (--keep-selectors로 유지 가능 — 식별 위험 있음)
+ *   - 파일명·리포트 본문       : 호스트 문자열 치환
+ *   - shots/<host>/           : 스크린샷은 화면 자체가 식별 정보라 기본 제외
  *
  * 실행:
- *   node anonymize.mjs --in=exp-out --out=exp-out-anon [--mapping=mapping.json] [--shots]
+ *   node anonymize.mjs --in=exp-out --out=dataset [--mapping=mapping.json]
+ *   node anonymize.mjs --in=exp-out --out=dataset --keep-selectors   # 식별 위험 감수
  *
  * 주의: 매핑표는 **공개 저장소에 커밋하지 말 것.** 익명화의 의미가 사라진다.
  */
@@ -28,6 +34,7 @@ const IN = argOf("in") ?? "exp-out";
 const OUT = argOf("out") ?? "exp-out-anon";
 const MAPPING = argOf("mapping") ?? "mapping.json";
 const DO_SHOTS = process.argv.includes("--shots");
+const KEEP_SELECTORS = process.argv.includes("--keep-selectors");
 
 if (!fs.existsSync(IN)) {
   console.error(`입력 디렉터리 없음: ${IN}`);
@@ -66,6 +73,18 @@ for (const f of fs.readdirSync(IN)) {
   }
   const m = f.match(/^label-verify-(.+)\.json$/);
   if (m && m[1] !== "summary") hosts.add(m[1]);
+  // 리포트 본문에 등장하는 호스트도 수집한다. 스크리닝에서 제외·실패한 사이트는
+  // 본 실험 결과(results.json)에 없어 위 수집만으로는 매핑에 빠지고, 그러면
+  // 스크리닝 리포트나 오류 메시지에 실명이 그대로 남는다.
+  if (f.endsWith(".md") || f.endsWith(".json")) {
+    const text = fs.readFileSync(full, "utf8");
+    for (const h of text.matchAll(/\b((?:[a-z0-9-]+\.)+(?:kr|com|net|org|io|go\.kr|ac\.kr|or\.kr))\b/gi)) {
+      const host = h[1].toLowerCase().replace(/^www\./, "");
+      // 도구·표준 도메인은 대상이 아니다
+      if (/^(github\.com|w3\.org|deque\.com|a11ychk\.com|npmjs\.com|example\.(com|org))$/.test(host)) continue;
+      hosts.add(host);
+    }
+  }
 }
 if (fs.existsSync(path.join(IN, "shots"))) {
   for (const d of fs.readdirSync(path.join(IN, "shots"))) {
@@ -92,6 +111,45 @@ function anonText(text) {
   return out;
 }
 
+/** URL에서 경로를 떼고 익명 오리진만 남긴다 — 경로는 사이트 식별 단서다 */
+function anonUrl(u) {
+  const id = map.get(String(u).replace(/^https?:\/\/(www\.)?/, "").replace(/\/.*$/, ""));
+  return id ? `https://${id}/` : anonText(String(u));
+}
+
+/**
+ * JSON 트리에서 식별 가능 필드를 정리한다.
+ * host는 ID로, url은 경로 없는 ID로, selector·html·shot은 기본 제거.
+ * 요소 간 동일성 비교는 유지해야 하므로 selector 자리에 안정적인 대체 키를 넣는다.
+ */
+const selKey = new Map();
+function scrubJson(obj) {
+  if (Array.isArray(obj)) return obj.map(scrubJson);
+  if (!obj || typeof obj !== "object") return obj;
+  const out = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (k === "host" && typeof v === "string") out[k] = map.get(v) ?? anonText(v);
+    else if (k === "url" && typeof v === "string") out[k] = anonUrl(v);
+    else if (!KEEP_SELECTORS && k === "selector" && typeof v === "string") {
+      // 내용은 감추되 같은 요소가 여러 조건에 등장하는지는 비교 가능해야 한다
+      if (!selKey.has(v)) selKey.set(v, `el-${selKey.size + 1}`);
+      out[k] = selKey.get(v);
+    } else if (!KEEP_SELECTORS && (k === "html" || k === "shot")) continue;
+    else if (typeof v === "string") out[k] = anonText(v); // error 메시지 등에 URL이 박혀 있다
+    else out[k] = scrubJson(v);
+  }
+  return out;
+}
+
+/** 마크다운 리포트에서 선택자·코드 조각을 가린다 */
+function scrubMarkdown(text) {
+  let t = anonText(text);
+  if (KEEP_SELECTORS) return t;
+  // 백틱으로 감싼 선택자·HTML 조각을 마스킹 (짧은 식별자·조건명은 보존)
+  t = t.replace(/`([^`\n]{25,})`/g, (m, inner) => (/[<>]|[a-zA-Z]{4,}[_-][a-zA-Z]/.test(inner) ? "`(생략)`" : m));
+  return t;
+}
+
 // ── 3) 파일별 치환 ──
 fs.mkdirSync(OUT, { recursive: true });
 let files = 0;
@@ -99,11 +157,25 @@ for (const f of fs.readdirSync(IN)) {
   const full = path.join(IN, f);
   if (!fs.statSync(full).isFile()) continue;
   const outName = anonText(f);
-  fs.writeFileSync(path.join(OUT, outName), anonText(fs.readFileSync(full, "utf8")));
+  const raw = fs.readFileSync(full, "utf8");
+  let content;
+  if (f.endsWith(".json")) {
+    try {
+      content = JSON.stringify(scrubJson(JSON.parse(raw)), null, 2);
+    } catch {
+      content = anonText(raw);
+    }
+  } else if (f.endsWith(".md")) {
+    content = scrubMarkdown(raw);
+  } else {
+    content = anonText(raw);
+  }
+  fs.writeFileSync(path.join(OUT, outName), content);
   files++;
 }
 
 if (DO_SHOTS && fs.existsSync(path.join(IN, "shots"))) {
+  console.warn("  ⚠️ --shots: 스크린샷은 화면 자체가 식별 정보다. 공개 전 검토할 것.");
   const shotsOut = path.join(OUT, "shots");
   fs.mkdirSync(shotsOut, { recursive: true });
   for (const d of fs.readdirSync(path.join(IN, "shots"))) {

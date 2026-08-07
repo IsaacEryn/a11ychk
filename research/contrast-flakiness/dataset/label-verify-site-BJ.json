@@ -1,0 +1,46 @@
+{
+  "host": "site-BJ",
+  "url": "https://site-BJ/",
+  "runs": 5,
+  "okRuns": 5,
+  "confirmedFP": 4,
+  "confirmedTP": 1,
+  "borderline": 0,
+  "detail": [
+    {
+      "selector": "el-18",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-19",
+      "direction": "added",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-20",
+      "direction": "gone",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-21",
+      "direction": "gone",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-22",
+      "direction": "gone",
+      "proposed": "오탐",
+      "stableIncidence": 1,
+      "verdict": "진탐 확정"
+    }
+  ]
+}

@@ -153,6 +153,7 @@ if (failed.length > 0) {
   L.push("실패 사이트는 표본에서 제외하고 그 사유를 논문에 명시할 것.");
 }
 
+fs.mkdirSync(OUT, { recursive: true });
 const outFile = path.join(OUT, "analysis-summary.md");
 fs.writeFileSync(outFile, L.join("\n") + "\n");
 console.log(L.join("\n"));

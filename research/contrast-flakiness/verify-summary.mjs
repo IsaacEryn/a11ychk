@@ -43,5 +43,6 @@ for (const r of perSite) {
 L.push(`| **합계** | **${total}** | **${fp}** | **${tp}** | **${border}** | |`);
 L.push("");
 
+fs.mkdirSync(OUT, { recursive: true });
 fs.writeFileSync(path.join(OUT, "label-verify-summary.md"), L.join("\n") + "\n");
 console.log(L.join("\n"));

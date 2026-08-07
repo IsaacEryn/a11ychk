@@ -1,0 +1,25 @@
+{
+  "host": "site-BE",
+  "url": "https://site-BE/",
+  "runs": 5,
+  "okRuns": 5,
+  "confirmedFP": 2,
+  "confirmedTP": 0,
+  "borderline": 0,
+  "detail": [
+    {
+      "selector": "el-16",
+      "direction": "gone",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    },
+    {
+      "selector": "el-17",
+      "direction": "gone",
+      "proposed": "오탐",
+      "stableIncidence": 0,
+      "verdict": "오탐 확정"
+    }
+  ]
+}

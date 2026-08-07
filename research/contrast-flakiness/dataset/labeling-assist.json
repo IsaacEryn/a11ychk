@@ -1,0 +1,2110 @@
+[
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-1",
+    "fgColor": "#faf8f3",
+    "bgColor": "#44827a",
+    "contrastRatio": 4.19,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "bold",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-2",
+    "fgColor": "#44827a",
+    "bgColor": "#faf8f3",
+    "contrastRatio": 4.19,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-3",
+    "fgColor": "#44827a",
+    "bgColor": "#faf8f3",
+    "contrastRatio": 4.19,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "bold",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-4",
+    "fgColor": "#727975",
+    "bgColor": "#faf8f3",
+    "contrastRatio": 4.2,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "bold",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-5",
+    "fgColor": "#44827a",
+    "bgColor": "#faf8f3",
+    "contrastRatio": 4.19,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "bold",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-6",
+    "fgColor": "#828c88",
+    "bgColor": "#faf8f3",
+    "contrastRatio": 3.26,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-B",
+    "url": "https://site-B/",
+    "selector": "el-7",
+    "fgColor": "#828c88",
+    "bgColor": "#faf8f3",
+    "contrastRatio": 3.26,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-T",
+    "url": "https://site-T/",
+    "selector": "el-9",
+    "fgColor": "#979797",
+    "bgColor": "#404041",
+    "contrastRatio": 3.54,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-CQ",
+    "url": "https://site-CQ/",
+    "selector": "el-62",
+    "fgColor": "#ffffff",
+    "bgColor": "#808080",
+    "contrastRatio": 3.94,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm+font"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 3.94, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 3.94,
+      "fgColor": "#ffffff",
+      "bgColor": "#808080",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BJ",
+    "url": "https://site-BJ/",
+    "selector": "el-18",
+    "fgColor": "#db2230",
+    "bgColor": "#f3f3f6",
+    "contrastRatio": 4.42,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "bold",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BJ",
+    "url": "https://site-BJ/",
+    "selector": "el-19",
+    "fgColor": "#db2230",
+    "bgColor": "#f3f3f6",
+    "contrastRatio": 4.42,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "bold",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BJ",
+    "url": "https://site-BJ/",
+    "selector": "el-20",
+    "fgColor": "#db2230",
+    "bgColor": "#f3f3f6",
+    "contrastRatio": 4.42,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "bold",
+    "hits": 5,
+    "incidence": 1,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-BJ",
+    "url": "https://site-BJ/",
+    "selector": "el-21",
+    "fgColor": "#db2230",
+    "bgColor": "#f3f3f6",
+    "contrastRatio": 4.42,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "bold",
+    "hits": 5,
+    "incidence": 1,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-BJ",
+    "url": "https://site-BJ/",
+    "selector": "el-22",
+    "fgColor": "#db2230",
+    "bgColor": "#f3f3f6",
+    "contrastRatio": 4.42,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "bold",
+    "hits": 5,
+    "incidence": 1,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DD",
+    "url": "https://site-DD/",
+    "selector": "el-63",
+    "fgColor": "#6d7882",
+    "bgColor": "#f4f5f6",
+    "contrastRatio": 4.12,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DD",
+    "url": "https://site-DD/",
+    "selector": "el-64",
+    "fgColor": "#6d7882",
+    "bgColor": "#f4f5f6",
+    "contrastRatio": 4.12,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DD",
+    "url": "https://site-DD/",
+    "selector": "el-65",
+    "fgColor": "#6d7882",
+    "bgColor": "#f4f5f6",
+    "contrastRatio": 4.12,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-29",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-30",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-31",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-32",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-33",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-34",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-35",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-36",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-37",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font",
+      "rm+font"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.11, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.11,
+      "fgColor": "#727780",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-38",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.11, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.11,
+      "fgColor": "#727780",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-39",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.13, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.13,
+      "fgColor": "#ea1917",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-40",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.13, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.13,
+      "fgColor": "#ea1917",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-41",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.11, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.11,
+      "fgColor": "#727780",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-42",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.13, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.13,
+      "fgColor": "#ea1917",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-43",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.11, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.11,
+      "fgColor": "#727780",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-44",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.13, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.13,
+      "fgColor": "#ea1917",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-45",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 4.13, 기준 4.5:1) — 제어 조건이 base가 놓친 위반을 드러냈다(미탐 해소)",
+    "stable": {
+      "contrastRatio": 4.13,
+      "fgColor": "#ea1917",
+      "bgColor": "#f3f5f7",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-46",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-47",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-48",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-49",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-50",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-51",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-52",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-53",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-54",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-55",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-56",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-57",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-58",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-59",
+    "fgColor": "#727780",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.11,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-60",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BN",
+    "url": "https://site-BN/",
+    "selector": "el-61",
+    "fgColor": "#ea1917",
+    "bgColor": "#f3f5f7",
+    "contrastRatio": 4.13,
+    "fontSize": "14.3pt (19px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DG",
+    "url": "https://site-DG/",
+    "selector": "el-66",
+    "fgColor": "#858688",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3.64,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-AM",
+    "url": "https://site-AM/",
+    "selector": "el-10",
+    "fgColor": "#7e7e7e",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.05,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-AM",
+    "url": "https://site-AM/",
+    "selector": "el-11",
+    "fgColor": "#7e7e7e",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.05,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-AM",
+    "url": "https://site-AM/",
+    "selector": "el-12",
+    "fgColor": "#7e7e7e",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.05,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-AM",
+    "url": "https://site-AM/",
+    "selector": "el-13",
+    "fgColor": "#7e7e7e",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.05,
+    "fontSize": "12.0pt (16px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-AM",
+    "url": "https://site-AM/",
+    "selector": "el-14",
+    "fgColor": "#407fd7",
+    "bgColor": "#ecf4ff",
+    "contrastRatio": 3.62,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 4,
+    "incidence": 0.8,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "진탐",
+    "reason": "안정 상태에서도 위반 (대비 3.67, 기준 4.5:1) — 제어 조건이 진짜 위반을 가렸다(미탐 유발)",
+    "stable": {
+      "contrastRatio": 3.67,
+      "fgColor": "#179300",
+      "bgColor": "#e1fcdc",
+      "expected": "4.5:1"
+    }
+  },
+  {
+    "host": "site-AM",
+    "url": "https://site-AM/",
+    "selector": "el-15",
+    "fgColor": "#d85b54",
+    "bgColor": "#ffeae8",
+    "contrastRatio": 3.28,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 5,
+    "incidence": 1,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-L",
+    "url": "https://site-L/",
+    "selector": "el-8",
+    "fgColor": "#7c7c7c",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.17,
+    "fontSize": "15.0pt (20px)",
+    "fontWeight": "normal",
+    "hits": 5,
+    "incidence": 1,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-BE",
+    "url": "https://site-BE/",
+    "selector": "el-16",
+    "fgColor": "#272e3c",
+    "bgColor": "#000919",
+    "contrastRatio": 1.46,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-BE",
+    "url": "https://site-BE/",
+    "selector": "el-17",
+    "fgColor": "#272e3c",
+    "bgColor": "#000919",
+    "contrastRatio": 1.46,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "bold",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DK",
+    "url": "https://site-DK/",
+    "selector": "el-100",
+    "fgColor": "#72787e",
+    "bgColor": "#f6f8fc",
+    "contrastRatio": 4.19,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DK",
+    "url": "https://site-DK/",
+    "selector": "el-101",
+    "fgColor": "#1273ff",
+    "bgColor": "#f6f8fc",
+    "contrastRatio": 4.01,
+    "fontSize": "9.8pt (13px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BL",
+    "url": "https://site-BL/",
+    "selector": "el-23",
+    "fgColor": "#7a7a7a",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.29,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BL",
+    "url": "https://site-BL/",
+    "selector": "el-24",
+    "fgColor": "#7a7a7a",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.29,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BL",
+    "url": "https://site-BL/",
+    "selector": "el-25",
+    "fgColor": "#7a7a7a",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.29,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BL",
+    "url": "https://site-BL/",
+    "selector": "el-26",
+    "fgColor": "#7a7a7a",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.29,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BL",
+    "url": "https://site-BL/",
+    "selector": "el-27",
+    "fgColor": "#7a7a7a",
+    "bgColor": "#ffffff",
+    "contrastRatio": 4.29,
+    "fontSize": "10.5pt (14px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-BL",
+    "url": "https://site-BL/",
+    "selector": "el-28",
+    "fgColor": "#949494",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3.03,
+    "fontSize": "7.5pt (10px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-67",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-68",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-69",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-70",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-71",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-72",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-73",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-74",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "rm"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-75",
+    "fgColor": "#6699cc",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-76",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-77",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font",
+      "rm+font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-78",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-79",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-80",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-81",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-82",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-83",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-84",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 1,
+    "incidence": 0.2,
+    "okRuns": 5,
+    "direction": "added",
+    "conds": [
+      "rm",
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 새로 만들었다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-85",
+    "fgColor": "#6699cc",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-86",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-87",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-88",
+    "fgColor": "#6699cc",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-89",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-90",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-91",
+    "fgColor": "#6699cc",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-92",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-93",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-94",
+    "fgColor": "#6699cc",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-95",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-96",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 3,
+    "incidence": 0.6,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-97",
+    "fgColor": "#6699cc",
+    "bgColor": "#ffffff",
+    "contrastRatio": 3,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-98",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  },
+  {
+    "host": "site-DJ",
+    "url": "https://site-DJ/",
+    "selector": "el-99",
+    "fgColor": "#999999",
+    "bgColor": "#ffffff",
+    "contrastRatio": 2.84,
+    "fontSize": "9.0pt (12px)",
+    "fontWeight": "normal",
+    "hits": 2,
+    "incidence": 0.4,
+    "okRuns": 5,
+    "direction": "gone",
+    "conds": [
+      "font"
+    ],
+    "label": "오탐",
+    "reason": "안정 상태에서는 위반 아님 — 제어 조건이 오탐을 걷어냈다",
+    "stable": null
+  }
+]
