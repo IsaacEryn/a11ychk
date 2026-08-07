@@ -1,0 +1,25 @@
+{
+  "name": "a11ychk-contrast-flakiness",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Research harness: 2x2 rendering-condition experiment on color-contrast false positives in automated web accessibility testing",
+  "license": "Apache-2.0",
+  "type": "module",
+  "//": "워크스페이스 밖 독립 패키지 — 논문 재현용. 이 디렉터리에서 npm install 후 실행한다.",
+  "engines": {
+    "node": ">=22.19"
+  },
+  "scripts": {
+    "screen": "node contrast-falsepos.mjs --screen",
+    "experiment": "node contrast-falsepos.mjs",
+    "analyze": "node analyze.mjs",
+    "label": "node label-assist.mjs",
+    "verify": "node verify-labels.mjs",
+    "verify-summary": "node verify-summary.mjs",
+    "anonymize": "node anonymize.mjs"
+  },
+  "dependencies": {
+    "axe-core": "^4.12.1",
+    "playwright": "^1.62.0"
+  }
+}
