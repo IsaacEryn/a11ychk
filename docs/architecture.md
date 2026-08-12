@@ -20,7 +20,10 @@
 [runScan 오케스트레이터]  (apps/web/src/lib/scan/runScan.ts)
   7. collectPages: robots.txt 확인 → sitemap.xml → 내부 링크 BFS (미확인 5 / 확인 10페이지)
   8. 페이지별: SSRF 재검증 → chromium 로드 → 서브리소스 내부망 차단 route →
-     axe.run (WCAG 2.2 AA + BP 태그) → findings 정규화 저장
+     axe.run (WCAG 2.2 AA + BP 태그) + 원본 소스 마크업 유효성 검사(parse5, KWCAG 8.1.1)
+     → findings 정규화 저장
+     ※ 마크업 유효성은 원본 응답 본문이 필요해 웹·Action·MCP에만 적용된다 —
+       크롬 확장은 렌더된 DOM만 접근 가능해 이 검사가 빠진다
   9. aggregateScan: impact 집계 + KWCAG 33항목 매트릭스 + 준수율 → scans.summary
 [클라이언트] /scans/[id] 에서 2.5초 폴링(aria-live) → 완료 시 보고서로 이동
 ```

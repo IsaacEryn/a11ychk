@@ -2,9 +2,9 @@
   "summary": {
     "generatedFrom": "packages/core/src/catalog (RULE_CATALOG, WCAG_CRITERIA, KWCAG_ITEMS)",
     "rules": {
-      "total": 111,
+      "total": 113,
       "axe": 98,
-      "custom": 13
+      "custom": 15
     },
     "wcag": {
       "totalCriteria": 55,
@@ -780,7 +780,7 @@
       "name": "마크업 오류 방지",
       "autoCoverage": "full",
       "axeRules": 2,
-      "customRules": 0
+      "customRules": 2
     },
     {
       "id": "8.2.1",
