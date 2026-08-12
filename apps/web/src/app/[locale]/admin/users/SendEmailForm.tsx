@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { sendUserEmail, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
+import { useAdminAction } from "../useAdminAction";
 
 /** 샘플 양식 id — 본문은 i18n(admin.users.email.templates.*)에서 채운다 */
 const TEMPLATE_IDS = ["welcome", "delay", "update", "feedback"] as const;
@@ -12,7 +12,7 @@ const TEMPLATE_IDS = ["welcome", "delay", "update", "feedback"] as const;
 /** 관리자 → 사용자 메일 발송 폼 (접기형) — 샘플 양식 선택 시 제목·본문을 기본값으로 채운다 */
 export function SendEmailForm({ userId }: { userId: string }) {
   const t = useTranslations("admin.users.email");
-  const [state, formAction, pending] = useActionState<SaveState, FormData>(sendUserEmail, {});
+  const [state, formAction, pending] = useAdminAction<SaveState, FormData>(sendUserEmail, {});
   const [template, setTemplate] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");

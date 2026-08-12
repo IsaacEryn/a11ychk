@@ -5,7 +5,6 @@ import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkAdmin } from "@/lib/adminGuard";
-import { adminBase } from "@/lib/adminSlug";
 import { localeFromPathname } from "@/i18n/routing";
 
 /** 전 경로 캐시 무효화 — 인증 상태처럼 모든 페이지에 영향이 있을 때만 사용 */
@@ -16,26 +15,32 @@ export function revalidateAll() {
 /**
  * 영향받은 경로만 무효화 (양 로케일). 예: revalidateLocalized("/dashboard")
  *
- * 관리자 경로는 한 번 더 무효화한다. 프록시가 `/{locale}/{slug}/**`를 내부
- * `/{locale}/admin/**`로 rewrite하므로 두 경로가 가리키는 화면은 같지만, 클라이언트
- * 라우터의 캐시 키는 **브라우저에 보이는 슬러그 경로**다. 내부 경로만 무효화하면
- * 서버 액션이 끝난 뒤 라우터가 갱신할 대상을 찾지 못해 트랜지션이 닫히지 않고,
- * useActionState의 pending이 영영 풀리지 않는다 — 버튼이 "처리 중"에 머문 채
- * 성공/실패 표시가 나오지 않는 증상으로 보인다.
+ * **관리자 경로(`/admin**`)는 무효화하지 않는다.** 두 가지 이유가 겹친다.
  *
- * 실측(2026-08-12, 프로덕션): 관리자 폼은 네트워크가 600ms 안에 모두 끝났는데도
- * pending이 1분 넘게 유지됐고, 같은 useActionState + revalidatePath 조합인
- * 마이페이지 닉네임 저장은 정상 동작했다. rewrite가 걸린 경로에서만 나타난다.
+ * 첫째, 관리자 페이지는 전부 요청마다 렌더된다(requireAdmin이 쿠키를 읽어 동적
+ * 렌더가 강제되고, 데이터도 매번 Supabase에서 읽는다). 무효화할 캐시가 없다.
+ *
+ * 둘째, 무효화가 실제로 해롭다. 프록시가 `/{locale}/{slug}/**`를 내부
+ * `/{locale}/admin/**`로 rewrite하는데 클라이언트 라우터의 캐시 키는 브라우저에
+ * 보이는 슬러그 경로다. 서버가 "이 경로를 갱신하라"고 알려도 라우터가 대상을
+ * 찾지 못해 트랜지션이 닫히지 않고, useActionState의 pending이 풀리지 않는다.
+ * 버튼이 "처리 중"에 머문 채 성공 표시가 나오지 않는 증상이다.
+ *
+ * 실측(2026-08-12, 프로덕션): 네트워크는 600ms 안에 끝났는데 pending이 1분 넘게
+ * 유지됐고, 같은 조합을 쓰는 마이페이지 닉네임 저장은 정상이었다. 바깥 경로를
+ * 함께 무효화해 보니 페이지 로드 후 첫 제출만 풀리고 두 번째부터 다시 멈췄다.
+ *
+ * 관리자 화면의 갱신은 클라이언트에서 한다 — `useAdminAction`이 성공 시
+ * `router.refresh()`를 부른다. refresh는 브라우저 URL 기준이라 rewrite와 무관하다.
+ *
+ * 호출부는 영향 범위를 그대로 적어 둔다(예: `("/admin/users", "/dashboard")`).
+ * 어디가 바뀌는지 읽히는 편이 낫고, 관리자 경로만 여기서 걸러진다.
  */
 export function revalidateLocalized(...paths: string[]) {
-  const base = adminBase(); // 슬러그 미설정이면 "/admin" — 이때는 추가 무효화가 불필요
   for (const path of paths) {
-    for (const locale of ["ko", "en"]) {
-      revalidatePath(`/${locale}${path}`);
-      if (base !== "/admin" && path.startsWith("/admin")) {
-        revalidatePath(`/${locale}${base}${path.slice("/admin".length)}`);
-      }
-    }
+    if (path === "/admin" || path.startsWith("/admin/")) continue;
+    revalidatePath(`/ko${path}`);
+    revalidatePath(`/en${path}`);
   }
 }
 

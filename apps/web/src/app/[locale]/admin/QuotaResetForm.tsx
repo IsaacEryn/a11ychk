@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { resetQuota, type ResetQuotaState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
+import { useAdminAction } from "./useAdminAction";
 
 /** 사용자 한도 초기화 폼 — 실행 중/성공/실패 상태를 즉시 보여준다 */
 export function QuotaResetForm({ userId }: { userId: string }) {
   const t = useTranslations("admin.users");
-  const [state, formAction, pending] = useActionState<ResetQuotaState, FormData>(resetQuota, {});
+  const [state, formAction, pending] = useAdminAction<ResetQuotaState, FormData>(resetQuota, {});
 
   return (
     <form action={formAction} className="flex flex-wrap items-end gap-2">

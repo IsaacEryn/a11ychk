@@ -1,14 +1,14 @@
 "use client";
 
-import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { refreshRepoStats, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
+import { useAdminAction } from "./useAdminAction";
 
 /** 저장소 통계 수동 새로고침 — 성공/실패 피드백 제공 (이전엔 실패가 무증상이었음) */
 export function RefreshStatsForm() {
   const t = useTranslations("admin.growth");
-  const [state, formAction, pending] = useActionState<SaveState, FormData>(refreshRepoStats, {});
+  const [state, formAction, pending] = useAdminAction<SaveState, FormData>(refreshRepoStats, {});
 
   return (
     <form action={formAction} className="flex items-center gap-2">

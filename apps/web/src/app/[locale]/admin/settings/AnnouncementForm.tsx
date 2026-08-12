@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { publishAnnouncement, clearAnnouncementBanner, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
+import { useAdminAction } from "../useAdminAction";
 
 const inputCls =
   "w-full rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-sm";
@@ -20,8 +20,8 @@ export function AnnouncementForm({
   activeUntil: string | null;
 }) {
   const t = useTranslations("admin.announcement");
-  const [state, formAction, pending] = useActionState<SaveState, FormData>(publishAnnouncement, {});
-  const [clearState, clearAction, clearPending] = useActionState<SaveState, FormData>(clearAnnouncementBanner, {});
+  const [state, formAction, pending] = useAdminAction<SaveState, FormData>(publishAnnouncement, {});
+  const [clearState, clearAction, clearPending] = useAdminAction<SaveState, FormData>(clearAnnouncementBanner, {});
 
   return (
     <section className="mt-4 border-[1.5px] border-dashed border-[var(--color-line)] p-4">

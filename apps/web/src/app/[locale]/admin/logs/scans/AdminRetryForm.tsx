@@ -1,9 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
 import { useTranslations } from "next-intl";
 import { adminRetryScan, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
+import { useAdminAction } from "../../useAdminAction";
 
 /**
  * 실패 검사 관리자 재검사 버튼 — 한도 미차감, 성공 시에만 사용자에게 노출.
@@ -11,7 +11,7 @@ import { FormFeedback } from "@/components/FormFeedback";
  */
 export function AdminRetryForm({ scanId }: { scanId: string }) {
   const t = useTranslations("admin.scans.retry");
-  const [state, formAction, pending] = useActionState<SaveState, FormData>(adminRetryScan, {});
+  const [state, formAction, pending] = useAdminAction<SaveState, FormData>(adminRetryScan, {});
 
   return (
     <form action={formAction} className="flex flex-wrap items-center gap-2">
