@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { appFetch } from "@/lib/serviceStatus";
+import { PendingStatus } from "@/components/PendingStatus";
 
 export interface MfaSetupLabels {
   scanQr: string;
@@ -10,9 +11,14 @@ export interface MfaSetupLabels {
   codeLabel: string;
   verify: string;
   working: string;
+  preparing: string;
+  redirecting: string;
   errInvalidCode: string;
   errGeneric: string;
 }
+
+/** 챌린지 폼과 같은 이유로 성공 후 redirecting에 머문다 (MfaChallengeForm 주석 참조) */
+type Phase = "preparing" | "ready" | "verifying" | "redirecting";
 
 /**
  * TOTP 등록 — 미검증 잔류 factor 정리 → enroll → QR(data: SVG)/시크릿 표시 →
@@ -23,7 +29,7 @@ export function MfaSetupForm({ next, labels }: { next: string; labels: MfaSetupL
   const [qr, setQr] = useState<string | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [code, setCode] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [phase, setPhase] = useState<Phase>("preparing");
   const [error, setError] = useState<string | null>(null);
   const started = useRef(false);
 
@@ -45,42 +51,48 @@ export function MfaSetupForm({ next, labels }: { next: string; labels: MfaSetupL
       });
       if (enrollErr || !data) {
         setError(labels.errGeneric);
+        setPhase("ready");
         return;
       }
       setFactorId(data.id);
       setQr(data.totp.qr_code);
       setSecret(data.totp.secret);
+      setPhase("ready");
     })();
   }, [labels.errGeneric]);
+
+  const busy = phase === "verifying" || phase === "redirecting";
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!factorId || busy) return;
-    setBusy(true);
+    setPhase("verifying");
     setError(null);
-    try {
-      const supabase = createClient();
-      const { error: vErr } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: code.trim() });
-      if (vErr) {
-        setError(labels.errInvalidCode);
-        setCode("");
-        return;
-      }
-      // AAL2 완성 — 동시 로그인 철회·알림·무활동 타이머 (best-effort)
-      try {
-        await appFetch("/api/auth/post-login", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ stage: "mfa" }),
-        });
-      } catch {
-        // 훅 실패는 접근을 막지 않는다 — requireAdmin이 상태를 재검증
-      }
-      window.location.assign(next);
-    } finally {
-      setBusy(false);
+    const supabase = createClient();
+    const { error: vErr } = await supabase.auth.mfa.challengeAndVerify({ factorId, code: code.trim() });
+    if (vErr) {
+      setError(labels.errInvalidCode);
+      setCode("");
+      setPhase("ready");
+      return;
     }
+    // AAL2 완성 — 동시 로그인 철회·알림·무활동 타이머 (best-effort)
+    setPhase("redirecting");
+    try {
+      await appFetch("/api/auth/post-login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ stage: "mfa" }),
+      });
+    } catch {
+      // 훅 실패는 접근을 막지 않는다 — requireAdmin이 상태를 재검증
+    }
+    // 이동이 끝날 때까지 redirecting 유지 — 상태를 되돌리면 표시가 사라진다
+    window.location.assign(next);
   }
+
+  const statusMessage =
+    phase === "preparing" ? labels.preparing : phase === "verifying" ? labels.working : phase === "redirecting" ? labels.redirecting : null;
 
   return (
     <form onSubmit={onSubmit} className="mt-5">
@@ -90,7 +102,10 @@ export function MfaSetupForm({ next, labels }: { next: string; labels: MfaSetupL
         // eslint-disable-next-line @next/next/no-img-element
         <img src={qr} alt="TOTP QR" width={176} height={176} className="mt-3 border-[1.5px] border-[var(--color-line)] bg-white p-2" />
       ) : (
-        <p className="mt-3 text-sm text-[var(--color-ink-faint)]">…</p>
+        <div
+          aria-hidden="true"
+          className="mt-3 size-44 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] motion-safe:animate-pulse"
+        />
       )}
       {secret && (
         <p className="mt-3 text-xs text-[var(--color-ink-soft)]">
@@ -110,19 +125,21 @@ export function MfaSetupForm({ next, labels }: { next: string; labels: MfaSetupL
         pattern="[0-9]{6}"
         maxLength={6}
         required
+        disabled={busy}
         value={code}
         onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-        className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2.5 text-center text-2xl font-bold tracking-[0.4em]"
+        className="w-full rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2.5 text-center text-2xl font-bold tracking-[0.4em] disabled:opacity-60"
       />
       <button
         type="submit"
-        disabled={busy || code.length !== 6 || !factorId}
+        disabled={phase !== "ready" || code.length !== 6 || !factorId}
         className="mt-4 w-full rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-4 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] disabled:opacity-60"
       >
-        {busy ? labels.working : labels.verify}
+        {phase === "verifying" ? labels.working : phase === "redirecting" ? labels.redirecting : labels.verify}
       </button>
+      <PendingStatus message={statusMessage} />
       {error && (
-        <p role="alert" className="mt-3 text-sm font-medium text-[var(--color-crit)]">
+        <p role="alert" className="mt-2 text-sm font-medium text-[var(--color-crit)]">
           {error}
         </p>
       )}

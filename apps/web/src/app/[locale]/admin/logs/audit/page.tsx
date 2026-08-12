@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminBase } from "@/lib/adminSlug";
 import { escapeLike } from "@/lib/like";
 import { AUDIT_ACTIONS } from "@/lib/adminLogLabels";
-import { Link } from "@/i18n/navigation";
+import { AdminLink } from "../../AdminLink";
 import { Pager, PAGE_SIZE, parsePage } from "../../Pager";
 import { FILTER_BTN, INPUT, TABLE, TH, TR, TR_HEAD } from "../../tableStyles";
 
@@ -200,12 +200,12 @@ export default async function AdminAuditLogsPage({
                   {l.target ? (
                     targetUsers.has(l.target) ? (
                       // 사용자 대상 — 이메일 병기 대신 상세 드로어로 연결 (조회 N+1 제거)
-                      <Link
+                      <AdminLink
                         href={{ pathname: `${adminBase()}/users`, query: { user: l.target } }}
                         className="font-semibold underline underline-offset-2 hover:text-[var(--color-seal)]"
                       >
                         {targetUsers.get(l.target)}
-                      </Link>
+                      </AdminLink>
                     ) : targetInquiries.has(l.target) ? (
                       `"${targetInquiries.get(l.target)}"`
                     ) : (

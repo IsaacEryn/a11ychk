@@ -254,6 +254,8 @@
       "codeLabel": "Verification code (6 digits)",
       "verify": "Verify",
       "working": "Verifying…",
+      "preparing": "Preparing…",
+      "redirecting": "Verified — redirecting…",
       "reissue": "Code expired? Try again",
       "errInvalidCode": "Invalid code. Try again with the latest code from your app.",
       "errGeneric": "Something went wrong. Refresh and try again."

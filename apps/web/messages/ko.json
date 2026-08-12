@@ -254,6 +254,8 @@
       "codeLabel": "인증 코드 (6자리)",
       "verify": "확인",
       "working": "확인 중…",
+      "preparing": "인증 준비 중…",
+      "redirecting": "인증 완료 — 이동 중…",
       "reissue": "코드가 만료됐나요? 다시 시도",
       "errInvalidCode": "코드가 올바르지 않습니다. 앱의 최신 코드로 다시 시도해 주세요.",
       "errGeneric": "처리 중 오류가 발생했습니다. 새로고침 후 다시 시도해 주세요."

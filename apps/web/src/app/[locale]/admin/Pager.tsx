@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
+import { AdminLink } from "./AdminLink";
 
 export const PAGE_SIZE = 50;
 
@@ -43,17 +43,17 @@ export async function Pager({
   return (
     <nav aria-label={t("label")} className="mt-4 flex items-center gap-3">
       {page > 1 && (
-        <Link rel="prev" href={href(page - 1)} className={linkCls}>
+        <AdminLink rel="prev" href={href(page - 1)} className={linkCls}>
           {t("prev")}
-        </Link>
+        </AdminLink>
       )}
       <span className="text-sm tabular-nums text-[var(--color-ink-soft)]">
         {t("range", { from, to, total })}
       </span>
       {page < lastPage && (
-        <Link rel="next" href={href(page + 1)} className={linkCls}>
+        <AdminLink rel="next" href={href(page + 1)} className={linkCls}>
           {t("next")}
-        </Link>
+        </AdminLink>
       )}
     </nav>
   );

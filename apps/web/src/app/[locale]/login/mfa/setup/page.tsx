@@ -53,6 +53,8 @@ export default async function MfaSetupPage({
             codeLabel: t("codeLabel"),
             verify: t("verify"),
             working: t("working"),
+            preparing: t("preparing"),
+            redirecting: t("redirecting"),
             errInvalidCode: t("errInvalidCode"),
             errGeneric: t("errGeneric"),
           }}

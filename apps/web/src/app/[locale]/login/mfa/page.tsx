@@ -50,6 +50,8 @@ export default async function MfaChallengePage({
             codeLabel: t("codeLabel"),
             verify: t("verify"),
             working: t("working"),
+            preparing: t("preparing"),
+            redirecting: t("redirecting"),
             reissue: t("reissue"),
             errInvalidCode: t("errInvalidCode"),
             errGeneric: t("errGeneric"),

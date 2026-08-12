@@ -1,6 +1,7 @@
 "use client";
 
-import { Link, usePathname } from "@/i18n/navigation";
+import { usePathname } from "@/i18n/navigation";
+import { AdminLink } from "./AdminLink";
 
 interface AdminNavLabels {
   label: string;
@@ -39,7 +40,7 @@ export function AdminNav({ labels, basePath }: { labels: AdminNavLabels; basePat
           const current = item.href === basePath ? pathname === basePath : pathname.startsWith(item.href);
           return (
             <li key={item.href}>
-              <Link
+              <AdminLink
                 href={item.href}
                 aria-current={current ? "page" : undefined}
                 className={`block border-b-[3px] px-3 py-2 text-sm font-bold ${
@@ -49,7 +50,7 @@ export function AdminNav({ labels, basePath }: { labels: AdminNavLabels; basePat
                 }`}
               >
                 {item.label}
-              </Link>
+              </AdminLink>
             </li>
           );
         })}

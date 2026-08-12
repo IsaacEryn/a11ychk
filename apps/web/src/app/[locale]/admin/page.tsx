@@ -1,7 +1,7 @@
 import { adminBase } from "@/lib/adminSlug";
 import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
-import { Link } from "@/i18n/navigation";
+import { AdminLink } from "./AdminLink";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { MAX_CONCURRENT_SCANS } from "@/lib/scan/drain";
 import { CRON_STALE_HOURS, isCronStale } from "@/lib/cronRun";
@@ -125,9 +125,9 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
               )}
             </dd>
             <dd className="mt-2">
-              <Link href={s.href} className="text-xs font-semibold text-[var(--color-seal)] underline underline-offset-4">
+              <AdminLink href={s.href} className="text-xs font-semibold text-[var(--color-seal)] underline underline-offset-4">
                 {t("dashboard.goDetail")}
-              </Link>
+              </AdminLink>
             </dd>
           </div>
         ))}
@@ -208,12 +208,12 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             {t("growth.title")}
           </h2>
           <div className="flex items-center gap-3">
-            <Link
+            <AdminLink
               href="/impact"
               className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4"
             >
               {t("growth.publicPage")}
-            </Link>
+            </AdminLink>
             <RefreshStatsForm />
           </div>
         </div>
@@ -251,9 +251,9 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             <h2 id="admin-recent-scans-heading" className="font-display text-xl font-bold">
               {t("dashboard.recentScans")}
             </h2>
-            <Link href={`${base}/logs/scans`} className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4">
+            <AdminLink href={`${base}/logs/scans`} className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4">
               {t("dashboard.viewAll")}
-            </Link>
+            </AdminLink>
           </div>
           <ul className="mt-3 divide-y divide-[var(--color-line)] border-y-[1.5px] border-[var(--color-ink)]">
             {(recentScans.data ?? []).map((s) => (
@@ -281,12 +281,12 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
             <h2 id="admin-open-inquiries-heading" className="font-display text-xl font-bold">
               {t("stats.openInquiries")}
             </h2>
-            <Link
+            <AdminLink
               href={`${base}/inquiries`}
               className="text-sm font-semibold text-[var(--color-seal)] underline underline-offset-4"
             >
               {t("dashboard.viewAll")}
-            </Link>
+            </AdminLink>
           </div>
           <ul className="mt-3 divide-y divide-[var(--color-line)] border-y-[1.5px] border-[var(--color-ink)]">
             {(openList.data ?? []).map((q) => (

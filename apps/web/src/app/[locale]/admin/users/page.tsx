@@ -5,7 +5,7 @@ import { getPlansActive } from "@/lib/appSettings";
 import { adminBase } from "@/lib/adminSlug";
 import { escapeLike } from "@/lib/like";
 import { EXT_DAILY_LIMITS, getEarnedPlan, getPlan } from "@/lib/quota";
-import { Link } from "@/i18n/navigation";
+import { AdminLink } from "../AdminLink";
 import { Pager, PAGE_SIZE, parsePage } from "../Pager";
 import { FILTER_BTN, INPUT, TABLE, TH, TR, TR_HEAD } from "../tableStyles";
 import { UserDrawer } from "./UserDrawer";
@@ -123,9 +123,9 @@ export default async function AdminUsersPage({
       {!plansActive && (
         <p role="note" className="mt-3 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
           {t("users.plansInactive")}{" "}
-          <Link href={`${adminBase()}/settings`} className="font-bold underline underline-offset-4">
+          <AdminLink href={`${adminBase()}/settings`} className="font-bold underline underline-offset-4">
             {t("users.plansInactiveLink")}
-          </Link>
+          </AdminLink>
         </p>
       )}
 
@@ -193,7 +193,7 @@ export default async function AdminUsersPage({
                     {format.dateTime(new Date(u.created_at), { dateStyle: "short" })}
                   </td>
                   <td className="py-2">
-                    <Link
+                    <AdminLink
                       href={{
                         pathname: `${adminBase()}/users`,
                         query: { ...filterQuery, ...(page > 1 ? { page: String(page) } : {}), user: u.id },
@@ -202,7 +202,7 @@ export default async function AdminUsersPage({
                       className="text-xs font-bold text-[var(--color-seal)] underline underline-offset-2 hover:text-[var(--color-seal-deep)]"
                     >
                       {t("users.manage")}
-                    </Link>
+                    </AdminLink>
                   </td>
                 </tr>
               );
