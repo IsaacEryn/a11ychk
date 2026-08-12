@@ -2,7 +2,7 @@
 
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from "react";
 import type { ScanSummary } from "@a11ychk/core/catalog";
-import { buildEffectiveKwcagReviews, buildEffectiveWcagReviews } from "./derivedReviews";
+import { buildEffectiveKwcagReviews, buildEffectiveWcagReviews, type EffectiveReview } from "./derivedReviews";
 import type { ReviewValue } from "./ReviewCell";
 
 /**
@@ -19,8 +19,13 @@ interface ReviewsCtx {
   /** 표준별 유효 판정 완료 항목 수 (직접+파생) */
   doneCount: (std: "wcag" | "kwcag") => number;
   manualTotal: (std: "wcag" | "kwcag") => number;
-  /** 저장 성공 시 ReviewCell이 호출 — outcome null은 판정 해제 */
-  apply: (std: "wcag" | "kwcag", itemId: string, outcome: string | null, scores?: Scores | null) => void;
+  /** 저장 성공 시 ReviewCell이 호출 — value null은 판정 해제 */
+  apply: (std: "wcag" | "kwcag", itemId: string, value: ReviewValue | null, scores?: Scores | null) => void;
+  /**
+   * 행 배지용 라이브 판정 — 서버 렌더와 같은 기준을 유지한다:
+   * WCAG 매트릭스는 직접 판정만, KWCAG 매트릭스는 유효 판정(직접+파생)을 표시.
+   */
+  liveReview: (std: "wcag" | "kwcag", itemId: string) => EffectiveReview | null;
   /** 다음 미판정 항목의 판정 셀로 초점 이동 (fromItemId 이후, 없으면 처음부터) */
   focusNext: (std: "wcag" | "kwcag", fromItemId?: string) => void;
 }
@@ -85,17 +90,23 @@ export function ReviewsProvider({
   const manualTotal = useCallback((std: "wcag" | "kwcag") => manualIds[std].length, [manualIds]);
 
   const apply = useCallback(
-    (std: "wcag" | "kwcag", itemId: string, outcome: string | null, nextScores?: Scores | null) => {
+    (std: "wcag" | "kwcag", itemId: string, value: ReviewValue | null, nextScores?: Scores | null) => {
       const setter = std === "wcag" ? setWcag : setKwcag;
       setter((prev) => {
         const next = { ...prev };
-        if (outcome === null) delete next[itemId];
-        else next[itemId] = { outcome, note: prev[itemId]?.note ?? "" };
+        if (value === null) delete next[itemId];
+        else next[itemId] = value;
         return next;
       });
       if (nextScores) setScores(nextScores);
     },
     [],
+  );
+
+  const liveReview = useCallback(
+    (std: "wcag" | "kwcag", itemId: string): EffectiveReview | null =>
+      (std === "wcag" ? wcag[itemId] : effective.kwcag.get(itemId)) ?? null,
+    [wcag, effective],
   );
 
   const focusNext = useCallback(
@@ -123,8 +134,8 @@ export function ReviewsProvider({
   );
 
   const value = useMemo(
-    () => ({ scores, doneCount, manualTotal, apply, focusNext }),
-    [scores, doneCount, manualTotal, apply, focusNext],
+    () => ({ scores, doneCount, manualTotal, apply, focusNext, liveReview }),
+    [scores, doneCount, manualTotal, apply, focusNext, liveReview],
   );
 
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;

@@ -143,16 +143,25 @@ export async function loadReport(locale: string, id: string, token: string | und
   const meta = (scan.report_meta ?? null) as ReportMeta | null;
 
   // 점검자 판정 (migration 0004 전에는 테이블이 없어 실패 → 빈 목록으로 진행)
-  // pages 컬럼(0010) 미적용이어도 깨지지 않게 별도 시도
-  let reviewRows: { standard: string; item_id: string; outcome: string; note: string; pages?: unknown }[] | null =
-    null;
+  // 확장 컬럼(pages 0010 → page_outcomes 0036) 미적용이어도 깨지지 않게 단계적으로 시도
+  let reviewRows:
+    | { standard: string; item_id: string; outcome: string; note: string; pages?: unknown; page_outcomes?: unknown }[]
+    | null = null;
   {
-    const withPages = await db.from("scan_reviews").select("standard, item_id, outcome, note, pages").eq("scan_id", id);
-    if (withPages.error) {
-      const basic = await db.from("scan_reviews").select("standard, item_id, outcome, note").eq("scan_id", id);
-      reviewRows = basic.data;
+    const full = await db
+      .from("scan_reviews")
+      .select("standard, item_id, outcome, note, pages, page_outcomes")
+      .eq("scan_id", id);
+    if (!full.error) {
+      reviewRows = full.data;
     } else {
-      reviewRows = withPages.data;
+      const withPages = await db.from("scan_reviews").select("standard, item_id, outcome, note, pages").eq("scan_id", id);
+      if (withPages.error) {
+        const basic = await db.from("scan_reviews").select("standard, item_id, outcome, note").eq("scan_id", id);
+        reviewRows = basic.data;
+      } else {
+        reviewRows = withPages.data;
+      }
     }
   }
   const wcagReviews = new Map<string, ReviewValue>();
@@ -160,7 +169,11 @@ export async function loadReport(locale: string, id: string, token: string | und
   for (const r of reviewRows ?? []) {
     const target = r.standard === "wcag" ? wcagReviews : kwcagReviews;
     const pages = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
-    target.set(r.item_id, { outcome: r.outcome, note: r.note, pages });
+    const pageOutcomes =
+      r.page_outcomes && typeof r.page_outcomes === "object" && !Array.isArray(r.page_outcomes)
+        ? (r.page_outcomes as Record<string, string>)
+        : undefined;
+    target.set(r.item_id, { outcome: r.outcome, note: r.note, pages, pageOutcomes });
   }
 
   // 대량·열람자 무관 데이터(페이지·위반 전량)는 (scanId, finished_at) 키로 캐시 —

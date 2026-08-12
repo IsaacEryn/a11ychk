@@ -1,9 +1,10 @@
 import { getTranslations } from "next-intl/server";
 import { WCAG_BY_ID, pickLocale as pick, type ScanSummary, type WcagOutcome } from "@a11ychk/core/catalog";
+import { LiveOutcomeCell } from "../LiveOutcomeCell";
 import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { wcagRowData } from "../reportFilter";
-import { CountCell, MatrixShell, ReviewNote } from "./matrixParts";
+import { CountCell, MatrixShell, PageOutcomeSummary, ReviewNote } from "./matrixParts";
 
 /** WCAG 2.2 성공기준 매트릭스 (WCAG-EM 2.0 Step 4) — 행 가시성은 reportFilter의 data 속성이 담당 */
 export async function WcagMatrixSection({
@@ -24,6 +25,20 @@ export async function WcagMatrixSection({
   outcomeStyle: Record<WcagOutcome, string>;
 }) {
   const t = await getTranslations("report");
+  // 판정 배지 노드 사전 — LiveOutcomeCell(클라이언트)이 라이브 판정으로 골라 쓴다
+  const outcomeBadges = Object.fromEntries(
+    (Object.keys(outcomeStyle) as WcagOutcome[]).map((o) => [
+      o,
+      <span key={o} className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[o]}`}>
+        {t(`wcag.outcome.${o}`)}
+      </span>,
+    ]),
+  );
+  const reviewerBadge = (
+    <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
+      {t("review.badge")}
+    </span>
+  );
   return (
     <section data-block="wcag" aria-labelledby="wcag-heading" className="print-break-before mt-10">
       <h2 id="wcag-heading" className="font-display text-2xl font-bold">
@@ -47,17 +62,21 @@ export async function WcagMatrixSection({
               const c = WCAG_BY_ID.get(row.scId);
               if (!c) return null;
               const review = wcagReviews.get(row.scId) ?? null;
-              const effective = (review?.outcome as WcagOutcome | undefined) ?? row.outcome;
               return (
                 <tr key={row.scId} {...wcagRowData(row.outcome, review)} className="border-b border-[var(--color-line)] align-top">
                   <th scope="row" className="col-sticky w-[15rem] py-2 pr-3 text-left font-medium">
                     <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
                     {pick(c.name, locale)}
                     {review?.note && <ReviewNote note={review.note} />}
-                    {review?.pages && review.pages.length > 0 && (
-                      <p className="mt-1 break-all text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
-                        <strong>{t("review.relatedPages")}:</strong> {review.pages.join(" · ")}
-                      </p>
+                    {review?.pageOutcomes && Object.keys(review.pageOutcomes).length > 0 ? (
+                      <PageOutcomeSummary pageOutcomes={review.pageOutcomes} />
+                    ) : (
+                      review?.pages &&
+                      review.pages.length > 0 && (
+                        <p className="mt-1 break-all text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
+                          <strong>{t("review.relatedPages")}:</strong> {review.pages.join(" · ")}
+                        </p>
+                      )
                     )}
                     {/* 스크롤 없이 그 자리에서: 위반→개선 방법 / 확인 필요→확인 방법 / 수동→검사 방법
                         위반·확인 상세는 자동 결과이므로 블라인드 판정 중 마스킹(검사 방법 안내는 유지) */}
@@ -77,22 +96,26 @@ export async function WcagMatrixSection({
                   </th>
                   <td className="py-2 pr-3 text-[var(--color-ink-faint)]">{c.level}</td>
                   <td className="py-2 pr-3">
-                    {/* 블라인드 판정 중에는 자동 판정 배지를 마스킹(점검자 자신의 판정은 유지) */}
-                    {!review && (
-                      <span className="blind-ph rounded-sm border border-[var(--color-line)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
-                        {t("blind.masked")}
-                      </span>
-                    )}
-                    <span className={review ? undefined : "blind-mask"}>
-                      <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[effective]}`}>
-                        {t(`wcag.outcome.${effective}`)}
-                      </span>
-                      {review && (
-                        <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
-                          {t("review.badge")}
-                        </span>
-                      )}
-                    </span>
+                    {/* 저장 직후에도 최신 판정이 보이도록 라이브 상태로 배지를 고른다 */}
+                    <LiveOutcomeCell
+                      standard="wcag"
+                      itemId={row.scId}
+                      byOutcome={outcomeBadges}
+                      reviewerBadge={reviewerBadge}
+                      auto={
+                        <>
+                          {/* 블라인드 판정 중에는 자동 판정 배지를 마스킹(점검자 자신의 판정은 유지) */}
+                          <span className="blind-ph rounded-sm border border-[var(--color-line)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
+                            {t("blind.masked")}
+                          </span>
+                          <span className="blind-mask">
+                            <span className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[row.outcome]}`}>
+                              {t(`wcag.outcome.${row.outcome}`)}
+                            </span>
+                          </span>
+                        </>
+                      }
+                    />
                   </td>
                   <CountCell count={row.violationCount} />
                   {canEdit && (

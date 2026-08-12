@@ -6,11 +6,12 @@ import {
   type ScanSummary,
   type WcagOutcome,
 } from "@a11ychk/core/catalog";
+import { LiveOutcomeCell } from "../LiveOutcomeCell";
 import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { kwcagRowData } from "../reportFilter";
 import type { KwcagPageRate } from "../kwcagPageRate";
-import { CountCell, MatrixShell, ReviewNote } from "./matrixParts";
+import { CountCell, MatrixShell, PageOutcomeSummary, ReviewNote } from "./matrixParts";
 
 
 // 자동 판정 상태 배지 스타일 (KWCAG status 키)
@@ -43,6 +44,20 @@ export async function KwcagMatrixSection({
   outcomeStyle: Record<WcagOutcome, string>;
 }) {
   const t = await getTranslations("report");
+  // 판정 배지 노드 사전 — LiveOutcomeCell(클라이언트)이 라이브 판정으로 골라 쓴다
+  const outcomeBadges = Object.fromEntries(
+    (Object.keys(outcomeStyle) as WcagOutcome[]).map((o) => [
+      o,
+      <span key={o} className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[o]}`}>
+        {t(`wcag.outcome.${o}`)}
+      </span>,
+    ]),
+  );
+  const sourceBadge = (label: string) => (
+    <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
+      {label}
+    </span>
+  );
   return (
     <section aria-labelledby="kwcag-heading" className="print-break-before mt-10">
       <h2 id="kwcag-heading" className="font-display text-2xl font-bold">
@@ -89,6 +104,9 @@ export async function KwcagMatrixSection({
                       {KWCAG_PRINCIPLE_LABEL[item.principle][locale === "en" ? "en" : "ko"]}
                     </span>
                     {review?.note && <ReviewNote note={review.note} />}
+                    {review?.pageOutcomes && Object.keys(review.pageOutcomes).length > 0 && (
+                      <PageOutcomeSummary pageOutcomes={review.pageOutcomes} />
+                    )}
                     {row.status === "fail" && row.ruleIds.length > 0 && (
                       <div className="blind-mask">
                         <MatrixDetail kind="fix" ruleIds={row.ruleIds} locale={locale} />
@@ -104,28 +122,25 @@ export async function KwcagMatrixSection({
                     )}
                   </th>
                   <td className="py-2 pr-3">
-                    {review ? (
-                      <>
-                        <span
-                          className={`inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${outcomeStyle[review.outcome as WcagOutcome]}`}
-                        >
-                          {t(`wcag.outcome.${review.outcome as WcagOutcome}`)}
-                        </span>
-                        <span className="ml-1 inline-block rounded-sm bg-[var(--color-mark)] px-1.5 py-0.5 text-[0.65rem] font-extrabold text-[var(--color-ink-on-mark)]">
-                          {review.derived ? t("kwcag.derivedBadge") : t("review.badge")}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        {/* 블라인드 판정 중에는 자동 상태 배지 마스킹 */}
-                        <span className="blind-ph rounded-sm border border-[var(--color-line)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
-                          {t("blind.masked")}
-                        </span>
-                        <span className={`blind-mask inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${statusStyle[row.status]}`}>
-                          {t(`kwcag.status.${row.status}`)}
-                        </span>
-                      </>
-                    )}
+                    {/* 저장 직후에도 최신 판정(직접+파생)이 보이도록 라이브 상태로 배지를 고른다 */}
+                    <LiveOutcomeCell
+                      standard="kwcag"
+                      itemId={row.itemId}
+                      byOutcome={outcomeBadges}
+                      reviewerBadge={sourceBadge(t("review.badge"))}
+                      derivedBadge={sourceBadge(t("kwcag.derivedBadge"))}
+                      auto={
+                        <>
+                          {/* 블라인드 판정 중에는 자동 상태 배지 마스킹 */}
+                          <span className="blind-ph rounded-sm border border-[var(--color-line)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-faint)]">
+                            {t("blind.masked")}
+                          </span>
+                          <span className={`blind-mask inline-block rounded-sm border px-2 py-0.5 text-xs font-bold ${statusStyle[row.status]}`}>
+                            {t(`kwcag.status.${row.status}`)}
+                          </span>
+                        </>
+                      }
+                    />
                   </td>
                   <CountCell count={row.violationCount} />
                   <td className="py-2 pr-3 text-right tabular-nums">

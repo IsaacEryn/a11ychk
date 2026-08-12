@@ -684,6 +684,10 @@
         "failed": "Save failed"
       },
       "relatedPages": "Related pages",
+      "pageOutcomes": "Per-page verdicts",
+      "pageOutcomesHint": "Judging each page fills in the item verdict automatically. You can still override it.",
+      "pageUnset": "Not judged",
+      "failedPages": "Failing pages",
       "next": "Next unreviewed item"
     },
     "pages": {

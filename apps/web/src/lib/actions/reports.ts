@@ -6,6 +6,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { computeScores, type ScanSummary, type WcagMatrixRow, type WcagOutcome } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireScanOwner } from "@/lib/apiAuth";
+import { failedPages, isPageOutcome } from "@/lib/reviewPages";
 import { requireUser, revalidateLocalized, str, type SaveState } from "./shared";
 
 // ─────────────── 보고서 워크벤치 (점검자 판정·메타) ───────────────
@@ -101,19 +102,28 @@ export async function saveReview(_prev: ReviewSaveState, formData: FormData): Pr
   });
   if (!parsed.success) return { error: "invalid" };
 
-  // 관련 페이지(선택) — 어떤 페이지에서 확인된 사항인지 기록 (migration 0010)
+  // 페이지별 판정 (migration 0036) — poUrl[i]↔poOutcome[i] 쌍 (폼 문서 순서 보장).
   // 폼 조작으로 임의 문자열·실재하지 않는 페이지가 들어오면 준수율 계산이 왜곡되므로
-  // 해당 스캔의 실제 페이지 URL 집합으로 필터하고 중복을 제거한다
-  const rawPages = formData.getAll("pages").filter((p): p is string => typeof p === "string" && p.length > 0);
-  let pages: string[] = [];
-  if (rawPages.length > 0) {
+  // 해당 스캔의 실제 페이지 URL 집합으로 필터하고 판정값도 enum으로 검증한다.
+  const poUrls = formData.getAll("poUrl");
+  const poOutcomes = formData.getAll("poOutcome");
+  const pageOutcomes: Record<string, string> = {};
+  if (poUrls.length > 0 && poUrls.length === poOutcomes.length) {
     const { data: scanPages } = await supabase
       .from("scan_pages")
       .select("url")
       .eq("scan_id", parsed.data.scanId);
     const valid = new Set((scanPages ?? []).map((r) => r.url as string));
-    pages = [...new Set(rawPages)].filter((u) => valid.has(u));
+    for (let i = 0; i < poUrls.length && Object.keys(pageOutcomes).length < 50; i++) {
+      const url = poUrls[i];
+      const outcome = poOutcomes[i];
+      if (typeof url === "string" && valid.has(url) && isPageOutcome(outcome)) pageOutcomes[url] = outcome;
+    }
   }
+  const hasPageOutcomes = Object.keys(pageOutcomes).length > 0;
+  // pages(관련 페이지)는 위반 판정 페이지 목록으로 파생 — 인증 준수율 계산
+  // (certReadiness itemRate)이 pages를 "실패 범위"로 소비하는 기존 의미와 일치한다
+  const pages = hasPageOutcomes ? failedPages(pageOutcomes) : [];
   const row: Record<string, unknown> = {
     scan_id: parsed.data.scanId,
     standard: parsed.data.standard,
@@ -121,12 +131,19 @@ export async function saveReview(_prev: ReviewSaveState, formData: FormData): Pr
     outcome: parsed.data.outcome,
     note: parsed.data.note,
     pages: pages.length > 0 ? pages.slice(0, 50) : null,
+    page_outcomes: hasPageOutcomes ? pageOutcomes : null,
     updated_at: new Date().toISOString(),
   };
   let { error } = await supabase.from("scan_reviews").upsert(row, { onConflict: "scan_id,standard,item_id" });
+  if (error && /page_outcomes/.test(error.message)) {
+    // page_outcomes 컬럼 미적용(migration 0036 전) — 컬럼 없이 재시도
+    delete row.page_outcomes;
+    ({ error } = await supabase.from("scan_reviews").upsert(row, { onConflict: "scan_id,standard,item_id" }));
+  }
   if (error && /pages/.test(error.message)) {
     // pages 컬럼 미적용(migration 0010 전) — 컬럼 없이 재시도
     delete row.pages;
+    delete row.page_outcomes;
     ({ error } = await supabase.from("scan_reviews").upsert(row, { onConflict: "scan_id,standard,item_id" }));
   }
   if (error) return { error: "failed" };

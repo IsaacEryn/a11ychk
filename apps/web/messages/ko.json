@@ -684,6 +684,10 @@
         "failed": "저장 실패"
       },
       "relatedPages": "관련 페이지",
+      "pageOutcomes": "페이지별 판정",
+      "pageOutcomesHint": "페이지마다 판정하면 항목 판정이 자동으로 채워집니다. 필요하면 직접 바꿀 수 있습니다.",
+      "pageUnset": "미판정",
+      "failedPages": "위반 페이지",
       "next": "다음 미판정 항목"
     },
     "pages": {
