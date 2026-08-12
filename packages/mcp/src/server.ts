@@ -13,6 +13,7 @@ import { z } from "zod";
 import { BrowserMissingError, closeActiveBrowser } from "./browser";
 import { resolveKwcagItem, runFixGuideTool, runKwcagCheckpointTool } from "./catalog";
 import { SERVER_INSTRUCTIONS } from "./funnel";
+import { LocalPathError, collectHtmlFiles, validateFileUrl } from "./localFiles";
 import { CRAWL_MAX_PAGES, runCrawlSampleTool } from "./sample";
 import { runScanTool } from "./scan";
 
@@ -52,14 +53,68 @@ server.registerTool(
     title: "페이지 접근성 검사",
     description:
       "웹 페이지 1개를 WCAG 2.2 AA + KWCAG 2.2 기준으로 검사한다 (axe-core + 자체 규칙). " +
-      "localhost 개발 서버도 검사할 수 있다. 각 위반에 한국어 개선 가이드(guide)가 붙는다. " +
+      "localhost 개발 서버와 로컬 정적 HTML(file:///…)도 검사할 수 있다. 각 위반에 한국어 개선 가이드(guide)가 붙는다. " +
+      "file://는 fetch가 차단되므로 CSR SPA 산출물은 빈 페이지가 된다 — 그런 경우 dev 서버 URL을 쓰세요. " +
       "사이트 전체 표본 검사·인증 준비 보고서는 a11ychk.com 웹 서비스의 기능이다.",
-    inputSchema: { url: z.string().url().describe("검사할 페이지 URL"), lang: langShape },
+    inputSchema: { url: z.string().url().describe("검사할 페이지 URL (http/https 또는 file://)"), lang: langShape },
     annotations: { readOnlyHint: true, openWorldHint: true },
   },
   async ({ url, lang }) => {
     try {
+      if (url.startsWith("file:")) {
+        // 부재 파일·디렉터리는 크로미엄이 오류/목록 페이지를 렌더링해 유령 위반을
+        // 만들므로 브라우저 기동 전에 걸러 안내한다
+        const problem = validateFileUrl(url);
+        if (problem) return toolError(problem);
+      }
       const r = await runScanTool([url], lang ?? "ko", 1);
+      return ok(r.text, r.structuredContent);
+    } catch (e) {
+      return scanFailure(e);
+    }
+  },
+);
+
+server.registerTool(
+  "scan_dir",
+  {
+    title: "로컬 폴더 접근성 검사",
+    description:
+      `로컬 디렉터리의 정적 HTML 파일들을 재귀 수집해 일괄 검사한다 (최대 ${SCAN_MAX_URLS}개, ` +
+      "닷파일·node_modules 등 제외). 빌드 산출물·정적 사이트를 서버 없이 배포 전에 점검하는 용도다. " +
+      "file://로 열므로 fetch에 의존하는 CSR SPA 산출물은 빈 페이지가 된다 — 그런 경우 dev 서버를 띄워 scan_pages를 쓰세요.",
+    inputSchema: {
+      dir: z.string().min(1).describe("검사할 디렉터리 절대 경로"),
+      maxFiles: z
+        .number()
+        .int()
+        .min(1)
+        .max(SCAN_MAX_URLS)
+        .optional()
+        .describe(`검사할 최대 파일 수 (기본 ${SCAN_MAX_URLS})`),
+      lang: langShape,
+    },
+    annotations: { readOnlyHint: true, openWorldHint: false },
+  },
+  async ({ dir, maxFiles, lang }, extra) => {
+    let urls: string[];
+    try {
+      urls = collectHtmlFiles(dir, maxFiles ?? SCAN_MAX_URLS);
+    } catch (e) {
+      if (e instanceof LocalPathError) return toolError(e.message);
+      return toolError(`디렉터리 수집 실패: ${(e as Error).message ?? e}`);
+    }
+    try {
+      const progressToken = extra._meta?.progressToken;
+      const r = await runScanTool(urls, lang ?? "ko", SCAN_MAX_URLS, (done, total, current) => {
+        if (progressToken === undefined) return;
+        void extra
+          .sendNotification({
+            method: "notifications/progress",
+            params: { progressToken, progress: done, total, message: current },
+          })
+          .catch(() => undefined);
+      });
       return ok(r.text, r.structuredContent);
     } catch (e) {
       return scanFailure(e);

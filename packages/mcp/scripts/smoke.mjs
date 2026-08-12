@@ -5,18 +5,22 @@
  * 있으면 stdout이 로그로 오염된 것이고, 그 자체가 프로토콜 위반이므로 실패시킨다.
  *
  * 사용법:
- *   node scripts/smoke.mjs                  # 브라우저 불필요 검사만 (카탈로그 도구)
+ *   node scripts/smoke.mjs                  # 브라우저 불필요 검사만 (카탈로그 도구 + 로컬 경로 오류 경로)
  *   node scripts/smoke.mjs --scan <url>     # scan_page 통합 검사 (chromium 필요)
  *   node scripts/smoke.mjs --crawl <url>    # crawl_sample 검사 (픽스처 서버 필요)
+ *   node scripts/smoke.mjs --scan-dir       # scan_dir 통합 검사 — fixtures/ 대상 (chromium 필요)
  */
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
-const cliPath = join(dirname(fileURLToPath(import.meta.url)), "..", "dist", "cli.mjs");
+const pkgDir = join(dirname(fileURLToPath(import.meta.url)), "..");
+const cliPath = join(pkgDir, "dist", "cli.mjs");
+const fixturesDir = join(pkgDir, "fixtures");
 const scanUrl = process.argv.includes("--scan") ? process.argv[process.argv.indexOf("--scan") + 1] : null;
 const crawlUrl = process.argv.includes("--crawl") ? process.argv[process.argv.indexOf("--crawl") + 1] : null;
+const scanDir = process.argv.includes("--scan-dir");
 
 const child = spawn(process.execPath, [cliPath], { stdio: ["pipe", "pipe", "inherit"] });
 const pending = new Map(); // id → {resolve, reject}
@@ -79,9 +83,21 @@ try {
   const tools = await request("tools/list", {});
   const names = tools.tools.map((t) => t.name).sort();
   assert(
-    JSON.stringify(names) === JSON.stringify(["crawl_sample", "get_fix_guide", "kwcag_checkpoint", "scan_page", "scan_pages"]),
-    `tools/list: 도구 5종 (${names.join(", ")})`,
+    JSON.stringify(names) ===
+      JSON.stringify(["crawl_sample", "get_fix_guide", "kwcag_checkpoint", "scan_dir", "scan_page", "scan_pages"]),
+    `tools/list: 도구 6종 (${names.join(", ")})`,
   );
+
+  // 로컬 경로 오류 경로 — 브라우저 기동 전에 걸러지므로 chromium 불필요
+  const noDir = await request("tools/call", { name: "scan_dir", arguments: { dir: "/no/such/dir-a11ychk" } });
+  assert(noDir.isError === true, "scan_dir: 부재 경로는 isError 결과");
+  const noFile = await request("tools/call", { name: "scan_page", arguments: { url: "file:///no/such/file.html" } });
+  assert(noFile.isError === true, "scan_page: 부재 file:// 은 isError 결과");
+  const dirAsFile = await request("tools/call", {
+    name: "scan_page",
+    arguments: { url: "file://" + fixturesDir },
+  });
+  assert(dirAsFile.isError === true, "scan_page: 디렉터리 file:// 은 isError 결과 (scan_dir 안내)");
 
   const guide = await request("tools/call", { name: "get_fix_guide", arguments: { ruleId: "image-alt" } });
   assert(guide.isError !== true, "get_fix_guide: 성공");
@@ -121,6 +137,20 @@ try {
     if (scanUrl.includes("clean")) {
       assert(sc.violationRules === 0, "scan_page: 정상 페이지 위반 0");
     }
+  }
+
+  if (scanDir) {
+    const r = await request("tools/call", { name: "scan_dir", arguments: { dir: fixturesDir } }, 300_000);
+    assert(r.isError !== true, "scan_dir: 성공");
+    const sc = r.structuredContent;
+    assert(sc?.scannedPages === 2, `scan_dir: 픽스처 2파일 검사 (${sc?.scannedPages})`);
+    // broken.html의 마크업 유효성 위반 — 원본 소스 기반 검사가 file://에서도 동작
+    const ruleIds = sc.violations.map((v) => v.ruleId);
+    assert(ruleIds.includes("a11ychk:markup-validity"), `scan_dir: 마크업 구조 오류 검출 (${ruleIds.join(", ")})`);
+    assert(ruleIds.includes("a11ychk:duplicate-id"), "scan_dir: 중복 id 검출");
+    const markup = sc.violations.find((v) => v.ruleId === "a11ychk:markup-validity");
+    assert(markup.kwcag.includes("8.1.1"), "scan_dir: KWCAG 8.1.1 매핑");
+    assert(/^\d+:\d+$/.test(markup.nodes[0]?.selector ?? ""), "scan_dir: 위치가 행:열 형식");
   }
 
   child.stdin.end();
