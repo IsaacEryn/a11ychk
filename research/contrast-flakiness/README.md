@@ -146,7 +146,7 @@ node check-anonymity.mjs --dir=dataset --mapping=mapping.json
 
 ```bash
 node analyze.mjs --in=dataset/results-combined.json
-node verify-summary.mjs   # dataset/의 label-verify-*.json 집계
+node verify-summary.mjs --in=dataset   # label-verify-*.json 집계 (논문 표 3)
 ```
 
 **측정값만 담았습니다.** CSS 선택자·HTML 스니펫·URL 경로는 검색하면 원 사이트를
