@@ -7,11 +7,12 @@ import {
   type WcagOutcome,
 } from "@a11ychk/core/catalog";
 import { LiveOutcomeCell } from "../LiveOutcomeCell";
+import { LiveReviewSummary } from "../LiveReviewSummary";
 import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { kwcagRowData } from "../reportFilter";
 import type { KwcagPageRate } from "../kwcagPageRate";
-import { CountCell, MatrixShell, PageOutcomeSummary, ReviewNote } from "./matrixParts";
+import { CountCell, MatrixShell, reviewSummaryLabels } from "./matrixParts";
 
 
 // 자동 판정 상태 배지 스타일 (KWCAG status 키)
@@ -58,6 +59,7 @@ export async function KwcagMatrixSection({
       {label}
     </span>
   );
+  const summaryLabels = await reviewSummaryLabels();
   return (
     <section aria-labelledby="kwcag-heading" className="print-break-before mt-10">
       <h2 id="kwcag-heading" className="font-display text-2xl font-bold">
@@ -103,10 +105,7 @@ export async function KwcagMatrixSection({
                     <span className="ml-2 text-xs text-[var(--color-ink-faint)]">
                       {KWCAG_PRINCIPLE_LABEL[item.principle][locale === "en" ? "en" : "ko"]}
                     </span>
-                    {review?.note && <ReviewNote note={review.note} />}
-                    {review?.pageOutcomes && Object.keys(review.pageOutcomes).length > 0 && (
-                      <PageOutcomeSummary pageOutcomes={review.pageOutcomes} />
-                    )}
+                    <LiveReviewSummary standard="kwcag" itemId={row.itemId} labels={summaryLabels} />
                     {row.status === "fail" && row.ruleIds.length > 0 && (
                       <div className="blind-mask">
                         <MatrixDetail kind="fix" ruleIds={row.ruleIds} locale={locale} />

@@ -28,38 +28,23 @@ export function CountCell({ count }: { count: number }) {
   );
 }
 
-/** 점검자가 남긴 메모 (판정 칸이 아니라 항목명 아래에 붙는다) */
-export async function ReviewNote({ note }: { note: string }) {
+/**
+ * 점검자 기록 요약(LiveReviewSummary)에 넘길 번역 문구.
+ * 요약 자체는 판정 배지와 같은 라이브 상태를 읽어야 해서 클라이언트 컴포넌트이므로,
+ * 번역은 서버에서 한 번 뽑아 내려준다.
+ */
+export async function reviewSummaryLabels() {
   const t = await getTranslations("report");
-  return (
-    <p className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
-      <strong>{t("review.noteLabel")}:</strong> {note}
-    </p>
-  );
-}
-
-/** 페이지별 판정 요약 — 판정 분포와 위반 페이지 목록 (항목명 아래, 인쇄 포함) */
-export async function PageOutcomeSummary({ pageOutcomes }: { pageOutcomes: Record<string, string> }) {
-  const t = await getTranslations("report");
-  const order = ["passed", "failed", "cannotTell", "notPresent"] as const;
-  const counts = new Map<string, number>();
-  for (const o of Object.values(pageOutcomes)) counts.set(o, (counts.get(o) ?? 0) + 1);
-  const parts = order
-    .filter((o) => counts.has(o))
-    .map((o) => `${t(`review.outcomes.${o}`)} ${counts.get(o)}`);
-  const failed = Object.entries(pageOutcomes)
-    .filter(([, o]) => o === "failed")
-    .map(([url]) => url);
-  return (
-    <div className="mt-1 text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
-      <p>
-        <strong>{t("review.pageOutcomes")}:</strong> {parts.join(" · ")}
-      </p>
-      {failed.length > 0 && (
-        <p className="break-all">
-          <strong>{t("review.failedPages")}:</strong> {failed.join(" · ")}
-        </p>
-      )}
-    </div>
-  );
+  return {
+    note: t("review.noteLabel"),
+    pageOutcomes: t("review.pageOutcomes"),
+    failedPages: t("review.failedPages"),
+    relatedPages: t("review.relatedPages"),
+    outcomes: {
+      passed: t("review.outcomes.passed"),
+      failed: t("review.outcomes.failed"),
+      cannotTell: t("review.outcomes.cannotTell"),
+      notPresent: t("review.outcomes.notPresent"),
+    },
+  };
 }

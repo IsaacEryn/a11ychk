@@ -1,10 +1,11 @@
 import { getTranslations } from "next-intl/server";
 import { WCAG_BY_ID, pickLocale as pick, type ScanSummary, type WcagOutcome } from "@a11ychk/core/catalog";
 import { LiveOutcomeCell } from "../LiveOutcomeCell";
+import { LiveReviewSummary } from "../LiveReviewSummary";
 import { MatrixDetail } from "../MatrixDetail";
 import { ReviewCell, type ReviewValue } from "../ReviewCell";
 import { wcagRowData } from "../reportFilter";
-import { CountCell, MatrixShell, PageOutcomeSummary, ReviewNote } from "./matrixParts";
+import { CountCell, MatrixShell, reviewSummaryLabels } from "./matrixParts";
 
 /** WCAG 2.2 성공기준 매트릭스 (WCAG-EM 2.0 Step 4) — 행 가시성은 reportFilter의 data 속성이 담당 */
 export async function WcagMatrixSection({
@@ -39,6 +40,7 @@ export async function WcagMatrixSection({
       {t("review.badge")}
     </span>
   );
+  const summaryLabels = await reviewSummaryLabels();
   return (
     <section data-block="wcag" aria-labelledby="wcag-heading" className="print-break-before mt-10">
       <h2 id="wcag-heading" className="font-display text-2xl font-bold">
@@ -67,17 +69,7 @@ export async function WcagMatrixSection({
                   <th scope="row" className="col-sticky w-[15rem] py-2 pr-3 text-left font-medium">
                     <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{row.scId}</span>
                     {pick(c.name, locale)}
-                    {review?.note && <ReviewNote note={review.note} />}
-                    {review?.pageOutcomes && Object.keys(review.pageOutcomes).length > 0 ? (
-                      <PageOutcomeSummary pageOutcomes={review.pageOutcomes} />
-                    ) : (
-                      review?.pages &&
-                      review.pages.length > 0 && (
-                        <p className="mt-1 break-all text-xs font-normal leading-relaxed text-[var(--color-ink-soft)]">
-                          <strong>{t("review.relatedPages")}:</strong> {review.pages.join(" · ")}
-                        </p>
-                      )
-                    )}
+                    <LiveReviewSummary standard="wcag" itemId={row.scId} labels={summaryLabels} />
                     {/* 스크롤 없이 그 자리에서: 위반→개선 방법 / 확인 필요→확인 방법 / 수동→검사 방법
                         위반·확인 상세는 자동 결과이므로 블라인드 판정 중 마스킹(검사 방법 안내는 유지) */}
                     {row.outcome === "failed" && row.ruleIds.length > 0 && (
