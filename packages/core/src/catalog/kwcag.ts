@@ -379,8 +379,8 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     wcag: ["4.1.1"],
     autoCoverage: "full",
     howToTest: {
-      ko: "요소의 여닫기, 속성 중복, 잘못된 중첩 같은 마크업 오류가 있는지 확인하세요. 자동 검사가 id 중복·잘못된 ARIA 참조 등 보조기술에 실제 영향을 주는 오류를 판정합니다. W3C Nu HTML Checker(validator.w3.org/nu)로 전체 문법을 점검하되, 보조기술 해석에 영향을 주는 오류(중복 id, 깨진 참조, 잘못된 중첩)를 우선 수정하면 됩니다.",
-      en: "Check for markup errors such as unclosed elements, duplicate attributes, and improper nesting. Automated checks catch errors that actually affect assistive technology (duplicate ids, broken ARIA references). Use the W3C Nu HTML Checker for full syntax, prioritizing errors that change how assistive technology parses the page.",
+      ko: "자동 검사가 원본 HTML을 표준 파서로 재파싱해 닫는 태그 누락·잘못된 중첩·속성 중복·id 중복을 판정하고, 렌더링된 DOM에서 ARIA 참조 id 중복도 확인합니다. 한계: 파서가 조용히 복구하는 잘못된 중첩(예: p 안의 div)과 닫는 태그 생략이 허용되는 요소(li·td 등)의 오류는 검출되지 않으므로, 전체 문법 점검이 필요하면 W3C Nu HTML Checker(validator.w3.org/nu)를 병행하세요.",
+      en: "Automated checks re-parse the source HTML with a standards parser to detect unclosed elements, mis-nesting, duplicate attributes, and duplicate ids, plus ARIA-referenced id duplicates in the rendered DOM. Limitation: nesting the parser recovers silently (e.g., div inside p) is not detected — use the W3C Nu HTML Checker for full syntax when needed.",
     },
   },
   {

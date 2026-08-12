@@ -242,6 +242,37 @@ describe("WCAG 2.2 SC 매트릭스 (WCAG-EM)", () => {
     expect(s.scores?.automated.passed).toBe(6);
   });
 
+  it("마크업 유효성 위반은 KWCAG 8.1.1을 fail로 만든다", () => {
+    const s = aggregateScan(
+      [
+        page({
+          violations: [
+            {
+              ruleId: "a11ychk:markup-validity",
+              impact: "moderate",
+              tags: [],
+              helpUrl: "",
+              nodes: [{ selector: "3:5", html: "<div>", failureSummary: "닫는 태그가 없습니다." }],
+            },
+          ],
+        }),
+      ],
+      "4.10.0",
+    );
+    const row = s.kwcagMatrix.find((r) => r.itemId === "8.1.1");
+    expect(row?.status).toBe("fail");
+    expect(row?.ruleIds).toContain("a11ychk:markup-validity");
+  });
+
+  it("마크업 유효성 통과는 KWCAG 8.1.1을 pass로 만든다 (id 없는 페이지 포함)", () => {
+    const s = aggregateScan(
+      [page({ passes: ["a11ychk:markup-validity", "a11ychk:duplicate-id"] })],
+      "4.10.0",
+    );
+    // autoCoverage가 full이므로 자동 통과가 곧 pass
+    expect(s.kwcagMatrix.find((r) => r.itemId === "8.1.1")?.status).toBe("pass");
+  });
+
   it("sample 요약을 전달하면 summary.sample에 포함", () => {
     const s = aggregateScan([], "4.10.0", {
       sample: {

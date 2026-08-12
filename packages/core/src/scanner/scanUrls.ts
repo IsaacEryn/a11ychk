@@ -12,6 +12,7 @@
 import type { Browser } from "playwright-core";
 import type { PageScanResult } from "../types";
 import { runAxeOnPage } from "./runAxe";
+import { getRawSource } from "./rawSource";
 
 export interface ScanUrlsOptions {
   launch: () => Promise<Browser>;
@@ -42,9 +43,11 @@ export async function scanUrls(urls: string[], options: ScanUrlsOptions): Promis
       const context = await browser.newContext({ viewport: { width: 1280, height: 800 }, locale: "ko-KR" });
       const page = await context.newPage();
       try {
-        await page.goto(url, { waitUntil: "load", timeout: gotoTimeout });
+        const response = await page.goto(url, { waitUntil: "load", timeout: gotoTimeout });
         await page.waitForTimeout(settle);
-        pages.push(await runAxeOnPage(page));
+        // 마크업 유효성 검사용 원본 소스 (확보 실패 시 null — 해당 검사만 생략)
+        const rawHtml = await getRawSource(page.url(), response);
+        pages.push(await runAxeOnPage(page, { rawHtml }));
         options.onResult?.(url, true);
       } catch (e) {
         const reason = ((e as Error).message ?? "unknown").split("\n")[0]!.slice(0, 200);

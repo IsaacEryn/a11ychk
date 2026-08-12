@@ -11,6 +11,7 @@
   },
   "dependencies": {
     "axe-core": "^4.10.3",
+    "parse5": "^8.0.1",
     "playwright": "^1.53.0",
     "undici": "^8.7.0"
   },

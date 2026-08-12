@@ -93,6 +93,6 @@ runs:
         INPUT_FAIL_ON: ${{ inputs.fail-on }}
       run: |
         npx esbuild run.ts --bundle --platform=node --format=esm \
-          --external:playwright --external:axe-core --external:undici \
+          --external:playwright --external:axe-core --external:undici --external:parse5 \
           --outfile=.run.mjs --log-level=error
         node .run.mjs

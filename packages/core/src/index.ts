@@ -12,6 +12,8 @@ export * from "./util/locale";
 export * from "./crawler/buildSample";
 export * from "./access/checkAccess";
 export * from "./scanner/runAxe";
+export * from "./scanner/rawSource";
+export * from "./scanner/htmlValidity";
 export * from "./scanner/scanUrls";
 export * from "./scanner/signature";
 export * from "./catalog/rules";

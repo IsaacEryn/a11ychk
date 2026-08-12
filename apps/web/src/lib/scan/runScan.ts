@@ -14,6 +14,7 @@ import {
   computeSiteChecks,
   detectTechnologies,
   extractPageSignature,
+  getRawSource,
   guardedFetch,
   isPrivateAddress,
   normalizeUrl,
@@ -169,7 +170,7 @@ export async function scanSinglePage(browser: Browser, url: string): Promise<Sin
       }
       return route.continue();
     });
-    await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
+    const response = await page.goto(url, { waitUntil: "domcontentloaded", timeout: PAGE_LOAD_TIMEOUT_MS });
     await page.waitForLoadState("load", { timeout: 8_000 }).catch(() => undefined);
     // 실제 폰트가 적용된 상태에서 측정 (로딩이 느린 사이트는 3초까지만 대기)
     await Promise.race([
@@ -178,7 +179,9 @@ export async function scanSinglePage(browser: Browser, url: string): Promise<Sin
     ]).catch(() => undefined);
     // 시그니처는 뷰포트 변경(리플로우 검사) 전에 추출
     const signature = await extractPageSignature(page).catch(() => null);
-    const result = await runAxeOnPage(page);
+    // 마크업 유효성 검사용 원본 소스 (확보 실패 시 null — 해당 검사만 생략)
+    const rawHtml = await getRawSource(page.url(), response);
+    const result = await runAxeOnPage(page, { rawHtml });
     return { result, signature };
   } finally {
     await context.close().catch(() => undefined);

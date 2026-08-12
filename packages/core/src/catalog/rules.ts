@@ -1178,6 +1178,28 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
   {
+    ruleId: "a11ychk:markup-validity",
+    wcag: ["4.1.1"],
+    kwcag: ["8.1.1"],
+    level: "A",
+    title: { ko: "마크업 구조 오류가 있습니다", en: "Markup has structural errors" },
+    guide: {
+      ko: "원본 HTML에서 요소 열고 닫음·중첩·속성 선언 오류가 발견되었습니다. 브라우저는 오류를 임의로 복구해 렌더링하지만, 복구 결과가 브라우저·보조기기마다 다를 수 있어 스크린 리더가 콘텐츠를 잘못 읽는 원인이 됩니다. 위치는 원본 소스의 `행:열`로 표시됩니다.\n\n주요 유형:\n- 닫는 태그 누락 또는 잘못된 중첩(먼저 연 요소를 나중에 닫아야 함)\n- 한 요소에 같은 속성을 두 번 선언\n- 빈 요소가 아닌 태그의 자기 닫음(`<div/>`) — HTML에서는 무시되어 요소가 닫히지 않습니다\n\n```html\n<!-- 잘못된 예 -->\n<b><i>강조</b></i>\n<div class=\"a\" class=\"b\">중복 속성</div>\n<!-- 올바른 예 -->\n<b><i>강조</i></b>\n<div class=\"a b\">병합</div>\n```",
+      en: "The source HTML contains structural errors (unclosed or mis-nested elements, duplicate attributes, self-closing non-void tags). Browsers recover silently but recovery differs across browsers and assistive tech. Locations are given as line:col in the source.",
+    },
+  },
+  {
+    ruleId: "a11ychk:duplicate-id",
+    wcag: ["4.1.1"],
+    kwcag: ["8.1.1"],
+    level: "A",
+    title: { ko: "문서 안에서 id가 중복됩니다", en: "Duplicate ids in the document" },
+    guide: {
+      ko: "id는 문서 안에서 고유해야 합니다. 중복되면 `label for`·`aria-labelledby`·앵커 이동·스크립트가 어느 요소를 가리킬지 보장되지 않습니다. axe의 duplicate-id 검사는 조작 요소·ARIA 참조 id만 보지만, 이 검사는 원본 소스의 모든 id를 봅니다. 위치는 원본 소스의 `행:열`로 표시됩니다.\n\n```html\n<!-- 잘못된 예 -->\n<section id=\"content\">…</section>\n<footer id=\"content\">…</footer>\n<!-- 올바른 예 -->\n<section id=\"content\">…</section>\n<footer id=\"footer\">…</footer>\n```",
+      en: "Every id must be unique within the document. Duplicates break label associations, ARIA references, anchors, and scripts. Unlike axe's duplicate-id rules (active/ARIA-referenced ids only), this check inspects every id in the source.",
+    },
+  },
+  {
     ruleId: "a11ychk:new-window",
     wcag: ["3.2.2"],
     kwcag: ["7.2.1"],
