@@ -8,24 +8,33 @@ export function OAuthButtons({
   next,
   googleLabel,
   githubLabel,
+  errorLabel,
 }: {
   locale: string;
   /** 로그인 후 돌아갈 내부 경로 (서버에서 sanitize됨) */
   next?: string;
   googleLabel: string;
   githubLabel: string;
+  errorLabel: string;
 }) {
   const [pending, setPending] = useState<"google" | "github" | null>(null);
+  const [error, setError] = useState(false);
 
   async function signIn(provider: "google" | "github") {
     setPending(provider);
+    setError(false);
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    // 제공자 비활성 등으로 실패하면 리다이렉트 없이 error만 돌아온다 — 무시하면 무반응 버튼이 된다
+    const { error: err } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
         redirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next ?? `/${locale}/dashboard`)}`,
       },
     });
+    if (err) {
+      setError(true);
+      setPending(null);
+    }
   }
 
   const btnCls =
@@ -51,6 +60,11 @@ export function OAuthButtons({
         </svg>
         {pending === "github" ? "…" : githubLabel}
       </button>
+      {error && (
+        <p role="alert" aria-live="polite" className="text-sm font-medium text-[var(--color-crit)]">
+          {errorLabel}
+        </p>
+      )}
     </div>
   );
 }

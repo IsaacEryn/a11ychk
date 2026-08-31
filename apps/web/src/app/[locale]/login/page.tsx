@@ -54,7 +54,7 @@ export default async function LoginPage({
           </p>
         )}
 
-        <OAuthButtons locale={locale} next={next} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} />
+        <OAuthButtons locale={locale} next={next} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} errorLabel={t("errGeneric")} />
 
         {/* 이메일 매직링크 로그인/가입 */}
         <div className="mt-6 flex items-center gap-3 text-xs text-[var(--color-ink-faint)]" aria-hidden="true">
