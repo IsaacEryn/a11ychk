@@ -216,11 +216,28 @@ export async function replyInquiry(formData: FormData): Promise<void> {
   const reply = z.string().trim().min(1).max(5000).safeParse(formData.get("reply"));
   if (!id.success || !reply.success) return;
   const admin = createAdminClient();
-  await admin
+  const { data: rows } = await admin
     .from("inquiries")
     .update({ admin_reply: reply.data, status: "answered", replied_at: new Date().toISOString() })
-    .eq("id", id.data);
+    .eq("id", id.data)
+    .select("user_id, title");
   await logAdminAction(admin, actor.id, "inquiry.reply", id.data);
+
+  // 답변 메일 통지 — best-effort (실패해도 답변 자체는 사이트에서 보인다)
+  const row = rows?.[0];
+  if (row?.user_id) {
+    const { data: target } = await admin.auth.admin.getUserById(row.user_id as string);
+    const to = target?.user?.email;
+    if (to) {
+      const title = (row.title as string) ?? "";
+      const { sendAdminUserEmail } = await import("@/lib/notify");
+      await sendAdminUserEmail({
+        to,
+        subject: `[A11y Check] 문의 답변: ${title.slice(0, 60)}`,
+        body: `문의하신 "${title}"에 답변이 등록되었습니다.\n\n${reply.data}`,
+      });
+    }
+  }
   revalidateLocalized("/contact", "/admin/inquiries");
 }
 
