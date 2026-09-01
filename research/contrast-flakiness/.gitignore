@@ -1,4 +1,0 @@
-node_modules/
-exp-out/
-candidates*.txt
-!candidates.example.txt
