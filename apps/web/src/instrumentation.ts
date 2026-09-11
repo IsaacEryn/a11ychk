@@ -15,6 +15,10 @@ export const onRequestError: Instrumentation.onRequestError = async (error, requ
 
     const err = error as { message?: string; stack?: string; digest?: string };
     const message = String(err.message ?? error).slice(0, 2000);
+    // 봇이 /ko, /ko/index.php 같은 경로에 뿌리는 POST와 재배포 직후 낡은 클라이언트의 액션 호출은
+    // Next가 "Failed to find Server Action"으로 거절한다. 우리 코드 결함이 아니고 30일치 오류의
+    // 전부가 이것이라(2026-09 실측 9/9건) 기록·알림에서 제외해 진짜 오류가 묻히지 않게 한다.
+    if (message.startsWith("Failed to find Server Action")) return;
     // 새 오류 판정은 insert '전'에 조회 — insert 후 조회하면 동시 발생한 두 건이
     // 서로를 보고 양쪽 다 알림을 억제하는 경합이 생긴다 (드물게 중복 발송은 허용)
     const isFirstIn24h = await checkFirstIn24h(url, key, message);
