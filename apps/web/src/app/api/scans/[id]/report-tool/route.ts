@@ -11,6 +11,7 @@ import {
 import { createClient } from "@/lib/supabase/server";
 import { logReportExport } from "@/lib/apiAuth";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
+import { loadWcagReviews } from "@/lib/exportReviews";
 
 /**
  * WCAG-EM JSON export — 두 형식 제공:
@@ -142,14 +143,10 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   const scope = (scan.scope ?? null) as EvaluationScope | null;
   const meta = (scan.report_meta ?? null) as ReportMeta | null;
 
-  const [{ data: pages }, { data: reviews }] = await Promise.all([
+  const [{ data: pages }, wcagReviews] = await Promise.all([
     supabase.from("scan_pages").select("*").eq("scan_id", id).order("url"),
-    supabase.from("scan_reviews").select("standard, item_id, outcome, note").eq("scan_id", id),
+    loadWcagReviews(supabase, id),
   ]);
-  const wcagReviews = new Map<string, { outcome: WcagOutcome; note: string }>();
-  for (const r of reviews ?? []) {
-    if (r.standard === "wcag") wcagReviews.set(r.item_id, { outcome: r.outcome as WcagOutcome, note: r.note });
-  }
 
   const hostname = new URL(scan.root_url).hostname;
   const siteTitle = meta?.siteName || hostname;
