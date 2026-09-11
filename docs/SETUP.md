@@ -37,6 +37,7 @@ INTERNAL_API_SECRET              # openssl rand -hex 32
 CRON_SECRET                      # 정기 스캔 크론 보호 (openssl rand -hex 32)
 NEXT_PUBLIC_SITE_URL=https://www.a11ychk.com
 RESEND_API_KEY                   # 이메일 발송 (정기 스캔 회귀 알림·서버 오류 알림) — 미설정 시 발송 생략
+KV_REST_API_URL / KV_REST_API_TOKEN  # (선택) HTTP 레이트리밋 공유 스토어 — Vercel 마켓플레이스 Upstash Redis 설치 시 자동 주입. 없으면 인스턴스 메모리 카운터(best-effort)
 NEXT_PUBLIC_TURNSTILE_SITE_KEY   # Cloudflare Turnstile 사이트 키 — 아래 "봇 방지" 절 참고
 TURNSTILE_SECRET_KEY             # 같이 필수 — 맛보기 검사 서버 검증(siteverify)용
 NEXT_PUBLIC_GTM_ID                # GTM 컨테이너 ID(GA4) — 미설정 시 분석 스니펫 미삽입
@@ -85,6 +86,11 @@ migration 0027을 적용하면 관리자 RLS가 AAL2 세션을 요구하므로,
 A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 # → apps/extension/dist 를 chrome://extensions에서 "압축해제된 확장 프로그램 로드"로 설치
 ```
+
+빌드는 Supabase 공개값(URL·anon 키)도 번들에 넣는다 — 확장이 세션 교환·갱신에 직접 쓴다.
+`A11YCHK_SUPABASE_URL`/`A11YCHK_SUPABASE_ANON_KEY`(또는 `NEXT_PUBLIC_SUPABASE_*`) 환경변수가
+없으면 `apps/web/.env.local`의 같은 이름을 읽고, 그것도 없으면 빌드가 실패한다.
+웹스토어 제출용 zip은 `cd apps/extension/dist && zip -r ../a11ychk-extension-<버전>.zip .`
 
 확장은 웹의 `/{locale}/extension/connect` 페이지에서 계정과 연결됩니다.
 
