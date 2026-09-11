@@ -69,17 +69,20 @@
 - ~~**CI 연동(GitHub Action)**~~ — 완료 (Phase 5). core를 composite 액션으로
   래핑해 PR에서 접근성 검사 실행. [docs/github-action.md](github-action.md)
 
-남은 항목:
+완료된 항목 (2026-09):
 
-- **보고서 섹션 컴포넌트 분할** — 데이터 로더(loadReport.ts)는 분리 완료,
-  JSX 본문(~800줄)의 섹션별 컴포넌트화 + Suspense 스트리밍은 후속
-- **EARL 내보내기의 판정 반영** — earl은 자동 판정만, report-tool은 전문가
-  판정을 반영해 서로 다른 결과가 나올 수 있음. EARL 페이로드에 명시 또는 통일
-- **공용 레이트리밋 스토어** — HTTP 레이트리밋이 인메모리(access-check·맛보기 검사)뿐.
-  서버리스 인스턴스 간 공유가 안 되므로 외부 스토어(Upstash 등) 기반으로 승격 검토
-- **확장의 AI 수정 요청 통합** — core의 buildAiFix로 웹·MCP는 통합했으나 확장
-  (panel/save.ts buildAiFixMarkdown)은 아직 자체 구현. catalog 엔트리에서 import
-  가능하므로 확장 번들 크기만 확인하고 이관
+- ~~**보고서 섹션 컴포넌트 분할**~~ — 완료. `report/sections/` 19개 컴포넌트로 분리,
+  page.tsx는 데이터 조립만(330줄). Suspense 스트리밍은 라우트 loading.tsx로 충분해 미채택
+- ~~**EARL 내보내기의 판정 반영**~~ — 완료. `lib/exportReviews.ts`의 공용 로더를 EARL·
+  Report Tool이 함께 써서 같은 검사에 같은 결론. EARL assertion에 `mode`(manual/automatic)와
+  대체된 `automatedOutcome`을 남긴다
+- ~~**공용 레이트리밋 스토어**~~ — 구현 완료(`lib/rateLimit.ts`). Upstash REST(KV_REST_API_* 또는
+  UPSTASH_REDIS_REST_*)가 설정되면 인스턴스 간 공유, 없으면 인메모리 폴백. 맛보기 검사는
+  원래 DB 원자 카운터라 대상이 아니었고 access-check만 전환. **스토어 연결(Vercel
+  마켓플레이스 Upstash 설치)은 운영 작업으로 남음 — 연결 즉시 코드 변경 없이 활성화**
+- ~~**확장의 AI 수정 요청 통합**~~ — 완료(확장 0.5.0). core `buildAiFix`로 웹·MCP·확장 3면 통일
+- **확장 세션 갱신** — 확장 0.5.0부터 연결 시 확장 전용 세션(자체 refresh token)을 발급받아
+  1시간마다 재연결하지 않아도 된다(연결 페이지가 1회용 토큰 해시를 넘기고 확장이 교환)
 
 ## 보고서 고도화 백로그 (2026-07)
 
