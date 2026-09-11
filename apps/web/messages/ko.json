@@ -1199,6 +1199,9 @@
       "pagesLabel": "페이지 한도",
       "pagesHint": "페이지 한도: 소유 확인 도메인은 2배 적용, 최대 {max}페이지",
       "extDailyLabel": "확장/일",
+      "untilLabel": "적용 기한",
+      "untilHint": "기한을 정하면 그날 자정(KST)까지만 요금제·개별 한도가 적용되고, 지나면 무료 기본값으로 돌아갑니다. 비우면 무기한.",
+      "untilExpired": "만료됨",
       "earned": {
         "plus1": "플러스1 달성",
         "plus2": "플러스2 달성"

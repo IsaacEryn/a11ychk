@@ -23,6 +23,8 @@ export function UserLimitsForm({
   custom,
   customPages,
   customExtDaily,
+  customUntil,
+  untilExpired,
   extDailyDefault,
   effective,
   maxPages,
@@ -37,6 +39,10 @@ export function UserLimitsForm({
   customPages?: number;
   /** 사용자별 확장 일일 한도 (scan_limit_override.extDaily) */
   customExtDaily?: number;
+  /** 배정 적용 기한 YYYY-MM-DD (scan_limit_override.until) — 없으면 무기한 */
+  customUntil?: string;
+  /** 기한이 이미 지나 배정이 무시되고 있는 상태 */
+  untilExpired?: boolean;
   /** 확장 일일 한도 기본값 (EXT_DAILY_DEFAULT) */
   extDailyDefault: number;
   effective: ScanLimits;
@@ -51,6 +57,9 @@ export function UserLimitsForm({
     pages: string;
     pagesHint: string;
     extDaily: string;
+    until: string;
+    untilHint: string;
+    untilExpired: string;
     save: string;
     customHint: string;
     effective: string;
@@ -143,6 +152,25 @@ export function UserLimitsForm({
           />
         </div>
 
+        <div>
+          <label htmlFor={`until-${userId}`} className="mb-1 block text-xs font-semibold">
+            {labels.until}
+            {untilExpired && (
+              <span className="ml-1 rounded-full bg-[var(--color-crit-tint)] px-1.5 py-0.5 text-[10px] font-bold text-[var(--color-crit)]">
+                {labels.untilExpired}
+              </span>
+            )}
+          </label>
+          <input
+            id={`until-${userId}`}
+            name="until"
+            type="date"
+            defaultValue={customUntil ?? ""}
+            aria-describedby={`until-hint-${userId}`}
+            className="rounded border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper)] px-2 py-1.5 text-sm tabular-nums"
+          />
+        </div>
+
         <button
           type="submit"
           className="rounded border-[1.5px] border-[var(--color-seal)] px-3 py-1.5 text-sm font-bold text-[var(--color-seal)] hover:bg-[var(--color-seal-tint)]"
@@ -152,6 +180,9 @@ export function UserLimitsForm({
       </div>
       <p id={`pages-hint-${userId}`} className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
         {labels.customHint} · {labels.effective}: {effective.daily}/{effective.weekly}/{effective.monthly} · {labels.pagesHint}
+      </p>
+      <p id={`until-hint-${userId}`} className="mt-0.5 text-xs text-[var(--color-ink-faint)]">
+        {labels.untilHint}
       </p>
     </form>
   );

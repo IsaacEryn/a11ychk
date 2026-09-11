@@ -9,8 +9,7 @@ import {
   getCustomPages,
   getPlan,
   getEarnedPlan,
-  resolveLimits,
-} from "@/lib/quota";
+  resolveLimits, getOverrideUntil, isOverrideExpired } from "@/lib/quota";
 import { QuotaResetForm } from "../QuotaResetForm";
 import { UserLimitsForm } from "../UserLimitsForm";
 import { SendEmailForm } from "./SendEmailForm";
@@ -98,6 +97,8 @@ export async function UserDetail({
         custom={getCustomLimits(u.scan_limit_override)}
         customPages={getCustomPages(u.scan_limit_override)}
         customExtDaily={extOverride}
+        customUntil={getOverrideUntil(u.scan_limit_override)?.slice(0, 10)}
+        untilExpired={isOverrideExpired(u.scan_limit_override)}
         extDailyDefault={EXT_DAILY_LIMITS[plan]}
         effective={limits}
         maxPages={MAX_PAGES_PER_SCAN}
@@ -113,6 +114,9 @@ export async function UserDetail({
           weekly: tDash("quota.weekly"),
           monthly: tDash("quota.monthly"),
           pages: t("users.pagesLabel"),
+          until: t("users.untilLabel"),
+          untilHint: t("users.untilHint"),
+          untilExpired: t("users.untilExpired"),
           pagesHint: t("users.pagesHint", { max: MAX_PAGES_PER_SCAN }),
           extDaily: t("users.extDailyLabel"),
           save: t("users.saveLimits"),

@@ -219,8 +219,28 @@ export function getSampleSize(opts: {
   return Math.min(size, MAX_PAGES_PER_SCAN);
 }
 
+/** 관리자 배정의 적용 기한(scan_limit_override.until, ISO). 없으면 undefined — 관리자 UI 프리필용 */
+export function getOverrideUntil(override: unknown): string | undefined {
+  const v = override && typeof override === "object" ? (override as Record<string, unknown>).until : undefined;
+  return typeof v === "string" && !Number.isNaN(Date.parse(v)) ? v : undefined;
+}
+
+/** 배정 기한이 지났는지 — 한시 증량(문의 대응)을 되돌리는 걸 사람이 기억하지 않아도 되게 */
+export function isOverrideExpired(override: unknown, now = Date.now()): boolean {
+  const until = getOverrideUntil(override);
+  return until !== undefined && Date.parse(until) < now;
+}
+
+/**
+ * override 접근자 — 모든 한도 계산이 이 함수를 거치므로 기한 만료도 여기서 한 번만 처리한다.
+ * 만료되면 요금제·개별 숫자는 무시하고 `*ResetAt`(한도 초기화 시각)만 남긴다 — 그건 배정이
+ * 아니라 사용량 집계 기준이라 기한과 무관하다. 저장값은 건드리지 않아 관리자 화면에서 "만료됨"으로 보인다.
+ */
 function asRecord(override: unknown): Record<string, unknown> {
-  return override && typeof override === "object" ? (override as Record<string, unknown>) : {};
+  if (!override || typeof override !== "object") return {};
+  const o = override as Record<string, unknown>;
+  if (!isOverrideExpired(o)) return o;
+  return Object.fromEntries(Object.entries(o).filter(([k]) => k.endsWith("ResetAt")));
 }
 
 export function getPlan(override: unknown): PlanId {

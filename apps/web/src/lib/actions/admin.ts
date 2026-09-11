@@ -8,6 +8,8 @@ import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction, logAppError } from "@/lib/logs";
 import { requireAdmin, revalidateLocalized, type SaveState } from "./shared";
 
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
+
 // ─────────────── 관리자 ───────────────
 /** 관리자: GitHub 저장소 통계 즉시 수집 (크론이 밀렸을 때 수동 새로고침) */
 // useActionState 액션 시그니처 (prev, formData)와 호환 — 둘 다 안 쓰므로 매개변수 생략
@@ -129,11 +131,19 @@ export async function setUserLimits(formData: FormData): Promise<void> {
   applyIntOverride(next, formData, "pages", 1, MAX_PAGES_PER_SCAN);
   applyIntOverride(next, formData, "extDaily", 0, 10000);
 
+  // 적용 기한(YYYY-MM-DD) — 그날 자정(KST)까지. 비우면 무기한. 형식이 틀리면 기존 값 유지
+  const untilRaw = formData.get("until");
+  const untilStr = typeof untilRaw === "string" ? untilRaw.trim() : "";
+  if (untilStr === "") delete next.until;
+  else if (/^\d{4}-\d{2}-\d{2}$/.test(untilStr) && !Number.isNaN(Date.parse(untilStr))) {
+    next.until = `${untilStr}T23:59:59+09:00`;
+  }
+
   await admin.from("profiles").update({ scan_limit_override: next }).eq("id", id.data);
   await logAdminAction(admin, actor.id, "user.set_limits", id.data, {
     plan: plan.data,
     ...Object.fromEntries(
-      (["daily", "weekly", "monthly", "pages", "extDaily"] as const)
+      (["daily", "weekly", "monthly", "pages", "extDaily", "until"] as const)
         .filter((k) => next[k] !== undefined)
         .map((k) => [k, next[k]]),
     ),
@@ -235,10 +245,11 @@ export async function replyInquiry(formData: FormData): Promise<void> {
         to,
         subject: `[A11y Check] 문의 답변: ${title.slice(0, 60)}`,
         body: `문의하신 "${title}"에 답변이 등록되었습니다.\n\n${reply.data}`,
+        cta: { href: `${SITE_URL}/ko/inquiries`, label: "답변 보러 가기" },
       });
     }
   }
-  revalidateLocalized("/contact", "/admin/inquiries");
+  revalidateLocalized("/inquiries", "/admin/inquiries");
 }
 
 // ─────────────── 초대 관리 (referrals — migration 0024) ───────────────

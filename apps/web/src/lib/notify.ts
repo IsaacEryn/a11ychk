@@ -113,12 +113,20 @@ export async function sendAdminInquiryAlert(title: string, nickname: string | nu
  * 본문은 평문으로 받아 escapeHtml 후 줄바꿈만 <br/>로 변환(HTML 주입 차단).
  * ADMIN_ALERT_EMAIL이 설정돼 있으면 reply_to로 실어 사용자가 회신할 수 있게 한다.
  */
-export async function sendAdminUserEmail(msg: { to: string; subject: string; body: string }): Promise<boolean> {
+export async function sendAdminUserEmail(msg: {
+  to: string;
+  subject: string;
+  body: string;
+  /** 본문 아래 버튼 — 문의 답변 메일의 "답변 보러 가기" 등 */
+  cta?: { href: string; label: string };
+}): Promise<boolean> {
   const bodyHtml = escapeHtml(msg.body).replaceAll("\n", "<br/>");
+  const ctaHtml = msg.cta ? `<p style="margin:20px 0 0">${emailButton(msg.cta.href, escapeHtml(msg.cta.label))}</p>` : "";
   const html = emailCard(`
       <tr><td style="padding:8px 32px 24px">
         <p style="margin:0 0 14px;font-size:15px;font-weight:700">${escapeHtml(msg.subject)}</p>
         <p style="margin:0;font-size:14px;line-height:1.7">${bodyHtml}</p>
+        ${ctaHtml}
         <p style="margin:18px 0 0;font-size:12px;color:${EMAIL.inkSoft}">— A11y Check 운영자 · <a href="${SITE_URL}" style="color:${EMAIL.seal}">a11ychk.com</a></p>
       </td></tr>`);
   const ok = await sendEmail({ to: msg.to, subject: msg.subject, html, replyTo: process.env.ADMIN_ALERT_EMAIL });

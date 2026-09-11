@@ -1199,6 +1199,9 @@
       "pagesLabel": "Page limit",
       "pagesHint": "Page limit: doubled for verified domains, max {max} pages",
       "extDailyLabel": "Ext/day",
+      "untilLabel": "Valid until",
+      "untilHint": "If set, the plan and per-user limits apply until midnight (KST) of that day, then fall back to the free defaults. Leave blank for no expiry.",
+      "untilExpired": "Expired",
       "earned": {
         "plus1": "Plus 1 earned",
         "plus2": "Plus 2 earned"

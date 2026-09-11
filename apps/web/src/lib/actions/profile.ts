@@ -90,6 +90,6 @@ export async function createInquiry(_prev: SaveState, formData: FormData): Promi
   // 관리자 즉시 통지 (best-effort — 실패해도 문의 접수는 성공)
   const { data: profile } = await supabase.from("profiles").select("nickname").eq("id", user.id).maybeSingle();
   sendAdminInquiryAlert(parsed.data.title as string, (profile?.nickname as string | null) ?? null).catch(() => undefined);
-  revalidateLocalized("/contact", "/inquiries", "/admin/inquiries");
+  revalidateLocalized("/inquiries", "/admin/inquiries");
   return { ok: true };
 }
