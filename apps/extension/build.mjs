@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { readFileSync } from "node:fs";
 import { cp, mkdir, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
@@ -11,6 +12,24 @@ const dist = join(root, "dist");
 const require = createRequire(import.meta.url);
 
 const SITE_ORIGIN = process.env.A11YCHK_SITE_ORIGIN ?? "https://www.a11ychk.com";
+
+// Supabase 공개값(URL·anon 키) — 확장이 세션 교환·갱신에 직접 쓴다. 환경변수가 없으면
+// 웹 앱의 .env.local에서 같은 이름을 읽는다(둘 다 공개값이라 번들에 박아도 된다).
+function readWebEnv(name) {
+  try {
+    const text = readFileSync(join(root, "..", "web", ".env.local"), "utf8");
+    const m = text.match(new RegExp(`^${name}=(.*)$`, "m"));
+    return m?.[1]?.trim().replace(/^["']|["']$/g, "");
+  } catch {
+    return undefined;
+  }
+}
+const SUPABASE_URL = process.env.A11YCHK_SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? readWebEnv("NEXT_PUBLIC_SUPABASE_URL");
+const SUPABASE_ANON_KEY =
+  process.env.A11YCHK_SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? readWebEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  throw new Error("Supabase URL/anon 키가 없습니다 — A11YCHK_SUPABASE_URL·A11YCHK_SUPABASE_ANON_KEY(또는 NEXT_PUBLIC_*)를 설정하세요");
+}
 
 // axe는 워크스페이스 의존성(node_modules)에서 가져와 core와 버전 동기화
 const axeMinPath = require.resolve("axe-core/axe.min.js");
@@ -34,6 +53,8 @@ await build({
   define: {
     "process.env.A11YCHK_SITE_ORIGIN": JSON.stringify(SITE_ORIGIN),
     "process.env.A11YCHK_AXE_VERSION": JSON.stringify(AXE_VERSION),
+    "process.env.A11YCHK_SUPABASE_URL": JSON.stringify(SUPABASE_URL),
+    "process.env.A11YCHK_SUPABASE_ANON_KEY": JSON.stringify(SUPABASE_ANON_KEY),
   },
   loader: { ".css": "text" },
 });

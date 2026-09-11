@@ -23,6 +23,7 @@ export { listPresets, savePreset, deletePreset } from "./actions/presets";
 export type { ScanPreset, PresetOptions } from "./actions/presets";
 
 export { submitReferralAppeal } from "./actions/referral";
+export { issueExtensionToken } from "./actions/extension";
 export { saveReview, saveReportMeta, savePublicView, toggleShareLink } from "./actions/reports";
 export type { ShareState, ReviewSaveState } from "./actions/reports";
 

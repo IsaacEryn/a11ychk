@@ -11,6 +11,8 @@ export interface StoredSession {
   accessToken: string;
   expiresAt: number;
   email?: string;
+  /** 확장 전용 세션의 갱신 토큰 — 0.5.0부터. 없으면(구 방식 연결) 만료 시 재연결 필요 */
+  refreshToken?: string;
 }
 
 export const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;

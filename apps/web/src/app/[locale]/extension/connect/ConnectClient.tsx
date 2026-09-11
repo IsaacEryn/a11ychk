@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { issueExtensionToken } from "@/lib/actions";
 
 /**
  * 확장 연결 페이지 클라이언트.
@@ -21,7 +22,8 @@ export function ConnectClient({
 
   useEffect(() => {
     const origin = window.location.origin;
-    let token: { accessToken: string; expiresAt: number; email: string } | null = null;
+    // tokenHash: 확장 전용 세션 교환용(0.5.0+). accessToken·expiresAt은 구버전 확장(0.4.x) 호환용으로 유지
+    let token: { accessToken: string; expiresAt: number; email: string; tokenHash?: string } | null = null;
     let extReady = false;
 
     const post = () => {
@@ -45,10 +47,15 @@ export function ConnectClient({
     window.addEventListener("message", onMessage);
 
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data }) => {
+    Promise.all([supabase.auth.getSession(), issueExtensionToken().catch(() => null)]).then(([{ data }, issued]) => {
       const s = data.session;
       if (s) {
-        token = { accessToken: s.access_token, expiresAt: (s.expires_at ?? 0) * 1000, email };
+        token = {
+          accessToken: s.access_token,
+          expiresAt: (s.expires_at ?? 0) * 1000,
+          email,
+          ...(issued && "tokenHash" in issued ? { tokenHash: issued.tokenHash } : {}),
+        };
         post();
       }
     });

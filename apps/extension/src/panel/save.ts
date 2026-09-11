@@ -1,11 +1,10 @@
 // 계정 저장 + AI 수정요청 내보내기
-import { codeFence, getRuleEntry } from "@a11ychk/core/catalog";
-import { isEnglish, msg, pick } from "../i18n";
+import { aggregateScan, automatedComplianceRate, buildAiFix, groupViolationsForAiFix } from "@a11ychk/core/catalog";
+import { isEnglish, msg } from "../i18n";
 import * as log from "../log";
-import { $, SITE_ORIGIN, state, type PageResult } from "./state";
+import { $, AXE_VERSION, SITE_ORIGIN, state, type PageResult } from "./state";
 import { clearSession, getSession, renderAccount } from "./session";
 import { getReviewState } from "./review";
-import { IMPACTS, impactLabel } from "./render";
 
 /** 저장 위치 셀렉트 채우기 — 새 보고서 + 사용자의 기존 보고서(같은 사이트 우선) */
 export async function populateSaveTargets(accessToken: string, pageUrl: string) {
@@ -135,37 +134,21 @@ export async function saveToAccount() {
 }
 
 /** AI 수정요청 프롬프트에 규칙당 포함할 최대 발생 위치 */
-const MAX_AIFIX_NODES = 10;
-
 /**
- * 로컬 검사 결과를 AI 도구(Claude/ChatGPT/Copilot)에 붙여넣을 자기완결 마크다운으로 변환.
- * 웹 보고서의 ai-fix 내보내기와 동일한 목적 — 확장에서도 "점검→즉시 수정"이 완결되게 한다.
+ * AI 수정 요청 문서 — core의 공용 빌더로 생성해 웹 보고서·MCP와 같은 형식이 나온다
+ * (판정 3면 일치의 문서판). 준수율도 화면과 같은 aggregateScan → automatedComplianceRate.
  */
 function buildAiFixMarkdown(page: PageResult): string {
-  const sorted = [...page.violations].sort((a, b) => IMPACTS.indexOf(a.impact) - IMPACTS.indexOf(b.impact));
-  const lines: string[] = [`# A11y Check — ${msg("aiFixExport")}`, "", `- URL: ${page.url}`, `- ${msg("aiFixIntro")}`, ""];
-  let i = 0;
-  for (const v of sorted) {
-    i++;
-    const entry = getRuleEntry(v.ruleId, v.tags);
-    const tags = [
-      entry.wcag.length ? `WCAG ${entry.wcag.join(", ")}` : "",
-      entry.kwcag.length ? `KWCAG ${entry.kwcag.join(", ")}` : "",
-    ].filter(Boolean).join(" · ");
-    lines.push(`## ${i}. [${impactLabel(v.impact)}] ${pick(entry.title)}`);
-    lines.push(`- ${[tags, msg("nodeCount", [v.nodes.length])].filter(Boolean).join(" · ")}`);
-    const guide = pick(entry.guide).split("\n\n")[0]?.trim();
-    if (guide) lines.push("", guide);
-    lines.push("");
-    for (const node of v.nodes.slice(0, MAX_AIFIX_NODES)) {
-      const fence = codeFence(node.html);
-      lines.push(`- \`${node.selector}\``, `  ${fence}html`, "  " + node.html.replace(/\n/g, "\n  "), `  ${fence}`);
-      if (node.failureSummary) lines.push(`  - ${node.failureSummary.replace(/\s*\n\s*/g, " ")}`);
-    }
-    if (v.nodes.length > MAX_AIFIX_NODES) lines.push(`- ${msg("moreNodes", [v.nodes.length - MAX_AIFIX_NODES])}`);
-    lines.push("");
-  }
-  return lines.join("\n");
+  const summary = aggregateScan([page], AXE_VERSION);
+  return buildAiFix({
+    site: page.url,
+    scannedAt: page.scannedAt,
+    axeVersion: AXE_VERSION,
+    complianceRate: automatedComplianceRate(summary),
+    totalViolationNodes: page.violations.reduce((n, v) => n + v.nodes.length, 0),
+    lang: isEnglish() ? "en" : "ko",
+    groups: groupViolationsForAiFix([page]),
+  }).markdown;
 }
 
 /** AI 수정요청 마크다운 파일 다운로드 (Blob + anchor — downloads 권한 불필요) */

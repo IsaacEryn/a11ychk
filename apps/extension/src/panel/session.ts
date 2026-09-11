@@ -1,5 +1,6 @@
 // 세션·계정 렌더 + 비로그인 사용량 집계
 import { isEnglish, msg } from "../i18n";
+import { expiresAtMs, refreshWithToken, revokeSession } from "../supabase";
 import { $, SITE_ORIGIN, type StoredSession } from "./state";
 
 /** 저장된 세션 삭제 — 만료·서버 401 공통 경로 (저장소 변경이 계정 영역 재렌더를 부른다) */
@@ -7,11 +8,43 @@ export async function clearSession(): Promise<void> {
   await chrome.storage.local.remove("a11ychk_session");
 }
 
+/** 만료까지 이 시간 이내면 미리 갱신 — 요청 도중 만료로 401을 맞지 않게 */
+const REFRESH_AHEAD_MS = 5 * 60_000;
+/** 동시 호출(사용량 조회 + 저장 대상 목록 등)이 refresh token을 두 번 쓰지 않게 갱신을 한 번으로 합친다 */
+let refreshing: Promise<StoredSession | null> | null = null;
+
+async function refreshSession(s: StoredSession): Promise<StoredSession | null> {
+  if (!s.refreshToken) return null;
+  refreshing ??= (async () => {
+    try {
+      const fresh = await refreshWithToken(s.refreshToken!);
+      if (!fresh) return null;
+      const next: StoredSession = {
+        accessToken: fresh.access_token,
+        refreshToken: fresh.refresh_token,
+        expiresAt: expiresAtMs(fresh),
+        email: fresh.user?.email ?? s.email,
+      };
+      await chrome.storage.local.set({ a11ychk_session: next });
+      return next;
+    } catch {
+      return null;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
+}
+
 export async function getSession(): Promise<StoredSession | null> {
   const { a11ychk_session } = await chrome.storage.local.get("a11ychk_session");
   const s = a11ychk_session as StoredSession | undefined;
   if (!s?.accessToken) return null;
-  if (s.expiresAt > Date.now()) return s;
+  if (s.expiresAt - Date.now() > REFRESH_AHEAD_MS) return s;
+  // 만료 임박·만료: 확장 전용 세션이면 조용히 갱신
+  const refreshed = await refreshSession(s);
+  if (refreshed) return refreshed;
+  if (s.expiresAt > Date.now()) return s; // 갱신 실패했지만 아직 유효 — 남은 시간은 쓴다
   // 만료분은 그 자리에서 지운다 — 남겨 두면 헤더는 "연결됨"인데 검사는 비로그인
   // 경로로 내려가 무료 횟수를 대신 소모하는 어긋난 상태가 된다
   await clearSession();
@@ -23,8 +56,11 @@ function openConnect() {
   void chrome.tabs.create({ url: `${SITE_ORIGIN}/${isEnglish() ? "en" : "ko"}/extension/connect` });
 }
 
-/** 확장 연결 해제 — 저장된 세션 삭제 */
+/** 확장 연결 해제 — 서버 쪽 세션(refresh token)까지 철회하고 저장된 세션 삭제 */
 async function logout() {
+  const { a11ychk_session } = await chrome.storage.local.get("a11ychk_session");
+  const s = a11ychk_session as StoredSession | undefined;
+  if (s?.refreshToken && s.accessToken) await revokeSession(s.accessToken);
   await clearSession();
   await renderAccount();
 }
