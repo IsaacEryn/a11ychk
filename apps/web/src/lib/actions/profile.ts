@@ -3,9 +3,12 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { isImpersonatingNickname } from "@/lib/nickname";
 import { sendAdminInquiryAlert } from "@/lib/notify";
-import { requireUser, revalidateAll, revalidateLocalized, type SaveState } from "./shared";
+import { logAppError } from "@/lib/logs";
+import { accountDeleteConfirmPhrase, confirmMatches } from "@/lib/accountDelete";
+import { actionLocale, requireUser, revalidateAll, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 인증 ───────────────
 export async function signOut() {
@@ -56,6 +59,47 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
   if (error) return { error: "failed" };
   revalidateLocalized("/mypage");
   return { ok: true };
+}
+
+// ─────────────── 회원 탈퇴 ───────────────
+/**
+ * 회원 탈퇴(계정 삭제) — 개인정보처리방침 7항이 약속한 셀프 탈퇴.
+ *
+ * auth.users를 지우면 profiles가 on delete cascade로 지워지고, 거기 걸린 도메인·검사·페이지·
+ * 위반·점검자 판정·문의·프리셋·확장 사용량이 따라 지워진다. 로그인 기록과 초대 기록은 방침 3항대로
+ * 연결만 끊긴다(set null — 보안 로그 90일 보관, 초대 이메일 해시는 중복 초대 방지용 보관).
+ *
+ * 거절 조건: 확인 문구 불일치 · 관리자 계정(콘솔 잠김 방지 — 권한을 넘긴 뒤 탈퇴) ·
+ * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다).
+ * error: "mismatch" | "admin" | "active" | "failed"
+ */
+export async function deleteAccount(_prev: SaveState, formData: FormData): Promise<SaveState> {
+  const { supabase, user } = await requireUser();
+  if (!confirmMatches(accountDeleteConfirmPhrase(user.email), formData.get("confirm"))) {
+    return { error: "mismatch" };
+  }
+
+  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profile?.role === "admin") return { error: "admin" };
+
+  const admin = createAdminClient();
+  const { count } = await admin
+    .from("scans")
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", user.id)
+    .in("status", ["queued", "running"]);
+  if ((count ?? 0) > 0) return { error: "active" };
+
+  const { error } = await admin.auth.admin.deleteUser(user.id);
+  if (error) {
+    await logAppError(admin, `account delete failed: ${error.message.slice(0, 300)}`, { path: "actions.deleteAccount" });
+    return { error: "failed" };
+  }
+
+  // 사용자는 이미 없으므로 서버 로그아웃 호출 없이 이 브라우저의 세션 쿠키만 지운다
+  await supabase.auth.signOut({ scope: "local" }).catch(() => undefined);
+  revalidateAll();
+  redirect(`/${await actionLocale()}/login?reason=deleted`);
 }
 
 // ─────────────── 문의 ───────────────

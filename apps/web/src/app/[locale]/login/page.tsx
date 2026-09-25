@@ -53,6 +53,11 @@ export default async function LoginPage({
             {t("timeoutNotice")}
           </p>
         )}
+        {reason === "deleted" && (
+          <p role="status" className="mt-4 border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] px-3 py-2 text-sm font-medium">
+            {t("deletedNotice")}
+          </p>
+        )}
 
         <OAuthButtons locale={locale} next={next} googleLabel={t("withGoogle")} githubLabel={t("withGithub")} errorLabel={t("errGeneric")} />
 

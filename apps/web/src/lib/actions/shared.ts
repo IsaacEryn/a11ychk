@@ -54,7 +54,7 @@ export async function requireUser() {
 }
 
 /** 요청 경로에서 로케일 추정 — 서버 액션은 세그먼트 파라미터를 받지 못한다 */
-async function actionLocale(): Promise<string> {
+export async function actionLocale(): Promise<string> {
   return localeFromPathname((await headers()).get("x-pathname") ?? "");
 }
 

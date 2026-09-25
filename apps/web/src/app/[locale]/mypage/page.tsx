@@ -24,6 +24,8 @@ import { StatusBadge } from "@/components/StatusBadge";
 import { NicknameForm } from "./NicknameForm";
 import { PreferredStandardForm } from "./PreferredStandardForm";
 import { MissionCard, type ReferralRow } from "./ReferralCard";
+import { DeleteAccountSection } from "./DeleteAccountSection";
+import { accountDeleteConfirmPhrase } from "@/lib/accountDelete";
 import { automatedComplianceRate, type ScanSummary } from "@a11ychk/core/catalog";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -256,6 +258,9 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
           </div>
         )}
       </section>
+
+      {/* 회원 탈퇴 — 개인정보처리방침 7항 */}
+      <DeleteAccountSection phrase={accountDeleteConfirmPhrase(user.email)} />
     </div>
   );
 }

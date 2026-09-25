@@ -260,7 +260,8 @@
       "errInvalidCode": "Invalid code. Try again with the latest code from your app.",
       "errGeneric": "Something went wrong. Refresh and try again."
     },
-    "metaDescription": "Sign in to A11y Check with Google, GitHub, or email."
+    "metaDescription": "Sign in to A11y Check with Google, GitHub, or email.",
+    "deletedNotice": "Your account and all audit records have been deleted. Thank you for using A11y Check."
   },
   "scanPage": {
     "title": "Run Audit",
@@ -1057,6 +1058,24 @@
       "extValue": "{limit}/day",
       "pageLabel": "Pages per scan",
       "pageValue": "up to {limit}"
+    },
+    "account": {
+      "title": "Delete account",
+      "desc": "Deleting your account also deletes the data you have in this service.",
+      "open": "Show deletion steps",
+      "deleted": "Deleted: your account and profile, registered domains with their verification, public listing and badges, all audits, reports and reviewer judgments, inquiries, and scan presets",
+      "kept": "Kept: security sign-in records are unlinked from your account and deleted automatically after 90 days, and referral records keep only an irreversible email hash (Privacy Policy, section 3).",
+      "irreversible": "Deleted accounts and reports cannot be restored. Download any reports you need as PDF or CSV first.",
+      "confirmLabel": "Confirmation",
+      "confirmHint": "To continue, type {phrase} exactly.",
+      "submit": "Permanently delete account",
+      "submitting": "Deleting…",
+      "error": {
+        "mismatch": "The confirmation text does not match.",
+        "admin": "Admin accounts cannot be deleted. Remove admin rights first, then try again.",
+        "active": "An audit is in progress. Try again after it finishes.",
+        "failed": "Could not delete the account. Try again later or contact us."
+      }
     }
   },
   "inquiries": {
