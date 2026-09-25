@@ -67,7 +67,15 @@ export async function drainQueue(): Promise<void> {
     // runScan은 무거운 chromium 의존을 정적으로 끌어오므로 이 경로에서만 동적 import 한다
     // (프로덕션 HTTP 경로 및 drain을 import하는 페이지/reclaim 번들에서 스캐너 그래프 배제).
     const { runScan } = await import("./runScan");
-    await Promise.all(ids.map((id) => runScan(id).catch(() => undefined)));
+    const { sendAutoAlertIfNeeded } = await import("./autoAlert");
+    // run-scan 엔드포인트와 같은 순서 — 완료 직후 정기 검사 회귀 알림
+    await Promise.all(
+      ids.map((id) =>
+        runScan(id)
+          .then(() => sendAutoAlertIfNeeded(admin, id))
+          .catch(() => undefined),
+      ),
+    );
     await drainQueue();
   }
 }
