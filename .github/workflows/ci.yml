@@ -32,7 +32,12 @@ jobs:
           git diff --exit-code docs/coverage.md docs/coverage.json \
             || { echo '::error::규칙 카탈로그가 바뀌었다 — npm run coverage -w @a11ychk/core 로 문서를 재생성해 커밋할 것'; exit 1; }
       - run: npm run lint
+      # 확장은 0.5.0부터 Supabase 공개값을 번들에 넣어야 빌드된다. CI 빌드는 검증 전용이라
+      # (산출물을 게시하지 않음) 웹 빌드와 같은 자리표시자를 쓴다. 게시용 빌드는 로컬 .env.local 값.
       - run: npm run build -w @a11ychk/extension
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://example.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
       # 웹 프로덕션 빌드 검증 — typecheck가 못 잡는 빌드 단계 오류(RSC 경계 등) 포착
       - run: npm run build
         env:
