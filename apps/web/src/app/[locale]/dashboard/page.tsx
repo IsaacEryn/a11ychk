@@ -83,8 +83,11 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   // KWCAG 항목별 변화 — 호스트별 최신 2개 검사의 kwcagMatrix diff (마이그레이션 불요)
   const itemChangesByHost = await loadItemChanges(supabase, latestTwoByHost, locale);
 
+  // 실제로 돌고 있는 정기 검사만 — 크론은 소유 확인 도메인만 검사한다
   const autoScanHosts = new Set(
-    (domains ?? []).filter((d) => d.auto_scan).map((d) => foldHost((d.hostname as string).toLowerCase())),
+    (domains ?? [])
+      .filter((d) => d.auto_scan && d.verified)
+      .map((d) => foldHost((d.hostname as string).toLowerCase())),
   );
 
   const admin = createAdminClient();
@@ -286,24 +289,35 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         {t("domains.unverified")}
                       </span>
                     )}
-                    {d.auto_scan && (
+                    {d.auto_scan && d.verified && (
                       <span className="rounded-full bg-[var(--color-seal-tint)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-seal)]">
                         {t("domains.autoScanOn")}
+                      </span>
+                    )}
+                    {/* 미확인 상태로 켜 둔 예전 도메인 — 크론이 건너뛰므로 멈춰 있음을 알린다 */}
+                    {d.auto_scan && !d.verified && (
+                      <span className="rounded-full border-[1.5px] border-[var(--color-line)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-ink-soft)]">
+                        {t("domains.autoScanPaused")}
                       </span>
                     )}
                   </div>
                   {/* 모바일에선 전체 폭 행 → 삭제가 ml-auto로 우측 끝에 분리(오탭 방지) */}
                   <div className="flex flex-wrap items-center gap-2.5 sm:ml-auto">
-                    <form action={toggleAutoScan}>
-                      <input type="hidden" name="id" value={d.id} />
-                      <input type="hidden" name="enabled" value={String(d.auto_scan)} />
-                      <button
-                        type="submit"
-                        className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
-                      >
-                        {d.auto_scan ? t("domains.autoScanDisable") : t("domains.autoScanEnable")}
-                      </button>
-                    </form>
+                    {/* 켜기는 소유 확인 도메인만(서버 액션도 거부). 끄기는 항상 가능 */}
+                    {d.verified || d.auto_scan ? (
+                      <form action={toggleAutoScan}>
+                        <input type="hidden" name="id" value={d.id} />
+                        <input type="hidden" name="enabled" value={String(d.auto_scan)} />
+                        <button
+                          type="submit"
+                          className="rounded border-[1.5px] border-[var(--color-line)] px-3 py-1.5 text-sm font-semibold text-[var(--color-ink-soft)] hover:border-[var(--color-seal)] hover:text-[var(--color-seal)]"
+                        >
+                          {d.auto_scan ? t("domains.autoScanDisable") : t("domains.autoScanEnable")}
+                        </button>
+                      </form>
+                    ) : (
+                      <span className="text-sm text-[var(--color-ink-soft)]">{t("domains.autoScanNeedsVerify")}</span>
+                    )}
                     {d.auto_scan && (
                       <form action={toggleNotify}>
                         <input type="hidden" name="id" value={d.id} />

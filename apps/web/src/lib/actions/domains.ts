@@ -45,13 +45,25 @@ export async function deleteDomain(formData: FormData): Promise<void> {
  * 도메인 정기 자동 스캔 켜기/끄기.
  * domains에는 UPDATE RLS 정책이 없어 사용자 클라이언트로는 갱신되지 않으므로,
  * 소유자(user_id) 필터를 명시한 admin 클라이언트로 갱신한다(verifyDomain과 동일 패턴).
+ * 켜기는 소유 확인 도메인만 — 크론도 미확인 도메인은 건너뛴다. 끄기는 언제나 허용
+ * (미확인 상태로 켜 둔 예전 도메인을 사용자가 정리할 수 있어야 한다).
  */
 export async function toggleAutoScan(formData: FormData): Promise<void> {
   const { user } = await requireUser();
   const id = z.string().uuid().safeParse(formData.get("id"));
   const enabled = formData.get("enabled") === "true";
   if (!id.success) return;
-  await createAdminClient().from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  const admin = createAdminClient();
+  if (!enabled) {
+    const { data: domain } = await admin
+      .from("domains")
+      .select("verified")
+      .eq("id", id.data)
+      .eq("user_id", user.id)
+      .maybeSingle();
+    if (!domain?.verified) return;
+  }
+  await admin.from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
   revalidateLocalized("/dashboard");
 }
 

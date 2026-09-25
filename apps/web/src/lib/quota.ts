@@ -339,13 +339,16 @@ export async function checkQuota(
     const reset = resets[key];
     // 롤링 윈도우 시작과 리셋 시각 중 더 나중(=더 짧은 기간)을 하한으로
     const lowerBound = reset && reset > windowStart ? reset : windowStart;
-    // 관리자 재검사(admin_retry, 0028)는 사용자 한도에서 제외.
-    // 0028 미적용 환경(컬럼 부재)에서는 필터 없이 폴백해 검사 생성이 깨지지 않게 한다.
+    // 관리자 재검사(admin_retry, 0028)와 정기 검사(source='scheduled', 0029)는 사용자 한도에서 제외.
+    // 정기 검사는 소유 확인 도메인에만 돌고 그 수가 등급별로 묶여 있어(getVerifiedDomainLimit)
+    // 비용 상한이 따로 있다. 이걸 한도에 넣으면 매일 검사만으로 주간 한도가 바닥나 수동 검사까지 막혔다.
+    // 컬럼 미적용 환경(0028·0029)에서는 필터 없이 폴백해 검사 생성이 깨지지 않게 한다.
     let { count, error } = await admin
       .from("scans")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("admin_retry", false)
+      .neq("source", "scheduled")
       .gte("created_at", lowerBound);
     if (error) {
       ({ count, error } = await admin

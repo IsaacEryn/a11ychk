@@ -47,11 +47,15 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
 
   // 후보: 최소 간격(daily=20h)을 넘긴 도메인 전부. 주기별(매주·매월) 필터는 아래 JS에서.
   const minCutoff = new Date(now - FREQUENCY_HOURS.daily * 3600_000).toISOString();
-  // select * — notify·scan_frequency 컬럼 미적용 환경에서도 조회가 깨지지 않게
+  // select * — notify·scan_frequency 컬럼 미적용 환경에서도 조회가 깨지지 않게.
+  // 소유 확인 도메인만 — 정기 검사는 사용자 한도를 차감하지 않으므로(createScanForUser의 skipQuota)
+  // 등급별로 묶인 소유 확인 도메인 수가 곧 사용자당 정기 검사 상한이다. 남의 사이트를 매일 자동
+  // 크롤하지 않는다는 의미도 있다. 예전에 미확인 상태로 켜 둔 도메인은 소유 확인 전까지 건너뛴다.
   const { data: candidates } = await admin
     .from("domains")
     .select("*")
     .eq("auto_scan", true)
+    .eq("verified", true)
     .or(`last_auto_scan_at.is.null,last_auto_scan_at.lt.${minCutoff}`)
     .order("last_auto_scan_at", { ascending: true, nullsFirst: true })
     .limit(30);

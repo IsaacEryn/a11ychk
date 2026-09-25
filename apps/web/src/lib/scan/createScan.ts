@@ -82,8 +82,10 @@ export async function createScanForUser(
   const dailyBonus = typeof p.referral_daily_bonus === "number" ? p.referral_daily_bonus : 0;
 
   const plansActive = await getPlansActive(admin);
-  // 관리자 재검사는 한도 검사를 건너뛴다(사용자 잔여 횟수 미차감 — checkQuota 카운트에서도 제외됨)
-  if (!options.adminRetry) {
+  // 관리자 재검사·정기 검사는 한도 검사를 건너뛴다(사용자 잔여 횟수 미차감 — checkQuota 카운트에서도
+  // 제외됨). 정기 검사의 상한은 크론이 소유 확인 도메인만 대상으로 삼는 것으로 대신한다.
+  const skipQuota = options.adminRetry || options.source === "scheduled";
+  if (!skipQuota) {
     const quota = await checkQuota(
       admin,
       userId,
@@ -198,8 +200,8 @@ export async function createScanForUser(
   }
 
   // 한도 이중 검증 — 동시 삽입으로 한도를 넘었으면 이번 행을 회수 (TOCTOU 보정).
-  // 카운트는 삽입 후 기준이므로 '초과'는 limit을 넘어선 경우다. (관리자 재검사는 한도 무관)
-  if (!options.adminRetry) {
+  // 카운트는 삽입 후 기준이므로 '초과'는 limit을 넘어선 경우다. (관리자 재검사·정기 검사는 한도 무관)
+  if (!skipQuota) {
     const recheck = await checkQuota(
       admin,
       userId,
@@ -223,8 +225,8 @@ export async function createScanForUser(
 
   // 초대 성립 훅 — 이 사용자가 초대받아 가입한 경우 첫 검사 실행으로 성립 전환.
   // TOCTOU 회수(위 recheck) 통과 후라 회수된 검사로는 성립되지 않는다. best-effort·멱등.
-  // 관리자 재검사는 사용자의 자발적 검사가 아니므로 성립 트리거에서 제외.
-  if (!options.adminRetry) {
+  // 관리자 재검사·정기 검사는 사용자의 자발적 검사가 아니므로 성립 트리거에서 제외.
+  if (!skipQuota) {
     await markReferralValidOnFirstScan(admin, userId);
   }
 

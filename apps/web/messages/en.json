@@ -460,6 +460,8 @@
       "autoScanOn": "Scheduled audit on",
       "autoScanEnable": "Enable scheduled audit",
       "autoScanDisable": "Disable scheduled audit",
+      "autoScanPaused": "Scheduled audit paused · verify ownership",
+      "autoScanNeedsVerify": "Verify ownership to enable scheduled audits",
       "trendTitle": "Compliance trend",
       "trendLabel": "Compliance trend for {host}",
       "notifyDisable": "Turn off alerts",
