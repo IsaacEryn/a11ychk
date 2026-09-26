@@ -1,5 +1,6 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { Link } from "@/i18n/navigation";
 import { CERT_TARGET_RATE } from "@/app/[locale]/scans/[id]/report/certReadiness";
 import { createClient } from "@/lib/supabase/server";
@@ -7,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCachedUser } from "@/lib/supabase/user";
 import { reclaimStaleScans } from "@/lib/scan/reclaimStale";
 import { foldHost } from "@/lib/host";
+import { rememberLocale } from "@/lib/profileLocale";
 import {
   checkQuota,
   getEarnedPlan,
@@ -51,6 +53,9 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
   // 좀비 검사 자가 치유 — 제한 시간을 넘긴 running/queued 검사를 failed로 정리해
   // "검사 중" 칩이 영원히 남거나 새 검사가 차단되는 것을 막는다.
   await reclaimStaleScans(createAdminClient(), { userId: user.id });
+  // 회귀 알림 메일 언어 — 정기 검사를 켠 사용자는 대시보드를 거치므로(로그인 방식과 무관) 여기서
+  // 보고 있는 언어를 기억한다. 응답 뒤에 처리하고, 값이 같으면 쓰지 않는다(profileLocale).
+  after(() => rememberLocale(createAdminClient(), user.id, locale));
 
   const [{ data: profile }, { data: domains }, { data: scans }, { data: trendRows }] = await Promise.all([
     supabase.from("profiles").select("nickname, scan_limit_override, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
@@ -296,9 +301,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                     )}
                     {/* 미확인 상태로 켜 둔 예전 도메인 — 크론이 건너뛰므로 멈춰 있음을 알린다 */}
                     {d.auto_scan && !d.verified && (
-                      <span className="rounded-full border-[1.5px] border-[var(--color-line)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-ink-soft)]">
+                      <a
+                        href={`#verify-${d.id}`}
+                        className="rounded-full border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] px-2.5 py-0.5 text-xs font-bold text-[var(--color-ink-soft)] underline-offset-4 hover:underline"
+                      >
                         {t("domains.autoScanPaused")}
-                      </span>
+                      </a>
                     )}
                   </div>
                   {/* 모바일에선 전체 폭 행 → 삭제가 ml-auto로 우측 끝에 분리(오탭 방지) */}
@@ -316,7 +324,12 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                         </button>
                       </form>
                     ) : (
-                      <span className="text-sm text-[var(--color-ink-soft)]">{t("domains.autoScanNeedsVerify")}</span>
+                      <a
+                        href={`#verify-${d.id}`}
+                        className="text-sm text-[var(--color-ink-soft)] underline underline-offset-4 hover:text-[var(--color-seal)]"
+                      >
+                        {t("domains.autoScanNeedsVerify")}
+                      </a>
                     )}
                     {d.auto_scan && (
                       <form action={toggleNotify}>
@@ -396,7 +409,10 @@ export default async function DashboardPage({ params }: { params: Promise<{ loca
                   </div>
                 )}
                 {!d.verified && (
-                  <div className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]">
+                  <div
+                    id={`verify-${d.id}`}
+                    className="mt-3 border-t border-dashed border-[var(--color-line)] pt-3 text-sm text-[var(--color-ink-soft)]"
+                  >
                     <p className="font-semibold">{t("domains.verifyTitle")}</p>
                     <p className="mt-1">{t("domains.verifyIntro")}</p>
                     {/* 초보자 안내: 3가지 중 하나만 하면 됨을 강조 */}

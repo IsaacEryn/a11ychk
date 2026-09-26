@@ -9,7 +9,8 @@ import { getEarnedPlan, getVerifiedDomainLimit } from "@/lib/quota";
 import { reevaluateEarnedPlan } from "@/lib/referral/promote";
 import { setupCloudflareTxt } from "@/lib/cloudflare";
 import { scanUrlMatchesHost } from "@/lib/host";
-import { requireUser, revalidateLocalized, type SaveState } from "./shared";
+import { rememberLocale } from "@/lib/profileLocale";
+import { actionLocale, requireUser, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 도메인 ───────────────
 const HostnameSchema = z
@@ -27,6 +28,8 @@ export async function addDomain(_prev: SaveState, formData: FormData): Promise<S
     .replace(/\/.*$/, "");
   const parsed = HostnameSchema.safeParse(raw);
   if (!parsed.success) return { error: "invalid" };
+  // 사용자 클라이언트 insert는 이 두 컬럼만 허용된다(0037 컬럼 grant) — 소유 확인·정기 검사·공개
+  // 여부는 서버가 검증 뒤 service role로 갱신한다. 여기 컬럼을 늘리면 0037의 grant도 넓힐 것.
   const { error } = await supabase.from("domains").insert({ user_id: user.id, hostname: parsed.data });
   if (error) return { error: error.code === "23505" ? "duplicate" : "failed" };
   revalidateLocalized("/dashboard");
@@ -64,6 +67,8 @@ export async function toggleAutoScan(formData: FormData): Promise<void> {
     if (!domain?.verified) return;
   }
   await admin.from("domains").update({ auto_scan: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  // 회귀 알림은 사용자가 화면에 없을 때 가므로, 정기 검사를 다루는 지금의 언어를 기억한다
+  await rememberLocale(admin, user.id, await actionLocale());
   revalidateLocalized("/dashboard");
 }
 
@@ -73,7 +78,9 @@ export async function toggleNotify(formData: FormData): Promise<void> {
   const id = z.string().uuid().safeParse(formData.get("id"));
   const enabled = formData.get("enabled") === "true";
   if (!id.success) return;
-  await createAdminClient().from("domains").update({ notify: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  const admin = createAdminClient();
+  await admin.from("domains").update({ notify: !enabled }).eq("id", id.data).eq("user_id", user.id);
+  await rememberLocale(admin, user.id, await actionLocale());
   revalidateLocalized("/dashboard");
 }
 

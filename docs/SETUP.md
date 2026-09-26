@@ -16,6 +16,8 @@
    - `0027_is_admin_aal2.sql` — **관리자 RLS에 2단계 인증(AAL2) 요구 — 관리자 TOTP 등록을 마친 뒤 적용할 것.** 미적용이면 비밀번호만 탈취해도 PostgREST로 직접 전체 데이터를 읽을 수 있다 (아래 "관리자 2단계 인증" 참고)
    - `0033_scan_presets.sql` — 검사 옵션 프리셋 (안 하면 프리셋 저장만 비활성)
    - `0035_rpc_grants.sql` — **SECURITY DEFINER 함수의 anon·authenticated 실행 권한 회수 — 보안상 필수**
+   - `0037_domains_insert_columns.sql` — **domains INSERT를 (user_id, hostname)으로 한정 — 보안상 필수.** 미적용이면 로그인 사용자가 PostgREST로 `verified=true`인 도메인 행을 직접 넣어 소유 확인(배지·공개 등재·정기 검사·robots 예외)을 위조할 수 있다. 적용 후 파일 끝의 점검 SQL로 기존 위조 행을 확인할 것
+   - `0038_scheduled_scan_candidates.sql` — 정기 검사 후보를 SQL에서 계정당 1개·기한 초과 순으로 고른다(안 하면 크론이 창 500 + JS 선택으로 폴백하고, 창이 차면 app_errors에 기록)
 3. **Authentication → Providers**에서 Google, GitHub OAuth 활성화
    - Google: [Google Cloud Console](https://console.cloud.google.com)에서 OAuth 클라이언트 생성,
      승인된 리디렉션 URI에 `https://<프로젝트>.supabase.co/auth/v1/callback` 추가
@@ -98,7 +100,15 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 
 - `apps/web/vercel.json`의 cron이 매일 `/api/cron/scheduled-scans`를 호출합니다.
 - Vercel이 `CRON_SECRET`을 Authorization 헤더로 자동 전송하므로 환경변수만 설정하면 됩니다.
-- 사용자가 대시보드에서 도메인별 "정기 검사 켜기"를 해야 대상이 됩니다.
+- 사용자가 대시보드에서 도메인별 "정기 검사 켜기"를 해야 대상이 됩니다. **소유를 확인한 도메인만** 켤 수 있고
+  크론도 소유 확인 도메인만 검사합니다(예전에 미확인으로 켜 둔 도메인은 대시보드에 "대기"로 보임).
+- 정기 검사는 사용자 검사 한도를 쓰지 않습니다. 대신 사용자당 활성 검사 1건 가드 때문에 **계정당 하루 1개 도메인**이
+  상한이고, 한 계정에 여러 도메인이 있으면 기한을 가장 많이 넘긴 것부터 하루에 하나씩 돕니다(0038·`pickScheduledDomains`).
+- 크론 결과는 `cron_runs.summary`에 남습니다 — `counts`(상태별 합계), `pausedUnverified`(미확인이라 멈춘 도메인 수),
+  `deferred`(폴백 경로에서 기한이 됐지만 못 고른 수), `candidateWindowFull`. 예:
+  `select started_at, summary->'counts', summary->'pausedUnverified' from cron_runs where job='scheduled-scans' order by started_at desc limit 7;`
+- 회귀 알림은 같은 도메인의 직전 **정기** 검사와 자동 준수율로 비교합니다(표본 조건이 다르거나 일부만 끝난 검사면 신규 위반 비교 생략).
+  `scans.source`(0029)가 없으면 알림이 멈추므로 `select source, count(*) from scans where created_at > now() - interval '3 days' group by 1`로 `scheduled` 행을 확인할 것.
 
 ## 3. Vercel 배포
 

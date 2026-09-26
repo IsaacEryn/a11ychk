@@ -42,39 +42,63 @@ function emailButton(href: string, label: string): string {
 export interface ScanAlert {
   to: string;
   hostname: string;
+  /** 자동 검사 준수율 — 점검자 판정 유무에 흔들리지 않게 회귀 비교는 자동 결과로만 한다(autoAlert) */
   prevRate: number;
   newRate: number;
-  newRules: string[]; // 이번에 새로 위반된 규칙 제목(사람이 읽는 문자열)
+  newRules: string[]; // 이번에 새로 위반된 규칙 제목(사람이 읽는 문자열, locale 언어)
   reportUrl: string;
+  /** 메일 언어 — profiles.locale(대시보드를 볼 때·정기 검사 설정을 바꿀 때 기억). 기본 ko */
+  locale?: "ko" | "en";
+  /** 준수율을 비교했는가 — false면(표본 조건이 달라 비교 불가) 제목·본문에서 준수율 변화를 뺀다 */
+  rateCompared?: boolean;
 }
 
 export async function sendScanAlert(alert: ScanAlert): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
 
+  const en = alert.locale === "en";
   const delta = Math.round((alert.newRate - alert.prevRate) * 10) / 10;
-  const subject = `[A11y Check] ${alert.hostname} 접근성 점검 변화 알림 (${alert.newRate}%, ${delta >= 0 ? "+" : ""}${delta}p)`;
+  const deltaText = `${delta >= 0 ? "+" : ""}${delta}p`;
+  const showRate = alert.rateCompared !== false;
+  const rateSuffix = showRate ? ` (${alert.newRate}%, ${deltaText})` : "";
+  const subject = en
+    ? `[A11y Check] Accessibility change on ${alert.hostname}${rateSuffix}`
+    : `[A11y Check] ${alert.hostname} 접근성 점검 변화 알림${rateSuffix}`;
 
+  const more = alert.newRules.length - 5;
   const newRulesHtml =
     alert.newRules.length > 0
-      ? `<p style="margin:12px 0 4px;font-weight:700">새로 발견된 위반</p><ul style="margin:0;padding-left:20px">${alert.newRules
+      ? `<p style="margin:12px 0 4px;font-weight:700">${en ? "Newly found violations" : "새로 발견된 위반"}</p><ul style="margin:0;padding-left:20px">${alert.newRules
           .slice(0, 5)
           .map((r) => `<li style="margin:2px 0">${escapeHtml(r)}</li>`)
-          .join("")}${alert.newRules.length > 5 ? `<li>외 ${alert.newRules.length - 5}건</li>` : ""}</ul>`
+          .join("")}${more > 0 ? `<li>${en ? `and ${more} more` : `외 ${more}건`}</li>` : ""}</ul>`
       : "";
 
   const html = emailCard(`
       <tr><td style="padding:8px 32px">
-        <p style="margin:0;font-size:16px;font-weight:700">${escapeHtml(alert.hostname)} 정기 검사 결과에 변화가 있습니다</p>
-        <p style="margin:12px 0 0;font-size:14px;line-height:1.6">
-          준수율: <b>${alert.prevRate}%</b> → <b style="color:${delta < 0 ? EMAIL.crit : EMAIL.seal}">${alert.newRate}%</b>
-          (${delta >= 0 ? "+" : ""}${delta}p)
-        </p>
+        <p style="margin:0;font-size:16px;font-weight:700">${
+          en
+            ? `The scheduled audit of ${escapeHtml(alert.hostname)} has changed`
+            : `${escapeHtml(alert.hostname)} 정기 검사 결과에 변화가 있습니다`
+        }</p>
+        ${
+          showRate
+            ? `<p style="margin:12px 0 0;font-size:14px;line-height:1.6">
+          ${en ? "Automated compliance" : "자동 검사 준수율"}: <b>${alert.prevRate}%</b> → <b style="color:${delta < 0 ? EMAIL.crit : EMAIL.seal}">${alert.newRate}%</b>
+          (${deltaText})
+        </p>`
+            : ""
+        }
         ${newRulesHtml}
       </td></tr>
       <tr><td style="padding:20px 32px 28px">
-        ${emailButton(alert.reportUrl, "보고서 보기")}
-        <p style="margin:16px 0 0;font-size:12px;color:${EMAIL.inkSoft}">이 알림은 정기 자동 검사 도메인에 대해 발송됩니다. 대시보드에서 도메인별로 끌 수 있습니다.</p>
+        ${emailButton(alert.reportUrl, en ? "View report" : "보고서 보기")}
+        <p style="margin:16px 0 0;font-size:12px;color:${EMAIL.inkSoft}">${
+          en
+            ? "You receive this alert for domains with scheduled audits. You can turn it off per domain on the dashboard."
+            : "이 알림은 정기 자동 검사 도메인에 대해 발송됩니다. 대시보드에서 도메인별로 끌 수 있습니다."
+        }</p>
       </td></tr>`);
 
   const ok = await sendEmail({ to: alert.to, subject, html });

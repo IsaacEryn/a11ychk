@@ -10,15 +10,22 @@ import { isAuthorizedCron } from "@/lib/cronAuth";
 import { logAppError } from "@/lib/logs";
 import { CRON_STALE_HOURS, isCronStale, lastCronOkAt, withCronRun } from "@/lib/cronRun";
 import { sendCronStaleAlert } from "@/lib/notify";
-import { FREQUENCY_HOURS, dueIntervalHours } from "@/lib/scan/schedule";
+import {
+  FREQUENCY_HOURS,
+  pickScheduledDomains,
+  retryNextDayAt,
+  type ScheduleCandidate,
+} from "@/lib/scan/schedule";
 
 export const maxDuration = 300;
 
 // 한 번의 크론 실행에서 처리할 최대 도메인 수.
 // 큐 위임 구조라 도메인당 작업은 DB 쿼리 수 회뿐 — 실행 부하는 claim_scans의
-// 전역 동시 상한이 제어하므로 후보 상한(30)에 가깝게 잡아도 안전하다.
+// 전역 동시 상한이 제어한다. 계정당 1개라 하루 최대 BATCH개 계정이 정기 검사를 받는다.
 // (예전 3은 함수 내 순차 runScan 시절의 보호값 — 도메인 4개만 돼도 하루 주기가 밀렸다)
 const BATCH = 20;
+/** 폴백 경로(0038 미적용)의 후보 조회 창 — 계정당 1개로 줄이기 전의 행 수 */
+const CANDIDATE_WINDOW = 500;
 
 
 /**
@@ -45,28 +52,45 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
   // 사용자 무관 전역 회수를 돌려 running/queued에 영구히 멈춘 검사를 매일 정리한다.
   const reclaimed = await reclaimStaleScans(admin, {});
 
-  // 후보: 최소 간격(daily=20h)을 넘긴 도메인 전부. 주기별(매주·매월) 필터는 아래 JS에서.
-  const minCutoff = new Date(now - FREQUENCY_HOURS.daily * 3600_000).toISOString();
-  // select * — notify·scan_frequency 컬럼 미적용 환경에서도 조회가 깨지지 않게.
-  // 소유 확인 도메인만 — 정기 검사는 사용자 한도를 차감하지 않으므로(createScanForUser의 skipQuota)
-  // 등급별로 묶인 소유 확인 도메인 수가 곧 사용자당 정기 검사 상한이다. 남의 사이트를 매일 자동
-  // 크롤하지 않는다는 의미도 있다. 예전에 미확인 상태로 켜 둔 도메인은 소유 확인 전까지 건너뛴다.
-  const { data: candidates } = await admin
+  // 후보: 주기별 기한이 지난 소유 확인 도메인, 계정당 1개, 기한을 가장 많이 넘긴 순(pickScheduledDomains).
+  // 소유 확인 도메인만 — 남의 사이트를 매일 자동 크롤하지 않는다. 정기 검사는 사용자 한도를 쓰지
+  // 않지만(createScanForUser의 skipQuota) 사용자당 활성 검사 1건 가드 때문에 계정당 하루 1건이 상한이다.
+  // 예전에 미확인 상태로 켜 둔 도메인은 소유 확인 전까지 건너뛴다(pausedUnverified로 집계).
+  // 1순위: 0038 RPC가 SQL에서 기한 판정·계정 중복 제거까지 해서 BATCH개만 준다(창 포화 없음).
+  // 폴백(0038 미적용): 20h 지난 행을 오래된 순으로 창만큼 가져와 JS에서 고른다 — 한 계정의 형제나
+  // 기한 전 주간·월간 도메인이 창을 채우면 다른 계정이 밀리므로, 창이 차면 기록을 남긴다.
+  type Candidate = ScheduleCandidate & { hostname: string } & Record<string, unknown>;
+  let domains: Candidate[];
+  // 기한이 됐지만 이번에 못 고른 수 — RPC 경로는 BATCH개만 받아 알 수 없으므로 null
+  let deferred: number | null = null;
+  let candidateWindowFull = false;
+  const rpc = await admin.rpc("scheduled_scan_candidates", { p_limit: BATCH });
+  if (!rpc.error) {
+    domains = (rpc.data ?? []) as Candidate[];
+  } else {
+    const minCutoff = new Date(now - FREQUENCY_HOURS.daily * 3600_000).toISOString();
+    // select * — notify·scan_frequency 컬럼 미적용 환경에서도 조회가 깨지지 않게
+    const { data: candidates } = await admin
+      .from("domains")
+      .select("*")
+      .eq("auto_scan", true)
+      .eq("verified", true)
+      .or(`last_auto_scan_at.is.null,last_auto_scan_at.lt.${minCutoff}`)
+      .order("last_auto_scan_at", { ascending: true, nullsFirst: true })
+      .limit(CANDIDATE_WINDOW);
+    candidateWindowFull = (candidates?.length ?? 0) >= CANDIDATE_WINDOW;
+    if (candidateWindowFull) {
+      await logAppError(admin, `scheduled-scans candidate window full (${CANDIDATE_WINDOW}) — apply 0038`, {
+        path: "cron.scheduled-scans",
+      });
+    }
+    ({ picked: domains, deferred } = pickScheduledDomains((candidates ?? []) as Candidate[], now, BATCH));
+  }
+  const { count: pausedUnverified } = await admin
     .from("domains")
-    .select("*")
+    .select("id", { count: "exact", head: true })
     .eq("auto_scan", true)
-    .eq("verified", true)
-    .or(`last_auto_scan_at.is.null,last_auto_scan_at.lt.${minCutoff}`)
-    .order("last_auto_scan_at", { ascending: true, nullsFirst: true })
-    .limit(30);
-
-  // 도메인별 주기 간격을 넘긴 것만 실제 대상으로(null=한 번도 안 함=즉시 대상), 오래된 순 BATCH개
-  const domains = (candidates ?? [])
-    .filter((d) => {
-      const last = d.last_auto_scan_at ? new Date(d.last_auto_scan_at as string).getTime() : 0;
-      return now - last >= dueIntervalHours(d.scan_frequency) * 3600_000;
-    })
-    .slice(0, BATCH);
+    .eq("verified", false);
 
   // ── 로그 보존 정책: 90일 지난 로그인 기록(IP 포함)·서버 오류 삭제 (best-effort) ──
   // 관리자 행위 감사(audit_logs)는 감사 목적상 보존한다.
@@ -109,6 +133,12 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
     try {
       url = await assertPublicHttpUrl(rootUrl);
     } catch {
+      // 일시적 DNS 실패일 수 있어 다음 날 다시 — 기한 초과 시간 순이라 영구 불가 도메인도
+      // 오래 밀린 다른 도메인을 앞지르지 않는다
+      await admin
+        .from("domains")
+        .update({ last_auto_scan_at: retryNextDayAt(d.scan_frequency, now) })
+        .eq("id", d.id);
       results.push({ hostname: d.hostname, status: "skipped-unreachable" });
       continue;
     }
@@ -135,6 +165,15 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
         : created.code === "concurrent"
           ? "skipped-concurrent"
           : "failed-create";
+    // 일시적인 이유(사용자가 마침 수동 검사를 돌리는 중·생성 실패)로 못 만들었으면 위에서 당겨 둔
+    // 실행 시각을 다음 날 다시 잡히는 값으로 고친다 — 그대로 두면 주간·월간 도메인은 한 주기를
+    // 통째로 건너뛴다.
+    if (status === "skipped-concurrent" || status === "failed-create") {
+      await admin
+        .from("domains")
+        .update({ last_auto_scan_at: retryNextDayAt(d.scan_frequency, now) })
+        .eq("id", d.id);
+    }
     results.push({ hostname: d.hostname, status });
   }
 
@@ -210,5 +249,19 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
     // 감시 실패가 본 작업을 막지 않게 — 0030 미적용 환경 포함
   }
 
-  return { processed: results.length, results, cleaned, referral, reclaimed };
+  // 운영 지표 — 상태별 합계, 소유 확인 전이라 멈춘 도메인 수, 기한이 됐지만 이번에 못 고른 수
+  // (계정당 1개·배치 상한). 호스트별 results만으로는 멈춤·적체가 안 보였다.
+  const counts: Record<string, number> = {};
+  for (const r of results) counts[r.status] = (counts[r.status] ?? 0) + 1;
+  return {
+    processed: results.length,
+    counts,
+    pausedUnverified: pausedUnverified ?? 0,
+    deferred,
+    candidateWindowFull,
+    results,
+    cleaned,
+    referral,
+    reclaimed,
+  };
 }

@@ -1,6 +1,7 @@
 import "server-only";
 import type { EvaluationScope } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { logAppError } from "@/lib/logs";
 import { QUOTA_WINDOWS, checkQuota, getEarnedPlan, getResets, getSampleSize, resolveLimits, clampRequestedPages } from "@/lib/quota";
 import { getPlansActive } from "@/lib/appSettings";
 import { foldHost } from "@/lib/host";
@@ -185,6 +186,10 @@ export async function createScanForUser(
     .single();
   // 0029 미적용 환경에서 크론이 source를 넘기면 컬럼 부재(PGRST204)로 실패 — 표식 없이 재시도
   if (insertError?.code === "PGRST204" && options.source) {
+    // 표식 없이 저장되면 회귀 알림(source로 판별)과 한도 면제가 조용히 꺼진다 — 흔적을 남긴다
+    await logAppError(admin, "scans.source column missing (0029) — scheduled scan saved without marker", {
+      path: "createScan",
+    });
     ({ data: scan, error: insertError } = await admin
       .from("scans")
       .insert(baseRow)
