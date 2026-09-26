@@ -25,6 +25,7 @@ const PUBLIC_PATHS: { path: string; priority: number }[] = [
   { path: "/sitemap", priority: 0.3 },
   { path: "/terms", priority: 0.3 },
   { path: "/privacy", priority: 0.3 },
+  { path: "/bot", priority: 0.2 },
 ];
 const LOCALES = ["ko", "en"] as const;
 

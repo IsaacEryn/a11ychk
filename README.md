@@ -34,7 +34,7 @@ remediation guides for all 33 KWCAG 2.2 checkpoints.*
 멈추지 않고 **개선 작업으로 이어지는 산출물**을 만듭니다.
 
 - 🇰🇷 **KWCAG 2.2 한국어 규칙 카탈로그** — [`packages/core/src/catalog`](packages/core/src/catalog)에
-  **111개 규칙**을 WCAG 2.2 성공기준과 **KWCAG 2.2 검사항목(33개)에 이중 매핑**하고, 규칙마다 한국어
+  **113개 규칙**(axe-core 98 + 자체 15, 최신 수치는 [커버리지 문서](docs/coverage.md))을 WCAG 2.2 성공기준과 **KWCAG 2.2 검사항목(33개)에 이중 매핑**하고, 규칙마다 한국어
   개선 가이드를 담았습니다. 이 카탈로그 자체가 접근성 실무자·개발자에게 독립적으로 유용한 자산입니다.
 - 🔧 **진단 → 수정 연결** — 위반마다 한국어 개선 방법 + AI 코딩 도구(Cursor·Copilot 등)에 그대로 투입
   가능한 **수정 요청 문서(Markdown·JSON)**를 자동 생성합니다.
@@ -51,7 +51,7 @@ remediation guides for all 33 KWCAG 2.2 checkpoints.*
 
 | | 기능 |
 |---|---|
-| **점검** | axe-core + 자체 규칙(리플로우·텍스트 간격·초점·키보드·미디어 등) + 사이트 수준 검사(제목 유일성·일관된 내비·여러 방법) |
+| **점검** | axe-core + 자체 규칙(리플로우·초점 표시·키보드·대체 텍스트 품질·미디어·마크업 유효성 등) + 사이트 수준 검사(제목 유일성·일관된 내비·여러 방법) |
 | **매핑** | 모든 위반을 WCAG 2.2 성공기준 · KWCAG 2.2 검사항목에 동시 대응 |
 | **보고서** | 자동/수동/통합 준수율, KWCAG 33항목 매트릭스, 인증 준비 요약, 전후 비교, PDF·CSV·EARL 내보내기 |
 | **개선** | 규칙별 한국어 가이드 + AI 수정 요청 문서(MD/JSON) |
@@ -113,7 +113,7 @@ claude mcp add a11ychk -- npx -y @a11ychk/mcp
 packages/core     @a11ychk/core — 검사 엔진 (오픈소스의 심장)
   src/crawler/      대표 페이지 수집 (sitemap → 내부 링크, robots.txt 존중)
   src/scanner/      axe-core 실행·결과 정규화 (Playwright Page 주입형) + 2-패스 안정성 필터
-  src/catalog/      111개 규칙 → WCAG 2.2 · KWCAG 2.2 이중 매핑 + 한국어 개선 가이드
+  src/catalog/      규칙 카탈로그 → WCAG 2.2 · KWCAG 2.2 이중 매핑 + 한국어 개선 가이드
   src/manual/       수동 검사 항목 정의 (KWCAG 33개 중 자동 판정 불가 항목)
   src/report/       보고서 집계 (준수율, KWCAG 매트릭스, 사이트 수준 검사)
   src/security/     SSRF 가드 (사설 IP·DNS 리바인딩·redirect 차단), robots.txt 파서

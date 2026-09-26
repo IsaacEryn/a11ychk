@@ -16,12 +16,15 @@ export function ScoresCard({
   totalViolationNodes,
   bpTypes,
   bpNodes,
+  canEdit,
 }: {
   initial: Scores;
   totalViolations: number;
   totalViolationNodes: number;
   bpTypes: number;
   bpNodes: number;
+  /** 소유자 화면인가 — 공유 링크 열람자는 판정할 수 없으므로 판정 안내를 뺀다 */
+  canEdit: boolean;
 }) {
   const t = useTranslations("report");
   const reviews = useReviews();
@@ -37,11 +40,22 @@ export function ScoresCard({
             {scores.combined.rate}
             <span className="text-2xl">%</span>
           </p>
+          {/* 분모를 숫자 바로 곁에 — 판정 범위 없이 "100%"만 보이면 적합성으로 오독된다 */}
+          <p className="mt-2 text-sm font-semibold text-[var(--color-ink-soft)]">
+            {t("scores.combinedCoverage", { evaluated: scores.combined.evaluated, total: scores.totalCriteria })}
+          </p>
         </div>
         <p className="max-w-[13rem] text-right text-xs leading-relaxed text-[var(--color-ink-faint)]">
           {t("scores.combinedDesc")}
         </p>
       </div>
+      {scores.combined.evaluated < scores.totalCriteria && (
+        <p className="mt-3 rounded-md border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] px-3 py-2 text-sm leading-relaxed">
+          {t("scores.partialNote", { remaining: scores.totalCriteria - scores.combined.evaluated })}
+          {/* 판정할 수 있는 소유자 화면에만, 인쇄·PDF에는 빼고 */}
+          {canEdit && <span className="no-print"> {t("scores.partialNoteAction")}</span>}
+        </p>
+      )}
       {/* 자동 / 수동 분해 */}
       <div className="mt-5 grid grid-cols-2 gap-3">
         {(["automated", "manual"] as const).map((kind) => {

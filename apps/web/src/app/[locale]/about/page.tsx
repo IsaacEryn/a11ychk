@@ -1,6 +1,10 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { getCatalogStats } from "@a11ychk/core/catalog";
 import { localeAlternates } from "@/lib/seo/alternates";
+
+/** 규칙 수 — 문구에 박지 않고 카탈로그에서 계산(랜딩과 같은 출처) */
+const CATALOG_RULES = getCatalogStats().rules;
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -133,7 +137,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
           {features.map((key) => (
             <li key={key} className="border-l-[3px] border-[var(--color-seal)] pl-4">
               <h3 className="font-bold">{t(`features.${key}.name`)}</h3>
-              <p className="mt-0.5 text-sm leading-relaxed text-[var(--color-ink-soft)]">{t(`features.${key}.desc`)}</p>
+              <p className="mt-0.5 text-sm leading-relaxed text-[var(--color-ink-soft)]">{t(`features.${key}.desc`, { rules: CATALOG_RULES })}</p>
             </li>
           ))}
         </ul>

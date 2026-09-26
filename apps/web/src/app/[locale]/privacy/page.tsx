@@ -14,14 +14,15 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   ko: {
     title: "개인정보 처리방침",
     effective:
-      "시행일: 2026년 7월 24일 (개정 — 관리자의 검사 결과 접근 고지·비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
+      "시행일: 2026년 9월 27일 (개정 — 회원 탈퇴 후 남는 기록·알림 메일 언어 고지 / 2026년 7월 24일 관리자의 검사 결과 접근 고지·비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
         body: [
           "회원 가입 시: 이름(닉네임), 이메일 주소 — Google·GitHub 계정으로부터 제공받거나 이메일 가입 시 직접 수집합니다.",
           "서비스 이용 시: 검사 대상 URL과 검사 결과, 점검자 판정·메모, 보고서 정보(사이트 이름·평가자 등), 문의 내용.",
-          "서비스 보호 목적: 로그인 기록(IP 주소 포함)과 서버 오류 로그를 수집합니다.",
+          "서비스 보호 목적: 로그인 기록(이메일·IP 주소·브라우저 정보)과 서버 오류 로그를 수집합니다.",
+          "알림 메일 언어: 정기 검사 알림을 보낼 언어를 정하기 위해 이용자가 보던 화면 언어(한국어·영어)를 기록합니다.",
           "친구 초대 기능 이용 시: 초대 코드, 피초대자 이메일의 일방향 해시값(원문은 저장하지 않음), 피초대자 가입 시점 IP 주소 — 중복·부정 초대 방지 목적으로만 사용합니다.",
           "비로그인 맛보기 검사 이용 시: 이용량 제한을 위한 IP 주소의 일방향 해시값(원본 IP는 저장하지 않으며 2일 후 자동 삭제)과, 서비스 운영 통계를 위한 검사 대상 도메인·결과 요약 수치(경로·개인 식별 정보 없음)를 수집합니다. 검사 결과 상세는 저장하지 않습니다.",
           "쿠키: 로그인 세션 유지 목적의 인증 쿠키와 서비스 이용 통계를 위한 웹 분석 쿠키(제5조)를 사용합니다. 광고 목적의 쿠키는 사용하지 않습니다.",
@@ -40,7 +41,8 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         body: [
           "개인정보는 회원 탈퇴 시 지체 없이 파기합니다. 검사 결과 등 서비스 데이터는 탈퇴 시 함께 삭제됩니다.",
           "관련 법령에 따라 보존이 필요한 경우 해당 기간 동안 분리 보관 후 파기합니다.",
-          "보안 목적으로 수집하는 로그인 기록(IP 주소 포함)과 서버 오류 로그는 90일간 보관 후 자동 삭제합니다.",
+          "보안 목적으로 수집하는 로그인 기록(이메일·IP 주소·브라우저 정보)과 서버 오류 로그는 기록일부터 90일간 보관 후 자동 삭제하며, 탈퇴 후에도 이 기간 동안은 남습니다.",
+          "관리자의 보고서 열람·계정 조치 같은 내부 감사 기록(대상 계정 식별자와 사이트 주소 포함)은 보안 점검을 위해 탈퇴 후에도 보존합니다.",
           "초대 기록의 이메일 해시값은 같은 이메일의 중복 초대를 막기 위한 목적으로 보관되며 원문 복원이 불가능합니다. 초대 기록의 가입 시점 IP 주소는 90일 후 자동 삭제합니다.",
         ],
       },
@@ -76,14 +78,15 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   en: {
     title: "Privacy Policy",
     effective:
-      "Effective: July 24, 2026 (amended — administrator access to audit results and no-login teaser check disclosures; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
+      "Effective: September 27, 2026 (amended — records kept after account deletion and notification email language; July 24, 2026 administrator access to audit results and no-login teaser check disclosures; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Data we collect",
         body: [
           "On sign-up: name (nickname) and email address — provided by your Google/GitHub account, or collected directly for email sign-up.",
           "During use: audited URLs and results, evaluator judgments/notes, report details (site name, evaluator, etc.), and inquiry contents.",
-          "For service protection: sign-in records (including IP address) and server error logs.",
+          "For service protection: sign-in records (email, IP address, browser details) and server error logs.",
+          "Notification language: the interface language you were using (Korean or English), so scheduled-audit alerts are sent in that language.",
           "When using the referral feature: your invite code, a one-way hash of the invitee's email (the original is not stored), and the invitee's IP address at sign-up — used only to prevent duplicate or fraudulent referrals.",
           "When using the no-login teaser check: a one-way hash of your IP address for rate limiting (the original IP is not stored; deleted automatically after 2 days), and the checked domain with summary result figures for service statistics (no paths or personally identifiable information). Detailed results are not stored.",
           "Cookies: authentication cookies for session management, plus web-analytics cookies for usage statistics (see Section 5). No advertising cookies.",
@@ -101,7 +104,8 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
         heading: "3. Retention & deletion",
         body: [
           "Personal data is deleted without delay upon account deletion, together with service data such as audit results. Data required by law is stored separately for the mandated period, then destroyed.",
-          "Sign-in records collected for security (including IP addresses) and server error logs are kept for 90 days and then deleted automatically.",
+          "Sign-in records collected for security (email, IP address, browser details) and server error logs are kept for 90 days from when they were recorded and then deleted automatically; they remain for that period after account deletion.",
+          "Internal audit records of admin actions such as viewing reports or acting on accounts (including account identifiers and site addresses) are retained for security review after account deletion.",
           "Email hashes in referral records are retained to prevent duplicate referrals of the same email and cannot be reversed. Sign-up IP addresses in referral records are deleted automatically after 90 days.",
         ],
       },

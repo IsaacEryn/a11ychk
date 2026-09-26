@@ -66,8 +66,10 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
  * 회원 탈퇴(계정 삭제) — 개인정보처리방침 7항이 약속한 셀프 탈퇴.
  *
  * auth.users를 지우면 profiles가 on delete cascade로 지워지고, 거기 걸린 도메인·검사·페이지·
- * 위반·점검자 판정·문의·프리셋·확장 사용량이 따라 지워진다. 로그인 기록과 초대 기록은 방침 3항대로
- * 연결만 끊긴다(set null — 보안 로그 90일 보관, 초대 이메일 해시는 중복 초대 방지용 보관).
+ * 위반·점검자 판정·문의·프리셋·확장 사용량, 그리고 이 사용자가 **보낸** 초대 기록(referrer_id cascade)이
+ * 따라 지워진다. 남는 것: 로그인 기록(user_id만 set null — 이메일·IP·UA 스냅샷은 기록일부터 90일),
+ * 이 사용자가 **받은** 초대 기록(invitee_id set null — 이메일 해시·가입 IP 90일), 관리자 열람 감사 기록
+ * (audit_logs, FK 없음). 탈퇴 화면 안내(mypage.account.kept)와 맞춰 둘 것.
  *
  * 거절 조건: 확인 문구 불일치 · 관리자 계정(콘솔 잠김 방지 — 권한을 넘긴 뒤 탈퇴) ·
  * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다).
@@ -79,7 +81,10 @@ export async function deleteAccount(_prev: SaveState, formData: FormData): Promi
     return { error: "mismatch" };
   }
 
-  const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  // 관리자 판정 조회가 실패하면 진행하지 않는다(관리자 계정이 오류 한 번에 지워지는 일 방지).
+  // 단 profiles 행 자체가 없는 계정(PGRST116)은 관리자가 아니므로 막지 않는다 — 막으면 영영 탈퇴 못 한다.
+  const { data: profile, error: profileErr } = await supabase.from("profiles").select("role").eq("id", user.id).single();
+  if (profileErr && profileErr.code !== "PGRST116") return { error: "failed" };
   if (profile?.role === "admin") return { error: "admin" };
 
   const admin = createAdminClient();

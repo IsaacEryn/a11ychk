@@ -5,7 +5,7 @@ import { ScoresCard } from "./ScoresCard";
 const IMPACT_ORDER: Impact[] = ["critical", "serious", "moderate", "minor"];
 
 /** 요약: 자동/수동/통합 준수율 + 심각도별 위반 */
-export async function ScoreSection({ summary }: { summary: ScanSummary }) {
+export async function ScoreSection({ summary, canEdit }: { summary: ScanSummary; canEdit: boolean }) {
   const t = await getTranslations("report");
   const maxImpact = Math.max(1, ...IMPACT_ORDER.map((k) => summary.byImpact[k]));
   // 모범 사례 권고 — WCAG 성공기준에 해당하지 않아 준수율에 반영되지 않음(위반 수/준수율 불일치 설명)
@@ -24,6 +24,7 @@ export async function ScoreSection({ summary }: { summary: ScanSummary }) {
             totalViolationNodes={summary.totalViolationNodes}
             bpTypes={bp.length}
             bpNodes={bpNodes}
+            canEdit={canEdit}
           />
         ) : (
           <div className="doc-card flex flex-col items-center justify-center px-10 py-8 text-center">

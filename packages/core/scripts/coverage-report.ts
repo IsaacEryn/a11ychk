@@ -17,15 +17,15 @@ import { fileURLToPath } from "node:url";
 import { RULE_CATALOG } from "../src/catalog/rules";
 import { WCAG_CRITERIA } from "../src/catalog/wcag";
 import { KWCAG_ITEMS } from "../src/catalog/kwcag";
+import { getCatalogStats, isCustomRule } from "../src/catalog/stats";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
 
 // ── 규칙 → 기준 매핑 집계 ──
-const isCustom = (ruleId: string) => ruleId.startsWith("a11ychk");
 const byWcag = new Map<string, { axe: string[]; custom: string[] }>();
 const byKwcag = new Map<string, { axe: string[]; custom: string[] }>();
 for (const rule of RULE_CATALOG) {
-  const bucket = isCustom(rule.ruleId) ? "custom" : "axe";
+  const bucket = isCustomRule(rule.ruleId) ? "custom" : "axe";
   for (const sc of rule.wcag) {
     const cur = byWcag.get(sc) ?? { axe: [], custom: [] };
     cur[bucket].push(rule.ruleId);
@@ -58,7 +58,6 @@ const wcagRows = WCAG_CRITERIA.map((c) => {
     coverage: total > 0 ? ("automated" as const) : ("manual-only" as const),
   };
 });
-const covered = wcagRows.filter((r) => r.coverage === "automated");
 const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 1000) / 10);
 
 // ── KWCAG 33항목 분류 (카탈로그의 autoCoverage 명시 필드 사용) ──
@@ -76,16 +75,16 @@ const kwcagByCoverage = { full: 0, partial: 0, none: 0 } as Record<string, numbe
 for (const r of kwcagRows) kwcagByCoverage[r.autoCoverage] = (kwcagByCoverage[r.autoCoverage] ?? 0) + 1;
 
 // ── 산출물 ──
-const totalRules = RULE_CATALOG.length;
-const customRuleCount = RULE_CATALOG.filter((r) => isCustom(r.ruleId)).length;
+// 요약 수치는 웹 문구와 같은 함수에서 — 정의가 한 곳에만 있게
+const stats = getCatalogStats();
 const summary = {
   generatedFrom: "packages/core/src/catalog (RULE_CATALOG, WCAG_CRITERIA, KWCAG_ITEMS)",
-  rules: { total: totalRules, axe: totalRules - customRuleCount, custom: customRuleCount },
+  rules: { total: stats.rules, axe: stats.axeRules, custom: stats.customRules },
   wcag: {
-    totalCriteria: wcagRows.length,
-    automated: covered.length,
-    manualOnly: wcagRows.length - covered.length,
-    automatedPct: pct(covered.length, wcagRows.length),
+    totalCriteria: stats.wcagTotal,
+    automated: stats.wcagAutomated,
+    manualOnly: stats.wcagTotal - stats.wcagAutomated,
+    automatedPct: stats.wcagAutomatedPct,
     byLevel: (["A", "AA"] as const).map((lv) => {
       const rows = wcagRows.filter((r) => r.level === lv);
       const auto = rows.filter((r) => r.coverage === "automated").length;

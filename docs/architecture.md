@@ -18,7 +18,9 @@
   claim_scans(MAX): 남은 용량(MAX − running)만큼 oldest queued를 원자적으로 running 전환
   → 각 검사를 내부 엔드포인트 POST /api/internal/run-scan(CRON_SECRET)로 분리 인보케이션에 태움
 [runScan 오케스트레이터]  (apps/web/src/lib/scan/runScan.ts)
-  7. collectPages: robots.txt 확인 → sitemap.xml → 내부 링크 BFS (미확인 5 / 확인 10페이지)
+  7. collectPages: robots.txt 확인 → sitemap.xml → 없으면 루트 문서의 내부 링크(1단계)
+     (직접 입력 표본도 robots.txt로 거른다 — 단 도메인 소유를 확인한 요청자는 예외, `manualRobots.ts`)
+     → WCAG-EM 구조 표본(등급·소유 확인별 5~30페이지, lib/quota.ts) + 무작위 표본 10%
   8. 페이지별: SSRF 재검증 → chromium 로드 → 서브리소스 내부망 차단 route →
      axe.run (WCAG 2.2 AA + BP 태그) + 원본 소스 마크업 유효성 검사(parse5, KWCAG 8.1.1)
      → findings 정규화 저장
@@ -117,6 +119,10 @@
   긍정. 부분적 긍정 판정만으로는 결합하지 않는다(1.3.1 ← 7.3.1/7.3.2/7.4.1 안전장치).
 - **점수 폴백**: `computeScores`가 kwcag 판정을 SC로 파생 소비(wcag 직접 판정 우선) —
   구버전 확장·KWCAG 매트릭스 직접 판정도 점수에 반영된다. 서버 데이터 마이그레이션 없음.
+  단 **파생된 통과·해당 없음은 자동 위반 SC를 덮지 못한다**(규칙의 KWCAG 매핑과 항목의 SC 매핑이 어긋나는
+  쌍 — 예: label·button-name은 4.1.2 위반인데 4.1.2의 KWCAG 출처는 8.2.1뿐). 자동 위반을 뒤집는 건 그 SC의
+  WCAG 직접 판정뿐. 2026-09 이전에 저장된 `summary.scores`는 재계산되지 않고, 판정을 다시 저장할 때 새 규칙으로
+  갱신된다(그 순간 점수가 내려갈 수 있다).
 - **KWCAG 매트릭스**(인증 실무)는 유지: 직접 kwcag 판정이 최우선이고, 없으면 WCAG
   판정에서 파생 표시("WCAG 판정 파생" 배지). 항목별 페이지 준수율(kwcagPageRate)은 불변.
 - KWCAG 고유 항목(5.4.3·6.4.4 — WCAG 대응 없음)은 "KWCAG 추가 항목"으로 유지되며

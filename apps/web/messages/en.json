@@ -69,7 +69,7 @@
     "featuresTitle": "From audit to remediation, in one place",
     "features": {
       "autoTitle": "Automated audits",
-      "autoDesc": "The axe-core engine collects representative pages and checks 106 rules automatically.",
+      "autoDesc": "Collects representative pages and checks them automatically with axe-core and custom rules (a catalog of {rules} rules).",
       "kwcagTitle": "WCAG + KWCAG mapping",
       "kwcagDesc": "See WCAG 2.2 and all 33 KWCAG 2.2 checkpoints together in one report.",
       "reportTitle": "Reports & PDF export",
@@ -143,7 +143,7 @@
         },
         "forms": {
           "title": "Forms & labels",
-          "desc": "Label association, error messaging, autocomplete"
+          "desc": "Label association and autocomplete checked automatically; error messaging as a manual check"
         },
         "keyboard": {
           "title": "Keyboard & focus",
@@ -151,7 +151,7 @@
         },
         "structure": {
           "title": "Structure & landmarks",
-          "desc": "Heading hierarchy, landmarks, tables, reading order"
+          "desc": "Headings, landmarks and tables checked automatically; reading order as a manual check"
         },
         "links": {
           "title": "Link text",
@@ -171,10 +171,10 @@
         },
         "wcag22": {
           "title": "WCAG 2.2 additions",
-          "desc": "Target size (24px), focus not obscured, and more"
+          "desc": "Target size (24px) checked automatically; focus not obscured and redundant entry as manual checks"
         }
       },
-      "caption": "106 automated rules detect 30 of the 55 WCAG 2.2 A/AA success criteria (54.5%). Our manual review workflow guides you through the rest — no automated tool alone can guarantee conformance."
+      "caption": "Our catalog of {rules} rules links automated rules to {automated} of the {total} WCAG 2.2 A/AA success criteria ({pct}%). Our manual review workflow guides you through the rest — no automated tool alone can guarantee conformance."
     },
     "seoTitle": "Web Accessibility Checker — WCAG 2.2 AA & KWCAG 2.2 | A11y Check",
     "seoDescription": "Free web accessibility checker. Enter one URL to crawl representative pages and audit them against WCAG 2.2 AA and KWCAG 2.2 (Korea's 33 accessibility checkpoints), with remediation guidance for every finding. Try a single page without signing in.",
@@ -354,7 +354,7 @@
       "robots-blocked": {
         "label": "Blocked by robots.txt",
         "desc": "The site's robots.txt disallows our audit bot. A11y Check respects robots.txt, so automated audits will not run in this state.",
-        "solution": "If you manage the site, add an allow rule for a11ychk-bot (guide #1 below). Otherwise, audit with the Chrome extension."
+        "solution": "If you manage the site, add an a11ychk-bot allow rule to robots.txt (guide step 1 below), or verify domain ownership and enter the pages to audit by hand (owners can audit regardless of robots.txt). If you don't manage the site, use the Chrome extension."
       },
       "ua-blocked": {
         "label": "Bot User-Agent blocked",
@@ -515,7 +515,7 @@
       "scheduleWeekly": "Weekly",
       "scheduleMonthly": "Monthly",
       "apply": "Apply",
-      "scheduleExplain": "Scheduled scans run automatically around 3 AM KST each day, checking only domains whose interval has elapsed. A specific time of day is not configurable.",
+      "scheduleExplain": "Scheduled scans run automatically around 3 AM KST each day, checking only domains whose interval has elapsed. A specific time of day is not configurable. Each account gets one domain scanned per day, so if several domains have scheduled scans on, they take turns, starting with the one furthest past its due date.",
       "publicLabel": "Public report",
       "publicOff": "Not public",
       "publicLatest": "Latest scan (auto)",
@@ -628,6 +628,10 @@
       "manual": "Manual review",
       "manualDesc": "Judgments entered by the reviewer after manual inspection.",
       "coverage": "{evaluated}/{total} criteria judged",
+      "combinedCoverage": "Results for {evaluated}/{total} success criteria (automated checks and reviewer judgments combined)",
+      "combinedCoverageShort": "{evaluated}/{total} criteria with results",
+      "partialNote": "{remaining} success criteria have no result from either automated checks or reviewer judgments and are not included in this score. A high score does not mean conformance.",
+      "partialNoteAction": "You can judge the remaining criteria in the manual review items below.",
       "passFail": "Pass {passed} · Fail {failed}",
       "noManual": "No judgments entered",
       "legend": "Combined uses the reviewer's judgment for each criterion when present, otherwise the automated result.",
@@ -1064,7 +1068,7 @@
       "desc": "Deleting your account also deletes the data you have in this service.",
       "open": "Show deletion steps",
       "deleted": "Deleted: your account and profile, registered domains with their verification, public listing and badges, all audits, reports and reviewer judgments, inquiries, and scan presets",
-      "kept": "Kept: security sign-in records are unlinked from your account and deleted automatically after 90 days, and referral records keep only an irreversible email hash (Privacy Policy, section 3).",
+      "kept": "Kept: security sign-in records (email, IP, browser details) are deleted automatically 90 days after they were recorded. If you joined through an invitation, the referral record keeps a hash that can only confirm whether an email matches, the sign-up IP (deleted after 90 days) and the referral status. Internal audit records such as admins viewing your reports or acting on your account (including site addresses) are retained for security. Invitations you sent are deleted with your account.",
       "irreversible": "Deleted accounts and reports cannot be restored. Download any reports you need as PDF or CSV first.",
       "confirmLabel": "Confirmation",
       "confirmHint": "To continue, type {phrase} exactly.",
@@ -1552,7 +1556,7 @@
     "who": {
       "org": {
         "name": "Web managers at organizations",
-        "desc": "See where your site stands in numbers, and hand the report to management or your vendor as a share link or PDF. Turn on scheduled scans and it watches your site daily."
+        "desc": "See where your site stands in numbers, and hand the report to management or your vendor as a share link or PDF. Turn on scheduled scans for verified domains to keep watching."
       },
       "dev": {
         "name": "Developers and agencies",
@@ -1583,7 +1587,7 @@
     "features": {
       "auto": {
         "name": "Automated audits",
-        "desc": "Samples pages from your sitemap and internal links, then runs 106 axe-core rules: alt text, color contrast, keyboard access — the things a machine can judge with confidence. Pages are re-checked at mobile width, and same-origin iframes are audited too."
+        "desc": "Samples pages from your sitemap and internal links, then checks them with axe-core and custom rules (a catalog of {rules} rules): alt text, color contrast, keyboard access — the things a machine can judge with confidence. Pages are also checked for horizontal scrolling at 320px width (reflow), and same-origin iframes are audited too."
       },
       "workbench": {
         "name": "Evaluation workbench",
@@ -1603,7 +1607,7 @@
       },
       "schedule": {
         "name": "Scheduled scans and alerts",
-        "desc": "Turn it on and your site is scanned daily. If compliance drops or new violations appear, you get an email; the dashboard shows the trend over time."
+        "desc": "Verified domains are scanned automatically on the schedule you pick: daily, weekly or monthly (one domain per account per day). If compliance drops or new violations appear, you get an email; the dashboard shows the trend over time."
       }
     },
     "honestyTitle": "Honest automation",

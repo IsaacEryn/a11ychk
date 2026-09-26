@@ -168,6 +168,12 @@ export default async function ReportPage({
             <strong className="font-display text-lg text-[var(--color-seal)]">
               {summary.scores?.combined.rate ?? summary.complianceRate}%
             </strong>
+            {summary.scores && (
+              <span className="text-[var(--color-ink-soft)]">
+                {" "}
+                ({t("scores.combinedCoverageShort", { evaluated: summary.scores.combined.evaluated, total: summary.scores.totalCriteria })})
+              </span>
+            )}
           </span>
           <span>
             {t("scores.violations")}{" "}
@@ -222,7 +228,7 @@ export default async function ReportPage({
 
       {/* ─── 요약: 자동/수동/통합 준수율 + 심각도별 위반 ─── */}
       <div id="sec-score">
-        <ScoreSection summary={summary} />
+        <ScoreSection summary={summary} canEdit={canEdit} />
       </div>
 
       {/* ─── 전후 비교 — 같은 대상의 직전 검사와 비교해 개선 효과를 보여준다 ─── */}

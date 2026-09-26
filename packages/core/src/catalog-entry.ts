@@ -8,6 +8,7 @@ export * from "./catalog/rules";
 export * from "./catalog/kwcag";
 export * from "./catalog/kwcagSlug";
 export * from "./catalog/wcag";
+export * from "./catalog/stats";
 export * from "./manual/manualChecks";
 export * from "./report/aggregate";
 export * from "./report/aiFix";

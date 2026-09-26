@@ -5,7 +5,7 @@ import { getCachedUser } from "@/lib/supabase/user";
 import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 import { localeAlternates } from "@/lib/seo/alternates";
 import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
-import { KWCAG_ITEMS, kwcagSlug } from "@a11ychk/core/catalog";
+import { KWCAG_ITEMS, getCatalogStats, kwcagSlug } from "@a11ychk/core/catalog";
 import { TeaserScanForm } from "./TeaserScanForm";
 
 /** 카테고리 → 대표 KWCAG 항목 — 그리드에서 개선 가이드로 곧장 (33개 페이지에 내부 링크 공급) */
@@ -25,6 +25,15 @@ function guidePathFor(categoryKey: string): string | null {
   const item = KWCAG_ITEMS.find((it) => it.id === CATEGORY_GUIDE[categoryKey]);
   return item ? `/guide/${kwcagSlug(item)}` : null;
 }
+
+/** 규칙 수·자동 검출 성공기준 — 문구에 숫자를 박지 않고 카탈로그에서 계산한다(어긋남 방지) */
+const catalogStats = getCatalogStats();
+const catalogParams = {
+  rules: catalogStats.rules,
+  total: catalogStats.wcagTotal,
+  automated: catalogStats.wcagAutomated,
+  pct: catalogStats.wcagAutomatedPct,
+};
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -103,9 +112,8 @@ export default async function LandingPage({
           {process.env.NEXT_PUBLIC_DEMO_REPORT_URL && (
             <p className="rise rise-4 mt-4">
               {/* /demo는 라우트 핸들러(서버 302)라 하드 네비게이션이 필요 — next/link(소프트 nav) 부적합 */}
-              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a
-                href="/demo"
+                href={`/demo?lang=${locale}`}
                 className="text-base font-semibold text-[var(--color-seal)] underline underline-offset-4 hover:text-[var(--color-seal-deep)]"
               >
                 {t("ctaDemoReport")} →
@@ -204,7 +212,7 @@ export default async function LandingPage({
                 <path d={path} />
               </svg>
               <h3 className="font-display mt-3 text-xl font-bold">{t(`features.${titleKey}`)}</h3>
-              <p className="mt-2 text-[var(--color-ink-soft)]">{t(`features.${descKey}`)}</p>
+              <p className="mt-2 text-[var(--color-ink-soft)]">{t(`features.${descKey}`, catalogParams)}</p>
             </article>
           ))}
         </div>
@@ -248,7 +256,7 @@ export default async function LandingPage({
         </ul>
         {/* 실측 커버리지 정직 고지 — docs/coverage.md 수치 인용 */}
         <p className="mt-6 border-l-[3px] border-[var(--color-seal)] bg-[var(--color-seal-tint)] px-4 py-3 text-sm text-[var(--color-ink-soft)]">
-          {t("categories.caption")}
+          {t("categories.caption", catalogParams)}
         </p>
       </section>
 
