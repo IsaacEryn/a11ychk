@@ -14,6 +14,7 @@ import {
   computeSiteChecks,
   detectTechnologies,
   extractPageSignature,
+  fetchRobots,
   getRawSource,
   guardedFetch,
   isPrivateAddress,
@@ -31,6 +32,7 @@ import {
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { fetchAllRows } from "@/lib/scan/fetchAll";
+import { filterPagesByRobots } from "@/lib/scan/manualRobots";
 
 const PAGE_LOAD_TIMEOUT_MS = 20_000;
 
@@ -253,6 +255,13 @@ async function persistPageResult(
   }
 }
 
+/** 검사가 연결된 도메인을 요청자가 소유 확인했는가 (도메인 미연결이면 false) */
+async function isOwnerVerified(db: SupabaseClient, domainId: string | null): Promise<boolean> {
+  if (!domainId) return false;
+  const { data } = await db.from("domains").select("verified").eq("id", domainId).maybeSingle();
+  return data?.verified === true;
+}
+
 /**
  * 도메인 설정의 제외 규칙 조회 — 오탐 관리 (migration 0023).
  * 컬럼 미적용(마이그레이션 전)·도메인 미연결이면 빈 목록으로 동작한다.
@@ -287,8 +296,30 @@ function applyDisabledRules(result: PageScanResult, disabled: Set<string>): void
  * 자동 수집은 시간 예산으로 감싸 초과 시 루트 페이지만으로 진행한다(좀비 방지).
  * robots 차단·잘못된 URL 같은 실제 오류는 그대로 던져 정상 실패시킨다.
  */
-async function buildScanSample(rootUrl: string, pageLimit: number, scope: EvaluationScope | null): Promise<SampleResult> {
+async function buildScanSample(
+  rootUrl: string,
+  pageLimit: number,
+  scope: EvaluationScope | null,
+  ownerVerified: boolean,
+): Promise<SampleResult> {
   if (scope?.manualPages && scope.manualPages.length > 0) {
+    // 직접 입력 표본도 robots.txt를 따른다 — 자동 수집만 따르던 것을 맞춤(/bot 안내와 일치).
+    // 사이트 소유를 확인한 사용자는 예외: robots로 봇을 막아 둔 자기 스테이징·사내 사이트를
+    // 검사하는 유일한 경로가 직접 입력이다.
+    let manualPages = scope.manualPages;
+    let robotsSkipped = 0;
+    if (!ownerVerified) {
+      const origin = new URL(rootUrl).origin;
+      ({ allowed: manualPages, skipped: robotsSkipped } = filterPagesByRobots(
+        scope.manualPages,
+        await fetchRobots(origin),
+      ));
+      if (manualPages.length === 0) {
+        throw new Error(
+          "직접 입력한 페이지가 모두 robots.txt에서 크롤링을 허용하지 않습니다. 사이트 소유를 확인하면 robots.txt와 관계없이 검사할 수 있습니다.",
+        );
+      }
+    }
     let technologies = ["HTML"];
     try {
       const res = await guardedFetch(rootUrl);
@@ -298,13 +329,15 @@ async function buildScanSample(rootUrl: string, pageLimit: number, scope: Evalua
     }
     const rootNorm = normalizeUrl(rootUrl);
     return {
-      pages: scope.manualPages.map((u) => ({
+      pages: manualPages.map((u) => ({
         url: u,
         category: categorizePage(u, u === rootNorm),
         sampleType: "structured" as const,
       })),
       technologies,
-      sampleMethod: `점검자 직접 입력 표본 ${scope.manualPages.length}개 (WCAG-EM 2.0 Step 3.1 구조 표본)`,
+      sampleMethod:
+        `점검자 직접 입력 표본 ${manualPages.length}개 (WCAG-EM 2.0 Step 3.1 구조 표본)` +
+        (robotsSkipped > 0 ? ` — robots.txt가 허용하지 않은 ${robotsSkipped}개 제외` : ""),
       source: "root-only",
     };
   }
@@ -374,11 +407,13 @@ export async function runScan(scanId: string): Promise<void> {
   const conformanceTarget: WcagLevel | "AAA" = scope?.conformanceTarget ?? "AA";
   // 도메인 오탐 관리 — 소유자가 제외 지정한 규칙은 이번 검사부터 위반에서 뺀다
   const disabledRules = await loadDisabledRules(db, (scan.domain_id as string | null) ?? null);
+  // 사이트 소유 확인 여부 — 직접 입력 표본의 robots 예외 판단(buildScanSample)
+  const ownerVerified = await isOwnerVerified(db, (scan.domain_id as string | null) ?? null);
 
   let browser: Browser | null = null;
   try {
     // 1) WCAG-EM 2.0 Step 2·3 — 표본 구성
-    const sample = await buildScanSample(scan.root_url, scan.page_limit, scope);
+    const sample = await buildScanSample(scan.root_url, scan.page_limit, scope, ownerVerified);
 
     // 2) 페이지 행 생성 (표본 유형·분류 기록)
     // 좀비 회수 후 재시도(reclaimStale)로 같은 검사가 다시 여기 오면 이전 실행이 남긴

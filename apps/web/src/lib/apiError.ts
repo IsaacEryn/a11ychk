@@ -78,12 +78,8 @@ const MESSAGES = {
   pagesEmpty: { ko: "검사할 페이지를 1개 이상 입력해 주세요.", en: "Enter at least one page to scan." },
 } as const;
 
-/** 요청 로케일 해석 — ?lang= 명시가 우선(기존 csv/pdf/ai-fix 관례), 없으면 Accept-Language */
-export function resolveApiLocale(req: Request): ApiLocale {
-  const lang = new URL(req.url).searchParams.get("lang");
-  if (lang === "en" || lang === "ko") return lang;
-  return negotiateLocale(req);
-}
+/** 요청 로케일 해석 — ?lang= 명시가 우선(기존 csv/pdf/ai-fix 관례), 없으면 Accept-Language. negotiateLocale과 같은 규칙 */
+export const resolveApiLocale: (req: Request) => ApiLocale = negotiateLocale;
 
 function fill(template: string, params: Record<string, string | number>): string {
   return template.replace(/\{(\w+)\}/g, (m, k: string) => (k in params ? String(params[k]) : m));

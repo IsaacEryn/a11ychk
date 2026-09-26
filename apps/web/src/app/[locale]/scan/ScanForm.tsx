@@ -83,7 +83,8 @@ export function ScanForm({
   const [mode, setMode] = useState<"auto" | "manual">("auto");
   const [pagesText, setPagesText] = useState("");
   const [excludeText, setExcludeText] = useState("");
-  const [target, setTarget] = useState<"A" | "AA" | "AAA">("AA");
+  // AAA는 고르지 않는다 — 카탈로그에 AAA 기준이 없어 A+AA로 검사되는데 보고서엔 AAA 목표로 찍혔다
+  const [target, setTarget] = useState<"A" | "AA">("AA");
   const [notes, setNotes] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,7 +173,7 @@ export function ScanForm({
     const o = p.options;
     setUrl(o.url ?? "");
     setMode(o.mode ?? "auto");
-    setTarget(o.conformanceTarget ?? "AA");
+    setTarget(o.conformanceTarget === "A" ? "A" : "AA"); // 예전 프리셋의 AAA는 AA로
     setAutoPagesChoice(o.pageCount ?? null);
     setPagesText(o.manualPages?.join("\n") ?? "");
     setExcludeText(o.excludePatterns?.join("\n") ?? "");
@@ -494,12 +495,11 @@ export function ScanForm({
             <select
               id="scan-target"
               value={target}
-              onChange={(e) => setTarget(e.target.value as "A" | "AA" | "AAA")}
+              onChange={(e) => setTarget(e.target.value as "A" | "AA")}
               className="rounded border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper)] px-3 py-2 text-sm"
             >
               <option value="A">WCAG 2.2 A</option>
               <option value="AA">WCAG 2.2 AA</option>
-              <option value="AAA">WCAG 2.2 AAA</option>
             </select>
             <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{labels.targetHint}</p>
           </div>

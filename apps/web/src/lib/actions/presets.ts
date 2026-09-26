@@ -8,7 +8,11 @@ import { requireUser, revalidateLocalized, type SaveState } from "./shared";
 const PresetOptionsSchema = z.object({
   url: z.string().max(2000).optional(),
   mode: z.enum(["auto", "manual"]).optional(),
-  conformanceTarget: z.enum(["A", "AA", "AAA"]).optional(),
+  // AAA는 카탈로그에 없어 AA로 검사된다 — 예전 클라이언트가 보내도 AA로 저장
+  conformanceTarget: z
+    .enum(["A", "AA", "AAA"])
+    .transform((v) => (v === "AAA" ? "AA" : v))
+    .optional(),
   pageCount: z.number().int().min(1).max(30).optional(),
   manualPages: z.array(z.string().max(2000)).max(30).optional(),
   excludePatterns: z.array(z.string().max(300)).max(30).optional(),

@@ -19,7 +19,11 @@ const CreateScanSchema = z.object({
   pageCount: z.number().int().min(1).max(MAX_PAGES_PER_SCAN).optional(),
   scope: z
     .object({
-      conformanceTarget: z.enum(["A", "AA", "AAA"]).optional(),
+      // AAA 기준은 카탈로그에 없어 AA로 검사된다 — 받되 AA로 저장해 보고서 목표 수준이 실제와 맞게
+      conformanceTarget: z
+        .enum(["A", "AA", "AAA"])
+        .transform((v) => (v === "AAA" ? "AA" : v))
+        .optional(),
       accessibilitySupportBaseline: z.array(z.string().max(120)).max(20).optional(),
       includePatterns: z.array(z.string().max(300)).max(30).optional(),
       excludePatterns: z.array(z.string().max(300)).max(30).optional(),
