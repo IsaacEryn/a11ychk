@@ -41,8 +41,11 @@ function itemRate(
         // 과거 데이터에 검증 전 pages가 남아 있을 수 있어 0 미만은 클램프
         return Math.max(0, Math.round(((donePageCount - review.pages.length) / donePageCount) * 1000) / 10);
       }
-      if (pageRate?.rate != null) return pageRate.rate;
-      return 0; // 범위 미기입 전면 실패 판정 — 보수적으로 0%
+      // 페이지 범위 없이 "위반"만 기입한 판정 — 자동 검사가 위반 페이지를 찾았으면 그 비율을 쓰고,
+      // 아니면 보수적으로 0%. 예전에는 자동 측정치로 무조건 폴백해, 자동 규칙이 없는 수동 항목
+      // (위반 페이지 0 → 100%)에서 점검자의 "위반" 판정이 "통과"와 같은 100%로 계산됐다.
+      if (pageRate?.rate != null && pageRate.violatedPages > 0) return pageRate.rate;
+      return 0;
     }
     // cannotTell 등 — 자동 측정치가 있으면 사용
   }

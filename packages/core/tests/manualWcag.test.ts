@@ -124,6 +124,24 @@ describe("computeScores — kwcag 파생 폴백", () => {
     expect(scores.manual.failed).toBe(2); // 2.4.7·2.4.11 = 파생 failed
   });
 
+  it("파생된 통과는 자동 위반 SC를 덮지 못한다 (8.2.1 통과 → 4.1.2 자동 위반 유지)", () => {
+    const m: WcagMatrixRow[] = [{ scId: "4.1.2", outcome: "failed", violationCount: 3, ruleIds: ["button-name"] }];
+    const scores = computeScores(m, {}, { "8.2.1": "passed" });
+    expect(scores.combined.failed).toBe(1);
+    expect(scores.combined.passed).toBe(0);
+    expect(scores.manual.passed).toBe(0);
+  });
+
+  it("자동 위반이어도 WCAG 직접 판정은 우선한다(오탐 확인 후 통과 처리)", () => {
+    const m: WcagMatrixRow[] = [{ scId: "4.1.2", outcome: "failed", violationCount: 1, ruleIds: ["button-name"] }];
+    expect(computeScores(m, { "4.1.2": "passed" }).combined.passed).toBe(1);
+  });
+
+  it("파생된 위반은 자동 위반과 같은 방향이라 그대로 쓴다", () => {
+    const m: WcagMatrixRow[] = [{ scId: "4.1.2", outcome: "failed", violationCount: 1, ruleIds: ["button-name"] }];
+    expect(computeScores(m, {}, { "8.2.1": "failed" }).manual.failed).toBe(1);
+  });
+
   it("2인자 호출은 기존과 동일하게 동작한다 (하위 호환)", () => {
     const scores = computeScores(matrix, { "2.4.3": "failed" });
     expect(scores.manual.failed).toBe(1);

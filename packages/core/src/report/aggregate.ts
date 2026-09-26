@@ -264,7 +264,8 @@ function breakdown(passed: number, failed: number, total: number): ScoreBreakdow
  *
  * kwcagReviews(선택): KWCAG 항목 번호로 기입된 판정 — 대응 SC로 파생해 수동 판정으로
  * 소비한다. 같은 SC에 wcag 직접 판정이 있으면 직접 판정이 우선한다. (확장·KWCAG
- * 매트릭스에서 기입한 판정이 점수에 반영되지 않던 비대칭 해소)
+ * 매트릭스에서 기입한 판정이 점수에 반영되지 않던 비대칭 해소) 단, 파생된 통과는 자동
+ * 위반 SC에는 쓰지 않는다(아래 루프 주석).
  */
 export function computeScores(
   wcagMatrix: WcagMatrixRow[],
@@ -285,7 +286,13 @@ export function computeScores(
     if (row.outcome === "passed" || row.outcome === "notPresent") autoPass += 1;
     else if (row.outcome === "failed") autoFail += 1;
 
-    const rv = reviews[row.scId] ?? derived[row.scId];
+    // KWCAG 판정에서 파생된 통과·해당 없음은 자동 위반을 덮지 못한다 — 규칙의 KWCAG 매핑과
+    // 항목의 SC 매핑이 어긋나는 쌍(예: label·button-name은 4.1.2 위반인데 KWCAG로는 7.4.1·6.5.3,
+    // 4.1.2의 KWCAG 출처는 8.2.1뿐)에서 8.2.1을 통과로 누르면 자동 위반 SC가 통과가 됐다.
+    // 자동 위반을 뒤집는 건 그 SC에 대한 WCAG 직접 판정뿐이다.
+    const der = derived[row.scId];
+    const derivedUsable = !(row.outcome === "failed" && (der === "passed" || der === "notPresent"));
+    const rv = reviews[row.scId] ?? (derivedUsable ? der : undefined);
     if (rv === "passed") manualPass += 1;
     else if (rv === "failed") manualFail += 1;
 
