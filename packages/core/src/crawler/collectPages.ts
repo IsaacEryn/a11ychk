@@ -28,6 +28,11 @@ export function normalizeUrl(raw: string, base?: string): string | null {
     return null;
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+  // ada 3.x(Node 24.7·25.6 등)는 `http://가xn--.com/`처럼 비ASCII가 섞인 라벨의 ASCII 부분이
+  // "xn-"로 시작하면 자기 자신도 다시 해석하지 못하는 href를 만든다. 그 URL에 setter를 부르면
+  // node_url.cc의 CHECK가 실패해 프로세스가 abort된다(try/catch로 못 잡는다). 크롤한 링크 하나로
+  // 서버째 죽지 않도록 setter 전에 거른다.
+  if (!URL.canParse(url.href)) return null;
   url.hash = "";
   url.hostname = url.hostname.toLowerCase();
   return url.toString();

@@ -75,6 +75,9 @@ export function normalizeForDedup(rawUrl: string): string {
   } catch {
     return rawUrl;
   }
+  // normalizeUrl과 같은 ada 3.x 결함 방어 — href가 다시 해석되지 않는 URL에 setter를 부르면
+  // 프로세스가 abort된다. 파싱 불가와 같이 취급해 입력을 그대로 돌려준다.
+  if (!URL.canParse(url.href)) return rawUrl;
   url.hash = "";
   url.hostname = url.hostname.toLowerCase();
   const kept: [string, string][] = [];

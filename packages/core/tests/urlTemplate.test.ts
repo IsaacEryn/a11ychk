@@ -90,4 +90,17 @@ describe("normalizeForDedup", () => {
   it("파싱 불가 입력은 그대로 반환", () => {
     expect(normalizeForDedup("not a url")).toBe("not a url");
   });
+
+  // normalizeUrl과 같은 ada 3.x 결함 — 다시 해석되지 않는 href에 setter를 부르면 abort.
+  // 그런 런타임에선 파싱 불가와 같은 계약(입력 그대로)을 따른다.
+  it.each([
+    ["http://가xn--.com/list?page=2#top", "http://xn--xn---9g3p.com/list"],
+    ["http://éxn-.kr/x?b=2&a=1", "http://xn--xn--9la.kr/x?a=1&b=2"],
+  ])("다시 해석되지 않는 href는 setter 없이 입력을 그대로 돌려준다: %s", (raw, ascii) => {
+    expect(normalizeForDedup(raw)).toBe(URL.canParse(ascii) ? ascii : raw);
+  });
+
+  it("일반 IDN 호스트는 그대로 정규화한다", () => {
+    expect(normalizeForDedup("http://토토.com/list?page=2")).toBe("http://xn--vy7ba.com/list");
+  });
 });

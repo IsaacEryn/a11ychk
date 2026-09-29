@@ -30,6 +30,23 @@ describe("normalizeUrl", () => {
     expect(normalizeUrl("mailto:a@b.c")).toBeNull();
     expect(normalizeUrl("javascript:void(0)")).toBeNull();
   });
+
+  // ada 3.x(Node 24.7·25.6)는 이런 호스트로 만든 href를 스스로 다시 해석하지 못하고, 그 URL에
+  // setter를 부르면 프로세스가 abort된다(try/catch로 못 잡는다). 기대값은 런타임을 따른다 —
+  // href가 다시 해석되는 Node 22·24.21 등에선 ASCII 주소 그대로, 아니면 null.
+  it.each([
+    ["http://가xn--.com/", "http://xn--xn---9g3p.com/"],
+    ["http://éxn-.kr/", "http://xn--xn--9la.kr/"],
+    ["http://😀xn--/x", "http://xn--xn---u973c/x"],
+    ["http://%EA%B0%80xn--.com/", "http://xn--xn---9g3p.com/"],
+  ])("다시 해석되지 않는 href는 setter 전에 거른다: %s", (raw, ascii) => {
+    expect(normalizeUrl(raw)).toBe(URL.canParse(ascii) ? ascii : null);
+  });
+
+  it("일반 IDN·xn-- 호스트는 그대로 받는다", () => {
+    expect(normalizeUrl("http://토토.com/")).toBe("http://xn--vy7ba.com/");
+    expect(normalizeUrl("http://éxn.com/#a")).toBe("http://xn--xn-9ia.com/");
+  });
 });
 
 describe("extractLinks", () => {
@@ -47,6 +64,16 @@ describe("extractLinks", () => {
     expect(links).toContain("https://example.com/about");
     expect(links).toContain("https://example.com/pricing");
     expect(links).toHaveLength(2);
+  });
+
+  it("다시 해석되지 않는 호스트의 링크가 섞여도 나머지 링크는 그대로 나온다", () => {
+    const bad = "http://xn--xn---9g3p.com/x";
+    const html = `<a href="/a">A</a><a href="http://가xn--.com/x">B</a><a href="/c#frag">C</a>`;
+    expect(extractLinks(html, "https://example.com/")).toEqual([
+      "https://example.com/a",
+      ...(URL.canParse(bad) ? [bad] : []),
+      "https://example.com/c",
+    ]);
   });
 });
 
