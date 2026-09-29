@@ -17,6 +17,7 @@
   "scripts": {
     "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --banner:js='#!/usr/bin/env node' --define:__PACKAGE_VERSION__=\"\\\"$npm_package_version\\\"\" --external:@modelcontextprotocol/sdk --external:zod --external:axe-core --external:undici --external:playwright-core --outfile=dist/cli.mjs --log-level=warning",
     "prepack": "npm run build",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke": "npm run build && node scripts/smoke.mjs"
   },
@@ -49,6 +50,7 @@
   },
   "devDependencies": {
     "esbuild": "^0.28.0",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.4"
   }
 }
