@@ -14,7 +14,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   ko: {
     title: "개인정보 처리방침",
     effective:
-      "시행일: 2026년 9월 27일 (개정 — 회원 탈퇴 후 남는 기록·알림 메일 언어 고지 / 2026년 7월 24일 관리자의 검사 결과 접근 고지·비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
+      "시행일: 2026년 9월 30일 (개정 — 회원 탈퇴 후 남는 기록·알림 메일 언어 고지 / 2026년 7월 24일 관리자의 검사 결과 접근 고지·비로그인 맛보기 검사 고지 / 2026년 7월 23일 친구 초대 기능 고지 / 2026년 7월 22일 웹 분석(GA4) 고지 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "1. 수집하는 개인정보 항목",
@@ -78,7 +78,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   en: {
     title: "Privacy Policy",
     effective:
-      "Effective: September 27, 2026 (amended — records kept after account deletion and notification email language; July 24, 2026 administrator access to audit results and no-login teaser check disclosures; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
+      "Effective: September 30, 2026 (amended — records kept after account deletion and notification email language; July 24, 2026 administrator access to audit results and no-login teaser check disclosures; July 23, 2026 referral feature; July 22, 2026 web analytics (GA4); enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Data we collect",

@@ -14,7 +14,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   ko: {
     title: "서비스 이용약관",
     effective:
-      "시행일: 2026년 9월 27일 (개정 — 사이트 소유자의 robots.txt 예외 명시 / 2026년 7월 24일 비회원 맛보기 검사·친구 초대 조항 신설 / 2026년 7월 19일 비식별 데이터 활용 조항 신설 / 2026년 7월 16일 제정)",
+      "시행일: 2026년 9월 30일 (개정 — 사이트 소유자의 robots.txt 예외 명시 / 2026년 7월 24일 비회원 맛보기 검사·친구 초대 조항 신설 / 2026년 7월 19일 비식별 데이터 활용 조항 신설 / 2026년 7월 16일 제정)",
     sections: [
       {
         heading: "제1조 (목적)",
@@ -87,7 +87,7 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
   en: {
     title: "Terms of Service",
     effective:
-      "Effective: September 27, 2026 (amended — robots.txt exception for verified site owners; July 24, 2026 no-login teaser check and referral clauses; July 19, 2026 de-identified data clause; enacted July 16, 2026)",
+      "Effective: September 30, 2026 (amended — robots.txt exception for verified site owners; July 24, 2026 no-login teaser check and referral clauses; July 19, 2026 de-identified data clause; enacted July 16, 2026)",
     sections: [
       {
         heading: "1. Purpose",
