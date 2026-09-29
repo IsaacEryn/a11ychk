@@ -1,14 +1,14 @@
 /**
  * crawl_sample — 대표 페이지 표본 수집 (buildSample 재사용, 브라우저 불필요).
  *
- * fetcher로 일반 undici fetch를 주입한다. buildSample의 기본 fetcher는 SSRF 가드
- * (guardedFetch)라 localhost를 차단하는데, 이 서버의 핵심 용도가 배포 전 localhost
+ * fetcher로 SSRF 가드 없는 core의 localFetch를 주입한다. buildSample의 기본 fetcher는
+ * SSRF 가드(guardedFetch)라 localhost를 차단하는데, 이 서버의 핵심 용도가 배포 전 localhost
  * 검사다. SSRF 가드는 SaaS(남의 서버에서 임의 URL을 fetch)의 관심사이고, 로컬
  * 도구는 사용자 자신의 권한으로 도니 GitHub Action과 같은 기준을 적용한다.
+ * undici fetch를 그대로 쓰지 않는 이유는 localFetch 주석 참고 — 리다이렉트 하나로 서버가 죽을 수 있다.
  * robots.txt 존중은 buildSample 내부에서 그대로 동작한다.
  */
-import { fetch as undiciFetch } from "undici";
-import { buildSample, type SampleResult } from "@a11ychk/core";
+import { buildSample, localFetch, type SampleResult } from "@a11ychk/core";
 import { footer } from "./funnel";
 
 const DEFAULT_MAX_PAGES = 8;
@@ -28,7 +28,7 @@ export async function runCrawlSampleTool(url: string, maxPages: number | undefin
   const max = Math.min(maxPages ?? DEFAULT_MAX_PAGES, CRAWL_MAX_PAGES);
   const sample: SampleResult = await buildSample(url, {
     maxPages: max,
-    fetcher: (u) => undiciFetch(u) as unknown as Promise<Response>,
+    fetcher: localFetch,
   });
 
   const structuredContent = {
