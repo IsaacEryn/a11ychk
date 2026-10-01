@@ -17,10 +17,11 @@ const SITE = "https://www.a11ychk.com";
  *
  * IP 리터럴은 core의 SSRF 가드와 같은 함수로 판정한다. 여기 정규식을 따로 두면 IPv4 매핑
  * IPv6(`[::ffff:10.0.0.1]`)·링크로컬·CGNAT 같은 대역이 새서 사내망 주소가 외부로
- * 나가는 링크에 실린다. 그 함수는 IP가 아닌 입력을 모두 사설로 치므로 도메인에는 쓰지 않고,
- * assertPublicHost와 같은 이름 규칙(localhost·.local·.internal 등)만 본다. DNS 조회가 필요한
- * 판정은 하지 않는다 — 링크에 실을지 말지를 즉시 정해야 하고, 실제 검사 전에 웹 쪽에서 다시
- * 가드를 거친다.
+ * 나가는 링크에 실린다. 그 함수는 IP가 아닌 입력을 모두 사설로 치므로 도메인에는 쓰지 않고
+ * 이름만 본다. assertPublicHost의 이름 규칙(.localhost·.local·.internal)에 더해 점 없는 단일
+ * 라벨도 뺀다 — 공개 웹에는 그런 호스트가 없고, 사내 호스트명이 외부 링크에 실리게 된다.
+ * DNS 조회가 필요한 판정은 하지 않는다 — 링크에 실을지 말지를 즉시 정해야 하고, 실제 검사
+ * 전에 웹 쪽에서 다시 가드를 거친다.
  */
 function publicUrl(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -30,12 +31,14 @@ function publicUrl(raw: string | undefined): string | null {
     const host = u.hostname.toLowerCase();
     // URL.hostname은 IPv6을 브래킷 포함으로 돌려준다 ("[::1]")
     const bare = host.startsWith("[") && host.endsWith("]") ? host.slice(1, -1) : host;
+    // 끝의 점은 FQDN 표기일 뿐 같은 이름이다 ("localhost.")
+    const name = host.endsWith(".") ? host.slice(0, -1) : host;
     const internal = isIP(bare)
       ? isPrivateAddress(bare)
-      : host === "localhost" ||
-        host.endsWith(".localhost") ||
-        host.endsWith(".local") ||
-        host.endsWith(".internal");
+      : !name.includes(".") || // 점 없는 단일 라벨 — localhost와 사내 호스트명(devbox, intranet)
+        name.endsWith(".localhost") ||
+        name.endsWith(".local") ||
+        name.endsWith(".internal");
     if (internal) return null;
     // ada 3.x(Node 24.7·25.6 등)는 `http://가xn--.com/`처럼 비ASCII가 섞인 라벨의 ASCII 부분이
     // "xn-"로 시작하면 자기 자신도 다시 해석하지 못하는 href를 만든다. 그 URL에 setter를 부르면

@@ -13,6 +13,10 @@ describe("funnelUrl", () => {
     expect(prefill("http://한글.com/")).toBe("http://xn--bj0bj06e.com/");
   });
 
+  it("끝에 점이 붙은 공개 도메인(FQDN 표기)도 싣는다", () => {
+    expect(prefill("https://example.com./a")).toBe("https://example.com./a");
+  });
+
   it("공개 IP 리터럴은 그대로 싣는다", () => {
     expect(prefill("https://8.8.8.8/a")).toBe("https://8.8.8.8/a");
     expect(prefill("http://[2001:4860::8888]/")).toBe("http://[2001:4860::8888]/");
@@ -24,6 +28,10 @@ describe("funnelUrl", () => {
     "http://app.localhost/",
     "http://printer.local/",
     "http://metadata.google.internal/computeMetadata/v1/",
+    "http://localhost./",
+    "http://printer.local./",
+    "http://devbox:3000/",
+    "http://intranet/wiki",
     "http://127.0.0.1:8080/",
     "http://10.0.0.1/",
     "http://192.168.0.10/",
