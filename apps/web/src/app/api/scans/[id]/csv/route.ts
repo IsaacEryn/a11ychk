@@ -4,6 +4,7 @@ import {
   KWCAG_BY_SLUG,
   getRuleEntry,
   kwcagItemsOf,
+  kwcagNoListLabel,
   normalizeKwcagMatrix,
   normalizeReviewRows,
   type Impact,
@@ -108,7 +109,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       rows.push(
         [
           f.scan_pages?.url ?? "",
-          kwcagItemsOf(entry.kwcag).map((i) => i.serial).join(" / "),
+          kwcagNoListLabel(kwcagItemsOf(entry.kwcag), lang),
           entry.wcag.join(" / "),
           pickText(entry.title),
           impactLabel[f.impact] ?? f.impact,

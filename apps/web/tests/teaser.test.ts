@@ -68,6 +68,18 @@ describe("buildTeaserResult — 서버측 트리밍·잠금", () => {
     expect(out.rules.map((r) => r.impact)).toEqual(["critical", "serious", "minor"]);
   });
 
+  it("KWCAG 대응은 옛 클라이언트용 공식 번호 배열(kwcag)과 새 표기 문자열(kwcagLabel)을 함께 낸다", () => {
+    // server-side-image-map은 대체 텍스트(검사항목 1, 5.1.1)와 키보드 사용 보장(검사항목 10, 6.1.1)에 걸린다.
+    // 배포 전에 열린 탭은 kwcag.join(", ")을 부르므로 배열이어야 하고, 새 화면은 kwcagLabel을 그대로 보인다.
+    const p = page([finding({ ruleId: "server-side-image-map", tags: ["wcag2a", "wcag211"] })]);
+    const ko = buildTeaserResult(p, summary(), "ko").rules[0];
+    expect(ko.kwcag).toEqual(["5.1.1", "6.1.1"]);
+    expect(ko.kwcagLabel).toBe("검사항목 1·10");
+    const en = buildTeaserResult(p, summary(), "en").rules[0];
+    expect(en.kwcag).toEqual(["5.1.1", "6.1.1"]);
+    expect(en.kwcagLabel).toBe("Checkpoints 1, 10");
+  });
+
   it("요약 수치·캐시 플래그를 그대로 전달한다", () => {
     const out = buildTeaserResult(page([]), summary(), "en");
     expect(out.rate).toBe(87.5);

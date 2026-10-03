@@ -35,6 +35,7 @@ export interface StoredReviewRow {
  * 저장된 판정 행 → kwcag 행의 item_id를 슬러그로 맞춘다. wcag 행은 그대로 둔다.
  * 풀 수 없는 kwcag 행은 버리고, 같은 항목의 옛 행·슬러그 행이 함께 있으면 슬러그 행을 쓴다
  * (배포 뒤에는 슬러그로만 쓰므로 슬러그 행이 늘 더 새 판정이다). 행 순서는 유지한다.
+ * 한 검사(scan)의 행만 넘긴다 — scan_id 없이 항목으로 중복을 거른다.
  */
 export function normalizeReviewRows<T extends StoredReviewRow>(rows: readonly T[] | null | undefined): T[] {
   const list = rows ?? [];

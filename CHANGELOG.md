@@ -41,11 +41,13 @@ MCP 서버(0.2.0), 크롬 확장(0.6.0)도 같은 기준으로 바뀌었습니�
 ### English
 
 The step summary now cites KWCAG checkpoints by the serial numbers used in Korean certification
-audits (e.g. `KWCAG Checkpoint 8`). Ten of the 33 KWCAG numbers A11y Check used did not match the
-checkpoint numbers in KS X OT0003:2022, and six of them are numbers of different checkpoints in the
-standard. The web service, the MCP server (0.2.0), and the Chrome extension (0.6.0) follow the same
-numbering. Verdicts, scores, `fail-on`, and input/output formats are unchanged. The table above
-maps the old numbers in earlier reports and CSV files to the standard numbers.
+audits (e.g. `KWCAG 검사항목 8`; the summary is in Korean, where 검사항목 means "checkpoint").
+Ten of the 33 KWCAG numbers A11y Check used did not match the checkpoint numbers in
+KS X OT0003:2022, and six of them are numbers of different checkpoints in the standard. The web
+service, the MCP server (0.2.0), and the Chrome extension (0.6.0) follow the same numbering.
+Verdicts, scores, `fail-on`, and input/output formats are unchanged. The table above maps the old
+numbers in earlier reports and CSV files to the standard numbers (columns: checkpoint (serial),
+standard number, old A11y Check number).
 
 ---
 

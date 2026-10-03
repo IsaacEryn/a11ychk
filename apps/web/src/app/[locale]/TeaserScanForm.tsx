@@ -12,7 +12,10 @@ interface TeaserRule {
   title: string;
   impact: "critical" | "serious" | "moderate" | "minor";
   wcag: string[];
-  kwcag: string;
+  /** 공식 번호(ksNo) 배열 — 번호 개편 전 화면과의 호환용이라 이 화면은 표기에 쓰지 않는다 */
+  kwcag: string[];
+  /** 「검사항목 8·29」 같은 표기. 대응이 없으면 빈 문자열 */
+  kwcagLabel: string;
   guideFirst: string;
   nodeCount: number;
   sample: { selector: string; html: string } | null;
@@ -168,7 +171,7 @@ export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
                     <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
                       {t("nodeCount", { count: r.nodeCount })}
                       {r.wcag.length > 0 && ` · WCAG ${r.wcag.join(", ")}`}
-                      {r.kwcag && ` · KWCAG ${r.kwcag}`}
+                      {r.kwcagLabel && ` · KWCAG ${r.kwcagLabel}`}
                     </p>
                     {r.sample && (
                       <div className="mt-2 text-xs">

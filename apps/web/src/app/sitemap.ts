@@ -34,7 +34,7 @@ const LOCALES = ["ko", "en"] as const;
  * 매 요청 "지금"을 lastmod로 내보내면 구글이 신호를 통째로 무시하므로 고정값을 쓰고,
  * 카탈로그·주요 문구를 손볼 때 함께 올린다.
  */
-const CONTENT_UPDATED = new Date("2026-08-03");
+const CONTENT_UPDATED = new Date("2026-10-03");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // KWCAG 33항목 상세 — 항목 단위로 찾아오는 검색을 받는 면 (유입 자산이라 우선순위 상향)

@@ -126,6 +126,9 @@ try {
   );
   const bySerial = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "8" } });
   assert(bySerial.structuredContent?.slug === "text-contrast", "kwcag_checkpoint: 일련번호 8 → 텍스트 콘텐츠의 명도 대비");
+  // 도구 설명이 "예: 8"을 보여 주므로 JSON 숫자 8도 받아야 한다
+  const byNumber = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: 8 } });
+  assert(byNumber.structuredContent?.slug === "text-contrast", "kwcag_checkpoint: 숫자 입력 8도 → 텍스트 콘텐츠의 명도 대비");
   const moved = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "table-structure" } });
   assert(
     moved.structuredContent?.id === "5.3.1" && moved.structuredContent?.principle === "인식의 용이성",

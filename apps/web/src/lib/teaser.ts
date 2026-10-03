@@ -40,8 +40,10 @@ export interface TeaserRule {
   title: string;
   impact: Impact;
   wcag: string[];
+  /** KWCAG 공식 번호(ksNo, 예: ["5.4.3", "7.3.2"]). 번호 개편 전에 로드된 화면이 join(", ")으로 쓰므로 배열로 둔다 */
+  kwcag: string[];
   /** KWCAG 대응 표기 (예: "검사항목 8·29"). 대응이 없으면 빈 문자열 */
-  kwcag: string;
+  kwcagLabel: string;
   /** 개선 가이드 첫 단락 (로케일 반영) */
   guideFirst: string;
   /** 이 규칙의 전체 위반 요소 수 */
@@ -71,12 +73,14 @@ export function buildTeaserResult(page: PageScanResult, summary: ScanSummary, lo
     .map((v) => {
       const entry = getRuleEntry(v.ruleId, v.tags);
       const first = v.nodes[0];
+      const kwItems = kwcagItemsOf(entry.kwcag);
       return {
         ruleId: v.ruleId,
         title: pick(entry.title),
         impact: v.impact,
         wcag: entry.wcag,
-        kwcag: kwcagNoListLabel(kwcagItemsOf(entry.kwcag), locale),
+        kwcag: kwItems.map((i) => i.ksNo),
+        kwcagLabel: kwcagNoListLabel(kwItems, locale),
         guideFirst: pick(entry.guide).split("\n\n")[0]?.trim() ?? "",
         nodeCount: v.nodes.length,
         sample: first ? { selector: first.selector.slice(0, 300), html: first.html.slice(0, 300) } : null,
