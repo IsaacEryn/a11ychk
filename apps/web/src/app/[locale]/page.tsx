@@ -5,25 +5,25 @@ import { getCachedUser } from "@/lib/supabase/user";
 import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 import { localeAlternates } from "@/lib/seo/alternates";
 import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
-import { KWCAG_ITEMS, getCatalogStats, kwcagSlug } from "@a11ychk/core/catalog";
+import { getCatalogStats, type KwcagSlug } from "@a11ychk/core/catalog";
 import { TeaserScanForm } from "./TeaserScanForm";
 
-/** 카테고리 → 대표 KWCAG 항목 — 그리드에서 개선 가이드로 곧장 (33개 페이지에 내부 링크 공급) */
-const CATEGORY_GUIDE: Record<string, string> = {
-  images: "5.1.1",
-  forms: "7.4.1",
-  keyboard: "6.1.1",
-  structure: "7.3.1",
-  links: "6.4.3",
-  language: "7.1.1",
-  media: "5.2.1",
-  contrast: "5.4.1",
-  wcag22: "7.4.3",
+/** 카테고리 → 대표 KWCAG 항목(슬러그) — 그리드에서 개선 가이드로 곧장 (33개 페이지에 내부 링크 공급) */
+const CATEGORY_GUIDE: Record<string, KwcagSlug> = {
+  images: "alternative-text",
+  forms: "labels-for-inputs",
+  keyboard: "keyboard-accessible",
+  structure: "meaningful-sequence",
+  links: "meaningful-link-text",
+  language: "language-of-page",
+  media: "captions-for-multimedia",
+  contrast: "text-contrast",
+  wcag22: "accessible-authentication",
 };
 
 function guidePathFor(categoryKey: string): string | null {
-  const item = KWCAG_ITEMS.find((it) => it.id === CATEGORY_GUIDE[categoryKey]);
-  return item ? `/guide/${kwcagSlug(item)}` : null;
+  const slug = CATEGORY_GUIDE[categoryKey];
+  return slug ? `/guide/${slug}` : null;
 }
 
 /** 규칙 수·자동 검출 성공기준 — 문구에 숫자를 박지 않고 카탈로그에서 계산한다(어긋남 방지) */

@@ -6,6 +6,7 @@ import {
   type ScanSummary,
   type WcagOutcome,
 } from "@a11ychk/core/catalog";
+import { KwcagNo } from "@/components/KwcagNo";
 import { LiveOutcomeCell } from "../LiveOutcomeCell";
 import { LiveReviewSummary } from "../LiveReviewSummary";
 import { MatrixDetail } from "../MatrixDetail";
@@ -95,13 +96,16 @@ export async function KwcagMatrixSection({
               return (
                 <tr key={row.itemId} {...kwcagRowData(row.status, review)} className="border-b border-[var(--color-line)] align-top">
                   <th scope="row" className="col-sticky w-[15rem] py-2 pr-3 text-left font-medium">
-                    <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
+                    <KwcagNo serial={item.serial} locale={locale} />
                     {pick(item.name, locale)}
                     {item.addedIn22 && (
-                      <span className="ml-2 rounded-sm bg-[var(--color-seal-tint)] px-1.5 py-0.5 text-[0.7rem] font-bold text-[var(--color-seal)]">
-                        {t("kwcag.new22")}
-                      </span>
-                    )}
+                      <>
+                        {" "}
+                        <span className="ml-2 rounded-sm bg-[var(--color-seal-tint)] px-1.5 py-0.5 text-[0.7rem] font-bold text-[var(--color-seal)]">
+                          {t("kwcag.new22")}
+                        </span>
+                      </>
+                    )}{" "}
                     <span className="ml-2 text-xs text-[var(--color-ink-faint)]">
                       {KWCAG_PRINCIPLE_LABEL[item.principle][locale === "en" ? "en" : "ko"]}
                     </span>

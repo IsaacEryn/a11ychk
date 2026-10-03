@@ -2,6 +2,7 @@ import { getTranslations } from "next-intl/server";
 import {
   KWCAG_ITEMS,
   getRuleEntry,
+  kwcagNoLabel,
   pickLocale as pick,
   understandingUrl,
   type LocalizedText,
@@ -72,9 +73,9 @@ export async function MatrixDetail({
             <p className="text-sm leading-relaxed">{pick(howToTest, locale)}</p>
           ) : manualItems.length > 0 ? (
             manualItems.map((item) => (
-              <div key={item.id}>
+              <div key={item.slug}>
                 <h4 className="text-sm font-bold">
-                  <span className="mr-1.5 tabular-nums text-[var(--color-ink-faint)]">KWCAG {item.id}</span>
+                  <span className="mr-1.5 tabular-nums text-[var(--color-ink-faint)]">KWCAG {kwcagNoLabel(item, locale)}</span>{" "}
                   {pick(item.name, locale)}
                 </h4>
                 <p className="mt-1 text-sm leading-relaxed">{item.howToTest ? pick(item.howToTest, locale) : ""}</p>

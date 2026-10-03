@@ -6,17 +6,19 @@ import {
   KWCAG_PRINCIPLE_LABEL,
   RULE_CATALOG,
   WCAG_BY_ID,
-  kwcagSlug,
+  kwcagLabel,
+  kwcagNoLabel,
   pickLocale as pick,
   understandingUrl,
 } from "@a11ychk/core/catalog";
 import { Link } from "@/i18n/navigation";
 import { GuideText } from "@/components/GuideText";
+import { KwcagNo } from "@/components/KwcagNo";
 import { localeAlternates } from "@/lib/seo/alternates";
 import { JsonLd, breadcrumbJsonLd, howToJsonLd } from "@/components/JsonLd";
 
 export function generateStaticParams() {
-  return KWCAG_ITEMS.map((item) => ({ slug: kwcagSlug(item) }));
+  return KWCAG_ITEMS.map((item) => ({ slug: item.slug }));
 }
 
 export async function generateMetadata({
@@ -32,11 +34,11 @@ export async function generateMetadata({
   // 항목 고유 문장(검사 방법 첫 문장)을 앞세워 33개 준-중복 description을 차별화 —
   // 템플릿만으로는 검색엔진이 자체 생성 스니펫으로 대체해 버린다
   const unique = item.howToTest ? pick(item.howToTest, locale).split(/(?<=[.다])\s/)[0]?.slice(0, 110) : null;
-  const base = t("metaDescription", { id: item.id, name, wcag: item.wcag.join(", ") });
+  const base = t("metaDescription", { serial: item.serial, ksNo: item.ksNo, name, wcag: item.wcag.join(", ") });
   return {
     alternates: localeAlternates(locale, `/guide/${slug}`),
     // layout의 "%s — A11y Check" 템플릿을 태우면 제목이 검색 결과에서 잘릴 만큼 길어진다
-    title: { absolute: t("metaTitle", { id: item.id, name }) },
+    title: { absolute: t("metaTitle", { serial: item.serial, name }) },
     description: unique ? `${unique} ${base}`.slice(0, 300) : base,
   };
 }
@@ -85,7 +87,7 @@ export default async function GuideItemPage({
       <JsonLd
         data={breadcrumbJsonLd([
           { name: t("breadcrumbGuide"), url: `/${locale}/guide` },
-          { name: `${item.id} ${name}`, url: `/${locale}/guide/${slug}` },
+          { name: kwcagLabel(item, locale), url: `/${locale}/guide/${slug}` },
         ])}
       />
       {howToTest && (
@@ -103,8 +105,13 @@ export default async function GuideItemPage({
       </nav>
 
       <p className="mt-6 inline-block border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] px-3 py-1 text-sm font-semibold">
-        KWCAG 2.2 · {item.id}
-        {item.addedIn22 && <span className="ml-2 text-[var(--color-seal)]">{t("new22")}</span>}
+        {`KWCAG 2.2 · ${kwcagNoLabel(item, locale)} · KS X OT0003 ${item.ksNo}`}
+        {item.addedIn22 && (
+          <>
+            {" "}
+            <span className="ml-2 text-[var(--color-seal)]">{t("new22")}</span>
+          </>
+        )}
       </p>
       <h1 className="font-display mt-4 text-3xl font-bold leading-tight sm:text-4xl">
         {t("h1", { name })}
@@ -121,10 +128,8 @@ export default async function GuideItemPage({
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="doc-card p-5">
             <dt className="text-sm font-bold text-[var(--color-ink-soft)]">{t("kwcagLabel")}</dt>
-            <dd className="mt-1 font-bold">
-              {item.id} {name}
-            </dd>
-            <dd className="mt-1 text-sm text-[var(--color-ink-soft)]">{principle}</dd>
+            <dd className="mt-1 font-bold">{kwcagLabel(item, locale)}</dd>
+            <dd className="mt-1 text-sm text-[var(--color-ink-soft)]">{`${principle} · KS X OT0003 ${item.ksNo}`}</dd>
           </div>
           <div className="doc-card p-5">
             <dt className="text-sm font-bold text-[var(--color-ink-soft)]">{t("wcagLabel")}</dt>
@@ -216,9 +221,10 @@ export default async function GuideItemPage({
           </h2>
           <ul className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-sm">
             {related.map((r) => (
-              <li key={r.id}>
-                <Link href={`/guide/${kwcagSlug(r)}`} className="font-semibold underline underline-offset-4 hover:text-[var(--color-seal)]">
-                  {r.id} {pick(r.name, locale)}
+              <li key={r.slug}>
+                <Link href={`/guide/${r.slug}`} className="font-semibold underline underline-offset-4 hover:text-[var(--color-seal)]">
+                  <KwcagNo serial={r.serial} locale={locale} className="mr-1.5 tabular-nums" />
+                  {pick(r.name, locale)}
                 </Link>
               </li>
             ))}
@@ -229,15 +235,17 @@ export default async function GuideItemPage({
       {/* 앞뒤 항목 */}
       <nav aria-label={t("siblingLabel")} className="mt-10 flex flex-wrap justify-between gap-4 border-t-[1.5px] border-[var(--color-line)] pt-6">
         {prev ? (
-          <Link href={`/guide/${kwcagSlug(prev)}`} className="max-w-[45%] underline underline-offset-4">
-            ← {prev.id} {pick(prev.name, locale)}
+          <Link href={`/guide/${prev.slug}`} className="max-w-[45%] underline underline-offset-4">
+            ← <KwcagNo serial={prev.serial} locale={locale} className="mr-1.5 tabular-nums" />
+            {pick(prev.name, locale)}
           </Link>
         ) : (
           <span />
         )}
         {next && (
-          <Link href={`/guide/${kwcagSlug(next)}`} className="max-w-[45%] text-right underline underline-offset-4">
-            {next.id} {pick(next.name, locale)} →
+          <Link href={`/guide/${next.slug}`} className="max-w-[45%] text-right underline underline-offset-4">
+            <KwcagNo serial={next.serial} locale={locale} className="mr-1.5 tabular-nums" />
+            {pick(next.name, locale)} →
           </Link>
         )}
       </nav>

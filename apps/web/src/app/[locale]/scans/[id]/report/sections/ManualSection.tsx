@@ -3,19 +3,24 @@ import {
   WCAG_CRITERIA,
   getKwcagOnlyManualItems,
   getManualChecksByWcag,
+  kwcagNoLabel,
   pickLocale as pick,
   understandingUrl,
 } from "@a11ychk/core/catalog";
+import { KwcagNo } from "@/components/KwcagNo";
 
-/** A/AA 수준 배지 */
+/** A/AA 수준 배지 — 앞의 이름과 붙어 읽히지 않게 글자 공백을 앞세운다 */
 function LevelBadge({ level, aria }: { level: string; aria: string }) {
   return (
-    <span
-      aria-label={`${aria} ${level}`}
-      className="ml-2 rounded-full border border-[var(--color-line)] px-1.5 py-0.5 align-middle text-[10px] font-bold text-[var(--color-ink-soft)]"
-    >
-      {level}
-    </span>
+    <>
+      {" "}
+      <span
+        aria-label={`${aria} ${level}`}
+        className="ml-2 rounded-full border border-[var(--color-line)] px-1.5 py-0.5 align-middle text-[10px] font-bold text-[var(--color-ink-soft)]"
+      >
+        {level}
+      </span>
+    </>
   );
 }
 
@@ -42,20 +47,20 @@ export async function ManualSection({ locale }: { locale: string }) {
         {checks.map((c) => (
           <li key={c.scId} className="print-avoid-break border-[1.5px] border-[var(--color-line)] bg-[var(--color-paper-warm)] p-5">
             <h3 className="font-bold">
-              <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{c.scId}</span>
+              <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{c.scId}</span>{" "}
               {pick(c.name, locale)}
               <LevelBadge level={c.level} aria={t("manual.levelAria")} />
             </h3>
             <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
-              {t("manual.kwcagRef")}: {c.sources.map((s) => `${s.kwcagId} ${pick(s.name, locale)}`).join(" · ")}
+              {t("manual.kwcagRef")}: {c.sources.map((s) => `${kwcagNoLabel(s, locale)} ${pick(s.name, locale)}`).join(" · ")}
             </p>
             {c.sources.map(
               (s) =>
                 s.howToTest && (
-                  <p key={s.kwcagId} className="mt-2 text-sm leading-relaxed text-[var(--color-ink-soft)]">
+                  <p key={s.slug} className="mt-2 text-sm leading-relaxed text-[var(--color-ink-soft)]">
                     <strong className="text-[var(--color-ink)]">
                       {t("manual.howToTest")}
-                      {c.sources.length > 1 ? ` (${s.kwcagId})` : ""}:
+                      {c.sources.length > 1 ? ` (${kwcagNoLabel(s, locale)})` : ""}:
                     </strong>{" "}
                     {pick(s.howToTest, locale)}
                   </p>
@@ -103,9 +108,9 @@ export async function ManualSection({ locale }: { locale: string }) {
           <h3 className="font-display text-lg font-bold">{t("manual.kwcagOnlyTitle")}</h3>
           <ul className="mt-3 space-y-4">
             {kwcagOnly.map((item) => (
-              <li key={item.id} className="print-avoid-break border-[1.5px] border-dashed border-[var(--color-line)] p-5">
+              <li key={item.slug} className="print-avoid-break border-[1.5px] border-dashed border-[var(--color-line)] p-5">
                 <h4 className="font-bold">
-                  <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
+                  <KwcagNo serial={item.serial} locale={locale} />
                   {pick(item.name, locale)}
                 </h4>
                 {item.howToTest && (

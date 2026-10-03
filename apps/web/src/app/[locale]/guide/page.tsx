@@ -4,13 +4,15 @@ import { JsonLd } from "@/components/JsonLd";
 import {
   KWCAG_ITEMS,
   KWCAG_PRINCIPLE_LABEL,
-  kwcagSlug,
+  kwcagLabel,
+  kwcagNoLabel,
   pickLocale as pick,
   getKwcagOnlyManualItems,
   getManualChecksByWcag,
   type KwcagPrinciple,
   type ManualWcagCheck,
 } from "@a11ychk/core/catalog";
+import { KwcagNo } from "@/components/KwcagNo";
 import { Link } from "@/i18n/navigation";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -46,11 +48,11 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
         data={{
           "@context": "https://schema.org",
           "@type": "ItemList",
-          itemListElement: KWCAG_ITEMS.map((item, i) => ({
+          itemListElement: KWCAG_ITEMS.map((item) => ({
             "@type": "ListItem",
-            position: i + 1,
-            name: `${item.id} ${item.name.ko}`,
-            url: `https://www.a11ychk.com/${locale}/guide/${kwcagSlug(item)}`,
+            position: item.serial,
+            name: kwcagLabel(item, locale),
+            url: `https://www.a11ychk.com/${locale}/guide/${item.slug}`,
           })),
         }}
       />
@@ -72,9 +74,9 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
               <h3 className="font-bold">{KWCAG_PRINCIPLE_LABEL[principle][locale === "en" ? "en" : "ko"]}</h3>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
                 {items.map((item) => (
-                  <li key={item.id}>
-                    <Link href={`/guide/${kwcagSlug(item)}`} className="underline underline-offset-4">
-                      <span className="mr-1.5 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
+                  <li key={item.slug}>
+                    <Link href={`/guide/${item.slug}`} className="underline underline-offset-4">
+                      <KwcagNo serial={item.serial} locale={locale} className="mr-1.5 tabular-nums text-[var(--color-ink-faint)]" />
                       {pick(item.name, locale)}
                     </Link>
                   </li>
@@ -98,7 +100,7 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
               <li key={c.scId} className="doc-card p-6">
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-display text-lg font-bold">
-                    <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{c.scId}</span>
+                    <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{c.scId}</span>{" "}
                     {pick(c.name, locale)}
                   </h3>
                   <span
@@ -118,14 +120,16 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
                   </span>
                 </div>
                 <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
-                  {t("kwcagRef")}: {c.sources.map((s) => `${s.kwcagId} ${pick(s.name, locale)}`).join(" · ")}
+                  {t("kwcagRef")}: {c.sources.map((s) => `${kwcagNoLabel(s, locale)} ${pick(s.name, locale)}`).join(" · ")}
                 </p>
                 {c.sources.map(
                   (s) =>
                     s.howToTest && (
-                      <p key={s.kwcagId} className="mt-3 leading-relaxed text-[var(--color-ink-soft)]">
+                      <p key={s.slug} className="mt-3 leading-relaxed text-[var(--color-ink-soft)]">
                         {c.sources.length > 1 && (
-                          <strong className="mr-1 text-[var(--color-ink)]">({s.kwcagId})</strong>
+                          <>
+                            <strong className="mr-1 text-[var(--color-ink)]">({kwcagNoLabel(s, locale)})</strong>{" "}
+                          </>
                         )}
                         {pick(s.howToTest, locale)}
                       </p>
@@ -148,9 +152,9 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
           </h2>
           <ul className="mt-5 space-y-4">
             {kwcagOnly.map((item) => (
-              <li key={item.id} className="doc-card p-6">
+              <li key={item.slug} className="doc-card p-6">
                 <h3 className="font-display text-lg font-bold">
-                  <span className="mr-2 tabular-nums text-[var(--color-ink-faint)]">{item.id}</span>
+                  <KwcagNo serial={item.serial} locale={locale} />
                   {pick(item.name, locale)}
                 </h3>
                 {item.howToTest && (

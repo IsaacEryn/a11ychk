@@ -1580,7 +1580,7 @@
       },
       "kwcag": {
         "name": "KWCAG 2.2",
-        "desc": "The Korean guidelines (KS X OT0003), presented as the same 33-item matrix used in domestic certification audits."
+        "desc": "The Korean guidelines (KS X OT0003:2022), presented as the same 33-item matrix used in domestic certification audits."
       }
     },
     "featuresTitle": "What it does",
@@ -1786,8 +1786,8 @@
     "metaDescription": "A11y Check service notices — feature updates and changes."
   },
   "guideItem": {
-    "metaTitle": "How to test {name} — KWCAG {id} | A11y Check",
-    "metaDescription": "How to evaluate KWCAG 2.2 checkpoint {id}, “{name}”. Covers the matching WCAG 2.2 success criteria ({wcag}), what automation can decide, what a person has to check, and how to fix failures.",
+    "metaTitle": "How to test {name} — KWCAG 2.2 checkpoint {serial} | A11y Check",
+    "metaDescription": "How to evaluate KWCAG 2.2 checkpoint {serial} ({ksNo}), “{name}”. Covers the matching WCAG 2.2 success criteria ({wcag}), what automation can decide, what a person has to check, and how to fix failures.",
     "breadcrumbLabel": "Breadcrumb",
     "breadcrumbGuide": "Testing guide",
     "siblingLabel": "Adjacent checkpoints",

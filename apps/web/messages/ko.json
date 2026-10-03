@@ -1580,7 +1580,7 @@
       },
       "kwcag": {
         "name": "KWCAG 2.2",
-        "desc": "한국형 지침(KS X OT0003)의 33개 검사항목 매트릭스. 국내 인증 심사에서 쓰는 그 기준입니다."
+        "desc": "한국형 지침(KS X OT0003:2022)의 33개 검사항목 매트릭스. 국내 인증 심사에서 쓰는 그 기준입니다."
       }
     },
     "featuresTitle": "무엇을 해 주나",
@@ -1786,8 +1786,8 @@
     "metaDescription": "A11y Check 서비스 공지사항 — 기능 추가·변경 소식."
   },
   "guideItem": {
-    "metaTitle": "{name} 검사 방법 — KWCAG {id} | A11y Check",
-    "metaDescription": "KWCAG 2.2 {id}번 검사항목 「{name}」을 어떻게 점검하는지 정리했습니다. 대응 WCAG 성공기준({wcag}), 자동 검사로 잡히는 부분과 사람이 직접 봐야 하는 부분, 위반 시 개선 방법을 함께 안내합니다.",
+    "metaTitle": "{name} 검사 방법 — KWCAG 2.2 검사항목 {serial} | A11y Check",
+    "metaDescription": "KWCAG 2.2 검사항목 {serial}({ksNo}) 「{name}」을 어떻게 점검하는지 정리했습니다. 대응 WCAG 성공기준({wcag}), 자동 검사로 잡히는 부분과 사람이 직접 봐야 하는 부분, 위반 시 개선 방법을 함께 안내합니다.",
     "breadcrumbLabel": "현재 위치",
     "breadcrumbGuide": "검사 가이드",
     "siblingLabel": "앞뒤 검사항목",

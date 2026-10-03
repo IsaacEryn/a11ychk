@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 import { unstable_cache } from "next/cache";
-import { KWCAG_ITEMS, kwcagSlug } from "@a11ychk/core/catalog";
+import { KWCAG_ITEMS } from "@a11ychk/core/catalog";
 import { collectListedSites } from "@/lib/directory";
 
 // 디렉터리 목록 페이지와 같은 60초 캐시 — sitemap 요청마다 도메인당 조회가 도는 것 방지
@@ -38,7 +38,7 @@ const CONTENT_UPDATED = new Date("2026-08-03");
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // KWCAG 33항목 상세 — 항목 단위로 찾아오는 검색을 받는 면 (유입 자산이라 우선순위 상향)
-  const guideItems = KWCAG_ITEMS.map((item) => ({ path: `/guide/${kwcagSlug(item)}`, priority: 0.7 }));
+  const guideItems = KWCAG_ITEMS.map((item) => ({ path: `/guide/${item.slug}`, priority: 0.7 }));
   const paths = [...PUBLIC_PATHS, ...guideItems];
 
   const staticEntries = LOCALES.flatMap((locale) =>

@@ -73,6 +73,10 @@ const BODY_CHECKS = [
   // SEO 회귀 — sitemap에서 로그인 게이트 제거·x-default 유지, 허브 ItemList, 가이드 상호 링크
   ["/sitemap.xml", /x-default/, "sitemap x-default"],
   ["/ko/guide", /"@type":"ItemList"/, "가이드 허브 ItemList"],
+  // KWCAG 번호 표기 — 공식 순서의 일련번호와 KS X OT0003:2022 번호를 함께 싣는다
+  ["/ko/guide/table-structure", /KWCAG 2\.2 검사항목 3(?!\d)/, "가이드 상세 — 일련번호"],
+  ["/ko/guide/table-structure", /KS X OT0003 5\.3\.1(?!\d)/, "가이드 상세 — 공식 번호"],
+  ["/en/guide/text-contrast", /Checkpoint 8(?!\d)/, "가이드 상세(en) — 일련번호"],
 ];
 
 /** sitemap.xml에 있으면 안 되는 것 — 로그인 게이트 주소를 색인 요청하지 않는다 */

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { KWCAG_ITEMS, kwcagSlug, pickLocale } from "@a11ychk/core/catalog";
+import { KWCAG_ITEMS, pickLocale } from "@a11ychk/core/catalog";
+import { KwcagNo } from "@/components/KwcagNo";
 import { Link } from "@/i18n/navigation";
 import { localeAlternates } from "@/lib/seo/alternates";
 
@@ -107,12 +108,13 @@ export default async function SitemapPage({ params }: { params: Promise<{ locale
         </h2>
         <ul className="mt-3 grid gap-2 sm:grid-cols-2">
           {KWCAG_ITEMS.map((item) => (
-            <li key={item.id}>
+            <li key={item.slug}>
               <Link
-                href={`/guide/${kwcagSlug(item)}`}
+                href={`/guide/${item.slug}`}
                 className="font-medium underline underline-offset-4 hover:text-[var(--color-seal)]"
               >
-                {item.id} {pickLocale(item.name, locale)}
+                <KwcagNo serial={item.serial} locale={locale} className="mr-1.5 tabular-nums" />
+                {pickLocale(item.name, locale)}
               </Link>
             </li>
           ))}
