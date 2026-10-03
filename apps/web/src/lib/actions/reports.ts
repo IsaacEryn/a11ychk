@@ -3,7 +3,15 @@
 import crypto from "node:crypto";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { computeScores, type ScanSummary, type WcagMatrixRow, type WcagOutcome } from "@a11ychk/core";
+import {
+  computeScores,
+  kwcagStoredKeys,
+  normalizeReviewRows,
+  toStoredKwcagKey,
+  type ScanSummary,
+  type WcagMatrixRow,
+  type WcagOutcome,
+} from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireScanOwner } from "@/lib/apiAuth";
 import { failedPages, isPageOutcome } from "@/lib/reviewPages";
@@ -14,7 +22,7 @@ import { requireUser, revalidateLocalized, str, type SaveState } from "./shared"
 const ReviewSchema = z.object({
   scanId: z.string().uuid(),
   standard: z.enum(["wcag", "kwcag"]),
-  itemId: z.string().min(1).max(20),
+  itemId: z.string().min(1).max(64),
   outcome: z.enum(["passed", "failed", "cannotTell", "notPresent", "notChecked"]),
   note: z.string().max(5000).default(""),
 });
@@ -40,7 +48,7 @@ async function refreshScores(supabase: SupabaseClient, scanId: string): Promise<
     .eq("scan_id", scanId);
   const wcagReviews: Record<string, WcagOutcome> = {};
   const kwcagReviews: Record<string, WcagOutcome> = {};
-  for (const r of reviews ?? []) {
+  for (const r of normalizeReviewRows(reviews)) {
     (r.standard === "wcag" ? wcagReviews : kwcagReviews)[r.item_id as string] = r.outcome as WcagOutcome;
   }
 
@@ -80,14 +88,21 @@ export async function saveReview(_prev: ReviewSaveState, formData: FormData): Pr
   // 판정 해제 (자동 판정으로 되돌리기)
   if (formData.get("outcome") === "") {
     const standard = z.enum(["wcag", "kwcag"]).safeParse(formData.get("standard"));
-    const itemId = z.string().min(1).max(20).safeParse(formData.get("itemId"));
+    const itemId = z.string().min(1).max(64).safeParse(formData.get("itemId"));
     if (!standard.success || !itemId.success) return { error: "invalid" };
+    // kwcag는 슬러그로 저장한다. 정리 SQL(0039) 전의 옛 번호 행도 같은 항목이면 함께 지운다
+    let itemKeys = [itemId.data];
+    if (standard.data === "kwcag") {
+      const key = toStoredKwcagKey(itemId.data);
+      if (!key) return { error: "invalid" };
+      itemKeys = kwcagStoredKeys(key);
+    }
     const { error } = await supabase
       .from("scan_reviews")
       .delete()
       .eq("scan_id", scanId.data)
       .eq("standard", standard.data)
-      .eq("item_id", itemId.data);
+      .in("item_id", itemKeys);
     if (error) return { error: "failed" };
     const scores = await refreshScores(supabase, scanId.data);
     return { ok: true, scores };
@@ -101,6 +116,10 @@ export async function saveReview(_prev: ReviewSaveState, formData: FormData): Pr
     note: formData.get("note") ?? "",
   });
   if (!parsed.success) return { error: "invalid" };
+  // kwcag 항목은 슬러그로 저장한다 — 배포 직후 옛 화면이 열려 있던 탭이 옛 번호를 보내도 슬러그로 바꾼다
+  const storedItemId =
+    parsed.data.standard === "kwcag" ? toStoredKwcagKey(parsed.data.itemId) : parsed.data.itemId;
+  if (!storedItemId) return { error: "invalid" };
 
   // 페이지별 판정 (migration 0036) — poUrl[i]↔poOutcome[i] 쌍 (폼 문서 순서 보장).
   // 폼 조작으로 임의 문자열·실재하지 않는 페이지가 들어오면 준수율 계산이 왜곡되므로
@@ -127,7 +146,7 @@ export async function saveReview(_prev: ReviewSaveState, formData: FormData): Pr
   const row: Record<string, unknown> = {
     scan_id: parsed.data.scanId,
     standard: parsed.data.standard,
-    item_id: parsed.data.itemId,
+    item_id: storedItemId,
     outcome: parsed.data.outcome,
     note: parsed.data.note,
     pages: pages.length > 0 ? pages.slice(0, 50) : null,

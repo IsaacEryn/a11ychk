@@ -2,7 +2,7 @@ import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getDomainPublicScan } from "@/lib/host";
 import { gradeOf, DIRECTORY_MIN_RATE, type Grade } from "@/lib/badgeGrade";
-import { automatedComplianceRate, type ScanSummary } from "@a11ychk/core";
+import { automatedComplianceRate, normalizeKwcagMatrix, type ScanSummary } from "@a11ychk/core";
 
 export interface ListedSite {
   hostname: string;
@@ -98,7 +98,7 @@ export async function getListedSiteDetail(hostname: string): Promise<ListedSiteD
   const rate = automatedComplianceRate(summary);
   if (rate < DIRECTORY_MIN_RATE) return null;
 
-  const failedItemIds = (summary.kwcagMatrix ?? [])
+  const failedItemIds = normalizeKwcagMatrix(summary.kwcagMatrix)
     .filter((r) => r.status === "fail")
     .map((r) => r.itemId);
   return {

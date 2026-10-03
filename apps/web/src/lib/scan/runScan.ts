@@ -18,6 +18,7 @@ import {
   getRawSource,
   guardedFetch,
   isPrivateAddress,
+  normalizeReviewRows,
   normalizeUrl,
   runAxeOnPage,
   type EvaluationScope,
@@ -197,7 +198,7 @@ async function loadReviews(
 ): Promise<{ wcag: Record<string, WcagOutcome>; kwcag: Record<string, WcagOutcome> }> {
   const { data } = await db.from("scan_reviews").select("standard, item_id, outcome").eq("scan_id", scanId);
   const reviews = { wcag: {} as Record<string, WcagOutcome>, kwcag: {} as Record<string, WcagOutcome> };
-  for (const r of data ?? []) {
+  for (const r of normalizeReviewRows(data)) {
     const bucket = r.standard === "kwcag" ? reviews.kwcag : reviews.wcag;
     bucket[r.item_id as string] = r.outcome as WcagOutcome;
   }

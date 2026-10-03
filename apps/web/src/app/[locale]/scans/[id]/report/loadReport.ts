@@ -4,6 +4,8 @@ import { unstable_cache } from "next/cache";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   getRuleEntry,
+  normalizeKwcagMatrix,
+  normalizeReviewRows,
   type EvaluationScope,
   type Impact,
   type ReportMeta,
@@ -138,7 +140,10 @@ export async function loadReport(locale: string, id: string, token: string | und
     }).catch(() => {});
   }
 
-  const summary = scan.summary as ScanSummary;
+  // 2026-10 이전 요약은 옛 a11ychk 번호를 키로 저장돼 있다. 슬러그·공식 순서로 맞춰
+  // 아래 모든 소비처(매트릭스·인증 요약·진행률·CSV와 같은 계산)가 슬러그를 키로 쓰게 한다
+  const storedSummary = scan.summary as ScanSummary;
+  const summary: ScanSummary = { ...storedSummary, kwcagMatrix: normalizeKwcagMatrix(storedSummary.kwcagMatrix) };
   const scope = (scan.scope ?? null) as EvaluationScope | null;
   const meta = (scan.report_meta ?? null) as ReportMeta | null;
 
@@ -166,7 +171,7 @@ export async function loadReport(locale: string, id: string, token: string | und
   }
   const wcagReviews = new Map<string, ReviewValue>();
   const kwcagReviews = new Map<string, ReviewValue>();
-  for (const r of reviewRows ?? []) {
+  for (const r of normalizeReviewRows(reviewRows)) {
     const target = r.standard === "wcag" ? wcagReviews : kwcagReviews;
     const pages = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
     const pageOutcomes =

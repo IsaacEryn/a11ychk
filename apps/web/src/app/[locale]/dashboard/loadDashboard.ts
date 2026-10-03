@@ -1,5 +1,5 @@
 import "server-only";
-import { KWCAG_BY_ID, pickLocale, type KwcagMatrixRow } from "@a11ychk/core/catalog";
+import { KWCAG_BY_SLUG, kwcagLabel, normalizeKwcagMatrix, type KwcagMatrixRow } from "@a11ychk/core/catalog";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { foldHost } from "@/lib/host";
 
@@ -142,7 +142,10 @@ export async function loadItemChanges(
   const countsOf = (scanId: string): Map<string, number> | null => {
     const rows = matrixById.get(scanId);
     if (!Array.isArray(rows)) return null; // 구버전 스캔 — kwcagMatrix 부재
-    return new Map((rows as unknown as KwcagMatrixRow[]).map((r) => [r.itemId, r.violationCount ?? 0]));
+    // 옛 번호로 저장된 요약과 슬러그 요약을 같은 키로 비교한다
+    return new Map(
+      normalizeKwcagMatrix(rows as unknown as KwcagMatrixRow[]).map((r) => [r.itemId, r.violationCount ?? 0]),
+    );
   };
 
   for (const [host, [latestId, prevId]] of pairHosts) {
@@ -153,8 +156,9 @@ export async function loadItemChanges(
     for (const [itemId, count] of latest) {
       const delta = count - (prev.get(itemId) ?? 0);
       if (delta === 0) continue;
-      const item = KWCAG_BY_ID.get(itemId);
-      changes.push({ itemId, name: item ? pickLocale(item.name, locale) : itemId, delta });
+      const item = KWCAG_BY_SLUG.get(itemId);
+      // 표기: 「검사항목 8 텍스트 콘텐츠의 명도 대비」 (+3)
+      changes.push({ itemId, name: item ? kwcagLabel(item, locale) : itemId, delta });
     }
     if (changes.length === 0) continue;
     result.set(host, {

@@ -19,6 +19,7 @@ function toOutcomes(reviews: Map<string, ReviewValue>): Record<string, WcagOutco
  * KWCAG 항목별 유효 판정 — kwcag 직접 판정 우선, 없으면 대응 SC의 wcag 판정에서 파생.
  * (결합 규칙: failed > cannotTell > 전 SC 판정 시 긍정 — core deriveKwcagOutcomeFromWcag)
  * KwcagMatrixSection 표시·computeCertReadiness가 공유해 인증 지표가 WCAG 축 판정에도 반영된다.
+ * kwcagReviews의 키는 슬러그(normalizeReviewRows로 맞춘 값)여야 한다 — 옛 번호 키는 직접 판정으로 알아보지 못한다.
  */
 export function buildEffectiveKwcagReviews(
   kwcagReviews: Map<string, ReviewValue>,
@@ -27,9 +28,9 @@ export function buildEffectiveKwcagReviews(
   const out = new Map<string, EffectiveReview>(kwcagReviews);
   const wcagOutcomes = toOutcomes(wcagReviews);
   for (const item of KWCAG_ITEMS) {
-    if (out.has(item.id)) continue;
+    if (out.has(item.slug)) continue;
     const derived = deriveKwcagOutcomeFromWcag(item, wcagOutcomes);
-    if (derived) out.set(item.id, { outcome: derived, note: "", derived: true });
+    if (derived) out.set(item.slug, { outcome: derived, note: "", derived: true });
   }
   return out;
 }

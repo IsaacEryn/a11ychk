@@ -1,6 +1,6 @@
 import { getTranslations } from "next-intl/server";
 import {
-  KWCAG_BY_ID,
+  KWCAG_BY_SLUG,
   KWCAG_PRINCIPLE_LABEL,
   pickLocale as pick,
   type ScanSummary,
@@ -89,7 +89,7 @@ export async function KwcagMatrixSection({
           </thead>
           <tbody>
             {summary.kwcagMatrix.map((row) => {
-              const item = KWCAG_BY_ID.get(row.itemId);
+              const item = KWCAG_BY_SLUG.get(row.itemId);
               if (!item) return null;
               const review = kwcagReviews.get(row.itemId) ?? null;
               return (

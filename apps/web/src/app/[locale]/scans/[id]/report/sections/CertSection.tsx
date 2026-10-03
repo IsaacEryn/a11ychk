@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { KWCAG_BY_ID, pickLocale as pick } from "@a11ychk/core/catalog";
+import { KWCAG_BY_SLUG, kwcagLabel } from "@a11ychk/core/catalog";
 import type { CertReadiness } from "../certReadiness";
 
 /** 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 (KWCAG 인증 기준 귀속) */
@@ -35,13 +35,13 @@ export async function CertSection({ locale, cert }: { locale: string; cert: Cert
           <p className="text-sm font-bold">{t("cert.belowTitle", { count: cert.belowItems.length })}</p>
           <ul className="mt-2 flex flex-wrap gap-2">
             {cert.belowItems.map((b) => {
-              const item = KWCAG_BY_ID.get(b.itemId);
+              const item = KWCAG_BY_SLUG.get(b.itemId);
               return (
                 <li
                   key={b.itemId}
                   className="rounded border-[1.5px] border-[var(--color-crit)] bg-[var(--color-crit-tint)] px-2 py-1 text-xs font-semibold text-[var(--color-crit)]"
                 >
-                  {b.itemId} {item ? pick(item.name, locale) : ""} · {b.rate}%
+                  {item ? kwcagLabel(item, locale) : b.itemId} · {b.rate}%
                 </li>
               );
             })}

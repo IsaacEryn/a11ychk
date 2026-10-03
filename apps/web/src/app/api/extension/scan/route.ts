@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, type PageScanResult } from "@a11ychk/core";
+import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, toStoredKwcagKey, type PageScanResult } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireExtensionUser } from "@/lib/apiAuth";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
@@ -40,7 +40,7 @@ const PageSchema = z.object({
 });
 const ReviewSchema = z.object({
   standard: z.enum(["wcag", "kwcag"]),
-  itemId: z.string().min(1).max(20),
+  itemId: z.string().min(1).max(64),
   outcome: z.enum(["passed", "failed", "cannotTell", "notPresent", "notChecked"]),
   note: z.string().max(2000).default(""),
   pages: z.array(z.string().max(2000)).max(50).optional(),
@@ -302,15 +302,29 @@ async function saveReviews(
   reviews?: z.infer<typeof ReviewSchema>[],
 ): Promise<void> {
   if (!reviews || reviews.length === 0) return;
-  const rows = reviews.map((r) => ({
-    scan_id: scanId,
-    standard: r.standard,
-    item_id: r.itemId,
-    outcome: r.outcome,
-    note: r.note,
-    pages: r.pages && r.pages.length > 0 ? r.pages : null,
-    updated_at: new Date().toISOString(),
-  }));
+  const converted = reviews.flatMap((r) => {
+    // KWCAG 항목은 슬러그로 저장한다. 0.5.0 이하 확장은 옛 a11ychk 번호(예: 5.4.3)를 보내므로 여기서 바꾼다 —
+    // 숫자는 옛 번호로만 풀어야 한다(공식 번호로 풀면 옛 5.4.3 콘텐츠 간의 구분이 명도 대비가 된다)
+    const itemId = r.standard === "kwcag" ? toStoredKwcagKey(r.itemId) : r.itemId;
+    if (!itemId) return [];
+    return [
+      {
+        scan_id: scanId,
+        standard: r.standard,
+        item_id: itemId,
+        outcome: r.outcome,
+        note: r.note,
+        pages: r.pages && r.pages.length > 0 ? r.pages : null,
+        updated_at: new Date().toISOString(),
+      },
+    ];
+  });
+  // 옛 번호 키와 슬러그 키가 함께 오면 바꾼 뒤 같은 항목이 둘이 된다. 한 upsert에 같은 (standard, item_id)가
+  // 두 번 들어가면 Postgres가 "cannot affect row a second time"으로 묶음 전체를 거부하므로 뒤에 온 값만 남긴다
+  const byKey = new Map<string, (typeof converted)[number]>();
+  for (const row of converted) byKey.set(`${row.standard}:${row.item_id}`, row);
+  const rows = [...byKey.values()];
+  if (rows.length === 0) return;
   const { error } = await admin.from("scan_reviews").upsert(rows, { onConflict: "scan_id,standard,item_id" });
   if (error && /pages/.test(error.message)) {
     // pages 컬럼 미적용(0010 전) — 컬럼 없이 재시도

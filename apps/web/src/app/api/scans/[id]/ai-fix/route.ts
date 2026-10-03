@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { buildAiFix, type AiFixGroup, type Impact, type ScanSummary } from "@a11ychk/core/catalog";
+import { buildAiFix, normalizeReviewRows, type AiFixGroup, type Impact, type ScanSummary } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logReportExport } from "@/lib/apiAuth";
@@ -73,12 +73,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
       .range(from, to),
   )) as unknown as FindingRow[];
 
-  // 점검자가 '실패'로 확정한 수동 항목 (0004 미적용 시 빈 목록)
+  // 점검자 판정 (0004 미적용 시 빈 목록). '실패'만 고르는 일은 정규화한 뒤에 한다 — DB에서 먼저 거르면
+  // 옛 번호 행(failed)만 남아, 같은 항목을 슬러그 행(passed)으로 다시 판정한 최신 결과가 가려진다
   const { data: reviewRows } = await supabase
     .from("scan_reviews")
     .select("standard, item_id, outcome, note, pages")
     .eq("scan_id", id)
-    .eq("outcome", "failed")
     .then((r) => r, () => ({ data: null }));
 
   // DB 행 → 빌더 입력 그룹 (심각도 정렬은 빌더가 담당)
@@ -114,12 +114,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     totalViolationNodes: summary.totalViolationNodes,
     lang,
     groups: [...byRule.values()],
-    failedReviews: (reviewRows ?? []).map((r) => ({
-      standard: r.standard as string,
-      itemId: r.item_id as string,
-      note: (r.note as string) ?? "",
-      pages: Array.isArray(r.pages) ? (r.pages as string[]) : [],
-    })),
+    failedReviews: normalizeReviewRows(reviewRows)
+      .filter((r) => r.outcome === "failed")
+      .map((r) => ({
+        standard: r.standard as string,
+        itemId: r.item_id as string,
+        note: (r.note as string) ?? "",
+        pages: Array.isArray(r.pages) ? (r.pages as string[]) : [],
+      })),
   });
 
   if (format === "json") {

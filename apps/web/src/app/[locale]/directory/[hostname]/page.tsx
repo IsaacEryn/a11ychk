@@ -1,7 +1,8 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
-import { KWCAG_ITEMS, kwcagSlug, pickLocale } from "@a11ychk/core/catalog";
+import { kwcagFromStored, pickLocale } from "@a11ychk/core/catalog";
+import { KwcagNo } from "@/components/KwcagNo";
 import { Link } from "@/i18n/navigation";
 import { getListedSiteDetail } from "@/lib/directory";
 import { localeAlternates } from "@/lib/seo/alternates";
@@ -54,9 +55,10 @@ export default async function DirectorySitePage({
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
   // 위반이 걸린 KWCAG 항목 → 개선 가이드 내부 링크 (상위 5개)
+  // 캐시된 detail은 배포 전 코드가 만든 옛 번호를 들고 있을 수 있어 저장값 해석(kwcagFromStored)으로 푼다
   const failedItems = detail.failedItemIds
-    .map((id) => KWCAG_ITEMS.find((it) => it.id === id))
-    .filter((it): it is (typeof KWCAG_ITEMS)[number] => !!it)
+    .map((id) => kwcagFromStored(id))
+    .filter((it): it is NonNullable<typeof it> => !!it)
     .slice(0, 5);
 
   return (
@@ -121,12 +123,13 @@ export default async function DirectorySitePage({
           <p className="mt-1 text-sm text-[var(--color-ink-soft)]">{t("detail.itemsDesc")}</p>
           <ul className="mt-3 space-y-2">
             {failedItems.map((item) => (
-              <li key={item.id}>
+              <li key={item.slug}>
                 <Link
-                  href={`/guide/${kwcagSlug(item)}`}
+                  href={`/guide/${item.slug}`}
                   className="font-semibold text-[var(--color-seal)] underline underline-offset-4"
                 >
-                  {item.id} {pickLocale(item.name, locale)}
+                  <KwcagNo serial={item.serial} locale={locale} className="mr-1.5 tabular-nums" />
+                  {pickLocale(item.name, locale)}
                 </Link>
               </li>
             ))}

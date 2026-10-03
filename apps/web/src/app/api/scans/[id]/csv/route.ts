@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import {
-  KWCAG_BY_ID,
+  KWCAG_BY_SLUG,
   getRuleEntry,
+  normalizeKwcagMatrix,
+  normalizeReviewRows,
   type Impact,
-  type KwcagMatrixRow,
   type ScanSummary,
 } from "@a11ychk/core/catalog";
 import { createClient } from "@/lib/supabase/server";
@@ -119,7 +120,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
   } else {
     const statusLabel = lang === "en" ? STATUS_EN : STATUS_KO;
-    const matrix = (summary.kwcagMatrix ?? []) as KwcagMatrixRow[];
+    const matrix = normalizeKwcagMatrix(summary.kwcagMatrix);
     const rates = computeKwcagPageRates(matrix, findings, donePageCount);
     // 점검자 판정 — 인증 준비 요약 평균이 보고서 화면과 일치하도록 동일 입력 사용.
     // WCAG 축으로 기입한 판정도 파생으로 반영되게 양 표준을 읽어 유효 판정을 만든다.
@@ -130,7 +131,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         .from("scan_reviews")
         .select("standard, item_id, outcome, note, pages")
         .eq("scan_id", id);
-      for (const r of reviewRows ?? []) {
+      for (const r of normalizeReviewRows(reviewRows)) {
         const p = Array.isArray(r.pages) ? (r.pages as string[]) : undefined;
         (r.standard === "kwcag" ? directKwcag : wcagReviews).set(r.item_id, { outcome: r.outcome, note: r.note, pages: p });
       }
@@ -138,18 +139,19 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const kwcagReviews = buildEffectiveKwcagReviews(directKwcag, wcagReviews);
     rows.push(
       (lang === "en"
-        ? ["Item ID", "Item", "Status", "Violation elements", "Affected pages", "Page compliance rate (%)"]
-        : ["항목 번호", "검사항목", "판정", "위반 요소 수", "영향 페이지 수", "페이지 준수율(%)"]
+        ? ["No.", "KS X OT0003 No.", "Checkpoint", "Status", "Violation elements", "Affected pages", "Page compliance rate (%)"]
+        : ["번호", "KS X OT0003 번호", "검사항목", "판정", "위반 요소 수", "영향 페이지 수", "페이지 준수율(%)"]
       ).map(esc).join(","),
     );
     for (const row of matrix) {
-      const item = KWCAG_BY_ID.get(row.itemId);
+      const item = KWCAG_BY_SLUG.get(row.itemId);
       if (!item) continue;
       const r = rates.get(row.itemId);
       const rateApplicable = row.status === "pass" || row.status === "fail" || row.status === "review";
       rows.push(
         [
-          row.itemId,
+          item.serial,
+          item.ksNo,
           pickText(item.name),
           statusLabel[row.status] ?? row.status,
           row.violationCount,
@@ -164,8 +166,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       rows.push("");
       rows.push(
         (lang === "en"
-          ? ["Average (certification readiness)", `${cert.evaluatedCount}/${cert.totalCount} checkpoints`, "", "", "", cert.averageRate]
-          : ["평균(인증 준비 요약)", `${cert.evaluatedCount}/${cert.totalCount}개 항목 기준`, "", "", "", cert.averageRate]
+          ? ["Average (certification readiness)", "", `${cert.evaluatedCount}/${cert.totalCount} checkpoints`, "", "", "", cert.averageRate]
+          : ["평균(인증 준비 요약)", "", `${cert.evaluatedCount}/${cert.totalCount}개 항목 기준`, "", "", "", cert.averageRate]
         ).map(esc).join(","),
       );
     }
