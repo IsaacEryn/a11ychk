@@ -3,13 +3,15 @@ import {
   aggregateScan,
   automatedComplianceRate,
   getRuleEntry,
+  kwcagItemsOf,
+  kwcagNoListLabel,
   type Impact,
   type LocalizedText,
 } from "@a11ychk/core/catalog";
 import { applyIncompleteDecision, type IncompleteDecision } from "../incomplete";
 import { highlightInPage } from "../injected";
 import { announce } from "../ui";
-import { msg, pick } from "../i18n";
+import { isEnglish, msg, pick } from "../i18n";
 import * as log from "../log";
 import { $, AXE_VERSION, state, type PageResult } from "./state";
 import { getSession } from "./session";
@@ -217,7 +219,7 @@ function renderViolationList() {
     meta.textContent =
       msg("nodeCount", [v.nodes.length]) +
       (entry.wcag.length ? ` · WCAG ${entry.wcag.join(", ")}` : "") +
-      (entry.kwcag.length ? ` · KWCAG ${entry.kwcag.join(", ")}` : "");
+      (entry.kwcag.length ? ` · KWCAG ${kwcagNoListLabel(kwcagItemsOf(entry.kwcag), isEnglish() ? "en" : "ko")}` : "");
     li.append(title, meta);
 
     // 위반 요소 목록 (최대 3) — msg("show") 버튼으로 페이지에서 강조

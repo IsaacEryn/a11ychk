@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { getRuleEntry, RULE_CATALOG, wcagFromTags } from "../src/catalog/rules";
-import { KWCAG_BY_ID, KWCAG_ITEMS } from "../src/catalog/kwcag";
+import { KWCAG_ITEMS } from "../src/catalog/kwcag";
+import { KWCAG_BY_SLUG } from "../src/catalog/kwcagSlug";
 import { getManualCheckItems } from "../src/manual/manualChecks";
 
 describe("KWCAG 2.2 검사항목", () => {
@@ -8,14 +9,14 @@ describe("KWCAG 2.2 검사항목", () => {
     expect(KWCAG_ITEMS).toHaveLength(33);
   });
 
-  it("id 중복 없음", () => {
-    expect(KWCAG_BY_ID.size).toBe(KWCAG_ITEMS.length);
+  it("슬러그 중복 없음", () => {
+    expect(KWCAG_BY_SLUG.size).toBe(KWCAG_ITEMS.length);
   });
 
   it("자동 완전 커버가 아닌 항목은 모두 수동 검사 방법이 있어야 함", () => {
     for (const item of KWCAG_ITEMS) {
       if (item.autoCoverage !== "full") {
-        expect(item.howToTest?.ko, `${item.id} ${item.name.ko}`).toBeTruthy();
+        expect(item.howToTest?.ko, `${item.slug} ${item.name.ko}`).toBeTruthy();
       }
     }
   });
@@ -31,10 +32,10 @@ describe("규칙 카탈로그 정합성", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 
-  it("모든 kwcag 참조가 실존하는 검사항목", () => {
+  it("모든 kwcag 참조가 실존하는 검사항목(슬러그)", () => {
     for (const rule of RULE_CATALOG) {
       for (const kw of rule.kwcag) {
-        expect(KWCAG_BY_ID.has(kw), `${rule.ruleId} → ${kw}`).toBe(true);
+        expect(KWCAG_BY_SLUG.has(kw), `${rule.ruleId} → ${kw}`).toBe(true);
       }
     }
   });
@@ -65,7 +66,7 @@ describe("getRuleEntry fallback", () => {
   });
 
   it("등록된 규칙은 카탈로그 항목 반환", () => {
-    expect(getRuleEntry("image-alt").kwcag).toContain("5.1.1");
+    expect(getRuleEntry("image-alt").kwcag).toContain("alternative-text");
   });
 });
 
@@ -103,9 +104,28 @@ describe("카탈로그 참조 무결성", () => {
       for (const sc of item.wcag) {
         expect(
           WCAG_BY_ID.has(sc) || KNOWN_EXTRA_SCS.has(sc),
-          `KWCAG ${item.id} → WCAG ${sc} (의도된 참조면 KNOWN_EXTRA_SCS에 추가)`,
+          `KWCAG ${item.slug} → WCAG ${sc} (의도된 참조면 KNOWN_EXTRA_SCS에 추가)`,
         ).toBe(true);
       }
     }
   });
+});
+
+describe("규칙 → KWCAG 매핑의 뜻 (옛 번호 → 슬러그 변환 확인)", () => {
+  const cases: [string, string[]][] = [
+    ["color-contrast", ["text-contrast"]],
+    ["link-in-text-block", ["content-not-relying-on-color-alone"]],
+    ["th-has-data-cells", ["table-structure"]],
+    ["list", ["meaningful-sequence"]],
+    ["label", ["labels-for-inputs"]],
+    ["autocomplete-valid", ["redundant-entry"]],
+    ["no-autoplay-audio", ["no-auto-play"]],
+    ["heading-order", ["page-frame-and-content-titles", "meaningful-sequence"]],
+    ["button-name", ["labels-for-inputs", "label-in-name"]],
+  ];
+  for (const [ruleId, kwcag] of cases) {
+    it(ruleId, () => {
+      expect(getRuleEntry(ruleId).kwcag).toEqual(kwcag);
+    });
+  }
 });

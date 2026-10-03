@@ -1,6 +1,14 @@
 import "server-only";
 import crypto from "node:crypto";
-import { automatedComplianceRate, getRuleEntry, type Impact, type PageScanResult, type ScanSummary } from "@a11ychk/core/catalog";
+import {
+  automatedComplianceRate,
+  getRuleEntry,
+  kwcagItemsOf,
+  kwcagNoListLabel,
+  type Impact,
+  type PageScanResult,
+  type ScanSummary,
+} from "@a11ychk/core/catalog";
 
 /**
  * 비로그인 맛보기 검사(1페이지) 공용 로직 — IP 해시·한도 상수·응답 트리밍.
@@ -32,7 +40,8 @@ export interface TeaserRule {
   title: string;
   impact: Impact;
   wcag: string[];
-  kwcag: string[];
+  /** KWCAG 대응 표기 (예: "검사항목 8·29"). 대응이 없으면 빈 문자열 */
+  kwcag: string;
   /** 개선 가이드 첫 단락 (로케일 반영) */
   guideFirst: string;
   /** 이 규칙의 전체 위반 요소 수 */
@@ -67,7 +76,7 @@ export function buildTeaserResult(page: PageScanResult, summary: ScanSummary, lo
         title: pick(entry.title),
         impact: v.impact,
         wcag: entry.wcag,
-        kwcag: entry.kwcag,
+        kwcag: kwcagNoListLabel(kwcagItemsOf(entry.kwcag), locale),
         guideFirst: pick(entry.guide).split("\n\n")[0]?.trim() ?? "",
         nodeCount: v.nodes.length,
         sample: first ? { selector: first.selector.slice(0, 300), html: first.html.slice(0, 300) } : null,

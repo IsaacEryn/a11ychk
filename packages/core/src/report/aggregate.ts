@@ -34,7 +34,10 @@ export interface AggregateOptions {
   siteChecks?: SiteCheckOutcome[];
   /** 해당 콘텐츠가 없어 적용되지 않는 성공기준 (예: 미디어 없음 → 1.2.x) */
   notPresentScs?: string[];
-  /** 점검자 판정 (scan_reviews) — 통합 점수 계산용. standard별 itemId→outcome */
+  /**
+   * 점검자 판정 (scan_reviews) — 통합 점수 계산용. standard별 itemId→outcome.
+   * kwcag 키는 항목 슬러그다(옛 a11ychk 번호로 저장된 판정도 정규화해서 받는다).
+   */
   reviews?: { wcag: Record<string, WcagOutcome>; kwcag: Record<string, WcagOutcome> };
 }
 
@@ -149,21 +152,21 @@ export function aggregateScan(
 
   const notPresentScs = new Set(options.notPresentScs ?? []);
   const kwcagMatrix: KwcagMatrixRow[] = KWCAG_ITEMS.map((item) => {
-    const fail = kwcagFail.get(item.id);
+    const fail = kwcagFail.get(item.slug);
     let status: KwcagStatus;
     if (fail) status = "fail";
-    else if (kwcagReview.has(item.id)) status = "review";
-    else if (item.wcag.length > 0 && item.wcag.every((sc) => notPresentScs.has(sc)) && !kwcagPass.has(item.id))
+    else if (kwcagReview.has(item.slug)) status = "review";
+    else if (item.wcag.length > 0 && item.wcag.every((sc) => notPresentScs.has(sc)) && !kwcagPass.has(item.slug))
       status = "not-applicable"; // 대응 SC의 콘텐츠가 없음 (예: 미디어 부재)
     else if (item.autoCoverage === "none") status = "manual";
-    else if (kwcagPass.has(item.id)) status = item.autoCoverage === "full" ? "pass" : "manual"; // partial은 자동 통과여도 수동 확인 필요
+    else if (kwcagPass.has(item.slug)) status = item.autoCoverage === "full" ? "pass" : "manual"; // partial은 자동 통과여도 수동 확인 필요
     else status = item.autoCoverage === "full" ? "not-applicable" : "manual";
     return {
-      itemId: item.id,
+      itemId: item.slug,
       status,
       violationCount: fail?.count ?? 0,
       ruleIds: [...(fail?.rules ?? [])],
-      reviewRuleIds: [...(kwcagReviewRules.get(item.id) ?? [])],
+      reviewRuleIds: [...(kwcagReviewRules.get(item.slug) ?? [])],
     };
   });
 
@@ -262,7 +265,7 @@ function breakdown(passed: number, failed: number, total: number): ScoreBreakdow
  * - 수동: 점검자가 판정 기입한 성공기준의 passed·failed
  * - 통합: 각 성공기준마다 점검자 판정이 있으면 그것을, 없으면 자동 판정을 사용
  *
- * kwcagReviews(선택): KWCAG 항목 번호로 기입된 판정 — 대응 SC로 파생해 수동 판정으로
+ * kwcagReviews(선택): KWCAG 항목 슬러그(옛 번호도 받음)로 기입된 판정 — 대응 SC로 파생해 수동 판정으로
  * 소비한다. 같은 SC에 wcag 직접 판정이 있으면 직접 판정이 우선한다. (확장·KWCAG
  * 매트릭스에서 기입한 판정이 점수에 반영되지 않던 비대칭 해소) 단, 파생된 통과는 자동
  * 위반 SC에는 쓰지 않는다(아래 루프 주석).
@@ -287,8 +290,8 @@ export function computeScores(
     else if (row.outcome === "failed") autoFail += 1;
 
     // KWCAG 판정에서 파생된 통과·해당 없음은 자동 위반을 덮지 못한다 — 규칙의 KWCAG 매핑과
-    // 항목의 SC 매핑이 어긋나는 쌍(예: label·button-name은 4.1.2 위반인데 KWCAG로는 7.4.1·6.5.3,
-    // 4.1.2의 KWCAG 출처는 8.2.1뿐)에서 8.2.1을 통과로 누르면 자동 위반 SC가 통과가 됐다.
+    // 항목의 SC 매핑이 어긋나는 쌍(예: label·button-name은 4.1.2 위반인데 KWCAG로는 레이블 제공·레이블과 네임,
+    // 4.1.2의 KWCAG 출처는 웹 애플리케이션 접근성 준수뿐)에서 그 항목을 통과로 누르면 자동 위반 SC가 통과가 됐다.
     // 자동 위반을 뒤집는 건 그 SC에 대한 WCAG 직접 판정뿐이다.
     const der = derived[row.scId];
     const derivedUsable = !(row.outcome === "failed" && (der === "passed" || der === "notPresent"));

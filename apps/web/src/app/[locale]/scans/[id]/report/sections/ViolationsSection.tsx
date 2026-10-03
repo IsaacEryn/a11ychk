@@ -1,5 +1,5 @@
 import { getTranslations } from "next-intl/server";
-import { WCAG_BY_ID, pickLocale as pick } from "@a11ychk/core/catalog";
+import { WCAG_BY_ID, kwcagItemsOf, kwcagNoListLabel, pickLocale as pick } from "@a11ychk/core/catalog";
 import { GuideText } from "@/components/GuideText";
 import type { RuleGroup } from "../loadReport";
 
@@ -63,7 +63,11 @@ export async function ViolationsSection({ locale, ruleGroups }: { locale: string
                   {t("violations.level")}: {entry.wcag.length === 0 ? t("violations.bp") : `WCAG ${scLevel(entry.wcag) ?? entry.level}`}
                 </span>
                 {entry.wcag.length > 0 && <span>{t("violations.wcag")} {entry.wcag.join(", ")}</span>}
-                {entry.kwcag.length > 0 && <span>{t("violations.kwcag")} {entry.kwcag.join(", ")}</span>}
+                {entry.kwcag.length > 0 && (
+                  <span>
+                    {t("violations.kwcag")} {kwcagNoListLabel(kwcagItemsOf(entry.kwcag), locale)}
+                  </span>
+                )}
                 <span className="font-mono">{ruleId}</span>
               </p>
 

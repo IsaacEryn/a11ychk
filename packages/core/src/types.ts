@@ -14,8 +14,8 @@ export interface RuleCatalogEntry {
   ruleId: string;
   /** WCAG 2.2 성공기준 번호 (예: "1.1.1") */
   wcag: string[];
-  /** KWCAG 2.2 검사항목 번호 (예: "5.1.1") */
-  kwcag: string[];
+  /** KWCAG 2.2 검사항목 슬러그 (예: "alternative-text") — 번호 표시는 kwcagItemsOf로 */
+  kwcag: KwcagSlug[];
   level: RuleLevel;
   title: LocalizedText;
   /** 왜 문제인지 + 어떻게 고치는지 (코드 예시 포함 가능, 마크다운) */

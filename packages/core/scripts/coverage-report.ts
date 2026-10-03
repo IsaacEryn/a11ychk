@@ -62,10 +62,13 @@ const pct = (n: number, d: number) => (d === 0 ? 0 : Math.round((n / d) * 1000) 
 
 // ── KWCAG 33항목 분류 (카탈로그의 autoCoverage 명시 필드 사용) ──
 const kwcagRows = KWCAG_ITEMS.map((item) => {
-  const rules = byKwcag.get(item.id) ?? { axe: [], custom: [] };
+  const rules = byKwcag.get(item.slug) ?? { axe: [], custom: [] };
   return {
-    id: item.id,
+    serial: item.serial,
+    ksNo: item.ksNo,
+    slug: item.slug,
     name: item.name.ko,
+    principle: item.principle,
     autoCoverage: item.autoCoverage,
     axeRules: rules.axe.length,
     customRules: rules.custom.length,
@@ -145,11 +148,15 @@ for (const r of wcagRows)
 M.push("");
 M.push("## KWCAG 2.2 검사항목별");
 M.push("");
-M.push("| 항목 | 이름 | 자동화 | axe 규칙 | 자체 규칙 |");
-M.push("|---|---|---|---|---|");
+M.push("번호는 웹 접근성 품질인증 심사의 일련번호, KS 번호는 KS X OT0003:2022의 검사항목 번호다.");
+M.push("");
+M.push("| 번호 | KS 번호 | 이름 | 자동화 | axe 규칙 | 자체 규칙 |");
+M.push("|---|---|---|---|---|---|");
 const KW_LABEL: Record<string, string> = { full: "완전 자동", partial: "부분 자동", none: "**수동 전용**" };
 for (const r of kwcagRows)
-  M.push(`| ${r.id} | ${r.name} | ${KW_LABEL[r.autoCoverage]} | ${r.axeRules || "—"} | ${r.customRules || "—"} |`);
+  M.push(
+    `| ${r.serial} | ${r.ksNo} | ${r.name} | ${KW_LABEL[r.autoCoverage]} | ${r.axeRules || "—"} | ${r.customRules || "—"} |`,
+  );
 M.push("");
 fs.writeFileSync(path.join(ROOT, "docs", "coverage.md"), M.join("\n"));
 

@@ -48,7 +48,7 @@ describe("buildAiFix", () => {
     const j = json as {
       meta: Record<string, unknown>;
       violations: { ruleId: string; totalNodes: number; kwcag: string[]; nodes: unknown[] }[];
-      failedReviews: { name: string; itemId: string }[];
+      failedReviews: { name: string; itemId: string; serial: number | null }[];
       instructions: string;
     };
     expect(j.meta).toMatchObject({
@@ -67,6 +67,8 @@ describe("buildAiFix", () => {
     // 수동 실패 항목 이름 해석: 카탈로그 등재 → 이름, 미등재 → id 그대로
     expect(j.failedReviews[0]!.name).toBe("자막 제공");
     expect(j.failedReviews[1]!.name).toBe("9.9.9");
+    expect(j.failedReviews[0]).toMatchObject({ itemId: "5.2.1", name: "자막 제공", serial: 2 });
+    expect(j.failedReviews[1]).toMatchObject({ itemId: "9.9.9", name: "9.9.9", serial: null });
   });
 
   it("Markdown: 구조가 고정된 형태를 유지한다", () => {
@@ -75,14 +77,14 @@ describe("buildAiFix", () => {
     expect(markdown).toContain("## 작업 지침");
     expect(markdown).toContain("## 위반 목록 (심각도순)");
     // 정렬: image-alt(치명적)가 1번
-    expect(markdown).toMatch(/### 1\. .* — 치명적 · WCAG 1\.1\.1 · KWCAG 5\.1\.1 \(`image-alt`\)/);
+    expect(markdown).toMatch(/### 1\. .* — 치명적 · WCAG 1\.1\.1 · KWCAG 검사항목 1 \(`image-alt`\)/);
     expect(markdown).toContain("참고: https://help.example/image-alt");
     // 여러 줄 html 들여쓰기 유지
     expect(markdown).toContain("  <img\n    src=\"b.png\">");
     // failureSummary 없는 노드는 진단 줄 생략
     expect(markdown).toContain("자동 진단: images must have alternate text");
     expect(markdown).toContain("## 점검자 확인 실패 항목 (수동 검사)");
-    expect(markdown).toContain("- **자막 제공** (KWCAG 5.2.1)");
+    expect(markdown).toContain("- **자막 제공** (KWCAG 검사항목 2 · 5.2.1)");
     expect(markdown).toContain("점검자 메모: 자막 없음");
     expect(markdown).toContain("## 완료 기준");
     expect(markdown.endsWith("\n")).toBe(true);
@@ -120,6 +122,14 @@ describe("buildAiFix", () => {
     expect(en.markdown).toContain("- Current compliance: 87.5% / Violations: 2 rules, 3 elements");
     expect(en.markdown).toContain("## Definition of done");
     expect((en.json as { instructions: string }).instructions).toContain("web accessibility engineer");
+  });
+
+  it("수동 실패 항목은 슬러그로 들어와도 같은 표기다", () => {
+    const { markdown: md } = buildAiFix({
+      ...INPUT,
+      failedReviews: [{ standard: "kwcag", itemId: "captions-for-multimedia", note: "", pages: [] }],
+    });
+    expect(md).toContain("- **자막 제공** (KWCAG 검사항목 2 · 5.2.1)");
   });
 });
 

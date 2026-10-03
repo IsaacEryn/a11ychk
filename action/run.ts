@@ -12,6 +12,8 @@ import {
   aggregateScan,
   automatedComplianceRate,
   getRuleEntry,
+  kwcagItemsOf,
+  kwcagNoListLabel,
   partitionAdvisory,
   scanUrls,
   type Impact,
@@ -116,7 +118,7 @@ async function main() {
     for (const r of rules) {
       const refs = [
         r.entry.wcag.length ? `WCAG ${r.entry.wcag.join(", ")}` : "",
-        r.entry.kwcag.length ? `KWCAG ${r.entry.kwcag.join(", ")}` : "",
+        r.entry.kwcag.length ? `KWCAG ${kwcagNoListLabel(kwcagItemsOf(r.entry.kwcag), "ko")}` : "",
       ]
         .filter(Boolean)
         .join(" · ");

@@ -12,7 +12,7 @@ interface TeaserRule {
   title: string;
   impact: "critical" | "serious" | "moderate" | "minor";
   wcag: string[];
-  kwcag: string[];
+  kwcag: string;
   guideFirst: string;
   nodeCount: number;
   sample: { selector: string; html: string } | null;
@@ -168,7 +168,7 @@ export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
                     <p className="mt-1 text-xs text-[var(--color-ink-faint)]">
                       {t("nodeCount", { count: r.nodeCount })}
                       {r.wcag.length > 0 && ` · WCAG ${r.wcag.join(", ")}`}
-                      {r.kwcag.length > 0 && ` · KWCAG ${r.kwcag.join(", ")}`}
+                      {r.kwcag && ` · KWCAG ${r.kwcag}`}
                     </p>
                     {r.sample && (
                       <div className="mt-2 text-xs">

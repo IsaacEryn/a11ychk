@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { aggregateScan } from "../src/report/aggregate";
+import { KWCAG_ITEMS } from "../src/catalog/kwcag";
 import type { PageScanResult } from "../src/types";
 
 function page(partial: Partial<PageScanResult>): PageScanResult {
@@ -76,7 +77,7 @@ describe("aggregateScan", () => {
     expect(s.wcagMatrix.some((r) => r.outcome === "failed")).toBe(false);
     expect(s.scores?.combined.failed).toBe(0);
     // KWCAG 축도 region(6.4.1)을 fail로 잡지 않는다 (축 간 일치)
-    expect(s.kwcagMatrix.find((r) => r.itemId === "6.4.1")?.status).not.toBe("fail");
+    expect(s.kwcagMatrix.find((r) => r.itemId === "skip-repeated-blocks")?.status).not.toBe("fail");
     // 별도 권고 목록에 담긴다
     expect(s.bestPractice).toEqual([{ ruleId: "region", count: 1 }]);
   });
@@ -124,21 +125,31 @@ describe("aggregateScan", () => {
       "4.10.0",
     );
     expect(s.complianceRate).toBe(0);
-    const row = s.kwcagMatrix.find((r) => r.itemId === "5.1.1");
+    const row = s.kwcagMatrix.find((r) => r.itemId === "alternative-text");
     expect(row?.status).toBe("fail");
     expect(row?.violationCount).toBe(1);
     expect(row?.ruleIds).toContain("image-alt");
   });
 
+  it("매트릭스는 슬러그 키·공식 순서다", () => {
+    const s = aggregateScan([page({})], "4.10.0");
+    expect(s.kwcagMatrix.map((r) => r.itemId)).toEqual(KWCAG_ITEMS.map((i) => i.slug));
+    expect(s.kwcagMatrix.slice(0, 3).map((r) => r.itemId)).toEqual([
+      "alternative-text",
+      "captions-for-multimedia",
+      "table-structure",
+    ]);
+  });
+
   it("완전 수동 항목은 manual 상태", () => {
     const s = aggregateScan([page({})], "4.10.0");
-    const auth = s.kwcagMatrix.find((r) => r.itemId === "7.4.3"); // 접근 가능한 인증
+    const auth = s.kwcagMatrix.find((r) => r.itemId === "accessible-authentication"); // 접근 가능한 인증
     expect(auth?.status).toBe("manual");
   });
 
   it("full 커버 항목이 통과하면 pass 상태", () => {
     const s = aggregateScan([page({ passes: ["html-has-lang"] })], "4.10.0");
-    const lang = s.kwcagMatrix.find((r) => r.itemId === "7.1.1");
+    const lang = s.kwcagMatrix.find((r) => r.itemId === "language-of-page");
     expect(lang?.status).toBe("pass");
   });
 });
@@ -237,7 +248,7 @@ describe("WCAG 2.2 SC 매트릭스 (WCAG-EM)", () => {
     expect(s.wcagMatrix.find((r) => r.scId === "1.2.1")?.outcome).toBe("notPresent");
     expect(s.wcagMatrix.find((r) => r.scId === "1.2.5")?.outcome).toBe("notPresent");
     // 5.2.1(자막 제공)은 1.2.1~1.2.3 대응 → 해당 없음
-    expect(s.kwcagMatrix.find((r) => r.itemId === "5.2.1")?.status).toBe("not-applicable");
+    expect(s.kwcagMatrix.find((r) => r.itemId === "captions-for-multimedia")?.status).toBe("not-applicable");
     // 자동 점수: 3.1.1 통과 + 1.2.x 5건 해당없음 = 6건 충족
     expect(s.scores?.automated.passed).toBe(6);
   });
@@ -259,7 +270,7 @@ describe("WCAG 2.2 SC 매트릭스 (WCAG-EM)", () => {
       ],
       "4.10.0",
     );
-    const row = s.kwcagMatrix.find((r) => r.itemId === "8.1.1");
+    const row = s.kwcagMatrix.find((r) => r.itemId === "valid-markup");
     expect(row?.status).toBe("fail");
     expect(row?.ruleIds).toContain("a11ychk:markup-validity");
   });
@@ -270,7 +281,7 @@ describe("WCAG 2.2 SC 매트릭스 (WCAG-EM)", () => {
       "4.10.0",
     );
     // autoCoverage가 full이므로 자동 통과가 곧 pass
-    expect(s.kwcagMatrix.find((r) => r.itemId === "8.1.1")?.status).toBe("pass");
+    expect(s.kwcagMatrix.find((r) => r.itemId === "valid-markup")?.status).toBe("pass");
   });
 
   it("sample 요약을 전달하면 summary.sample에 포함", () => {

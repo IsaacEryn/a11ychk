@@ -8,10 +8,13 @@
 import {
   AXE_VERSION,
   AI_FIX_MAX_NODES_PER_RULE,
+  KWCAG_BY_KSNO,
   aggregateScan,
   automatedComplianceRate,
   getRuleEntry,
   groupViolationsForAiFix,
+  kwcagItemsOf,
+  kwcagNoListLabel,
   partitionAdvisory,
   pickLocale,
   scanUrls,
@@ -92,7 +95,7 @@ export async function runScanTool(
       title: pickLocale(g.entry.title, lang),
       impact: g.impact,
       wcag: g.entry.wcag,
-      kwcag: g.entry.kwcag,
+      kwcag: kwcagItemsOf(g.entry.kwcag).map((i) => i.ksNo),
       helpUrl: g.helpUrl,
       guide: pickLocale(g.entry.guide, lang),
       totalNodes: g.nodes.length,
@@ -125,7 +128,8 @@ function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en", r
   );
   for (const v of r.violations) {
     lines.push("");
-    const refs = [v.wcag.length ? `WCAG ${v.wcag.join(", ")}` : null, v.kwcag.length ? `KWCAG ${v.kwcag.join(", ")}` : null]
+    const kwItems = v.kwcag.map((no) => KWCAG_BY_KSNO.get(no)).filter((i): i is NonNullable<typeof i> => !!i);
+    const refs = [v.wcag.length ? `WCAG ${v.wcag.join(", ")}` : null, kwItems.length ? `KWCAG ${kwcagNoListLabel(kwItems, lang)}` : null]
       .filter(Boolean)
       .join(" · ");
     lines.push(`- ${v.title} (\`${v.ruleId}\`, ${v.impact}${refs ? `, ${refs}` : ""}) — ${v.totalNodes}${L("곳", " nodes")}`);

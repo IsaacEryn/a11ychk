@@ -3,6 +3,7 @@ import { z } from "zod";
 import {
   KWCAG_BY_SLUG,
   getRuleEntry,
+  kwcagItemsOf,
   normalizeKwcagMatrix,
   normalizeReviewRows,
   type Impact,
@@ -98,8 +99,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   if (type === "findings") {
     rows.push(
       (lang === "en"
-        ? ["Page URL", "KWCAG item", "WCAG SC", "Rule", "Severity", "CSS selector", "Code", "Diagnosis", "Reference"]
-        : ["페이지 URL", "KWCAG 항목", "WCAG 성공기준", "규칙", "심각도", "CSS 선택자", "해당 코드", "자동 진단", "참고 링크"]
+        ? ["Page URL", "KWCAG checkpoint", "WCAG SC", "Rule", "Severity", "CSS selector", "Code", "Diagnosis", "Reference"]
+        : ["페이지 URL", "KWCAG 검사항목", "WCAG 성공기준", "규칙", "심각도", "CSS 선택자", "해당 코드", "자동 진단", "참고 링크"]
       ).map(esc).join(","),
     );
     for (const f of findings) {
@@ -107,7 +108,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       rows.push(
         [
           f.scan_pages?.url ?? "",
-          entry.kwcag.join(" / "),
+          kwcagItemsOf(entry.kwcag).map((i) => i.serial).join(" / "),
           entry.wcag.join(" / "),
           pickText(entry.title),
           impactLabel[f.impact] ?? f.impact,

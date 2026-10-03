@@ -559,232 +559,331 @@
   ],
   "kwcag": [
     {
-      "id": "5.1.1",
+      "serial": 1,
+      "ksNo": "5.1.1",
+      "slug": "alternative-text",
       "name": "적절한 대체 텍스트 제공",
+      "principle": "perceivable",
       "autoCoverage": "partial",
       "axeRules": 8,
       "customRules": 1
     },
     {
-      "id": "5.2.1",
+      "serial": 2,
+      "ksNo": "5.2.1",
+      "slug": "captions-for-multimedia",
       "name": "자막 제공",
+      "principle": "perceivable",
       "autoCoverage": "partial",
       "axeRules": 2,
       "customRules": 1
     },
     {
-      "id": "5.3.1",
-      "name": "색에 무관한 콘텐츠 인식",
-      "autoCoverage": "partial",
-      "axeRules": 1,
-      "customRules": 0
-    },
-    {
-      "id": "5.3.2",
-      "name": "명확한 지시사항 제공",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "5.4.1",
-      "name": "텍스트 콘텐츠의 명도 대비",
-      "autoCoverage": "partial",
-      "axeRules": 2,
-      "customRules": 0
-    },
-    {
-      "id": "5.4.2",
-      "name": "자동 재생 금지",
-      "autoCoverage": "partial",
-      "axeRules": 1,
-      "customRules": 1
-    },
-    {
-      "id": "5.4.3",
-      "name": "콘텐츠 간의 구분",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "6.1.1",
-      "name": "키보드 사용 보장",
-      "autoCoverage": "partial",
-      "axeRules": 4,
-      "customRules": 1
-    },
-    {
-      "id": "6.1.2",
-      "name": "초점 이동과 표시",
-      "autoCoverage": "partial",
-      "axeRules": 1,
-      "customRules": 1
-    },
-    {
-      "id": "6.1.3",
-      "name": "조작 가능",
-      "autoCoverage": "partial",
-      "axeRules": 1,
-      "customRules": 1
-    },
-    {
-      "id": "6.1.4",
-      "name": "문자 단축키",
-      "autoCoverage": "none",
-      "axeRules": 1,
-      "customRules": 0
-    },
-    {
-      "id": "6.2.1",
-      "name": "응답시간 조절",
-      "autoCoverage": "partial",
-      "axeRules": 1,
-      "customRules": 0
-    },
-    {
-      "id": "6.2.2",
-      "name": "정지 기능 제공",
-      "autoCoverage": "partial",
-      "axeRules": 2,
-      "customRules": 0
-    },
-    {
-      "id": "6.3.1",
-      "name": "깜빡임과 번쩍임 사용 제한",
-      "autoCoverage": "partial",
-      "axeRules": 1,
-      "customRules": 0
-    },
-    {
-      "id": "6.4.1",
-      "name": "반복 영역 건너뛰기",
-      "autoCoverage": "partial",
-      "axeRules": 12,
-      "customRules": 1
-    },
-    {
-      "id": "6.4.2",
-      "name": "제목 제공",
-      "autoCoverage": "partial",
-      "axeRules": 7,
-      "customRules": 1
-    },
-    {
-      "id": "6.4.3",
-      "name": "적절한 링크 텍스트",
-      "autoCoverage": "partial",
-      "axeRules": 2,
-      "customRules": 1
-    },
-    {
-      "id": "6.4.4",
-      "name": "고정된 참조 위치 정보",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "6.5.1",
-      "name": "단일 포인터 입력 지원",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "6.5.2",
-      "name": "포인터 입력 취소",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "6.5.3",
-      "name": "레이블과 네임",
-      "autoCoverage": "partial",
-      "axeRules": 2,
-      "customRules": 0
-    },
-    {
-      "id": "6.5.4",
-      "name": "동작기반 작동",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "7.1.1",
-      "name": "기본 언어 표시",
-      "autoCoverage": "full",
-      "axeRules": 4,
-      "customRules": 0
-    },
-    {
-      "id": "7.2.1",
-      "name": "사용자 요구에 따른 실행",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 1
-    },
-    {
-      "id": "7.2.2",
-      "name": "찾기 쉬운 도움 정보",
-      "autoCoverage": "none",
-      "axeRules": 0,
-      "customRules": 0
-    },
-    {
-      "id": "7.3.1",
-      "name": "콘텐츠의 선형구조",
-      "autoCoverage": "partial",
-      "axeRules": 6,
-      "customRules": 0
-    },
-    {
-      "id": "7.3.2",
+      "serial": 3,
+      "ksNo": "5.3.1",
+      "slug": "table-structure",
       "name": "표의 구성",
+      "principle": "perceivable",
       "autoCoverage": "partial",
       "axeRules": 5,
       "customRules": 0
     },
     {
-      "id": "7.4.1",
-      "name": "레이블 제공",
+      "serial": 4,
+      "ksNo": "5.3.2",
+      "slug": "meaningful-sequence",
+      "name": "콘텐츠의 선형구조",
+      "principle": "perceivable",
       "autoCoverage": "partial",
-      "axeRules": 9,
+      "axeRules": 6,
       "customRules": 0
     },
     {
-      "id": "7.4.2",
-      "name": "오류 정정",
+      "serial": 5,
+      "ksNo": "5.3.3",
+      "slug": "clear-instructions",
+      "name": "명확한 지시사항 제공",
+      "principle": "perceivable",
       "autoCoverage": "none",
       "axeRules": 0,
       "customRules": 0
     },
     {
-      "id": "7.4.3",
-      "name": "접근 가능한 인증",
+      "serial": 6,
+      "ksNo": "5.4.1",
+      "slug": "content-not-relying-on-color-alone",
+      "name": "색에 무관한 콘텐츠 인식",
+      "principle": "perceivable",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "serial": 7,
+      "ksNo": "5.4.2",
+      "slug": "no-auto-play",
+      "name": "자동 재생 금지",
+      "principle": "perceivable",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 1
+    },
+    {
+      "serial": 8,
+      "ksNo": "5.4.3",
+      "slug": "text-contrast",
+      "name": "텍스트 콘텐츠의 명도 대비",
+      "principle": "perceivable",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "serial": 9,
+      "ksNo": "5.4.4",
+      "slug": "distinguishable-content",
+      "name": "콘텐츠 간의 구분",
+      "principle": "perceivable",
       "autoCoverage": "none",
       "axeRules": 0,
       "customRules": 0
     },
     {
-      "id": "7.4.4",
-      "name": "반복 입력 정보",
+      "serial": 10,
+      "ksNo": "6.1.1",
+      "slug": "keyboard-accessible",
+      "name": "키보드 사용 보장",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 4,
+      "customRules": 1
+    },
+    {
+      "serial": 11,
+      "ksNo": "6.1.2",
+      "slug": "focus-order-and-visibility",
+      "name": "초점 이동과 표시",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 1
+    },
+    {
+      "serial": 12,
+      "ksNo": "6.1.3",
+      "slug": "target-size",
+      "name": "조작 가능",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 1
+    },
+    {
+      "serial": 13,
+      "ksNo": "6.1.4",
+      "slug": "character-key-shortcuts",
+      "name": "문자 단축키",
+      "principle": "operable",
       "autoCoverage": "none",
       "axeRules": 1,
       "customRules": 0
     },
     {
-      "id": "8.1.1",
+      "serial": 14,
+      "ksNo": "6.2.1",
+      "slug": "adjustable-time-limits",
+      "name": "응답시간 조절",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "serial": 15,
+      "ksNo": "6.2.2",
+      "slug": "pause-stop-hide",
+      "name": "정지 기능 제공",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "serial": 16,
+      "ksNo": "6.3.1",
+      "slug": "no-flashing-content",
+      "name": "깜빡임과 번쩍임 사용 제한",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "serial": 17,
+      "ksNo": "6.4.1",
+      "slug": "skip-repeated-blocks",
+      "name": "반복 영역 건너뛰기",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 12,
+      "customRules": 1
+    },
+    {
+      "serial": 18,
+      "ksNo": "6.4.2",
+      "slug": "page-frame-and-content-titles",
+      "name": "제목 제공",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 7,
+      "customRules": 1
+    },
+    {
+      "serial": 19,
+      "ksNo": "6.4.3",
+      "slug": "meaningful-link-text",
+      "name": "적절한 링크 텍스트",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 1
+    },
+    {
+      "serial": 20,
+      "ksNo": "6.4.4",
+      "slug": "consistent-reference-locators",
+      "name": "고정된 참조 위치 정보",
+      "principle": "operable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 21,
+      "ksNo": "6.5.1",
+      "slug": "single-pointer-gestures",
+      "name": "단일 포인터 입력 지원",
+      "principle": "operable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 22,
+      "ksNo": "6.5.2",
+      "slug": "pointer-cancellation",
+      "name": "포인터 입력 취소",
+      "principle": "operable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 23,
+      "ksNo": "6.5.3",
+      "slug": "label-in-name",
+      "name": "레이블과 네임",
+      "principle": "operable",
+      "autoCoverage": "partial",
+      "axeRules": 2,
+      "customRules": 0
+    },
+    {
+      "serial": 24,
+      "ksNo": "6.5.4",
+      "slug": "motion-actuation",
+      "name": "동작기반 작동",
+      "principle": "operable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 25,
+      "ksNo": "7.1.1",
+      "slug": "language-of-page",
+      "name": "기본 언어 표시",
+      "principle": "understandable",
+      "autoCoverage": "full",
+      "axeRules": 4,
+      "customRules": 0
+    },
+    {
+      "serial": 26,
+      "ksNo": "7.2.1",
+      "slug": "no-change-of-context-without-request",
+      "name": "사용자 요구에 따른 실행",
+      "principle": "understandable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 1
+    },
+    {
+      "serial": 27,
+      "ksNo": "7.2.2",
+      "slug": "consistent-help",
+      "name": "찾기 쉬운 도움 정보",
+      "principle": "understandable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 28,
+      "ksNo": "7.3.1",
+      "slug": "error-identification",
+      "name": "오류 정정",
+      "principle": "understandable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 29,
+      "ksNo": "7.3.2",
+      "slug": "labels-for-inputs",
+      "name": "레이블 제공",
+      "principle": "understandable",
+      "autoCoverage": "partial",
+      "axeRules": 9,
+      "customRules": 0
+    },
+    {
+      "serial": 30,
+      "ksNo": "7.3.3",
+      "slug": "accessible-authentication",
+      "name": "접근 가능한 인증",
+      "principle": "understandable",
+      "autoCoverage": "none",
+      "axeRules": 0,
+      "customRules": 0
+    },
+    {
+      "serial": 31,
+      "ksNo": "7.3.4",
+      "slug": "redundant-entry",
+      "name": "반복 입력 정보",
+      "principle": "understandable",
+      "autoCoverage": "none",
+      "axeRules": 1,
+      "customRules": 0
+    },
+    {
+      "serial": 32,
+      "ksNo": "8.1.1",
+      "slug": "valid-markup",
       "name": "마크업 오류 방지",
+      "principle": "robust",
       "autoCoverage": "full",
       "axeRules": 2,
       "customRules": 2
     },
     {
-      "id": "8.2.1",
+      "serial": 33,
+      "ksNo": "8.2.1",
+      "slug": "aria-accessibility",
       "name": "웹 애플리케이션 접근성 준수",
+      "principle": "robust",
       "autoCoverage": "partial",
       "axeRules": 26,
       "customRules": 0

@@ -77,9 +77,9 @@ describe("스캔 엔진 E2E", () => {
 
     const summary = aggregateScan([result], AXE_VERSION);
     expect(summary.totalViolations).toBeGreaterThanOrEqual(5);
-    expect(summary.kwcagMatrix.find((r) => r.itemId === "5.1.1")?.status).toBe("fail"); // 대체 텍스트
-    expect(summary.kwcagMatrix.find((r) => r.itemId === "7.1.1")?.status).toBe("fail"); // 기본 언어
-    expect(summary.kwcagMatrix.find((r) => r.itemId === "5.4.1")?.status).toBe("fail"); // 명도 대비
+    expect(summary.kwcagMatrix.find((r) => r.itemId === "alternative-text")?.status).toBe("fail"); // 대체 텍스트
+    expect(summary.kwcagMatrix.find((r) => r.itemId === "language-of-page")?.status).toBe("fail"); // 기본 언어
+    expect(summary.kwcagMatrix.find((r) => r.itemId === "text-contrast")?.status).toBe("fail"); // 명도 대비
     expect(summary.complianceRate).toBeGreaterThan(0);
     expect(summary.complianceRate).toBeLessThan(100);
   });

@@ -11,6 +11,8 @@ import {
   RULE_CATALOG,
   WCAG_BY_ID,
   getRuleEntry,
+  kwcagItemsOf,
+  kwcagNoListLabel,
   kwcagSlug,
   pickLocale,
   understandingUrl,
@@ -34,19 +36,21 @@ export interface FixGuideResult {
 export function runFixGuideTool(ruleId: string, lang: "ko" | "en"): FixGuideResult {
   const known = RULE_BY_ID.has(ruleId);
   const entry = getRuleEntry(ruleId);
+  const kwItems = kwcagItemsOf(entry.kwcag);
   const structuredContent = {
     ruleId,
     known,
     title: pickLocale(entry.title, lang),
     level: entry.level,
     wcag: entry.wcag,
-    kwcag: entry.kwcag,
+    // KWCAG는 공식 번호(KS X OT0003:2022)로 내보낸다
+    kwcag: kwItems.map((i) => i.ksNo),
     guide: pickLocale(entry.guide, lang),
   };
   const L = (ko: string, en: string) => (lang === "en" ? en : ko);
   const refs = [
     entry.wcag.length ? `WCAG ${entry.wcag.join(", ")}` : null,
-    entry.kwcag.length ? `KWCAG ${entry.kwcag.join(", ")}` : null,
+    kwItems.length ? `KWCAG ${kwcagNoListLabel(kwItems, lang)}` : null,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -82,7 +86,7 @@ export function resolveKwcagItem(idOrSlug: string): KwcagItem | null {
 
 export function runKwcagCheckpointTool(item: KwcagItem, lang: "ko" | "en"): KwcagCheckpointResult {
   const L = (ko: string, en: string) => (lang === "en" ? en : ko);
-  const rules = RULE_CATALOG.filter((r) => r.kwcag.includes(item.id));
+  const rules = RULE_CATALOG.filter((r) => r.kwcag.includes(item.slug));
   const structuredContent = {
     id: item.id,
     slug: kwcagSlug(item),

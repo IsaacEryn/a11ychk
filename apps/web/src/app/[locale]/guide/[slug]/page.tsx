@@ -62,20 +62,20 @@ export default async function GuideItemPage({
   const name = pick(item.name, locale);
   const howToTest = item.howToTest ? pick(item.howToTest, locale) : null;
   // 이 항목을 자동으로 판정하는 규칙들 — 카탈로그 역방향 조회
-  const rules = RULE_CATALOG.filter((r) => r.kwcag.includes(item.id));
+  const rules = RULE_CATALOG.filter((r) => r.kwcag.includes(item.slug));
   const principle = KWCAG_PRINCIPLE_LABEL[item.principle][locale === "en" ? "en" : "ko"];
 
   // 앞뒤 항목 — 33개를 순서대로 훑어볼 수 있게
-  const idx = KWCAG_ITEMS.findIndex((i) => i.id === item.id);
+  const idx = KWCAG_ITEMS.findIndex((i) => i.slug === item.slug);
   const prev = idx > 0 ? KWCAG_ITEMS[idx - 1] : null;
   const next = idx < KWCAG_ITEMS.length - 1 ? KWCAG_ITEMS[idx + 1] : null;
 
   // 관련 항목 — 2-패스: 강한 연관(같은 SC·같은 자동 규칙)을 전부 모은 뒤,
   // 남는 자리만 같은 원칙(약한 연관)으로 채운다. 단일 루프로 섞으면 ID가 인접한
   // 원칙 이웃이 앞자리를 선점해 의도가 뒤집힌다.
-  const others = KWCAG_ITEMS.filter((o) => o.id !== item.id && o.id !== prev?.id && o.id !== next?.id);
+  const others = KWCAG_ITEMS.filter((o) => o.slug !== item.slug && o.slug !== prev?.slug && o.slug !== next?.slug);
   const strong = others.filter(
-    (o) => o.wcag.some((sc) => item.wcag.includes(sc)) || rules.some((r) => r.kwcag.includes(o.id)),
+    (o) => o.wcag.some((sc) => item.wcag.includes(sc)) || rules.some((r) => r.kwcag.includes(o.slug)),
   );
   const weak = others.filter((o) => o.principle === item.principle && !strong.includes(o));
   const related = [...strong, ...weak].slice(0, 4);

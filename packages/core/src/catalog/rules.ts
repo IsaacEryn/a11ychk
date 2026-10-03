@@ -10,11 +10,11 @@
 import type { RuleCatalogEntry } from "../types";
 
 export const RULE_CATALOG: RuleCatalogEntry[] = [
-  // ───────── 대체 텍스트 (WCAG 1.1.1 / KWCAG 5.1.1) ─────────
+  // ───────── 대체 텍스트 (WCAG 1.1.1 / KWCAG 검사항목 1) ─────────
   {
     ruleId: "image-alt",
     wcag: ["1.1.1"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "이미지에 대체 텍스트가 없습니다", en: "Images must have alternative text" },
     guide: {
@@ -25,7 +25,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "input-image-alt",
     wcag: ["1.1.1", "4.1.2"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "이미지 버튼에 대체 텍스트가 없습니다", en: "Image buttons must have alternate text" },
     guide: {
@@ -36,7 +36,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "area-alt",
     wcag: ["1.1.1", "2.4.4"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "이미지 맵 영역에 대체 텍스트가 없습니다", en: "Image map areas must have alternate text" },
     guide: {
@@ -47,7 +47,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "object-alt",
     wcag: ["1.1.1"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "object 요소에 대체 콘텐츠가 없습니다", en: "Object elements must have alternate text" },
     guide: {
@@ -58,7 +58,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "svg-img-alt",
     wcag: ["1.1.1"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "img 역할의 SVG에 접근 가능한 이름이 없습니다", en: "SVG images must have an accessible name" },
     guide: {
@@ -69,7 +69,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "role-img-alt",
     wcag: ["1.1.1"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "role=img 요소에 대체 텍스트가 없습니다", en: "Elements with role img must have alternate text" },
     guide: {
@@ -80,7 +80,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "image-redundant-alt",
     wcag: [],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "BP",
     title: { ko: "이미지 대체 텍스트가 주변 텍스트와 중복됩니다", en: "Alt text duplicates nearby text" },
     guide: {
@@ -91,7 +91,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "server-side-image-map",
     wcag: ["2.1.1"],
-    kwcag: ["5.1.1", "6.1.1"],
+    kwcag: ["alternative-text", "keyboard-accessible"],
     level: "A",
     title: { ko: "서버 사이드 이미지 맵을 사용하고 있습니다", en: "Server-side image maps are not accessible" },
     guide: {
@@ -100,11 +100,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 멀티미디어 (KWCAG 5.2.1) ─────────
+  // ───────── 멀티미디어 (KWCAG 검사항목 2) ─────────
   {
     ruleId: "video-caption",
     wcag: ["1.2.2"],
-    kwcag: ["5.2.1"],
+    kwcag: ["captions-for-multimedia"],
     level: "A",
     title: { ko: "동영상에 자막이 없습니다", en: "Video elements must have captions" },
     guide: {
@@ -115,7 +115,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "audio-caption",
     wcag: ["1.2.1"],
-    kwcag: ["5.2.1"],
+    kwcag: ["captions-for-multimedia"],
     level: "A",
     title: { ko: "오디오에 자막·대본이 없습니다", en: "Audio elements must have captions or transcript" },
     guide: {
@@ -126,7 +126,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "no-autoplay-audio",
     wcag: ["1.4.2"],
-    kwcag: ["5.4.2"],
+    kwcag: ["no-auto-play"],
     level: "A",
     title: { ko: "소리가 3초 이상 자동 재생됩니다", en: "Audio must not autoplay for more than 3 seconds" },
     guide: {
@@ -135,11 +135,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 색·대비 (KWCAG 5.3.1, 5.4.1) ─────────
+  // ───────── 색·대비 (KWCAG 검사항목 6·8) ─────────
   {
     ruleId: "color-contrast",
     wcag: ["1.4.3"],
-    kwcag: ["5.4.1"],
+    kwcag: ["text-contrast"],
     level: "AA",
     title: { ko: "텍스트와 배경의 명도 대비가 부족합니다", en: "Text must have sufficient color contrast" },
     guide: {
@@ -150,7 +150,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "color-contrast-enhanced",
     wcag: ["1.4.6"],
-    kwcag: ["5.4.1"],
+    kwcag: ["text-contrast"],
     level: "BP",
     title: { ko: "향상된 명도 대비(AAA) 기준에 미달합니다", en: "Text does not meet enhanced (AAA) contrast" },
     guide: {
@@ -161,7 +161,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "link-in-text-block",
     wcag: ["1.4.1"],
-    kwcag: ["5.3.1"],
+    kwcag: ["content-not-relying-on-color-alone"],
     level: "A",
     title: { ko: "본문 속 링크가 색으로만 구분됩니다", en: "Links must be distinguishable without relying on color" },
     guide: {
@@ -170,11 +170,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 표·구조 (KWCAG 7.3.1, 7.3.2) ─────────
+  // ───────── 표·구조 (KWCAG 검사항목 3·4) ─────────
   {
     ruleId: "th-has-data-cells",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.2"],
+    kwcag: ["table-structure"],
     level: "A",
     title: { ko: "제목 셀(th)에 연결된 데이터 셀이 없습니다", en: "Table headers must refer to data cells" },
     guide: {
@@ -185,7 +185,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "td-headers-attr",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.2"],
+    kwcag: ["table-structure"],
     level: "A",
     title: { ko: "td의 headers 속성이 잘못된 셀을 참조합니다", en: "td headers attribute must reference cells in the same table" },
     guide: {
@@ -196,7 +196,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "scope-attr-valid",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.2"],
+    kwcag: ["table-structure"],
     level: "BP",
     title: { ko: "scope 속성 값이 올바르지 않습니다", en: "scope attribute must be used correctly" },
     guide: {
@@ -207,7 +207,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "empty-table-header",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.2"],
+    kwcag: ["table-structure"],
     level: "BP",
     title: { ko: "표의 제목 셀이 비어 있습니다", en: "Table header cells should not be empty" },
     guide: {
@@ -218,7 +218,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "table-duplicate-name",
     wcag: [],
-    kwcag: ["7.3.2"],
+    kwcag: ["table-structure"],
     level: "BP",
     title: { ko: "표의 caption과 summary가 중복됩니다", en: "Table caption and summary should differ" },
     guide: {
@@ -229,7 +229,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "list",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.1"],
+    kwcag: ["meaningful-sequence"],
     level: "A",
     title: { ko: "목록(ul/ol) 안에 잘못된 요소가 있습니다", en: "Lists must only contain li elements" },
     guide: {
@@ -240,7 +240,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "listitem",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.1"],
+    kwcag: ["meaningful-sequence"],
     level: "A",
     title: { ko: "li가 목록 요소 밖에 있습니다", en: "li must be contained in ul or ol" },
     guide: {
@@ -251,7 +251,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "definition-list",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.1"],
+    kwcag: ["meaningful-sequence"],
     level: "A",
     title: { ko: "정의 목록(dl)의 구조가 올바르지 않습니다", en: "dl must be structured correctly" },
     guide: {
@@ -262,7 +262,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "dlitem",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.1"],
+    kwcag: ["meaningful-sequence"],
     level: "A",
     title: { ko: "dt/dd가 dl 밖에 있습니다", en: "dt and dd must be inside a dl" },
     guide: {
@@ -273,7 +273,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "p-as-heading",
     wcag: ["1.3.1"],
-    kwcag: ["7.3.1", "6.4.2"],
+    kwcag: ["meaningful-sequence", "page-frame-and-content-titles"],
     level: "A",
     title: { ko: "굵은 p 요소를 제목처럼 사용하고 있습니다", en: "Styled p elements must not be used as headings" },
     guide: {
@@ -282,11 +282,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 키보드·초점 (KWCAG 6.1.x) ─────────
+  // ───────── 키보드·초점 (KWCAG 검사항목 10~13) ─────────
   {
     ruleId: "scrollable-region-focusable",
     wcag: ["2.1.1"],
-    kwcag: ["6.1.1"],
+    kwcag: ["keyboard-accessible"],
     level: "A",
     title: { ko: "스크롤 영역에 키보드로 접근할 수 없습니다", en: "Scrollable regions must be keyboard accessible" },
     guide: {
@@ -297,7 +297,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "frame-focusable-content",
     wcag: ["2.1.1"],
-    kwcag: ["6.1.1"],
+    kwcag: ["keyboard-accessible"],
     level: "A",
     title: { ko: "tabindex=-1인 프레임 안에 초점 가능한 콘텐츠가 있습니다", en: "Frames with focusable content must not have tabindex=-1" },
     guide: {
@@ -308,7 +308,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "nested-interactive",
     wcag: ["4.1.2"],
-    kwcag: ["6.1.1", "8.2.1"],
+    kwcag: ["keyboard-accessible", "aria-accessibility"],
     level: "A",
     title: { ko: "인터랙티브 요소가 중첩되어 있습니다", en: "Interactive controls must not be nested" },
     guide: {
@@ -319,7 +319,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "tabindex",
     wcag: ["2.4.3"],
-    kwcag: ["6.1.2"],
+    kwcag: ["focus-order-and-visibility"],
     level: "BP",
     title: { ko: "tabindex에 양수 값을 사용하고 있습니다", en: "Avoid positive tabindex values" },
     guide: {
@@ -330,7 +330,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "accesskeys",
     wcag: ["2.1.4"],
-    kwcag: ["6.1.4"],
+    kwcag: ["character-key-shortcuts"],
     level: "BP",
     title: { ko: "accesskey 값이 중복되었습니다", en: "accesskey values must be unique" },
     guide: {
@@ -339,11 +339,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 시간제한·움직임 (KWCAG 6.2.x, 6.3.1) ─────────
+  // ───────── 시간제한·움직임 (KWCAG 검사항목 14~16) ─────────
   {
     ruleId: "meta-refresh",
     wcag: ["2.2.1"],
-    kwcag: ["6.2.1"],
+    kwcag: ["adjustable-time-limits"],
     level: "A",
     title: { ko: "meta refresh로 페이지가 자동 새로고침/이동됩니다", en: "Timed refresh must not exist" },
     guide: {
@@ -354,7 +354,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "blink",
     wcag: ["2.2.2"],
-    kwcag: ["6.2.2", "6.3.1"],
+    kwcag: ["pause-stop-hide", "no-flashing-content"],
     level: "A",
     title: { ko: "blink 요소를 사용하고 있습니다", en: "blink elements are not allowed" },
     guide: {
@@ -365,7 +365,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "marquee",
     wcag: ["2.2.2"],
-    kwcag: ["6.2.2"],
+    kwcag: ["pause-stop-hide"],
     level: "A",
     title: { ko: "marquee 요소를 사용하고 있습니다", en: "marquee elements are not allowed" },
     guide: {
@@ -374,11 +374,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 탐색·제목·링크 (KWCAG 6.4.x) ─────────
+  // ───────── 탐색·제목·링크 (KWCAG 검사항목 17~20) ─────────
   {
     ruleId: "bypass",
     wcag: ["2.4.1"],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "A",
     title: { ko: "반복 영역을 건너뛸 수단이 없습니다", en: "Page must have a means to bypass repeated blocks" },
     guide: {
@@ -389,7 +389,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "skip-link",
     wcag: ["2.4.1"],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "건너뛰기 링크의 대상이 존재하지 않습니다", en: "Skip link target must exist and be focusable" },
     guide: {
@@ -400,7 +400,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "document-title",
     wcag: ["2.4.2"],
-    kwcag: ["6.4.2"],
+    kwcag: ["page-frame-and-content-titles"],
     level: "A",
     title: { ko: "문서에 title이 없습니다", en: "Documents must have a title" },
     guide: {
@@ -411,7 +411,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "frame-title",
     wcag: ["4.1.2"],
-    kwcag: ["6.4.2"],
+    kwcag: ["page-frame-and-content-titles"],
     level: "A",
     title: { ko: "iframe에 title이 없습니다", en: "Frames must have a title attribute" },
     guide: {
@@ -422,7 +422,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "frame-title-unique",
     wcag: ["4.1.2"],
-    kwcag: ["6.4.2"],
+    kwcag: ["page-frame-and-content-titles"],
     level: "BP",
     title: { ko: "iframe title이 중복됩니다", en: "Frame titles should be unique" },
     guide: {
@@ -433,7 +433,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "link-name",
     wcag: ["2.4.4", "4.1.2"],
-    kwcag: ["6.4.3"],
+    kwcag: ["meaningful-link-text"],
     level: "A",
     title: { ko: "링크에 인식 가능한 텍스트가 없습니다", en: "Links must have discernible text" },
     guide: {
@@ -444,7 +444,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "identical-links-same-purpose",
     wcag: [],
-    kwcag: ["6.4.3"],
+    kwcag: ["meaningful-link-text"],
     level: "BP",
     title: { ko: "같은 이름의 링크가 서로 다른 곳으로 이동합니다", en: "Identical link names should serve the same purpose" },
     guide: {
@@ -455,7 +455,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "heading-order",
     wcag: [],
-    kwcag: ["6.4.2", "7.3.1"],
+    kwcag: ["page-frame-and-content-titles", "meaningful-sequence"],
     level: "BP",
     title: { ko: "제목 레벨이 건너뛰어졌습니다", en: "Heading levels should only increase by one" },
     guide: {
@@ -466,7 +466,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "empty-heading",
     wcag: ["1.3.1"],
-    kwcag: ["6.4.2"],
+    kwcag: ["page-frame-and-content-titles"],
     level: "BP",
     title: { ko: "제목 요소가 비어 있습니다", en: "Headings should not be empty" },
     guide: {
@@ -477,7 +477,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "page-has-heading-one",
     wcag: [],
-    kwcag: ["6.4.2"],
+    kwcag: ["page-frame-and-content-titles"],
     level: "BP",
     title: { ko: "페이지에 h1 제목이 없습니다", en: "Page should contain a level-one heading" },
     guide: {
@@ -486,11 +486,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 포인터·레이블과 네임 (KWCAG 6.5.x) ─────────
+  // ───────── 포인터·레이블과 네임 (KWCAG 검사항목 21~24) ─────────
   {
     ruleId: "target-size",
     wcag: ["2.5.8"],
-    kwcag: ["6.1.3"],
+    kwcag: ["target-size"],
     level: "AA",
     title: { ko: "터치·클릭 대상 크기가 너무 작습니다", en: "Touch targets must have sufficient size" },
     guide: {
@@ -501,7 +501,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "label-content-name-mismatch",
     wcag: ["2.5.3"],
-    kwcag: ["6.5.3"],
+    kwcag: ["label-in-name"],
     level: "A",
     title: { ko: "화면에 보이는 레이블이 접근 가능한 이름에 포함되지 않습니다", en: "Visible label must be part of the accessible name" },
     guide: {
@@ -510,11 +510,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 언어 (KWCAG 7.1.1) ─────────
+  // ───────── 언어 (KWCAG 검사항목 25) ─────────
   {
     ruleId: "html-has-lang",
     wcag: ["3.1.1"],
-    kwcag: ["7.1.1"],
+    kwcag: ["language-of-page"],
     level: "A",
     title: { ko: "html 요소에 lang 속성이 없습니다", en: "html element must have a lang attribute" },
     guide: {
@@ -525,7 +525,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "html-lang-valid",
     wcag: ["3.1.1"],
-    kwcag: ["7.1.1"],
+    kwcag: ["language-of-page"],
     level: "A",
     title: { ko: "html lang 속성 값이 올바르지 않습니다", en: "html lang attribute must be valid" },
     guide: {
@@ -536,7 +536,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "html-xml-lang-mismatch",
     wcag: ["3.1.1"],
-    kwcag: ["7.1.1"],
+    kwcag: ["language-of-page"],
     level: "A",
     title: { ko: "lang과 xml:lang 값이 서로 다릅니다", en: "lang and xml:lang must match" },
     guide: {
@@ -547,7 +547,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "valid-lang",
     wcag: ["3.1.2"],
-    kwcag: ["7.1.1"],
+    kwcag: ["language-of-page"],
     level: "AA",
     title: { ko: "부분 콘텐츠의 lang 값이 올바르지 않습니다", en: "lang attribute values must be valid" },
     guide: {
@@ -556,11 +556,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 서식·레이블 (KWCAG 7.4.1) ─────────
+  // ───────── 서식·레이블 (KWCAG 검사항목 29) ─────────
   {
     ruleId: "label",
     wcag: ["4.1.2"],
-    kwcag: ["7.4.1"],
+    kwcag: ["labels-for-inputs"],
     level: "A",
     title: { ko: "입력 서식에 레이블이 없습니다", en: "Form elements must have labels" },
     guide: {
@@ -571,7 +571,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "select-name",
     wcag: ["4.1.2"],
-    kwcag: ["7.4.1"],
+    kwcag: ["labels-for-inputs"],
     level: "A",
     title: { ko: "select 요소에 접근 가능한 이름이 없습니다", en: "Select elements must have an accessible name" },
     guide: {
@@ -582,7 +582,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "label-title-only",
     wcag: [],
-    kwcag: ["7.4.1"],
+    kwcag: ["labels-for-inputs"],
     level: "BP",
     title: { ko: "title 속성만으로 레이블을 제공하고 있습니다", en: "Form elements should have a visible label" },
     guide: {
@@ -593,7 +593,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "form-field-multiple-labels",
     wcag: ["3.3.2"],
-    kwcag: ["7.4.1"],
+    kwcag: ["labels-for-inputs"],
     level: "BP",
     title: { ko: "하나의 입력에 여러 label이 연결되었습니다", en: "Form fields should not have multiple labels" },
     guide: {
@@ -604,7 +604,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "autocomplete-valid",
     wcag: ["1.3.5"],
-    kwcag: ["7.4.4"],
+    kwcag: ["redundant-entry"],
     level: "AA",
     title: { ko: "autocomplete 속성 값이 올바르지 않습니다", en: "autocomplete attribute must be valid" },
     guide: {
@@ -613,11 +613,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 버튼·컨트롤 이름 (KWCAG 7.4.1 / 8.2.1) ─────────
+  // ───────── 버튼·컨트롤 이름 (KWCAG 검사항목 29 / 33) ─────────
   {
     ruleId: "button-name",
     wcag: ["4.1.2"],
-    kwcag: ["7.4.1", "6.5.3"],
+    kwcag: ["labels-for-inputs", "label-in-name"],
     level: "A",
     title: { ko: "버튼에 인식 가능한 텍스트가 없습니다", en: "Buttons must have discernible text" },
     guide: {
@@ -628,7 +628,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "input-button-name",
     wcag: ["4.1.2"],
-    kwcag: ["7.4.1"],
+    kwcag: ["labels-for-inputs"],
     level: "A",
     title: { ko: "input 버튼에 텍스트가 없습니다", en: "Input buttons must have discernible text" },
     guide: {
@@ -639,7 +639,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "summary-name",
     wcag: ["4.1.2"],
-    kwcag: ["7.4.1"],
+    kwcag: ["labels-for-inputs"],
     level: "A",
     title: { ko: "summary 요소에 접근 가능한 이름이 없습니다", en: "summary elements must have an accessible name" },
     guide: {
@@ -648,11 +648,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── 마크업 유효성 (KWCAG 8.1.1) ─────────
+  // ───────── 마크업 유효성 (KWCAG 검사항목 32) ─────────
   {
     ruleId: "duplicate-id-active",
     wcag: ["4.1.1"],
-    kwcag: ["8.1.1"],
+    kwcag: ["valid-markup"],
     level: "A",
     title: { ko: "조작 가능한 요소의 id가 중복됩니다", en: "IDs of active elements must be unique" },
     guide: {
@@ -663,7 +663,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "duplicate-id-aria",
     wcag: ["4.1.1"],
-    kwcag: ["8.1.1"],
+    kwcag: ["valid-markup"],
     level: "A",
     title: { ko: "ARIA가 참조하는 id가 중복됩니다", en: "IDs used in ARIA must be unique" },
     guide: {
@@ -672,11 +672,11 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
     },
   },
 
-  // ───────── ARIA (KWCAG 8.2.1) ─────────
+  // ───────── ARIA (KWCAG 검사항목 33) ─────────
   {
     ruleId: "aria-allowed-attr",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "해당 role에 허용되지 않는 ARIA 속성이 있습니다", en: "ARIA attributes must be allowed for the element's role" },
     guide: {
@@ -687,7 +687,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-required-attr",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "role에 필수인 ARIA 속성이 누락되었습니다", en: "Required ARIA attributes must be provided" },
     guide: {
@@ -698,7 +698,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-required-children",
     wcag: ["1.3.1"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "role에 필수인 자식 요소가 없습니다", en: "Certain ARIA roles must contain particular children" },
     guide: {
@@ -709,7 +709,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-required-parent",
     wcag: ["1.3.1"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "role에 필수인 부모 요소가 없습니다", en: "Certain ARIA roles must be contained by particular parents" },
     guide: {
@@ -720,7 +720,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-roles",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "존재하지 않는 role 값을 사용하고 있습니다", en: "ARIA roles must be valid" },
     guide: {
@@ -731,7 +731,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-valid-attr",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "존재하지 않는 ARIA 속성을 사용하고 있습니다", en: "ARIA attributes must be valid names" },
     guide: {
@@ -742,7 +742,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-valid-attr-value",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "ARIA 속성 값이 올바르지 않습니다", en: "ARIA attributes must have valid values" },
     guide: {
@@ -753,7 +753,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-hidden-body",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "body에 aria-hidden이 지정되어 있습니다", en: "aria-hidden must not be on the document body" },
     guide: {
@@ -764,7 +764,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-hidden-focus",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "aria-hidden 요소 안에 초점 가능한 요소가 있습니다", en: "aria-hidden elements must not contain focusable elements" },
     guide: {
@@ -775,7 +775,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-input-field-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1", "7.4.1"],
+    kwcag: ["aria-accessibility", "labels-for-inputs"],
     level: "A",
     title: { ko: "ARIA 입력 필드에 접근 가능한 이름이 없습니다", en: "ARIA input fields must have an accessible name" },
     guide: {
@@ -786,7 +786,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-toggle-field-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1", "7.4.1"],
+    kwcag: ["aria-accessibility", "labels-for-inputs"],
     level: "A",
     title: { ko: "ARIA 토글 필드에 접근 가능한 이름이 없습니다", en: "ARIA toggle fields must have an accessible name" },
     guide: {
@@ -797,7 +797,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-command-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "ARIA 버튼·링크·메뉴항목에 이름이 없습니다", en: "ARIA commands must have an accessible name" },
     guide: {
@@ -808,7 +808,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-meter-name",
     wcag: ["1.1.1"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "meter 요소에 접근 가능한 이름이 없습니다", en: "ARIA meter nodes must have an accessible name" },
     guide: { ko: "`role=\"meter\"`가 무엇을 측정하는지 aria-label로 알려주세요 (예: \"저장 공간 사용량\").", en: "Label what the meter measures." },
@@ -816,7 +816,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-progressbar-name",
     wcag: ["1.1.1"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "진행 표시줄에 접근 가능한 이름이 없습니다", en: "ARIA progressbar nodes must have an accessible name" },
     guide: { ko: "`role=\"progressbar\"`가 어떤 작업의 진행률인지 aria-label로 알려주세요 (예: \"파일 업로드 진행률\").", en: "Label what the progressbar tracks." },
@@ -824,7 +824,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-tooltip-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "툴팁 요소에 접근 가능한 이름이 없습니다", en: "ARIA tooltip nodes must have an accessible name" },
     guide: { ko: "`role=\"tooltip\"` 요소에 내용 텍스트를 제공하세요.", en: "Tooltips need text content." },
@@ -832,7 +832,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-tab-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "탭에 접근 가능한 이름이 없습니다", en: "ARIA tab nodes must have an accessible name" },
     guide: {
@@ -843,7 +843,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-dialog-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "BP",
     title: { ko: "다이얼로그에 접근 가능한 이름이 없습니다", en: "ARIA dialog nodes must have an accessible name" },
     guide: {
@@ -854,7 +854,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-text",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "BP",
     title: { ko: "role=text 안에 초점 가능한 요소가 있습니다", en: "role=text must not contain focusable descendants" },
     guide: { ko: "`role=\"text\"`는 자식의 의미를 모두 제거합니다. 내부에 링크·버튼이 있다면 role을 제거하세요.", en: "Remove role=text when it contains focusable children." },
@@ -862,7 +862,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-treeitem-name",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "BP",
     title: { ko: "트리 항목에 접근 가능한 이름이 없습니다", en: "ARIA treeitem nodes must have an accessible name" },
     guide: { ko: "`role=\"treeitem\"` 요소에 텍스트 또는 aria-label을 제공하세요.", en: "Name treeitem nodes." },
@@ -870,7 +870,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-conditional-attr",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "요소 상태와 맞지 않는 ARIA 속성이 있습니다", en: "ARIA attributes must be used as specified for the element's state" },
     guide: { ko: "예: 네이티브 `<input type=\"checkbox\">`에 `aria-checked`를 중복 지정하면 실제 상태와 어긋날 수 있습니다. 네이티브 상태를 그대로 쓰고 중복 ARIA를 제거하세요.", en: "Remove ARIA that duplicates or contradicts native element state." },
@@ -878,7 +878,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-deprecated-role",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "BP",
     title: { ko: "폐기된 ARIA role을 사용하고 있습니다", en: "Deprecated ARIA roles must not be used" },
     guide: { ko: "`directory` 등 폐기된 role은 최신 명세의 대체 role로 교체하세요.", en: "Replace deprecated roles with current equivalents." },
@@ -886,7 +886,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-prohibited-attr",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "해당 요소에 금지된 ARIA 속성이 있습니다", en: "ARIA attributes must not be prohibited for the role" },
     guide: { ko: "예: 일반 `<div>`(role 없음)에는 `aria-label`이 효과가 없습니다. 적절한 role을 부여하거나 다른 방식으로 이름을 제공하세요.", en: "Add an appropriate role or remove the prohibited attribute." },
@@ -894,7 +894,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-braille-equivalent",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "A",
     title: { ko: "점자 레이블에 대응하는 일반 레이블이 없습니다", en: "aria-braille attributes require a non-braille equivalent" },
     guide: { ko: "`aria-braillelabel`을 쓰려면 일반 `aria-label`(또는 접근 가능한 이름)이 먼저 있어야 합니다.", en: "Provide a standard accessible name alongside braille attributes." },
@@ -902,7 +902,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "presentation-role-conflict",
     wcag: ["4.1.2"],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "BP",
     title: { ko: "presentation role이 다른 속성과 충돌합니다", en: "presentation role conflicts with other attributes" },
     guide: { ko: "`role=\"presentation\"`(또는 none) 요소에 tabindex나 aria 속성이 있으면 role이 무시됩니다. 장식용이면 다른 속성을 제거하고, 의미가 있다면 presentation role을 제거하세요.", en: "Remove conflicting attributes or the presentation role." },
@@ -910,7 +910,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "aria-allowed-role",
     wcag: [],
-    kwcag: ["8.2.1"],
+    kwcag: ["aria-accessibility"],
     level: "BP",
     title: { ko: "요소에 허용되지 않는 role이 지정되었습니다", en: "ARIA role should be appropriate for the element" },
     guide: { ko: "예: `<li role=\"button\">`처럼 요소 의미와 어긋나는 role은 혼란을 만듭니다. 가능하면 시맨틱 요소(`<button>`)를 직접 사용하세요.", en: "Prefer native semantic elements over conflicting roles." },
@@ -955,7 +955,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "region",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "랜드마크에 포함되지 않은 콘텐츠가 있습니다", en: "All content should be contained by landmarks" },
     guide: {
@@ -966,7 +966,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-one-main",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "main 랜드마크가 없거나 여러 개입니다", en: "Page should have exactly one main landmark" },
     guide: { ko: "페이지의 핵심 콘텐츠를 감싸는 `<main>`을 정확히 하나 제공하세요.", en: "Provide exactly one main element." },
@@ -974,7 +974,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-unique",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "같은 종류의 랜드마크를 구별할 수 없습니다", en: "Landmarks should be unique" },
     guide: { ko: "`<nav>`가 여러 개면 `aria-label`로 구별하세요 (예: \"주 메뉴\", \"페이지 내 목차\").", en: "Differentiate repeated landmarks with aria-label." },
@@ -982,7 +982,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-no-duplicate-banner",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "banner 랜드마크가 여러 개입니다", en: "Page should not have more than one banner landmark" },
     guide: { ko: "최상위 `<header>`(banner)는 페이지에 하나만 두세요.", en: "Keep a single top-level header." },
@@ -990,7 +990,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-no-duplicate-contentinfo",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "contentinfo 랜드마크가 여러 개입니다", en: "Page should not have more than one contentinfo landmark" },
     guide: { ko: "최상위 `<footer>`(contentinfo)는 페이지에 하나만 두세요.", en: "Keep a single top-level footer." },
@@ -998,7 +998,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-no-duplicate-main",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "main 랜드마크가 여러 개입니다", en: "Page should not have more than one main landmark" },
     guide: { ko: "핵심 콘텐츠 영역인 `<main>`은 페이지에 하나만 두세요. 여러 개면 스크린 리더 사용자가 어디가 본문인지 판단할 수 없습니다.", en: "Keep a single main element per page." },
@@ -1006,7 +1006,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-main-is-top-level",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "main 랜드마크가 다른 랜드마크 안에 있습니다", en: "Main landmark should not be contained in another landmark" },
     guide: { ko: "`<main>`은 `<header>`·`<nav>`·`<aside>` 같은 다른 랜드마크 안이 아니라 최상위에 두세요. 중첩되면 영역 단위 이동에서 본문을 건너뛰게 됩니다.", en: "Place main at the top level, not nested inside another landmark." },
@@ -1014,7 +1014,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-banner-is-top-level",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "banner 랜드마크가 다른 랜드마크 안에 있습니다", en: "Banner landmark should not be contained in another landmark" },
     guide: { ko: "사이트 머리말인 `<header>`(banner)는 최상위에 두세요. `<main>`이나 `<article>` 안의 `<header>`는 banner가 아니라 그 구역의 머리말입니다.", en: "Place the site header at the top level." },
@@ -1022,7 +1022,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "landmark-contentinfo-is-top-level",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "contentinfo 랜드마크가 다른 랜드마크 안에 있습니다", en: "Contentinfo landmark should not be contained in another landmark" },
     guide: { ko: "사이트 꼬리말인 `<footer>`(contentinfo)는 최상위에 두세요. 다른 랜드마크 안에 있으면 꼬리말로 인식되지 않습니다.", en: "Place the site footer at the top level." },
@@ -1030,7 +1030,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "duplicate-banner",
     wcag: [],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "BP",
     title: { ko: "banner 영역이 중복되었습니다", en: "Banner landmark duplicated" },
     guide: { ko: "최상위 header는 하나만 유지하세요.", en: "Keep one banner landmark." },
@@ -1059,7 +1059,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:keyboard-clickable",
     wcag: ["2.1.1"],
-    kwcag: ["6.1.1"],
+    kwcag: ["keyboard-accessible"],
     level: "A",
     title: { ko: "클릭은 되지만 키보드로 조작할 수 없는 요소가 있습니다", en: "Clickable element is not keyboard operable" },
     guide: {
@@ -1070,7 +1070,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:focus-visible",
     wcag: ["2.4.7"],
-    kwcag: ["6.1.2"],
+    kwcag: ["focus-order-and-visibility"],
     level: "AA",
     title: { ko: "키보드 초점 표시가 보이지 않을 수 있습니다", en: "Keyboard focus indicator may not be visible" },
     guide: {
@@ -1081,7 +1081,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:page-title-unique",
     wcag: ["2.4.2"],
-    kwcag: ["6.4.2"],
+    kwcag: ["page-frame-and-content-titles"],
     level: "A",
     title: { ko: "여러 페이지의 제목이 모두 동일합니다", en: "Multiple pages share the same title" },
     guide: {
@@ -1114,7 +1114,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:alt-quality",
     wcag: ["1.1.1"],
-    kwcag: ["5.1.1"],
+    kwcag: ["alternative-text"],
     level: "A",
     title: { ko: "대체 텍스트가 파일명이거나 의미 없는 값입니다", en: "Alt text is a filename or meaningless value" },
     guide: {
@@ -1125,7 +1125,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:autoplay",
     wcag: ["1.4.2"],
-    kwcag: ["5.4.2"],
+    kwcag: ["no-auto-play"],
     level: "A",
     title: { ko: "소리가 자동으로 재생됩니다", en: "Audio plays automatically" },
     guide: {
@@ -1136,7 +1136,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:link-text",
     wcag: ["2.4.4"],
-    kwcag: ["6.4.3"],
+    kwcag: ["meaningful-link-text"],
     level: "A",
     title: { ko: "링크 텍스트만으로 목적을 알기 어렵습니다", en: "Link text may not describe its purpose" },
     guide: {
@@ -1147,7 +1147,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:target-size",
     wcag: ["2.5.8"],
-    kwcag: ["6.1.3"],
+    kwcag: ["target-size"],
     level: "AA",
     title: { ko: "클릭·터치 대상이 24×24px보다 작습니다", en: "Target smaller than 24×24 px" },
     guide: {
@@ -1158,7 +1158,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:skip-link",
     wcag: ["2.4.1"],
-    kwcag: ["6.4.1"],
+    kwcag: ["skip-repeated-blocks"],
     level: "A",
     title: { ko: "반복 영역을 건너뛰는 링크가 없습니다", en: "No skip-to-content link found" },
     guide: {
@@ -1169,7 +1169,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:captions-track",
     wcag: ["1.2.2"],
-    kwcag: ["5.2.1"],
+    kwcag: ["captions-for-multimedia"],
     level: "A",
     title: { ko: "동영상에 자막 트랙이 없습니다", en: "Video has no captions track" },
     guide: {
@@ -1180,7 +1180,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:markup-validity",
     wcag: ["4.1.1"],
-    kwcag: ["8.1.1"],
+    kwcag: ["valid-markup"],
     level: "A",
     title: { ko: "마크업 구조 오류가 있습니다", en: "Markup has structural errors" },
     guide: {
@@ -1191,7 +1191,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:duplicate-id",
     wcag: ["4.1.1"],
-    kwcag: ["8.1.1"],
+    kwcag: ["valid-markup"],
     level: "A",
     title: { ko: "문서 안에서 id가 중복됩니다", en: "Duplicate ids in the document" },
     guide: {
@@ -1202,7 +1202,7 @@ export const RULE_CATALOG: RuleCatalogEntry[] = [
   {
     ruleId: "a11ychk:new-window",
     wcag: ["3.2.2"],
-    kwcag: ["7.2.1"],
+    kwcag: ["no-change-of-context-without-request"],
     level: "A",
     title: { ko: "새 창으로 열리는 링크에 안내가 없습니다", en: "Link opens a new window without notice" },
     guide: {
