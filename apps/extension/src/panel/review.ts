@@ -1,15 +1,16 @@
 // ─── 수동 점검 · 전문가 판정 (WCAG 성공기준 축 — 검사 방법은 대응 KWCAG 항목에서) ───
 import {
-  KWCAG_BY_ID,
   KWCAG_PRINCIPLE_LABEL,
   getKwcagOnlyManualItems,
   getManualChecksByWcag,
+  kwcagNoLabel,
+  migrateReviewKeys,
   type LocalizedText,
 } from "@a11ychk/core/catalog";
 import { normalizeUrlKey } from "../scan-cache";
 import { buildGuidedSteps } from "../guided";
 import { announce } from "../ui";
-import { msg, pick } from "../i18n";
+import { isEnglish, msg, pick } from "../i18n";
 import { $ } from "./state";
 import { toggleManualHighlight } from "./tools";
 
@@ -30,37 +31,15 @@ const VERDICTS: { value: Verdict; labelKey: string }[] = [
 // 판정 저장 키용 URL 정규화 — 캐시 키와 동일 규칙 공유 (scan-cache.ts)
 const reviewKey = (url: string) => `review:${normalizeUrlKey(url)}`;
 
-/**
- * 레거시(KWCAG 항목 키, 5~8.x.x) 판정을 대응 WCAG SC 키로 팬아웃 변환한다.
- * 순수 함수·멱등: 이미 SC 키가 있으면 건너뛰고(신규 판정 우선), 변환된 원본 키는
- * 삭제한다. KWCAG 고유 항목(5.4.3·6.4.4 — 대응 SC 없음)은 그대로 유지.
- * (키 공간이 겹치지 않아 — KWCAG 5~8.x.x vs WCAG 1~4.x.x — 충돌이 없다)
- */
-export function migrateLegacyReviews(map: ReviewMap): { map: ReviewMap; changed: boolean } {
-  let changed = false;
-  const out: ReviewMap = { ...map };
-  for (const [key, entry] of Object.entries(map)) {
-    const item = /^[5-8]\./.test(key) ? KWCAG_BY_ID.get(key) : undefined;
-    if (!item) continue;
-    const scs = item.wcag.filter((sc) => /^[1-4]\./.test(sc));
-    if (scs.length === 0) continue; // KWCAG 고유 항목 — 유지
-    for (const sc of scs) {
-      if (!out[sc]) {
-        out[sc] = { ...entry };
-        changed = true;
-      }
-    }
-    delete out[key];
-    changed = true;
-  }
-  return { map: out, changed };
-}
+/** 화면 표기 로케일 — 번호 이름표(「검사항목 9」)에 쓴다 */
+const uiLocale = () => (isEnglish() ? "en" : "ko");
 
 export async function getReviewState(url: string): Promise<ReviewMap> {
   const key = reviewKey(url);
   const stored = await chrome.storage.local.get(key);
   const raw = (stored[key] as ReviewMap | undefined) ?? {};
-  const { map, changed } = migrateLegacyReviews(raw);
+  // 옛 a11ychk 번호 키(5~8.x.x)를 SC 키·슬러그 키로 옮긴다 — 규칙과 테스트는 core migrateReviewKeys
+  const { map, changed } = migrateReviewKeys(raw);
   if (changed) await chrome.storage.local.set({ [key]: map });
   return map;
 }
@@ -91,12 +70,14 @@ const SC_HIGHLIGHT: Record<string, { selector: string; labelKey: string }> = {
 
 /** 체크리스트 렌더 단위 — WCAG SC 파생 항목과 KWCAG 고유 항목을 공통 형태로 */
 interface ChecklistEntry {
-  /** 판정 저장 키 — SC 번호 또는 KWCAG 고유 항목 번호 */
+  /** 저장 키 — WCAG SC 번호 또는 KWCAG 고유 항목의 슬러그 */
   id: string;
+  /** 화면·스크린 리더에 보이는 번호 — SC 번호 또는 「검사항목 9」 */
+  label: string;
   name: LocalizedText;
   /** A/AA — KWCAG 고유 항목은 없음 */
   level?: string;
-  /** "7.3.1 콘텐츠의 선형구조" 형태 KWCAG 대응 표기 */
+  /** "검사항목 3 표의 구성" 형태 KWCAG 대응 표기 */
   kwcagRef?: string;
   howToTests: LocalizedText[];
   highlight?: { selector: string; labelKey: string };
@@ -109,9 +90,10 @@ function buildChecklist(): ChecklistEntry[] {
   for (const c of getManualChecksByWcag()) {
     entries.push({
       id: c.scId,
+      label: c.scId,
       name: c.name,
       level: c.level,
-      kwcagRef: c.sources.map((s) => `${s.kwcagId} ${pick(s.name)}`).join(" · "),
+      kwcagRef: c.sources.map((s) => `${kwcagNoLabel(s, uiLocale())} ${pick(s.name)}`).join(" · "),
       howToTests: c.sources.map((s) => s.howToTest).filter((h): h is LocalizedText => !!h),
       highlight: SC_HIGHLIGHT[c.scId],
       groupLabel: pick(KWCAG_PRINCIPLE_LABEL[c.principle]),
@@ -119,7 +101,8 @@ function buildChecklist(): ChecklistEntry[] {
   }
   for (const item of getKwcagOnlyManualItems()) {
     entries.push({
-      id: item.id,
+      id: item.slug,
+      label: kwcagNoLabel(item, uiLocale()),
       name: item.name,
       howToTests: item.howToTest ? [item.howToTest] : [],
       groupLabel: msg("manualGroupKwcagOnly"),
@@ -134,23 +117,23 @@ export const manualView = { undoneOnly: false };
 /** 판정 저장·해제 공통 처리 — 저장 + 버튼 상태 동기화 + SR 고지 + 진행률 갱신 */
 async function applyVerdict(
   url: string,
-  itemId: string,
+  entry: ChecklistEntry,
   // 판정 버튼이 든 범위 — 상단 라디오와 가이드형 예/아니오 버튼이 별도 서브트리라
   // 항목 전체(li)를 넘겨 양쪽 aria-pressed를 함께 맞춘다.
   scope: HTMLElement,
   value: Verdict | undefined,
 ) {
-  if (value) await setReview(url, itemId, { outcome: value });
+  if (value) await setReview(url, entry.id, { outcome: value });
   else {
     const cur = await getReviewState(url);
-    delete cur[itemId];
+    delete cur[entry.id];
     await chrome.storage.local.set({ [reviewKey(url)]: cur });
   }
   scope.querySelectorAll(".verdict").forEach((b) => b.setAttribute("aria-pressed", "false"));
   if (value) {
     scope.querySelectorAll(`.verdict.v-${value}`).forEach((b) => b.setAttribute("aria-pressed", "true"));
   }
-  announce(value ? msg("srVerdictSaved", [itemId]) : msg("srVerdictCleared", [itemId]));
+  announce(value ? msg("srVerdictSaved", [entry.label]) : msg("srVerdictCleared", [entry.label]));
   await updateManualProgress(url);
 }
 
@@ -192,8 +175,9 @@ export async function renderManual(url: string) {
     head.className = "ri-head";
     const mid = document.createElement("span");
     mid.className = "mid";
-    mid.textContent = entry.id;
-    head.append(mid, document.createTextNode(pick(entry.name)));
+    mid.textContent = entry.label;
+    // 번호와 이름 사이가 CSS 여백뿐이면 DOM 텍스트가 붙어 읽히므로(「검사항목 9콘텐츠…」) 공백 문자를 둔다
+    head.append(mid, document.createTextNode(` ${pick(entry.name)}`));
     if (entry.level) {
       const lv = document.createElement("span");
       lv.className = "ri-level";
@@ -227,7 +211,7 @@ export async function renderManual(url: string) {
       btn.setAttribute("aria-pressed", String(reviews[entry.id]?.outcome === v.value));
       btn.addEventListener("click", async () => {
         const already = btn.getAttribute("aria-pressed") === "true";
-        await applyVerdict(url, entry.id, li, already ? undefined : v.value);
+        await applyVerdict(url, entry, li, already ? undefined : v.value);
       });
       group.appendChild(btn);
     }
@@ -282,7 +266,7 @@ export async function renderManual(url: string) {
         b.textContent = msg(labelKey);
         b.setAttribute("aria-pressed", String(reviews[entry.id]?.outcome === value));
         b.addEventListener("click", async () => {
-          await applyVerdict(url, entry.id, li, value);
+          await applyVerdict(url, entry, li, value);
           guide.open = false;
         });
         return b;

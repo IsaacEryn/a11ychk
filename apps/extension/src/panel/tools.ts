@@ -1,5 +1,5 @@
 // ─── 시각 도구 컨트롤러 (패널 측 상태 + 주입 실행) ───
-import type { Impact } from "@a11ychk/core/catalog";
+import { KWCAG_BY_SLUG, kwcagNoLabel, type Impact } from "@a11ychk/core/catalog";
 import {
   applySimulationInPage,
   clearOverlayInPage,
@@ -11,11 +11,11 @@ import {
   overlayTargetSizeInPage,
 } from "../injected";
 import { announce } from "../ui";
-import { msg } from "../i18n";
+import { isEnglish, msg } from "../i18n";
 import * as log from "../log";
 import { $, getActiveTab, state } from "./state";
 import { impactLabel } from "./render";
-import { renderManual, setReview, type Verdict } from "./review";
+import { getReviewState, renderManual, setReview, type Verdict } from "./review";
 import { exportAiFix } from "./save";
 import { wireContrastPicker } from "./contrast";
 
@@ -102,7 +102,7 @@ async function setStructView(kind: StructKind, on: boolean) {
   } else {
     await clearOverlayView();
   }
-  // 초점 순서 오버레이가 실제로 켜진 동안만 6.1.2 판정 카드 노출 (확인→판정 즉시 기입)
+  // 초점 순서 오버레이가 실제로 켜진 동안만 초점 순서 판정 카드 노출 (확인→판정 즉시 기입)
   const focusShown = kind === "focus" && toolState.currentView === "focus";
   $("focusJudge").hidden = !focusShown;
   if (focusShown) $("focusJudgeMsg").textContent = "";
@@ -139,15 +139,28 @@ async function clearAll() {
   syncToolButtons();
 }
 
-/** 초점 순서 판정 카드 배선 — 답변을 KWCAG 6.1.2 판정으로 저장 (체크리스트와 동일 저장소) */
+/**
+ * 초점 순서 판정 카드 배선 — 답변을 초점 순서(2.4.3) 판정으로 저장한다 (체크리스트와 동일 저장소).
+ * KWCAG 검사항목 11(초점 이동과 표시)의 나머지 대응 SC(2.4.7·2.4.11)는 판정이 아직 없을 때만 같은 답으로 채운다.
+ */
 export function wireFocusJudge() {
+  const focusItem = KWCAG_BY_SLUG.get("focus-order-and-visibility")!;
+  const FOCUS_ORDER_SC = "2.4.3";
   const decide = (outcome: Verdict) => async () => {
     const tab = await getActiveTab();
     const url = tab?.url ?? "";
     if (!/^https?:/.test(url)) return;
-    await setReview(url, "6.1.2", { outcome });
+    // SC 키에 바로 쓴다. 예전처럼 KWCAG 키(6.1.2)로 쓰면 다음 읽기 때 SC로 옮기면서, SC 판정이 이미
+    // 있으면 건너뛰고 KWCAG 키를 지워서 두 번째 판정부터 반영되지 않았다.
+    // 카드가 묻는 것은 초점 순서(2.4.3)뿐이라 2.4.3만 늘 최신 답으로 덮는다. 보이는 초점(2.4.7)·초점 가림 방지(2.4.11)는
+    // 아직 판정이 없을 때만 채운다(예전 동작) — 점검자가 따로 낸 판정을 이 카드가 뒤집지 않게
+    const cur = await getReviewState(url);
+    for (const sc of focusItem.wcag) {
+      if (sc !== FOCUS_ORDER_SC && cur[sc]) continue;
+      await setReview(url, sc, { outcome });
+    }
     $("focusJudgeMsg").textContent = msg("focusJudgeSaved");
-    announce(msg("srVerdictSaved", ["6.1.2"]));
+    announce(msg("srVerdictSaved", [kwcagNoLabel(focusItem, isEnglish() ? "en" : "ko")]));
     // 검사 탭 체크리스트에 즉시 반영
     await renderManual(url);
   };
