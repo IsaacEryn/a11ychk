@@ -22,13 +22,58 @@ export interface RuleCatalogEntry {
   guide: LocalizedText;
 }
 
+/**
+ * KWCAG 항목의 고정 식별자 — 공개 URL(/guide/{slug})이자 저장·전송 키.
+ * 번호(ksNo·serial)와 달리 표준이 개정돼도 바꾸지 않는다. 일련번호 순.
+ */
+export type KwcagSlug =
+  | "alternative-text"
+  | "captions-for-multimedia"
+  | "table-structure"
+  | "meaningful-sequence"
+  | "clear-instructions"
+  | "content-not-relying-on-color-alone"
+  | "no-auto-play"
+  | "text-contrast"
+  | "distinguishable-content"
+  | "keyboard-accessible"
+  | "focus-order-and-visibility"
+  | "target-size"
+  | "character-key-shortcuts"
+  | "adjustable-time-limits"
+  | "pause-stop-hide"
+  | "no-flashing-content"
+  | "skip-repeated-blocks"
+  | "page-frame-and-content-titles"
+  | "meaningful-link-text"
+  | "consistent-reference-locators"
+  | "single-pointer-gestures"
+  | "pointer-cancellation"
+  | "label-in-name"
+  | "motion-actuation"
+  | "language-of-page"
+  | "no-change-of-context-without-request"
+  | "consistent-help"
+  | "error-identification"
+  | "labels-for-inputs"
+  | "accessible-authentication"
+  | "redundant-entry"
+  | "valid-markup"
+  | "aria-accessibility";
+
 export type KwcagPrinciple = "perceivable" | "operable" | "understandable" | "robust";
 
 /** 자동 검사 커버리지: full = 자동으로 판정 가능, partial = 일부만, none = 수동 검사 필수 */
 export type AutoCoverage = "full" | "partial" | "none";
 
 export interface KwcagItem {
-  /** 검사항목 번호 (KWCAG 2.2 / KS X OT0003), 예: "5.1.1" */
+  /** 고정 식별자 (KwcagSlug 참고) */
+  slug: KwcagSlug;
+  /** KS X OT0003:2022 검사항목 번호, 예: "5.4.3" — 표시용. 표준 개정 때 바뀔 수 있다 */
+  ksNo: string;
+  /** 웹 접근성 품질인증 심사 일련번호 1~33 — 표시·정렬용 */
+  serial: number;
+  /** @deprecated 옛 a11ychk 번호(2026-10 이전). 이전 작업이 끝나면 지운다 — 새 코드는 slug를 쓴다 */
   id: string;
   principle: KwcagPrinciple;
   name: LocalizedText;

@@ -1,5 +1,14 @@
 /**
- * KWCAG 2.2 (한국형 웹 콘텐츠 접근성 지침 2.2, KS X OT0003) 검사항목 33개.
+ * KWCAG 2.2 (한국형 웹 콘텐츠 접근성 지침 2.2, KS X OT0003:2022) 검사항목 33개.
+ *
+ * 순서·번호·이름·원칙은 표준 원문을 따른다 — 방송통신표준심의회 2022-12-28 개정본,
+ * 국립전파연구원 방송통신표준자료실 게시
+ * (https://www.rra.go.kr/ko/reference/kcsList_view.do?nb_seq=5247&nb_type=6).
+ * - slug: 항목의 고정 식별자(공개 URL·저장 키). 바꾸지 않는다.
+ * - ksNo: 표준 본문의 검사항목 번호(5.1.1~8.2.1). 표시용.
+ * - serial: 웹 접근성 품질인증 심사의 일련번호(1~33, 같은 순서). 표시·정렬용.
+ *   (한국지능정보사회진흥원 「웹 접근성 품질인증 표준심사 지침」, 2024. 10.)
+ * 2026-10 이전 a11ychk는 자체 번호를 썼다 — 옛 번호 해석은 kwcagLegacy.ts.
  *
  * autoCoverage:
  *  - full    : 자동 도구(axe-core)로 판정 가능한 부분이 항목의 핵심을 대부분 커버
@@ -10,10 +19,14 @@
  * 자동 검사의 한계 고지가 함께 출력된다.
  */
 import type { KwcagItem } from "../types";
+import { pickLocale } from "../util/locale";
 
 export const KWCAG_ITEMS: KwcagItem[] = [
   // ─── 원칙 1. 인식의 용이성 (Perceivable) ───
   {
+    slug: "alternative-text",
+    ksNo: "5.1.1",
+    serial: 1,
     id: "5.1.1",
     principle: "perceivable",
     name: { ko: "적절한 대체 텍스트 제공", en: "Appropriate alternative text" },
@@ -25,6 +38,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "captions-for-multimedia",
+    ksNo: "5.2.1",
+    serial: 2,
     id: "5.2.1",
     principle: "perceivable",
     name: { ko: "자막 제공", en: "Captions for multimedia" },
@@ -36,17 +52,37 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
-    id: "5.3.1",
+    slug: "table-structure",
+    ksNo: "5.3.1",
+    serial: 3,
+    id: "7.3.2",
     principle: "perceivable",
-    name: { ko: "색에 무관한 콘텐츠 인식", en: "Content not relying on color alone" },
-    wcag: ["1.4.1"],
+    name: { ko: "표의 구성", en: "Table structure" },
+    wcag: ["1.3.1"],
     autoCoverage: "partial",
     howToTest: {
-      ko: "페이지를 흑백(그레이스케일)으로 바꿔 보고, 색만으로 구분되는 정보(필수 입력 표시, 그래프 범례, 링크 구분, 오류 표시 등)가 있는지 확인하세요. 색 외에 패턴·굵기·밑줄·텍스트 등 다른 시각 단서가 함께 제공되어야 합니다.",
-      en: "View the page in grayscale and check whether any information is conveyed by color alone.",
+      ko: "데이터 표에 caption 또는 요약이 제공되고 제목 셀(th)과 데이터 셀(td)이 구분되는지는 자동 검사되지만, 복잡한 표의 헤더 연결(scope, headers)이 의미상 올바른지는 스크린 리더로 셀을 탐색하며 확인하세요.",
+      en: "Verify captions and header cells exist (automated) and header associations read correctly in a screen reader.",
     },
   },
   {
+    slug: "meaningful-sequence",
+    ksNo: "5.3.2",
+    serial: 4,
+    id: "7.3.1",
+    principle: "perceivable",
+    name: { ko: "콘텐츠의 선형구조", en: "Meaningful sequence" },
+    wcag: ["1.3.1", "1.3.2"],
+    autoCoverage: "partial",
+    howToTest: {
+      ko: "CSS를 끄거나 스크린 리더로 읽었을 때 콘텐츠가 논리적 순서로 제공되는지 확인하세요. 시각적 배치(position, order 등)로만 순서를 만든 경우 실제 DOM 순서가 뒤섞여 있을 수 있습니다.",
+      en: "Disable CSS or use a screen reader to verify the content order is logical.",
+    },
+  },
+  {
+    slug: "clear-instructions",
+    ksNo: "5.3.3",
+    serial: 5,
     id: "5.3.2",
     principle: "perceivable",
     name: { ko: "명확한 지시사항 제공", en: "Clear instructions" },
@@ -58,17 +94,23 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
-    id: "5.4.1",
+    slug: "content-not-relying-on-color-alone",
+    ksNo: "5.4.1",
+    serial: 6,
+    id: "5.3.1",
     principle: "perceivable",
-    name: { ko: "텍스트 콘텐츠의 명도 대비", en: "Text contrast" },
-    wcag: ["1.4.3"],
+    name: { ko: "색에 무관한 콘텐츠 인식", en: "Content not relying on color alone" },
+    wcag: ["1.4.1"],
     autoCoverage: "partial",
     howToTest: {
-      ko: "대부분 자동으로 검사되지만, 이미지 안의 텍스트, 그라데이션·배경 이미지 위 텍스트, 마우스 오버/포커스 상태의 대비는 자동 도구가 판정하지 못할 수 있습니다. 명도 대비 4.5:1 이상(18pt 이상 큰 텍스트는 3:1)을 색상 피커로 직접 확인하세요.",
-      en: "Automated checks cover most cases; manually verify text over images/gradients and hover/focus states meet 4.5:1 (3:1 for large text).",
+      ko: "페이지를 흑백(그레이스케일)으로 바꿔 보고, 색만으로 구분되는 정보(필수 입력 표시, 그래프 범례, 링크 구분, 오류 표시 등)가 있는지 확인하세요. 색 외에 패턴·굵기·밑줄·텍스트 등 다른 시각 단서가 함께 제공되어야 합니다.",
+      en: "View the page in grayscale and check whether any information is conveyed by color alone.",
     },
   },
   {
+    slug: "no-auto-play",
+    ksNo: "5.4.2",
+    serial: 7,
     id: "5.4.2",
     principle: "perceivable",
     name: { ko: "자동 재생 금지", en: "No auto-play" },
@@ -80,6 +122,23 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "text-contrast",
+    ksNo: "5.4.3",
+    serial: 8,
+    id: "5.4.1",
+    principle: "perceivable",
+    name: { ko: "텍스트 콘텐츠의 명도 대비", en: "Text contrast" },
+    wcag: ["1.4.3"],
+    autoCoverage: "partial",
+    howToTest: {
+      ko: "대부분 자동으로 검사되지만, 이미지 안의 텍스트, 그라데이션·배경 이미지 위 텍스트, 마우스 오버/포커스 상태의 대비는 자동 도구가 판정하지 못할 수 있습니다. 명도 대비 4.5:1 이상(18pt 이상 큰 텍스트는 3:1)을 색상 피커로 직접 확인하세요.",
+      en: "Automated checks cover most cases; manually verify text over images/gradients and hover/focus states meet 4.5:1 (3:1 for large text).",
+    },
+  },
+  {
+    slug: "distinguishable-content",
+    ksNo: "5.4.4",
+    serial: 9,
     id: "5.4.3",
     principle: "perceivable",
     name: { ko: "콘텐츠 간의 구분", en: "Distinguishable content" },
@@ -93,6 +152,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
 
   // ─── 원칙 2. 운용의 용이성 (Operable) ───
   {
+    slug: "keyboard-accessible",
+    ksNo: "6.1.1",
+    serial: 10,
     id: "6.1.1",
     principle: "operable",
     name: { ko: "키보드 사용 보장", en: "Keyboard accessible" },
@@ -104,6 +166,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "focus-order-and-visibility",
+    ksNo: "6.1.2",
+    serial: 11,
     id: "6.1.2",
     principle: "operable",
     name: { ko: "초점 이동과 표시", en: "Focus order and visibility" },
@@ -115,6 +180,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "target-size",
+    ksNo: "6.1.3",
+    serial: 12,
     id: "6.1.3",
     principle: "operable",
     name: { ko: "조작 가능", en: "Target size / operable controls" },
@@ -127,6 +195,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "character-key-shortcuts",
+    ksNo: "6.1.4",
+    serial: 13,
     id: "6.1.4",
     principle: "operable",
     name: { ko: "문자 단축키", en: "Character key shortcuts" },
@@ -139,6 +210,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "adjustable-time-limits",
+    ksNo: "6.2.1",
+    serial: 14,
     id: "6.2.1",
     principle: "operable",
     name: { ko: "응답시간 조절", en: "Adjustable time limits" },
@@ -150,6 +224,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "pause-stop-hide",
+    ksNo: "6.2.2",
+    serial: 15,
     id: "6.2.2",
     principle: "operable",
     name: { ko: "정지 기능 제공", en: "Pause, stop, hide" },
@@ -161,6 +238,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "no-flashing-content",
+    ksNo: "6.3.1",
+    serial: 16,
     id: "6.3.1",
     principle: "operable",
     name: { ko: "깜빡임과 번쩍임 사용 제한", en: "No flashing content" },
@@ -172,6 +252,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "skip-repeated-blocks",
+    ksNo: "6.4.1",
+    serial: 17,
     id: "6.4.1",
     principle: "operable",
     name: { ko: "반복 영역 건너뛰기", en: "Skip repeated blocks" },
@@ -183,6 +266,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "page-frame-and-content-titles",
+    ksNo: "6.4.2",
+    serial: 18,
     id: "6.4.2",
     principle: "operable",
     name: { ko: "제목 제공", en: "Page, frame, and content titles" },
@@ -194,6 +280,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "meaningful-link-text",
+    ksNo: "6.4.3",
+    serial: 19,
     id: "6.4.3",
     principle: "operable",
     name: { ko: "적절한 링크 텍스트", en: "Meaningful link text" },
@@ -205,6 +294,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "consistent-reference-locators",
+    ksNo: "6.4.4",
+    serial: 20,
     id: "6.4.4",
     principle: "operable",
     name: { ko: "고정된 참조 위치 정보", en: "Consistent reference locators (e-pub)" },
@@ -217,6 +309,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "single-pointer-gestures",
+    ksNo: "6.5.1",
+    serial: 21,
     id: "6.5.1",
     principle: "operable",
     name: { ko: "단일 포인터 입력 지원", en: "Single pointer gestures" },
@@ -229,6 +324,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "pointer-cancellation",
+    ksNo: "6.5.2",
+    serial: 22,
     id: "6.5.2",
     principle: "operable",
     name: { ko: "포인터 입력 취소", en: "Pointer cancellation" },
@@ -241,6 +339,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "label-in-name",
+    ksNo: "6.5.3",
+    serial: 23,
     id: "6.5.3",
     principle: "operable",
     name: { ko: "레이블과 네임", en: "Label in name" },
@@ -253,6 +354,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "motion-actuation",
+    ksNo: "6.5.4",
+    serial: 24,
     id: "6.5.4",
     principle: "operable",
     name: { ko: "동작기반 작동", en: "Motion actuation" },
@@ -267,6 +371,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
 
   // ─── 원칙 3. 이해의 용이성 (Understandable) ───
   {
+    slug: "language-of-page",
+    ksNo: "7.1.1",
+    serial: 25,
     id: "7.1.1",
     principle: "understandable",
     name: { ko: "기본 언어 표시", en: "Language of page" },
@@ -278,6 +385,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "no-change-of-context-without-request",
+    ksNo: "7.2.1",
+    serial: 26,
     id: "7.2.1",
     principle: "understandable",
     name: { ko: "사용자 요구에 따른 실행", en: "No change of context without request" },
@@ -289,6 +399,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "consistent-help",
+    ksNo: "7.2.2",
+    serial: 27,
     id: "7.2.2",
     principle: "understandable",
     name: { ko: "찾기 쉬운 도움 정보", en: "Consistent help" },
@@ -301,39 +414,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
-    id: "7.3.1",
-    principle: "understandable",
-    name: { ko: "콘텐츠의 선형구조", en: "Meaningful sequence" },
-    wcag: ["1.3.1", "1.3.2"],
-    autoCoverage: "partial",
-    howToTest: {
-      ko: "CSS를 끄거나 스크린 리더로 읽었을 때 콘텐츠가 논리적 순서로 제공되는지 확인하세요. 시각적 배치(position, order 등)로만 순서를 만든 경우 실제 DOM 순서가 뒤섞여 있을 수 있습니다.",
-      en: "Disable CSS or use a screen reader to verify the content order is logical.",
-    },
-  },
-  {
-    id: "7.3.2",
-    principle: "understandable",
-    name: { ko: "표의 구성", en: "Table structure" },
-    wcag: ["1.3.1"],
-    autoCoverage: "partial",
-    howToTest: {
-      ko: "데이터 표에 caption 또는 요약이 제공되고 제목 셀(th)과 데이터 셀(td)이 구분되는지는 자동 검사되지만, 복잡한 표의 헤더 연결(scope, headers)이 의미상 올바른지는 스크린 리더로 셀을 탐색하며 확인하세요.",
-      en: "Verify captions and header cells exist (automated) and header associations read correctly in a screen reader.",
-    },
-  },
-  {
-    id: "7.4.1",
-    principle: "understandable",
-    name: { ko: "레이블 제공", en: "Labels for inputs" },
-    wcag: ["3.3.2", "1.3.1"],
-    autoCoverage: "partial",
-    howToTest: {
-      ko: "모든 입력 서식에 레이블이 연결되어 있는지는 자동 검사되지만, 레이블 내용이 입력 목적을 정확히 설명하는지, placeholder만으로 레이블을 대신하고 있지 않은지 확인하세요.",
-      en: "Automated checks verify labels exist; confirm they describe the purpose and placeholders aren't used as labels.",
-    },
-  },
-  {
+    slug: "error-identification",
+    ksNo: "7.3.1",
+    serial: 28,
     id: "7.4.2",
     principle: "understandable",
     name: { ko: "오류 정정", en: "Error identification & correction" },
@@ -345,6 +428,23 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "labels-for-inputs",
+    ksNo: "7.3.2",
+    serial: 29,
+    id: "7.4.1",
+    principle: "understandable",
+    name: { ko: "레이블 제공", en: "Labels for inputs" },
+    wcag: ["3.3.2", "1.3.1"],
+    autoCoverage: "partial",
+    howToTest: {
+      ko: "모든 입력 서식에 레이블이 연결되어 있는지는 자동 검사되지만, 레이블 내용이 입력 목적을 정확히 설명하는지, placeholder만으로 레이블을 대신하고 있지 않은지 확인하세요.",
+      en: "Automated checks verify labels exist; confirm they describe the purpose and placeholders aren't used as labels.",
+    },
+  },
+  {
+    slug: "accessible-authentication",
+    ksNo: "7.3.3",
+    serial: 30,
     id: "7.4.3",
     principle: "understandable",
     name: { ko: "접근 가능한 인증", en: "Accessible authentication" },
@@ -357,6 +457,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "redundant-entry",
+    ksNo: "7.3.4",
+    serial: 31,
     id: "7.4.4",
     principle: "understandable",
     name: { ko: "반복 입력 정보", en: "Redundant entry" },
@@ -371,6 +474,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
 
   // ─── 원칙 4. 견고성 (Robust) ───
   {
+    slug: "valid-markup",
+    ksNo: "8.1.1",
+    serial: 32,
     id: "8.1.1",
     principle: "robust",
     name: { ko: "마크업 오류 방지", en: "Parsing / valid markup" },
@@ -384,6 +490,9 @@ export const KWCAG_ITEMS: KwcagItem[] = [
     },
   },
   {
+    slug: "aria-accessibility",
+    ksNo: "8.2.1",
+    serial: 33,
     id: "8.2.1",
     principle: "robust",
     name: { ko: "웹 애플리케이션 접근성 준수", en: "Accessible web applications (ARIA)" },
@@ -396,7 +505,11 @@ export const KWCAG_ITEMS: KwcagItem[] = [
   },
 ];
 
+/** @deprecated 옛 a11ychk 번호(2026-10 이전)로 찾는다. 이전 작업이 끝나면 지운다 — 새 코드는 KWCAG_BY_SLUG */
 export const KWCAG_BY_ID: ReadonlyMap<string, KwcagItem> = new Map(KWCAG_ITEMS.map((i) => [i.id, i]));
+
+/** KS X OT0003:2022 공식 번호 → 항목. 사람이 입력한 번호를 풀 때만 쓴다(저장값은 kwcagFromStored) */
+export const KWCAG_BY_KSNO: ReadonlyMap<string, KwcagItem> = new Map(KWCAG_ITEMS.map((i) => [i.ksNo, i]));
 
 export const KWCAG_PRINCIPLE_LABEL: Record<KwcagItem["principle"], { ko: string; en: string }> = {
   perceivable: { ko: "인식의 용이성", en: "Perceivable" },
@@ -404,3 +517,24 @@ export const KWCAG_PRINCIPLE_LABEL: Record<KwcagItem["principle"], { ko: string;
   understandable: { ko: "이해의 용이성", en: "Understandable" },
   robust: { ko: "견고성", en: "Robust" },
 };
+
+/** 화면 표기의 번호 이름표 — 「검사항목 8」 */
+export const KWCAG_NO_PREFIX = { ko: "검사항목", en: "Checkpoint" } as const;
+
+/** 「검사항목 8」 / "Checkpoint 8" — 인증 심사 일련번호 표기 */
+export function kwcagNoLabel(item: Pick<KwcagItem, "serial">, locale: string): string {
+  return `${locale === "en" ? KWCAG_NO_PREFIX.en : KWCAG_NO_PREFIX.ko} ${item.serial}`;
+}
+
+/** 「검사항목 8 텍스트 콘텐츠의 명도 대비」 / "Checkpoint 8 Text contrast" */
+export function kwcagLabel(item: Pick<KwcagItem, "serial" | "name">, locale: string): string {
+  return `${kwcagNoLabel(item, locale)} ${pickLocale(item.name, locale)}`;
+}
+
+/** 여러 항목 — 「검사항목 8·29」 / "Checkpoints 8, 29". 빈 목록이면 빈 문자열 */
+export function kwcagNoListLabel(items: readonly Pick<KwcagItem, "serial">[], locale: string): string {
+  if (items.length === 0) return "";
+  const serials = items.map((i) => i.serial);
+  if (locale === "en") return `${serials.length > 1 ? "Checkpoints" : "Checkpoint"} ${serials.join(", ")}`;
+  return `${KWCAG_NO_PREFIX.ko} ${serials.join("·")}`;
+}
