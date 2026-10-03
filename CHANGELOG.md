@@ -12,6 +12,43 @@ carry their own versions.*
 
 ---
 
+## KWCAG 검사항목 번호를 표준 원문에 맞춤 / KWCAG checkpoint numbers now follow the standard — v1.3.0
+
+### 한국어
+
+스텝 요약 표의 KWCAG 표기를 인증 심사에서 쓰는 일련번호로 바꿨습니다(예: `KWCAG 검사항목 8`).
+그동안 A11y Check가 쓰던 KWCAG 번호 33개 가운데 10개가 KS X OT0003:2022(한국형 웹 콘텐츠 접근성
+지침 2.2) 본문의 검사항목 번호와 달랐고, 그중 6개는 표준에서 다른 항목의 번호입니다. 웹 서비스,
+MCP 서버(0.2.0), 크롬 확장(0.6.0)도 같은 기준으로 바뀌었습니다. 판정·점수·`fail-on` 동작과 입력·출력
+형식은 그대로입니다. 이전에 내려받은 보고서·CSV에 적힌 옛 번호는 아래 표로 읽을 수 있습니다.
+
+| 검사항목(일련번호) | 표준 번호 | 옛 A11y Check 번호 |
+|---|---|---|
+| 표의 구성 (3) | 5.3.1 | 7.3.2 |
+| 콘텐츠의 선형구조 (4) | 5.3.2 | 7.3.1 |
+| 명확한 지시사항 제공 (5) | 5.3.3 | 5.3.2 |
+| 색에 무관한 콘텐츠 인식 (6) | 5.4.1 | 5.3.1 |
+| 텍스트 콘텐츠의 명도 대비 (8) | 5.4.3 | 5.4.1 |
+| 콘텐츠 간의 구분 (9) | 5.4.4 | 5.4.3 |
+| 오류 정정 (28) | 7.3.1 | 7.4.2 |
+| 레이블 제공 (29) | 7.3.2 | 7.4.1 |
+| 접근 가능한 인증 (30) | 7.3.3 | 7.4.3 |
+| 반복 입력 정보 (31) | 7.3.4 | 7.4.4 |
+
+나머지 23개는 번호가 같습니다. 표의 구성과 콘텐츠의 선형구조는 원칙도 '이해의 용이성'에서
+'인식의 용이성'으로 바로잡았습니다.
+
+### English
+
+The step summary now cites KWCAG checkpoints by the serial numbers used in Korean certification
+audits (e.g. `KWCAG Checkpoint 8`). Ten of the 33 KWCAG numbers A11y Check used did not match the
+checkpoint numbers in KS X OT0003:2022, and six of them are numbers of different checkpoints in the
+standard. The web service, the MCP server (0.2.0), and the Chrome extension (0.6.0) follow the same
+numbering. Verdicts, scores, `fail-on`, and input/output formats are unchanged. The table above
+maps the old numbers in earlier reports and CSV files to the standard numbers.
+
+---
+
 ## 카탈로그에 없는 규칙의 위반을 놓치던 문제 수정 / Fix violations missed for uncatalogued rules — v1.1.1
 
 ### 한국어

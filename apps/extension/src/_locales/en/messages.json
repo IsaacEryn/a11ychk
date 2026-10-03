@@ -520,7 +520,7 @@
     "message": "Element not found. The page may have changed."
   },
   "srVerdictSaved": {
-    "message": "Saved the verdict for item $1.",
+    "message": "Verdict saved for $1.",
     "placeholders": {
       "item": {
         "content": "$1"
@@ -528,7 +528,7 @@
     }
   },
   "srVerdictCleared": {
-    "message": "Cleared the verdict for item $1.",
+    "message": "Verdict cleared for $1.",
     "placeholders": {
       "item": {
         "content": "$1"
@@ -606,7 +606,7 @@
     "message": "Cannot tell"
   },
   "focusJudgeTitle": {
-    "message": "Focus order judgment (KWCAG 6.1.2)"
+    "message": "Focus order judgment (KWCAG checkpoint 11)"
   },
   "focusJudgeQuestion": {
     "message": "Does the Tab focus order match the reading order and follow a logical sequence?"

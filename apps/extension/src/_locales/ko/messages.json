@@ -520,7 +520,7 @@
     "message": "요소를 찾지 못했습니다. 페이지가 변경되었을 수 있습니다."
   },
   "srVerdictSaved": {
-    "message": "$1 항목의 판정을 저장했습니다.",
+    "message": "$1 판정을 저장했습니다.",
     "placeholders": {
       "item": {
         "content": "$1"
@@ -528,7 +528,7 @@
     }
   },
   "srVerdictCleared": {
-    "message": "$1 항목의 판정을 해제했습니다.",
+    "message": "$1 판정을 해제했습니다.",
     "placeholders": {
       "item": {
         "content": "$1"
@@ -606,7 +606,7 @@
     "message": "판단 불가"
   },
   "focusJudgeTitle": {
-    "message": "초점 순서 판정 (KWCAG 6.1.2)"
+    "message": "초점 순서 판정 (KWCAG 검사항목 11)"
   },
   "focusJudgeQuestion": {
     "message": "Tab 키로 이동한 초점 순서가 콘텐츠의 읽기 순서와 일치하고 논리적입니까?"
