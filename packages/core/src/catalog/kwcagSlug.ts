@@ -8,11 +8,6 @@
 import { KWCAG_ITEMS } from "./kwcag";
 import type { KwcagItem, KwcagSlug } from "../types";
 
-/** @deprecated item.slug를 쓴다. 이전 작업이 끝나면 지운다 */
-export function kwcagSlug(item: KwcagItem): string {
-  return item.slug;
-}
-
 export const KWCAG_SLUGS: readonly KwcagSlug[] = KWCAG_ITEMS.map((item) => item.slug);
 
 export const KWCAG_BY_SLUG: ReadonlyMap<string, KwcagItem> = new Map(KWCAG_ITEMS.map((item) => [item.slug, item]));

@@ -73,8 +73,6 @@ export interface KwcagItem {
   ksNo: string;
   /** 웹 접근성 품질인증 심사 일련번호 1~33 — 표시·정렬용 */
   serial: number;
-  /** @deprecated 옛 a11ychk 번호(2026-10 이전). 이전 작업이 끝나면 지운다 — 새 코드는 slug를 쓴다 */
-  id: string;
   principle: KwcagPrinciple;
   name: LocalizedText;
   /** 대응되는 WCAG 2.2 성공기준 */
@@ -211,6 +209,7 @@ export interface ReportMeta {
 /** 점검자 판정 (scan_reviews 행) */
 export interface ScanReview {
   standard: "wcag" | "kwcag";
+  /** wcag는 SC 번호, kwcag는 슬러그 */
   itemId: string;
   outcome: WcagOutcome;
   note: string;

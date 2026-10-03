@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { KWCAG_ITEMS } from "../src/catalog/kwcag";
 import {
   KWCAG_LEGACY_IDS,
   kwcagFromStored,
@@ -48,11 +47,6 @@ const BEFORE: Record<string, string> = {
 describe("옛 a11ychk 번호 대응표", () => {
   it("바꾸기 전 카탈로그와 같다", () => {
     expect({ ...KWCAG_LEGACY_IDS }).toEqual(BEFORE);
-  });
-
-  // Task 10에서 KwcagItem.id를 지울 때 이 테스트도 함께 지운다
-  it("이전 중에 남겨 둔 옛 id와도 같다", () => {
-    for (const item of KWCAG_ITEMS) expect(KWCAG_LEGACY_IDS[item.id]).toBe(item.slug);
   });
 });
 

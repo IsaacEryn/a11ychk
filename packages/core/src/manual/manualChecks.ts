@@ -53,8 +53,6 @@ export interface ManualWcagCheck {
     slug: KwcagSlug;
     serial: number;
     ksNo: string;
-    /** @deprecated 옛 a11ychk 번호. 이전 작업이 끝나면 지운다 — slug·serial을 쓴다 */
-    kwcagId: string;
     name: LocalizedText;
     howToTest?: LocalizedText;
   }[];
@@ -77,7 +75,6 @@ export function getManualChecksByWcag(): ManualWcagCheck[] {
         slug: s.slug,
         serial: s.serial,
         ksNo: s.ksNo,
-        kwcagId: s.id,
         name: s.name,
         howToTest: s.howToTest,
       })),
