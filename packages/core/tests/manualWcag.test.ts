@@ -8,16 +8,16 @@ import {
   deriveWcagReviewsFromKwcag,
   getKwcagOnlyManualItems,
   getManualChecksByWcag,
-  KWCAG_BY_ID,
+  KWCAG_BY_SLUG,
   type WcagMatrixRow,
   type WcagOutcome,
 } from "../src/catalog-entry";
 
 describe("WCAG 축 역매핑 (KWCAG_BY_WCAG / getManualChecksByWcag)", () => {
-  it("다중 출처 SC는 1.3.1 ← {7.3.1, 7.3.2, 7.4.1} 정확히 1건뿐이다", () => {
+  it("다중 출처 SC는 1.3.1 ← {표의 구성, 콘텐츠의 선형구조, 레이블 제공} 정확히 1건뿐이다", () => {
     const multi = [...KWCAG_BY_WCAG.entries()].filter(([, items]) => items.length > 1);
     expect(multi.map(([sc]) => sc)).toEqual(["1.3.1"]);
-    expect(multi[0]![1].map((i) => i.id).sort()).toEqual(["7.3.1", "7.3.2", "7.4.1"]);
+    expect(multi[0]![1].map((i) => i.slug)).toEqual(["table-structure", "meaningful-sequence", "labels-for-inputs"]);
   });
 
   it("파생 체크리스트는 전 항목이 출처·한국어 검사 방법을 갖고 WCAG 순서로 정렬된다", () => {
@@ -40,8 +40,17 @@ describe("WCAG 축 역매핑 (KWCAG_BY_WCAG / getManualChecksByWcag)", () => {
     expect(ids.has("2.5.5")).toBe(false);
   });
 
-  it("KWCAG 고유 수동 항목은 5.4.3·6.4.4 두 개다 (8.1.1은 full이라 제외)", () => {
-    expect(getKwcagOnlyManualItems().map((i) => i.id).sort()).toEqual(["5.4.3", "6.4.4"]);
+  it("KWCAG 고유 수동 항목은 콘텐츠 간의 구분·고정된 참조 위치 정보 두 개다 (마크업 오류 방지는 full이라 제외)", () => {
+    expect(getKwcagOnlyManualItems().map((i) => i.slug)).toEqual(["distinguishable-content", "consistent-reference-locators"]);
+  });
+
+  it("출처에는 슬러그·일련번호·공식 번호가 함께 실린다", () => {
+    const c131 = getManualChecksByWcag().find((c) => c.scId === "1.3.1")!;
+    expect(c131.sources.map((s) => [s.slug, s.serial, s.ksNo])).toEqual([
+      ["table-structure", 3, "5.3.1"],
+      ["meaningful-sequence", 4, "5.3.2"],
+      ["labels-for-inputs", 29, "7.3.2"],
+    ]);
   });
 });
 
@@ -66,24 +75,38 @@ describe("combineOutcomes — 결합 규칙 (failed > cannotTell > 전원-긍정
 });
 
 describe("deriveWcagReviewsFromKwcag — kwcag 판정의 SC 팬아웃", () => {
-  it("6.1.2 failed → 대응 SC(2.4.3·2.4.7·2.4.11) 전부 failed", () => {
+  const focus = KWCAG_BY_SLUG.get("focus-order-and-visibility")!;
+
+  it("초점 이동과 표시 failed → 대응 SC(2.4.3·2.4.7·2.4.11) 전부 failed", () => {
+    const derived = deriveWcagReviewsFromKwcag({ "focus-order-and-visibility": "failed" });
+    for (const sc of focus.wcag) expect(derived[sc]).toBe("failed");
+  });
+
+  it("옛 번호 키(2026-10 이전 저장값)도 같은 항목으로 읽는다", () => {
     const derived = deriveWcagReviewsFromKwcag({ "6.1.2": "failed" });
-    for (const sc of KWCAG_BY_ID.get("6.1.2")!.wcag) {
-      expect(derived[sc]).toBe("failed");
-    }
+    for (const sc of focus.wcag) expect(derived[sc]).toBe("failed");
   });
 
   it("1.3.1은 출처 3개 전원 passed일 때만 passed로 파생된다", () => {
-    expect(deriveWcagReviewsFromKwcag({ "7.3.2": "passed" })["1.3.1"]).toBeUndefined();
-    const all = deriveWcagReviewsFromKwcag({ "7.3.1": "passed", "7.3.2": "passed", "7.4.1": "passed" });
+    expect(deriveWcagReviewsFromKwcag({ "table-structure": "passed" })["1.3.1"]).toBeUndefined();
+    const all = deriveWcagReviewsFromKwcag({
+      "table-structure": "passed",
+      "meaningful-sequence": "passed",
+      "labels-for-inputs": "passed",
+    });
     expect(all["1.3.1"]).toBe("passed");
-    const mixed = deriveWcagReviewsFromKwcag({ "7.3.1": "passed", "7.3.2": "failed" });
+    const mixed = deriveWcagReviewsFromKwcag({ "meaningful-sequence": "passed", "table-structure": "failed" });
     expect(mixed["1.3.1"]).toBe("failed");
+  });
+
+  // 슬러그 값(passed)만 남는다. 2.4.3의 출처는 이 항목 하나뿐이라 결합 결과는 passed다
+  it("옛 번호와 슬러그가 같은 항목에 함께 오면 슬러그 값을 쓴다", () => {
+    expect(deriveWcagReviewsFromKwcag({ "6.1.2": "failed", "focus-order-and-visibility": "passed" })["2.4.3"]).toBe("passed");
   });
 });
 
 describe("deriveKwcagOutcomeFromWcag — WCAG 판정의 KWCAG 파생 표시", () => {
-  const item612 = KWCAG_BY_ID.get("6.1.2")!;
+  const item612 = KWCAG_BY_SLUG.get("focus-order-and-visibility")!;
 
   it("대응 SC 전원 passed → passed", () => {
     const reviews: Record<string, WcagOutcome> = {};
@@ -99,9 +122,9 @@ describe("deriveKwcagOutcomeFromWcag — WCAG 판정의 KWCAG 파생 표시", ()
     expect(deriveKwcagOutcomeFromWcag(item612, { [item612.wcag[0]!]: "failed" })).toBe("failed");
   });
 
-  it("대응 SC 없는 항목(5.4.3)·폐기 참조만 있는 항목(8.1.1)은 항상 null", () => {
-    expect(deriveKwcagOutcomeFromWcag(KWCAG_BY_ID.get("5.4.3")!, { "1.1.1": "passed" })).toBeNull();
-    expect(deriveKwcagOutcomeFromWcag(KWCAG_BY_ID.get("8.1.1")!, { "4.1.1": "passed" } as never)).toBeNull();
+  it("대응 SC 없는 항목(콘텐츠 간의 구분)·폐기 참조만 있는 항목(마크업 오류 방지)은 항상 null", () => {
+    expect(deriveKwcagOutcomeFromWcag(KWCAG_BY_SLUG.get("distinguishable-content")!, { "1.1.1": "passed" })).toBeNull();
+    expect(deriveKwcagOutcomeFromWcag(KWCAG_BY_SLUG.get("valid-markup")!, { "4.1.1": "passed" } as never)).toBeNull();
   });
 });
 
@@ -113,20 +136,20 @@ describe("computeScores — kwcag 파생 폴백", () => {
   ];
 
   it("kwcag 판정만 있어도 수동·통합 점수에 반영된다", () => {
-    const scores = computeScores(matrix, {}, { "6.1.2": "failed" });
+    const scores = computeScores(matrix, {}, { "focus-order-and-visibility": "failed" });
     expect(scores.manual.failed).toBe(3);
     expect(scores.combined.failed).toBe(3);
   });
 
   it("같은 SC에 wcag 직접 판정이 있으면 파생을 무시한다", () => {
-    const scores = computeScores(matrix, { "2.4.3": "passed" }, { "6.1.2": "failed" });
+    const scores = computeScores(matrix, { "2.4.3": "passed" }, { "focus-order-and-visibility": "failed" });
     expect(scores.manual.passed).toBe(1); // 2.4.3 = 직접 passed
     expect(scores.manual.failed).toBe(2); // 2.4.7·2.4.11 = 파생 failed
   });
 
-  it("파생된 통과는 자동 위반 SC를 덮지 못한다 (8.2.1 통과 → 4.1.2 자동 위반 유지)", () => {
+  it("파생된 통과는 자동 위반 SC를 덮지 못한다 (웹 애플리케이션 접근성 준수 통과 → 4.1.2 자동 위반 유지)", () => {
     const m: WcagMatrixRow[] = [{ scId: "4.1.2", outcome: "failed", violationCount: 3, ruleIds: ["button-name"] }];
-    const scores = computeScores(m, {}, { "8.2.1": "passed" });
+    const scores = computeScores(m, {}, { "aria-accessibility": "passed" });
     expect(scores.combined.failed).toBe(1);
     expect(scores.combined.passed).toBe(0);
     expect(scores.manual.passed).toBe(0);
@@ -139,7 +162,7 @@ describe("computeScores — kwcag 파생 폴백", () => {
 
   it("파생된 위반은 자동 위반과 같은 방향이라 그대로 쓴다", () => {
     const m: WcagMatrixRow[] = [{ scId: "4.1.2", outcome: "failed", violationCount: 1, ruleIds: ["button-name"] }];
-    expect(computeScores(m, {}, { "8.2.1": "failed" }).manual.failed).toBe(1);
+    expect(computeScores(m, {}, { "aria-accessibility": "failed" }).manual.failed).toBe(1);
   });
 
   it("2인자 호출은 기존과 동일하게 동작한다 (하위 호환)", () => {

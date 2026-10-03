@@ -6,7 +6,7 @@
  * 통합할 예정이라 순수 함수로 둔다 — 입력은 정규화된 형태만 받고 DB·인증을
  * 모른다. 카탈로그(getRuleEntry 등)만 쓰므로 브라우저 번들에서도 안전하다.
  */
-import { KWCAG_BY_ID } from "../catalog/kwcag";
+import { kwcagFromStored } from "../catalog/kwcagLegacy";
 import { WCAG_BY_ID } from "../catalog/wcag";
 import { getRuleEntry } from "../catalog/rules";
 import type { Impact, PageScanResult } from "../types";
@@ -115,12 +115,12 @@ export function buildAiFix(input: AiFixInput): { markdown: string; json: Record<
     .map((g) => ({ ...g, entry: getRuleEntry(g.ruleId, g.tags) }))
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact));
 
-  // 수동 실패 항목의 표시 이름 해석 (KWCAG/WCAG 카탈로그, 미등재 시 id 그대로)
+  // 수동 실패 항목의 표시 이름 해석 (KWCAG는 슬러그·옛 번호 모두, 미등재 시 id 그대로)
   const failedReviews = failedReviewsIn.map((r) => ({
     standard: r.standard,
     itemId: r.itemId,
     name: (() => {
-      const entry = r.standard === "kwcag" ? KWCAG_BY_ID.get(r.itemId) : WCAG_BY_ID.get(r.itemId);
+      const entry = r.standard === "kwcag" ? kwcagFromStored(r.itemId) : WCAG_BY_ID.get(r.itemId);
       return entry ? pickText(entry.name) : r.itemId;
     })(),
     note: r.note,

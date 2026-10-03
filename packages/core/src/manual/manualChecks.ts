@@ -5,8 +5,9 @@
  * 축은 WCAG 성공기준(A/AA)이고, 콘텐츠 원본(한국어 howToTest)은 KWCAG_ITEMS에 남긴 채
  * 역매핑으로 파생한다 — 한 SC의 검사 방법은 그 SC를 참조하는 KWCAG 항목(sources)에서 온다.
  */
-import type { AutoCoverage, KwcagItem, KwcagPrinciple, LocalizedText, WcagOutcome } from "../types";
+import type { AutoCoverage, KwcagItem, KwcagPrinciple, KwcagSlug, LocalizedText, WcagOutcome } from "../types";
 import { KWCAG_ITEMS } from "../catalog/kwcag";
+import { normalizeKwcagKeys } from "../catalog/kwcagStored";
 import { WCAG_BY_ID, WCAG_CRITERIA, type WcagLevel } from "../catalog/wcag";
 
 /** 자동 검사가 항목을 완전히 커버하지 못하는 모든 KWCAG 항목 */
@@ -19,14 +20,14 @@ export function getFullyManualItems(): KwcagItem[] {
   return KWCAG_ITEMS.filter((item) => item.autoCoverage === "none");
 }
 
-/** WCAG 대응이 없는 KWCAG 고유 수동 항목 (5.4.3 콘텐츠 간 구분, 6.4.4 고정 참조위치) */
+/** WCAG 대응이 없는 KWCAG 고유 수동 항목 (콘텐츠 간의 구분, 고정된 참조 위치 정보) */
 export function getKwcagOnlyManualItems(): KwcagItem[] {
   return getManualCheckItems().filter((item) => item.wcag.filter((sc) => WCAG_BY_ID.has(sc)).length === 0);
 }
 
 /**
  * SC id → 그 SC를 참조하는 수동 대상 KWCAG 항목들 (카탈로그 실재 SC만).
- * 다중 출처는 1.3.1 ← {7.3.1, 7.3.2, 7.4.1} 단 1건 — manualWcag.test가 고정한다.
+ * 다중 출처는 1.3.1 ← {표의 구성, 콘텐츠의 선형구조, 레이블 제공} 단 1건 — manualWcag.test가 고정한다.
  */
 export const KWCAG_BY_WCAG: ReadonlyMap<string, KwcagItem[]> = (() => {
   const map = new Map<string, KwcagItem[]>();
@@ -48,7 +49,15 @@ export interface ManualWcagCheck {
   principle: KwcagPrinciple;
   name: LocalizedText;
   /** 출처 KWCAG 항목들 — howToTest를 출처 라벨과 함께 보존 (1.3.1은 3개) */
-  sources: { kwcagId: string; name: LocalizedText; howToTest?: LocalizedText }[];
+  sources: {
+    slug: KwcagSlug;
+    serial: number;
+    ksNo: string;
+    /** @deprecated 옛 a11ychk 번호. 이전 작업이 끝나면 지운다 — slug·serial을 쓴다 */
+    kwcagId: string;
+    name: LocalizedText;
+    howToTest?: LocalizedText;
+  }[];
   /** 출처들의 최소 커버리지 — 하나라도 none이면 none */
   autoCoverage: AutoCoverage;
 }
@@ -64,7 +73,14 @@ export function getManualChecksByWcag(): ManualWcagCheck[] {
       level: c.level,
       principle: c.principle,
       name: c.name,
-      sources: sources.map((s) => ({ kwcagId: s.id, name: s.name, howToTest: s.howToTest })),
+      sources: sources.map((s) => ({
+        slug: s.slug,
+        serial: s.serial,
+        ksNo: s.ksNo,
+        kwcagId: s.id,
+        name: s.name,
+        howToTest: s.howToTest,
+      })),
       autoCoverage: sources.some((s) => s.autoCoverage === "none") ? "none" : "partial",
     });
   }
@@ -92,11 +108,13 @@ export function combineOutcomes(outcomes: WcagOutcome[], complete: boolean): Wca
 export function deriveWcagReviewsFromKwcag(
   kwcagReviews: Record<string, WcagOutcome>,
 ): Record<string, WcagOutcome> {
+  // 키는 슬러그가 원칙이지만 옛 번호로 저장된 판정도 같은 항목으로 읽는다(같은 항목이면 슬러그 우선)
+  const bySlug = normalizeKwcagKeys(kwcagReviews);
   const out: Record<string, WcagOutcome> = {};
   for (const [scId, sources] of KWCAG_BY_WCAG) {
     const outcomes: WcagOutcome[] = [];
     for (const s of sources) {
-      const o = kwcagReviews[s.id];
+      const o = bySlug[s.slug];
       if (o) outcomes.push(o);
     }
     const combined = combineOutcomes(outcomes, outcomes.length === sources.length);
@@ -107,7 +125,7 @@ export function deriveWcagReviewsFromKwcag(
 
 /**
  * KWCAG 항목 하나의 wcag 판정 파생 (매트릭스 표시용) — 직접 kwcag 판정이 없을 때만
- * 호출자가 사용한다. 대응 SC가 없으면(5.4.3·6.4.4, 폐기 참조만 있는 8.1.1) null.
+ * 호출자가 사용한다. 대응 SC가 없으면(콘텐츠 간의 구분·고정된 참조 위치 정보, 폐기 참조만 있는 마크업 오류 방지) null.
  */
 export function deriveKwcagOutcomeFromWcag(
   item: KwcagItem,
