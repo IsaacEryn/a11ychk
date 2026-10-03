@@ -4,19 +4,18 @@
  * kwcag_checkpoint: KWCAG 2.2 검사항목 하나의 검사 방법과 자동 판정 규칙(역매핑)
  */
 import {
-  KWCAG_BY_ID,
-  KWCAG_BY_SLUG,
   KWCAG_PRINCIPLE_LABEL,
   RULE_BY_ID,
   RULE_CATALOG,
   WCAG_BY_ID,
   getRuleEntry,
   kwcagItemsOf,
+  kwcagLabel,
   kwcagNoListLabel,
-  kwcagSlug,
   pickLocale,
+  resolveKwcagInput,
   understandingUrl,
-  type KwcagItem,
+  type KwcagInputMatch,
 } from "@a11ychk/core";
 import { footer } from "./funnel";
 
@@ -68,7 +67,10 @@ export function runFixGuideTool(ruleId: string, lang: "ko" | "en"): FixGuideResu
 
 export interface KwcagCheckpointResult {
   structuredContent: {
+    /** KS X OT0003:2022 검사항목 번호 */
     id: string;
+    /** 웹 접근성 품질인증 심사 일련번호 1~33 */
+    serial: number;
     slug: string;
     name: string;
     principle: string;
@@ -76,20 +78,38 @@ export interface KwcagCheckpointResult {
     autoCoverage: string;
     howToTest: string | null;
     automatedRules: { ruleId: string; title: string }[];
+    /** 입력한 번호의 옛 a11ychk 뜻이 달랐거나 옛 번호로 찾았을 때의 안내 */
+    legacyNote: string | null;
   };
   text: string;
 }
 
-export function resolveKwcagItem(idOrSlug: string): KwcagItem | null {
-  return KWCAG_BY_ID.get(idOrSlug) ?? KWCAG_BY_SLUG.get(idOrSlug) ?? null;
+/** 검사항목 입력 해석 — 슬러그, 일련번호(1~33), 공식 번호, 옛 a11ychk 번호(7.4.x) */
+export function resolveKwcagItem(input: string): KwcagInputMatch | null {
+  return resolveKwcagInput(input);
 }
 
-export function runKwcagCheckpointTool(item: KwcagItem, lang: "ko" | "en"): KwcagCheckpointResult {
+function legacyNoteOf(match: KwcagInputMatch, lang: "ko" | "en"): string | null {
+  const { item, legacy } = match;
+  if (!legacy) return null;
+  if (legacy.item === item) {
+    return lang === "en"
+      ? `Note: found by the old a11ychk number (${legacy.id}) used through a11ychk MCP 0.1.6. Its KS X OT0003:2022 number is ${item.ksNo}, checkpoint ${item.serial}.`
+      : `참고: a11ychk MCP 0.1.6까지 쓰던 옛 번호(${legacy.id})로 찾은 항목입니다. 공식 번호는 ${item.ksNo}, 검사항목 ${item.serial}번입니다.`;
+  }
+  return lang === "en"
+    ? `Note: through a11ychk MCP 0.1.6, ${legacy.id} referred to "${pickLocale(legacy.item.name, "en")}" (now ${legacy.item.ksNo}, checkpoint ${legacy.item.serial}). This result is the checkpoint numbered ${legacy.id} in KS X OT0003:2022.`
+    : `참고: a11ychk MCP 0.1.6까지 쓰던 옛 번호(${legacy.id})는 「${legacy.item.name.ko}」 항목을 가리켰습니다. 그 항목의 공식 번호는 ${legacy.item.ksNo}, 검사항목 ${legacy.item.serial}번입니다. 이 결과는 공식 번호 ${legacy.id}의 항목입니다.`;
+}
+
+export function runKwcagCheckpointTool(match: KwcagInputMatch, lang: "ko" | "en"): KwcagCheckpointResult {
+  const { item } = match;
   const L = (ko: string, en: string) => (lang === "en" ? en : ko);
   const rules = RULE_CATALOG.filter((r) => r.kwcag.includes(item.slug));
   const structuredContent = {
-    id: item.id,
-    slug: kwcagSlug(item),
+    id: item.ksNo,
+    serial: item.serial,
+    slug: item.slug,
     name: pickLocale(item.name, lang),
     principle: KWCAG_PRINCIPLE_LABEL[item.principle][lang === "en" ? "en" : "ko"],
     wcag: item.wcag.map((scId) => {
@@ -104,6 +124,7 @@ export function runKwcagCheckpointTool(item: KwcagItem, lang: "ko" | "en"): Kwca
     autoCoverage: item.autoCoverage,
     howToTest: item.howToTest ? pickLocale(item.howToTest, lang) : null,
     automatedRules: rules.map((r) => ({ ruleId: r.ruleId, title: pickLocale(r.title, lang) })),
+    legacyNote: legacyNoteOf(match, lang),
   };
 
   const coverageNote = {
@@ -113,10 +134,14 @@ export function runKwcagCheckpointTool(item: KwcagItem, lang: "ko" | "en"): Kwca
   }[item.autoCoverage];
 
   const lines = [
-    `KWCAG ${item.id} ${structuredContent.name} — ${structuredContent.principle}`,
+    `KWCAG 2.2 ${kwcagLabel(item, lang)} (${item.ksNo}) — ${structuredContent.principle}`,
     `${L("대응 WCAG", "Maps to WCAG")}: ${structuredContent.wcag.map((w) => `${w.id}(${w.level})`).join(", ") || L("없음(국내 고유 항목)", "none (Korea-specific)")}`,
     coverageNote,
   ];
+  if (structuredContent.legacyNote) {
+    lines.push("");
+    lines.push(structuredContent.legacyNote);
+  }
   if (structuredContent.howToTest) {
     lines.push("");
     lines.push(`${L("검사 방법", "How to test")}: ${structuredContent.howToTest}`);

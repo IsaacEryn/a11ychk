@@ -112,6 +112,26 @@ try {
   assert(cp.content?.[0]?.text?.includes("a11ychk.com"), "kwcag_checkpoint: 결과 말미 서비스 안내");
   assert(cp.content?.[0]?.text?.includes("utm_source=mcp"), "kwcag_checkpoint: 퍼널 링크 유입 계측");
 
+  const official = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "5.3.3" } });
+  assert(official.structuredContent?.slug === "clear-instructions", "kwcag_checkpoint: 공식 번호 5.3.3 → 명확한 지시사항 제공");
+  const collided = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "5.3.1" } });
+  assert(
+    collided.structuredContent?.slug === "table-structure" && collided.structuredContent?.legacyNote,
+    "kwcag_checkpoint: 5.3.1은 공식 번호(표의 구성)로 풀고 옛 뜻을 안내",
+  );
+  const legacyOnly = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "7.4.1" } });
+  assert(
+    legacyOnly.structuredContent?.id === "7.3.2" && legacyOnly.structuredContent?.legacyNote,
+    "kwcag_checkpoint: 옛 번호 7.4.1 → 레이블 제공(7.3.2) + 안내",
+  );
+  const bySerial = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "8" } });
+  assert(bySerial.structuredContent?.slug === "text-contrast", "kwcag_checkpoint: 일련번호 8 → 텍스트 콘텐츠의 명도 대비");
+  const moved = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "table-structure" } });
+  assert(
+    moved.structuredContent?.id === "5.3.1" && moved.structuredContent?.principle === "인식의 용이성",
+    "kwcag_checkpoint: 표의 구성은 5.3.1·인식의 용이성",
+  );
+
   const missing = await request("tools/call", { name: "kwcag_checkpoint", arguments: { idOrSlug: "no-such" } });
   assert(missing.isError === true, "kwcag_checkpoint: 미존재 항목은 isError 결과");
 

@@ -8,12 +8,12 @@
     "url": "https://github.com/IsaacEryn/a11ychk",
     "source": "github"
   },
-  "version": "0.1.6",
+  "version": "0.2.0",
   "packages": [
     {
       "registryType": "npm",
       "identifier": "@a11ychk/mcp",
-      "version": "0.1.6",
+      "version": "0.2.0",
       "transport": {
         "type": "stdio"
       }

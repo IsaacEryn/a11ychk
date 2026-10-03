@@ -207,16 +207,22 @@ server.registerTool(
     title: "KWCAG 검사항목 조회",
     description:
       "KWCAG 2.2 검사항목(33개) 하나의 검사 방법·대응 WCAG 성공기준·자동 판정 규칙을 조회한다. " +
-      "id(예: 5.1.1) 또는 슬러그(예: alternative-text)로 찾는다. 브라우저 불필요.",
-    inputSchema: { idOrSlug: z.string().min(1).describe("검사항목 id 또는 슬러그"), lang: langShape },
+      "검사항목 일련번호(1~33, 예: 8), KS X OT0003:2022 번호(예: 5.4.3) 또는 슬러그(예: text-contrast)로 찾는다. " +
+      "a11ychk 0.1.x의 옛 번호와 뜻이 다르면 결과에 안내가 붙는다. 브라우저 불필요.",
+    inputSchema: {
+      idOrSlug: z.string().min(1).describe("검사항목 일련번호(1~33)·공식 번호(5.4.3)·슬러그(text-contrast)"),
+      lang: langShape,
+    },
     annotations: { readOnlyHint: true },
   },
   async ({ idOrSlug, lang }) => {
-    const item = resolveKwcagItem(idOrSlug);
-    if (!item) {
-      return toolError(`KWCAG 검사항목을 찾지 못했습니다: "${idOrSlug}" — id(예: 5.1.1) 또는 슬러그(예: alternative-text)로 지정해 주세요.`);
+    const match = resolveKwcagItem(idOrSlug);
+    if (!match) {
+      return toolError(
+        `KWCAG 검사항목을 찾지 못했습니다: "${idOrSlug}" — 일련번호(예: 8), 공식 번호(예: 5.4.3) 또는 슬러그(예: text-contrast)로 지정해 주세요.`,
+      );
     }
-    const r = runKwcagCheckpointTool(item, lang ?? "ko");
+    const r = runKwcagCheckpointTool(match, lang ?? "ko");
     return ok(r.text, r.structuredContent);
   },
 );
