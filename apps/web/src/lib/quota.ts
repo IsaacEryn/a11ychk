@@ -71,6 +71,47 @@ export const PLAN_RANK: Record<PlanId, number> = {
 };
 
 /**
+ * 등급별 한도 — 한 등급의 모든 한도를 한 행에 둔다. 실효 한도는 lib/entitlements.ts가
+ * 근거(free·초대 등급·관리자 배정)별 행을 필드마다 최댓값으로 합쳐 계산한다.
+ * free 행이 바닥이므로 어떤 등급도 free보다 낮은 값을 가지면 안 된다(테스트로 고정).
+ * 표본은 미확인/소유 확인 도메인을 따로 둔다 — 소유 확인 도메인은 더 많이 검사할 수 있다.
+ */
+export interface TierLimits extends ScanLimits {
+  /** 소유 확인 전 도메인의 검사당 구조 표본 페이지 수 */
+  sampleUnverified: number;
+  /** 소유 확인 도메인의 검사당 구조 표본 페이지 수 */
+  sampleVerified: number;
+  /** 소유 확인할 수 있는 도메인 수 */
+  verifiedDomains: number;
+  /** 크롬 확장 검사 일일 한도 */
+  extDaily: number;
+  /** 검사 옵션 프리셋 저장 개수 */
+  presets: number;
+}
+
+export const TIER_LIMIT_KEYS = [
+  "daily",
+  "weekly",
+  "monthly",
+  "sampleUnverified",
+  "sampleVerified",
+  "verifiedDomains",
+  "extDaily",
+  "presets",
+] as const satisfies readonly (keyof TierLimits)[];
+
+export const TIERS: Record<PlanId, TierLimits> = {
+  free: { daily: 3, weekly: 5, monthly: 10, sampleUnverified: 5, sampleVerified: 10, verifiedDomains: 1, extDaily: 10, presets: 3 },
+  plus1: { daily: 5, weekly: 6, monthly: 15, sampleUnverified: 5, sampleVerified: 10, verifiedDomains: 1, extDaily: 12, presets: 20 },
+  plus2: { daily: 5, weekly: 8, monthly: 20, sampleUnverified: 8, sampleVerified: 10, verifiedDomains: 2, extDaily: 15, presets: 20 },
+  plus: { daily: 5, weekly: 8, monthly: 20, sampleUnverified: 8, sampleVerified: 10, verifiedDomains: 2, extDaily: 15, presets: 20 },
+  pro: { daily: 5, weekly: 10, monthly: 30, sampleUnverified: 10, sampleVerified: 20, verifiedDomains: 3, extDaily: 20, presets: 20 },
+  enterprise: { daily: 20, weekly: 30, monthly: 100, sampleUnverified: 20, sampleVerified: 30, verifiedDomains: 10, extDaily: 30, presets: 20 },
+  // 사실상 무제한 — 집계·표시 로직을 단순하게 유지하기 위해 큰 유한값 사용
+  unlimited: { daily: 1000, weekly: 5000, monthly: 20000, sampleUnverified: 30, sampleVerified: 30, verifiedDomains: 100, extDaily: 1000, presets: 20 },
+};
+
+/**
  * 검사 옵션 프리셋 저장 개수 상한 — 무료부터 제공하되 등급별 제한(과다 생성 방지).
  * 배정 등급·달성 등급 중 높은 쪽 기준: free=3, 그 외 등급=20.
  */
@@ -193,6 +234,12 @@ export async function consumeExtUsage(admin: SupabaseClient, userId: string, lim
 export function getCustomPages(override: unknown): number | undefined {
   const v = asRecord(override).pages;
   return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : undefined;
+}
+
+/** 관리자 지정 정수 개별값(0 이상) — 소유 확인 도메인 수·확장 일일 한도. 기한이 지나면 undefined */
+export function getCustomInt(override: unknown, key: "verifiedDomains" | "extDaily"): number | undefined {
+  const v = asRecord(override)[key];
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
 }
 
 /**

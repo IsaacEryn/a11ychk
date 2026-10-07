@@ -1,12 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  getEarnedPlan,
-  getExtDailyLimit,
-  getSampleSize,
-  getVerifiedDomainLimit,
-  presetLimit,
-  resolveLimits,
-} from "../src/lib/quota";
+import { resolveEntitlement } from "../src/lib/entitlements";
 
 /**
  * 실효 한도 특성화 표 — 2026-10 프로덕션(plans.active=false) 동작을 숫자로 고정한다.
@@ -57,7 +50,7 @@ const GOLDEN: { name: string; profile: ProfileFields; expected: Limits }[] = [
   { name: "구 plus earned_plan 값은 무시", profile: { earned_plan: "plus" }, expected: FREE },
 ];
 
-/** 관리자 배정 행 — after는 Task 2 이후 기대값, immediate는 지금도 즉시 적용되던 필드 */
+/** 관리자 배정 행 — after는 관리자 배정이 즉시 모든 한도에 적용된 뒤의 기대값 */
 const ASSIGNED: { name: string; profile: ProfileFields; after: Limits }[] = [
   { name: "관리자 pro", profile: { scan_limit_override: { plan: "pro" } }, after: L(5, 10, 30, 10, 20, 3, 20, 20) },
   { name: "관리자 enterprise + plus1", profile: { scan_limit_override: { plan: "enterprise" }, earned_plan: "plus1" }, after: L(20, 30, 100, 20, 30, 10, 30, 20) },
@@ -66,20 +59,9 @@ const ASSIGNED: { name: string; profile: ProfileFields; after: Limits }[] = [
   { name: "관리자 pro + pages 4", profile: { scan_limit_override: { plan: "pro", pages: 4 } }, after: L(5, 10, 30, 4, 8, 3, 20, 20) },
 ];
 
-/** 지금(plans.active=false) 코드가 내는 실효 한도 */
+/** 새 권한 계산이 내는 실효 한도 */
 function current(p: ProfileFields): Limits {
-  const earned = getEarnedPlan(p.earned_plan);
-  const bonus = typeof p.referral_daily_bonus === "number" ? p.referral_daily_bonus : 0;
-  const o = p.scan_limit_override;
-  const w = resolveLimits(o, false, earned, bonus);
-  return {
-    ...w,
-    sampleUnverified: getSampleSize({ override: o, verified: false, plansActive: false, earned }),
-    sampleVerified: getSampleSize({ override: o, verified: true, plansActive: false, earned }),
-    verifiedDomains: getVerifiedDomainLimit(o, earned),
-    extDaily: getExtDailyLimit(o, earned),
-    presets: presetLimit(o, earned),
-  };
+  return { ...resolveEntitlement(p).limits };
 }
 
 describe("실효 한도 특성화 — 관리자 배정 없음", () => {
@@ -88,13 +70,8 @@ describe("실효 한도 특성화 — 관리자 배정 없음", () => {
   });
 });
 
-describe("실효 한도 특성화 — 관리자 배정 중 이미 즉시 적용되던 필드", () => {
+describe("실효 한도 — 관리자 배정은 즉시 모든 한도에 적용된다", () => {
   it.each(ASSIGNED)("$name", ({ profile, after }) => {
-    const c = current(profile);
-    expect({ verifiedDomains: c.verifiedDomains, extDaily: c.extDaily, presets: c.presets }).toEqual({
-      verifiedDomains: after.verifiedDomains,
-      extDaily: after.extDaily,
-      presets: after.presets,
-    });
+    expect(current(profile)).toEqual(after);
   });
 });
