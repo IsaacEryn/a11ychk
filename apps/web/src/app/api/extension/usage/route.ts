@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { requireExtensionUser } from "@/lib/apiAuth";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
-import { getEarnedPlan, getExtUsage, getExtDailyLimit } from "@/lib/quota";
+import { getExtUsage } from "@/lib/quota";
+import { loadEntitlement } from "@/lib/entitlements";
 
 /**
  * 크롬 확장 검사 사용량 조회 (로그인 사용자 전용).
@@ -12,10 +13,10 @@ import { getEarnedPlan, getExtUsage, getExtDailyLimit } from "@/lib/quota";
 async function handle(request: Request) {
   const auth = await requireExtensionUser(request);
   if (auth instanceof NextResponse) return auth;
-  const { admin, user, profile } = auth;
+  const { admin, user } = auth;
 
-  const limit = getExtDailyLimit(profile.scan_limit_override, getEarnedPlan(profile.earned_plan));
-  const usage = await getExtUsage(admin, user.id, limit);
+  const { limits } = await loadEntitlement(admin, user.id);
+  const usage = await getExtUsage(admin, user.id, limits.extDaily);
   if (!usage.ok) {
     return apiError(resolveApiLocale(request), "extQuotaExceeded", 429, {
       params: { limit: usage.limit },

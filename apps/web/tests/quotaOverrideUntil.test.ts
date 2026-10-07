@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { getPlan, getResets, isOverrideExpired, resolveLimits, getCustomPages, PLANS } from "../src/lib/quota";
+import { getPlan, getResets, isOverrideExpired, getCustomPages, TIERS } from "../src/lib/quota";
+import { resolveEntitlement } from "../src/lib/entitlements";
 
 const past = "2020-01-01T23:59:59+09:00";
 const future = "2999-01-01T23:59:59+09:00";
@@ -10,7 +11,7 @@ describe("scan_limit_override.until — 한시 배정 만료", () => {
     const o = { ...grant, until: future };
     expect(isOverrideExpired(o)).toBe(false);
     expect(getPlan(o)).toBe("pro");
-    expect(resolveLimits(o, true).daily).toBe(99);
+    expect(resolveEntitlement({ scan_limit_override: o }).limits.daily).toBe(99);
     expect(getCustomPages(o)).toBe(20);
   });
 
@@ -18,7 +19,7 @@ describe("scan_limit_override.until — 한시 배정 만료", () => {
     const o = { ...grant, until: past };
     expect(isOverrideExpired(o)).toBe(true);
     expect(getPlan(o)).toBe("free");
-    expect(resolveLimits(o, true).daily).toBe(PLANS.free.daily);
+    expect(resolveEntitlement({ scan_limit_override: o }).limits.daily).toBe(TIERS.free.daily);
     expect(getCustomPages(o)).toBeUndefined();
   });
 

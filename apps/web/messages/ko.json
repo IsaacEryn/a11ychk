@@ -1172,13 +1172,6 @@
       "searchNick": "닉네임 검색",
       "allMembers": "전체 (회원)"
     },
-    "plansControl": {
-      "active": "요금제 시행 중",
-      "inactive": "요금제 미시행",
-      "hint": "미시행 상태에서는 모든 사용자가 무료 등급 한도·표본으로 동작합니다. 시행을 시작하면 배정된 요금제가 발효됩니다.",
-      "start": "요금제 시행 시작",
-      "stop": "요금제 시행 중지"
-    },
     "users": {
       "title": "사용자 관리",
       "colNickname": "닉네임",
@@ -1213,11 +1206,6 @@
       "resetPending": "초기화 중…",
       "resetDone": "{scope} 한도가 초기화되었습니다",
       "resetFailed": "초기화에 실패했습니다. 다시 시도해 주세요.",
-      "plansInactive": "요금제 시행이 꺼져 있어 아래 등급 배정은 적용되지 않습니다 — 모든 사용자에게 free 한도가 적용됩니다.",
-      "plansInactiveLink": "운영 설정에서 시행 켜기",
-      "bulkPlanLabel": "전체 사용자 요금제 일괄 배정",
-      "bulkApply": "전체 적용",
-      "bulkHint": "선택한 요금제를 모든 사용자에게 적용합니다. 개별 한도 설정은 초기화됩니다. (유료화 대비 그룹 관리)",
       "searchLabel": "닉네임 검색",
       "searchApply": "검색",
       "noResults": "일치하는 사용자가 없습니다.",
@@ -1297,9 +1285,7 @@
       "empty": "표시할 항목이 없습니다."
     },
     "settings": {
-      "title": "운영 설정",
-      "bulkPagesLabel": "전체 사용자 페이지 한도 일괄 설정",
-      "bulkPagesHint": "모든 사용자의 기본 페이지 한도를 설정합니다 (소유 확인 도메인은 2배, 최대 {max}페이지). 비우고 적용하면 요금제/기본 한도로 복귀합니다."
+      "title": "운영 설정"
     },
     "logs": {
       "title": "로그",
@@ -1756,6 +1742,7 @@
       "weekly": "주 {n}회 검사",
       "monthly": "월 {n}회 검사",
       "pages": "검사당 최대 {n}페이지 표본",
+      "pagesVerified": "소유 확인 사이트는 검사당 {n}페이지",
       "verify": "소유권 확인 {n}개 사이트"
     },
     "tiers": {

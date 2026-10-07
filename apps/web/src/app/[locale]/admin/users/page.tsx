@@ -1,10 +1,10 @@
 import { requireAdmin } from "@/lib/adminGuard";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getPlansActive } from "@/lib/appSettings";
 import { adminBase } from "@/lib/adminSlug";
 import { escapeLike } from "@/lib/like";
-import { EXT_DAILY_LIMITS, getEarnedPlan, getPlan } from "@/lib/quota";
+import { getEarnedPlan, getPlan } from "@/lib/quota";
+import { resolveEntitlement } from "@/lib/entitlements";
 import { AdminLink } from "../AdminLink";
 import { Pager, PAGE_SIZE, parsePage } from "../Pager";
 import { FILTER_BTN, INPUT, TABLE, TH, TR, TR_HEAD } from "../tableStyles";
@@ -40,8 +40,6 @@ export default async function AdminUsersPage({
   const drawerUserId = sp.user && UUID.test(sp.user) ? sp.user : undefined;
 
   const admin = createAdminClient();
-  // 요금제 시행 여부에 따라 유효 한도가 달라진다 — 실제 적용값을 표시
-  const plansActive = await getPlansActive(admin);
 
   // 검색 — @가 있으면 이메일로 간주하고 login_logs 경유(최근 90일 로그인 사용자만
   // 매치 — auth.users는 PostgREST로 조회할 수 없다), 아니면 닉네임 ilike
@@ -119,16 +117,6 @@ export default async function AdminUsersPage({
         {t("users.title")}
       </h2>
 
-      {/* 요금제 시행이 꺼져 있으면 아래 등급 배정이 무효임을 명시 (배정만 하고 시행 토글을 안 켠 혼란 방지) */}
-      {!plansActive && (
-        <p role="note" className="mt-3 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
-          {t("users.plansInactive")}{" "}
-          <AdminLink href={`${adminBase()}/settings`} className="font-bold underline underline-offset-4">
-            {t("users.plansInactiveLink")}
-          </AdminLink>
-        </p>
-      )}
-
       {/* 닉네임·이메일 검색 (GET 폼) */}
       <form method="get" className="mt-4 flex flex-wrap items-end gap-2">
         <div>
@@ -164,9 +152,7 @@ export default async function AdminUsersPage({
             {users.map((u) => {
               const plan = getPlan(u.scan_limit_override);
               const earned = getEarnedPlan(u.earned_plan);
-              const rawExt = (u.scan_limit_override as Record<string, unknown> | null)?.extDaily;
-              const extLimit =
-                typeof rawExt === "number" && Number.isInteger(rawExt) && rawExt >= 0 ? rawExt : EXT_DAILY_LIMITS[plan];
+              const extLimit = resolveEntitlement(u).limits.extDaily;
               return (
                 <tr key={u.id} className={TR}>
                   <td className="whitespace-nowrap py-2 pr-3 font-semibold">
@@ -228,7 +214,7 @@ export default async function AdminUsersPage({
           title={drawer.u.nickname}
           closeLabel={t("users.close")}
         >
-          <UserDetail u={drawer.u} email={drawer.email} extUsedToday={drawer.extUsed} plansActive={plansActive} />
+          <UserDetail u={drawer.u} email={drawer.email} extUsedToday={drawer.extUsed} />
         </UserDrawer>
       )}
     </section>

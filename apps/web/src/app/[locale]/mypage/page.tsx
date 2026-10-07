@@ -3,21 +3,8 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import {
-  DOMAIN_VERIFY_LIMITS,
-  EXT_DAILY_LIMITS,
-  PLANS,
-  PLAN_RANK,
-  checkQuota,
-  getEarnedPlan,
-  getExtDailyLimit,
-  getPlan,
-  getResets,
-  getSampleSize,
-  resolveLimits,
-  type PlanId,
-} from "@/lib/quota";
-import { getPlansActive } from "@/lib/appSettings";
+import { PLAN_RANK, TIERS, checkQuota, getEarnedPlan, type PlanId } from "@/lib/quota";
+import { loadEntitlement } from "@/lib/entitlements";
 import { ensureReferralCode } from "@/lib/referral/code";
 import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL } from "@/lib/referral/constants";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -48,7 +35,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   if (!user) redirect(`/${locale}/login`);
 
   const [{ data: profile }, { data: scans }, prefRow] = await Promise.all([
-    supabase.from("profiles").select("nickname, scan_limit_override, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
+    supabase.from("profiles").select("nickname, earned_plan, referral_daily_bonus").eq("id", user.id).single(),
     supabase
       .from("scans")
       .select("id, root_url, status, created_at, summary, title:report_meta->>title")
@@ -68,18 +55,13 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
     | "kwcag"
     | null;
   const mpAdmin = createAdminClient();
-  // 달성 등급·피초대 보너스 (migration 0024 — 컬럼 부재 시 undefined → 기본 동작)
+  // 초대 등급·피초대 보너스 — 미션 진행·"초대 가입 혜택" 표시용 (한도 계산은 loadEntitlement가 반영)
   const earned = getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan);
   const rawBonus = (profile as { referral_daily_bonus?: unknown } | null)?.referral_daily_bonus;
   const dailyBonus = typeof rawBonus === "number" ? rawBonus : 0;
 
-  const plansActive = await getPlansActive(mpAdmin);
-  const quota = await checkQuota(
-    mpAdmin,
-    user.id,
-    resolveLimits(profile?.scan_limit_override, plansActive, earned, dailyBonus),
-    getResets(profile?.scan_limit_override),
-  );
+  const ent = await loadEntitlement(mpAdmin, user.id);
+  const quota = await checkQuota(mpAdmin, user.id, ent.limits, ent.resets);
 
   // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
   //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.
@@ -102,20 +84,24 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
   // ── 등급 표시 + 미션 진행 상태 ──
-  // 유효 등급 = 배정 등급과 달성 등급 중 서열이 높은 쪽. 프로 미만이면 미션 안내를 노출한다.
-  const assignedPlan = getPlan(profile?.scan_limit_override);
-  const assignedRank = PLAN_RANK[assignedPlan];
-  const earnedRank = earned ? PLAN_RANK[earned] : 0;
-  const displayTier: PlanId = earned && earnedRank >= assignedRank ? earned : assignedPlan;
-  const showMissions = Math.max(assignedRank, earnedRank) < PLAN_RANK.pro;
+  // 유효 등급 = 근거(초대·관리자 배정) 중 서열이 가장 높은 쪽. 프로 미만이면 미션 안내를 노출한다.
+  const displayTier: PlanId = ent.tier;
+  const showMissions = PLAN_RANK[ent.tier] < PLAN_RANK.pro;
 
   // 확장도구 한도·페이지 제한(검사당 기본, 미확인 도메인 기준) — 사용량 카드 표시용
-  const extLimit = getExtDailyLimit(profile?.scan_limit_override, earned);
-  const pageLimit = getSampleSize({ override: profile?.scan_limit_override, verified: false, plansActive, earned });
+  const extLimit = ent.limits.extDaily;
+  const pageLimit = ent.limits.sampleUnverified;
 
   // 미션 보상 요약 — 각 등급 달성 시 받는 한도
-  const plus1Reward = { ...PLANS.plus1, ext: EXT_DAILY_LIMITS.plus1 };
-  const plus2Reward = { ...PLANS.plus2, ext: EXT_DAILY_LIMITS.plus2, verify: DOMAIN_VERIFY_LIMITS.plus2 };
+  const plus1Reward = { daily: TIERS.plus1.daily, weekly: TIERS.plus1.weekly, monthly: TIERS.plus1.monthly, ext: TIERS.plus1.extDaily };
+  const plus2Reward = {
+    daily: TIERS.plus2.daily,
+    weekly: TIERS.plus2.weekly,
+    monthly: TIERS.plus2.monthly,
+    sampleSize: TIERS.plus2.sampleUnverified,
+    ext: TIERS.plus2.extDaily,
+    verify: TIERS.plus2.verifiedDomains,
+  };
 
   // 미션2 하위 단계 — 도메인 소유확인·보고서 공개 (0024 미적용 시 빈 목록 → 미완)
   const { data: myDomains } = await mpAdmin

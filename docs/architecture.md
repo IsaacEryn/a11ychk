@@ -12,7 +12,7 @@
 [사용자] POST /api/scans
   1. 인증 (Supabase Auth) → 2. Zod 입력 검증 → 3. SSRF 가드 (스킴·DNS·사설 IP)
   4. 차단 계정·횟수 제한(무료 등급 기준 일 3회 / 주 5회 / 월 10회, 롤링 윈도우 — 실제 수치는
-     `lib/quota.ts`의 PLANS) → 5. 동시 실행 1건 제한
+     `lib/quota.ts`의 TIERS) → 5. 동시 실행 1건 제한
   6. scans 행 생성(queued) → 202 응답 → after()로 큐 드레인(drainQueue)
 [drainQueue 드레이너]  (apps/web/src/lib/scan/drain.ts)
   claim_scans(MAX): 남은 용량(MAX − running)만큼 oldest queued를 원자적으로 running 전환

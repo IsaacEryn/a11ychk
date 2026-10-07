@@ -1,15 +1,18 @@
 import { getFormatter, getTranslations } from "next-intl/server";
 import { setUserLimits, toggleBlockUser } from "@/lib/actions";
 import {
-  EXT_DAILY_LIMITS,
   MAX_PAGES_PER_SCAN,
-  PLANS,
+  TIERS,
   ASSIGNABLE_PLAN_IDS,
   getCustomLimits,
   getCustomPages,
+  getCustomInt,
   getPlan,
   getEarnedPlan,
-  resolveLimits, getOverrideUntil, isOverrideExpired } from "@/lib/quota";
+  getOverrideUntil,
+  isOverrideExpired,
+} from "@/lib/quota";
+import { resolveEntitlement } from "@/lib/entitlements";
 import { QuotaResetForm } from "../QuotaResetForm";
 import { UserLimitsForm } from "../UserLimitsForm";
 import { SendEmailForm } from "./SendEmailForm";
@@ -34,12 +37,10 @@ export async function UserDetail({
   u,
   email,
   extUsedToday,
-  plansActive,
 }: {
   u: UserProfileRow;
   email: string | null;
   extUsedToday: number;
-  plansActive: boolean;
 }) {
   const t = await getTranslations("admin");
   const tDash = await getTranslations("dashboard");
@@ -47,11 +48,9 @@ export async function UserDetail({
 
   const plan = getPlan(u.scan_limit_override);
   const earned = getEarnedPlan(u.earned_plan);
-  const rawBonus = u.referral_daily_bonus;
-  const limits = resolveLimits(u.scan_limit_override, plansActive, earned, typeof rawBonus === "number" ? rawBonus : 0);
+  const ent = resolveEntitlement(u);
   // 관리자 개별 지정 확장 한도 — 없으면 undefined(등급 기본 사용)
-  const rawExt = (u.scan_limit_override as Record<string, unknown> | null)?.extDaily;
-  const extOverride = typeof rawExt === "number" && Number.isInteger(rawExt) && rawExt >= 0 ? rawExt : undefined;
+  const extOverride = getCustomInt(u.scan_limit_override, "extDaily");
 
   return (
     <div className="mt-4">
@@ -84,7 +83,7 @@ export async function UserDetail({
         <div className="flex gap-2">
           <dt className="font-semibold">{t("users.colExt")}</dt>
           <dd className="tabular-nums">
-            {extUsedToday} / {extOverride ?? EXT_DAILY_LIMITS[plan]}
+            {extUsedToday} / {ent.limits.extDaily}
           </dd>
         </div>
       </dl>
@@ -99,14 +98,14 @@ export async function UserDetail({
         customExtDaily={extOverride}
         customUntil={getOverrideUntil(u.scan_limit_override)?.slice(0, 10)}
         untilExpired={isOverrideExpired(u.scan_limit_override)}
-        extDailyDefault={EXT_DAILY_LIMITS[plan]}
-        effective={limits}
+        extDailyDefault={TIERS[plan].extDaily}
+        effective={ent.limits}
         maxPages={MAX_PAGES_PER_SCAN}
         planOptions={ASSIGNABLE_PLAN_IDS.map((p) => ({
           id: p,
           label: t(`users.plans.${p}`),
-          limits: PLANS[p],
-          sampleSize: PLANS[p].sampleSize,
+          limits: TIERS[p],
+          sampleSize: TIERS[p].sampleUnverified,
         }))}
         labels={{
           plan: t("users.planLabel"),

@@ -1,6 +1,6 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { PLANS, MAX_PAGES_PER_SCAN, DOMAIN_VERIFY_LIMITS } from "@/lib/quota";
+import { TIERS } from "@/lib/quota";
 import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
@@ -16,7 +16,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 /**
  * 요금제 안내 — 현재는 전 기능 무료(요금제 시행 전). pro/enterprise는 "준비 중"으로
  * 투명하게 예고만 한다(결제 인프라 미도입 상태에서 판매 문구 금지). 한도 수치는
- * lib/quota.ts PLANS 단일 소스에서 렌더해 코드와 안내가 어긋나지 않게 한다.
+ * lib/quota.ts TIERS 단일 소스에서 렌더해 코드와 안내가 어긋나지 않게 한다.
  */
 export default async function PricingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -25,7 +25,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
 
   const tiers = (["free", "pro", "enterprise"] as const).map((id) => ({
     id,
-    plan: PLANS[id],
+    plan: TIERS[id],
     available: id === "free",
   }));
 
@@ -57,8 +57,9 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
               <li>· {t("limits.daily", { n: plan.daily })}</li>
               <li>· {t("limits.weekly", { n: plan.weekly })}</li>
               <li>· {t("limits.monthly", { n: plan.monthly })}</li>
-              <li>· {t("limits.verify", { n: DOMAIN_VERIFY_LIMITS[id] })}</li>
-              <li>· {t("limits.pages", { n: Math.min(plan.sampleSize, MAX_PAGES_PER_SCAN) })}</li>
+              <li>· {t("limits.verify", { n: plan.verifiedDomains })}</li>
+              <li>· {t("limits.pages", { n: plan.sampleUnverified })}</li>
+              <li>· {t("limits.pagesVerified", { n: plan.sampleVerified })}</li>
               <li>· {t(`tiers.${id}.extra`)}</li>
             </ul>
             <div className="mt-5">

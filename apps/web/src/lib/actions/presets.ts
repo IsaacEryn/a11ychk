@@ -1,7 +1,7 @@
 "use server";
 
 import { z } from "zod";
-import { getEarnedPlan, presetLimit } from "@/lib/quota";
+import { loadEntitlement } from "@/lib/entitlements";
 import { requireUser, revalidateLocalized, type SaveState } from "./shared";
 
 /** 검사 폼 옵션 세트 (프리셋 options jsonb). CreateScanSchema.scope와 정합 */
@@ -59,13 +59,8 @@ export async function savePreset(_prev: SaveState, formData: FormData): Promise<
   }
 
   // 등급별 개수 제한 — 신규 이름일 때만 검사(기존 이름 덮어쓰기는 개수 증가 아님)
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("scan_limit_override, earned_plan")
-    .eq("id", user.id)
-    .single();
-  const earned = getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan);
-  const limit = presetLimit(profile?.scan_limit_override, earned);
+  const { limits } = await loadEntitlement(supabase, user.id);
+  const limit = limits.presets;
   const { data: existing } = await supabase.from("scan_presets").select("name").eq("user_id", user.id);
   const names = new Set((existing ?? []).map((r) => r.name as string));
   if (!names.has(name) && names.size >= limit) return { error: "limit" };

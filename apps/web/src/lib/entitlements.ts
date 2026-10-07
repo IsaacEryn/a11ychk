@@ -15,14 +15,6 @@ import {
   type TierLimits,
 } from "@/lib/quota";
 
-/**
- * 이용 권한(엔타이틀먼트) — 사용자에게 실제로 적용되는 한도를 한 곳에서 계산한다.
- *
- * 근거(grant)를 모은 뒤 등급표(TIERS) 행을 필드마다 최댓값으로 합친다. free는 항상
- * 근거에 들어가므로, 관리자가 숫자를 직접 낮추지 않는 한 누구도 free 아래로 내려가지 않는다.
- * 관리자 배정 등급은 기한(until) 안이면 즉시 모든 한도에 적용된다.
- * 순서: 근거 병합 → 초대 가입 보너스(daily) → 관리자 수치 개별값(덮어씀) → 표본 상한.
- */
 export type GrantSource = "free" | "earned" | "admin";
 
 export interface Grant {
@@ -51,6 +43,14 @@ export const PROFILE_QUOTA_COLUMNS = "scan_limit_override, earned_plan, referral
 /** 서열이 같을 때 표시 우선순위 — 초대 등급을 관리자 배정보다 먼저 보여 주던 기존 동작 유지 */
 const TIE_ORDER: Record<GrantSource, number> = { free: 0, admin: 1, earned: 2 };
 
+/**
+ * 이용 권한(엔타이틀먼트) — 사용자에게 실제로 적용되는 한도를 한 곳에서 계산한다.
+ *
+ * 근거(grant)를 모은 뒤 등급표(TIERS) 행을 필드마다 최댓값으로 합친다. free는 항상
+ * 근거에 들어가므로, 관리자가 숫자를 직접 낮추지 않는 한 누구도 free 아래로 내려가지 않는다.
+ * 관리자 배정 등급은 기한(until) 안이면 즉시 모든 한도에 적용된다.
+ * 순서: 근거 병합 → 초대 가입 보너스(daily) → 관리자 수치 개별값(덮어씀) → 표본 상한.
+ */
 export function resolveEntitlement(p: ProfileQuotaFields | null | undefined): Entitlement {
   const override = p?.scan_limit_override;
   const grants: Grant[] = [{ tier: "free", source: "free" }];
