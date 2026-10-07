@@ -1331,7 +1331,11 @@
         "scan_admin_retry": "실패 검사 재검사",
         "report_view": "사용자 보고서 열람",
         "announcement_publish": "서비스 공지 발행",
-        "announcement_clear": "공지 배너 내리기"
+        "announcement_clear": "공지 배너 내리기",
+        "billing_contract_create": "기관 계약 등록",
+        "billing_contract_update": "기관 계약 수정",
+        "billing_contract_extend": "기관 계약 종료일 변경",
+        "billing_contract_end": "기관 계약 종료"
       },
       "detailActive": "시행 시작",
       "detailInactive": "시행 중지",

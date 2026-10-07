@@ -1331,7 +1331,11 @@
         "scan_admin_retry": "Retry failed scan",
         "report_view": "View user report",
         "announcement_publish": "Publish notice",
-        "announcement_clear": "Remove notice banner"
+        "announcement_clear": "Remove notice banner",
+        "billing_contract_create": "Contract created",
+        "billing_contract_update": "Contract updated",
+        "billing_contract_extend": "Contract end date changed",
+        "billing_contract_end": "Contract ended"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",
