@@ -1534,6 +1534,7 @@
         "org": "Organization"
       },
       "testBadge": "Test",
+      "noNickname": "(no nickname)",
       "detail": {
         "back": "Back to list",
         "user": "User",
@@ -1564,6 +1565,8 @@
         "orgName": "Organization",
         "contractRef": "Contract number",
         "memo": "Memo",
+        "memoHint": "Don't enter personal data such as resident registration numbers or personal phone numbers.",
+        "optional": "(optional)",
         "paidDate": "Payment confirmed",
         "taxInvoiceDate": "Tax invoice issued",
         "create": "Add contract",

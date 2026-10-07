@@ -1534,6 +1534,7 @@
         "org": "기관"
       },
       "testBadge": "테스트",
+      "noNickname": "(닉네임 없음)",
       "detail": {
         "back": "목록으로",
         "user": "사용자",
@@ -1564,6 +1565,8 @@
         "orgName": "기관명",
         "contractRef": "계약번호",
         "memo": "메모",
+        "memoHint": "주민등록번호·개인 연락처 같은 개인정보는 적지 마세요.",
+        "optional": "(선택)",
         "paidDate": "입금 확인일",
         "taxInvoiceDate": "세금계산서 발행일",
         "create": "계약 등록",

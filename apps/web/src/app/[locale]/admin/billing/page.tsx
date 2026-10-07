@@ -46,13 +46,15 @@ export default async function AdminBillingPage({
   if (provider) query = query.eq("provider", provider);
   const { data, error } = await query;
   const missing = error && (error.code === "42P01" || error.code === "PGRST205");
+  // 0041 미적용(테이블 없음)만 안내로 처리한다. 그 밖의 조회 오류를 "구독 없음"으로 보여 주면 장애가 가려진다.
+  if (error && !missing) throw new Error(`admin billing list query failed: ${error.message}`);
   const rows = data ?? [];
 
   // 닉네임 병기
   const userIds = [...new Set(rows.map((r) => r.user_id as string | null).filter(Boolean))] as string[];
   const { data: profiles } =
     userIds.length > 0 ? await admin.from("profiles").select("id, nickname").in("id", userIds) : { data: [] };
-  const nickname = new Map((profiles ?? []).map((p) => [p.id as string, (p.nickname as string | null) ?? "?"]));
+  const nickname = new Map((profiles ?? []).map((p) => [p.id as string, (p.nickname as string | null) ?? ""]));
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "short" });
   const orgOf = (r: (typeof rows)[number]) => {
     const c = r.billing_contracts as unknown;
@@ -110,16 +112,16 @@ export default async function AdminBillingPage({
                 <tbody>
                   {rows.map((r) => (
                     <tr key={r.id as string} className={TR}>
-                      <td className="py-2 pr-3 font-semibold">
+                      <th scope="row" className="py-2 pr-3 text-left font-semibold">
                         <AdminLink href={`${adminBase()}/billing/${r.id}`} className="underline underline-offset-4">
-                          {r.user_id ? nickname.get(r.user_id as string) ?? "?" : "—"}
+                          {r.user_id ? nickname.get(r.user_id as string) || t("billing.noNickname") : "—"}
                         </AdminLink>
                         {!r.livemode && (
                           <span className="ml-1.5 rounded-full bg-[var(--color-paper-warm)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-soft)]">
                             {t("billing.testBadge")}
                           </span>
                         )}
-                      </td>
+                      </th>
                       <td className="py-2 pr-3">{t(`users.plans.${r.plan_code}`)}</td>
                       <td className="py-2 pr-3">{t(`billing.provider.${r.provider}`)}</td>
                       <td className="py-2 pr-3">{t(`billing.status.${statusKey(r)}`)}</td>

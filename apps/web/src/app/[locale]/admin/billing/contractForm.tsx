@@ -15,6 +15,12 @@ export const BTN_PRIMARY =
 export const BTN_DANGER =
   "rounded border-[1.5px] border-[var(--color-crit)] px-3 py-1.5 text-xs font-bold text-[var(--color-crit)] hover:bg-[var(--color-crit-tint)] disabled:opacity-60";
 
+/** 선택 입력 레이블 뒤에 붙는 "(선택)" 표시 — 색에 기대지 않고 글자로 알린다 */
+export function Optional() {
+  const t = useTranslations("admin.billing.contract");
+  return <span className="ml-1 font-normal text-[var(--color-ink-soft)]">{t("optional")}</span>;
+}
+
 /** 서버 액션(adminBilling)이 돌려주는 오류 코드 전부 */
 const ERROR_CODES = ["invalid", "period", "hasActive", "notFound", "notManual", "ended", "failed"] as const;
 

@@ -66,7 +66,7 @@ export default async function AdminBillingDetailPage({
         admin.auth.admin.getUserById(userId).catch(() => ({ data: null })),
       ])
     : [null, null];
-  const nickname = (profileRes?.data?.nickname as string | null | undefined) ?? "?";
+  const nickname = (profileRes?.data?.nickname as string | null | undefined) || t("billing.noNickname");
   const email = authRes?.data?.user?.email ?? null;
 
   const contract = (() => {
@@ -136,6 +136,11 @@ export default async function AdminBillingDetailPage({
         <dt className="font-semibold">{t("billing.detail.createdAt")}</dt>
         <dd className="tabular-nums">{day(sub.created_at as string)}</dd>
       </dl>
+
+      {/* 항상 마운트된 상태 안내 — 종료가 성공하면 refresh로 종료 폼이 사라져 폼 안의 성공 메시지가 읽히기 전에 없어진다 */}
+      <p role="status" className="sr-only">
+        {sub.status === "ended" ? t("billing.contract.ended") : ""}
+      </p>
 
       {isManual ? (
         contract && (
