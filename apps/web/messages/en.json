@@ -1150,6 +1150,7 @@
         "manual": "Manual",
         "auto": "Auto",
         "scheduled": "Scheduled",
+        "extension": "Extension",
         "teaser": "Teaser"
       },
       "teaserUser": "Anonymous",

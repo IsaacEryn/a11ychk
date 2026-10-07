@@ -245,16 +245,17 @@ export async function checkQuota(
     const reset = resets[key];
     // 롤링 윈도우 시작과 리셋 시각 중 더 나중(=더 짧은 기간)을 하한으로
     const lowerBound = reset && reset > windowStart ? reset : windowStart;
-    // 관리자 재검사(admin_retry, 0028)와 정기 검사(source='scheduled', 0029)는 사용자 한도에서 제외.
-    // 정기 검사는 소유 확인 도메인에만, 사용자당 활성 검사 1건 가드 때문에 계정당 하루 1건까지만
-    // 돈다(크론). 이걸 한도에 넣으면 매일 검사만으로 주간 한도가 바닥나 수동 검사까지 막혔다.
+    // 사용자가 직접 만든 검사(source='user')만 센다. 관리자 재검사(admin_retry, 0028),
+    // 정기 검사(source='scheduled', 0029), 확장 보고서(source='extension', 0040 — 확장 전용
+    // 일일 한도로 이미 차감)는 제외한다. 정기 검사를 한도에 넣으면 매일 검사만으로 주간 한도가
+    // 바닥나 수동 검사까지 막혔다.
     // 컬럼 미적용 환경(0028·0029)에서는 필터 없이 폴백해 검사 생성이 깨지지 않게 한다.
     let { count, error } = await admin
       .from("scans")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("admin_retry", false)
-      .neq("source", "scheduled")
+      .eq("source", "user")
       .gte("created_at", lowerBound);
     if (error) {
       // 폴백은 정기 검사·관리자 재검사를 다시 한도에 넣는다 — 컬럼 부재(0028·0029 미적용)일 때만

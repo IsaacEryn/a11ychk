@@ -1150,6 +1150,7 @@
         "manual": "수동",
         "auto": "자동",
         "scheduled": "정기",
+        "extension": "확장",
         "teaser": "맛보기"
       },
       "teaserUser": "비로그인",

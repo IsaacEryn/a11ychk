@@ -18,7 +18,7 @@ const STATUSES = ["queued", "running", "done", "failed"] as const;
 type ScanStatus = (typeof STATUSES)[number];
 // teaser = 비로그인 맛보기(teaser_scans, 0026) — 별도 테이블이라 유형 선택 시에만 조회
 // (과거의 메모리 병합 표시는 페이징과 양립할 수 없어 해체 — "전체"는 회원 검사만)
-const TYPES = ["manual", "auto", "scheduled", "teaser"] as const;
+const TYPES = ["manual", "auto", "scheduled", "extension", "teaser"] as const;
 type ScanType = (typeof TYPES)[number];
 
 type Row = {
@@ -115,12 +115,13 @@ export default async function AdminScanLogsPage({
           .order("created_at", { ascending: false })
           .range(rangeFrom, rangeTo);
         if (filter) query = query.eq("status", filter);
-        // 유형 필터 — 수동/자동은 scope.manualPages 유무, 정기는 source(0029)
+        // 유형 필터 — 수동/자동은 scope.manualPages 유무, 정기·확장은 source(0029·0040)
         if (withSource && typeFilter === "scheduled") query = query.eq("source", "scheduled");
+        if (withSource && typeFilter === "extension") query = query.eq("source", "extension");
         if (typeFilter === "manual") query = query.not("scope->manualPages", "is", null);
         if (typeFilter === "auto") {
           query = query.is("scope->manualPages", null);
-          if (withSource) query = query.neq("source", "scheduled");
+          if (withSource) query = query.eq("source", "user");
         }
         if (q) query = query.ilike("root_url", `%${escapeLike(q)}%`);
         if (userIds) query = query.in("user_id", userIds);
@@ -148,15 +149,17 @@ export default async function AdminScanLogsPage({
     }
   }
 
-  /** 유형 판별 — 맛보기 > 정기(source) > 수동(직접 입력 페이지 존재) > 자동 수집 */
+  /** 유형 판별 — 맛보기 > 정기·확장(source) > 수동(직접 입력 페이지 존재) > 자동 수집 */
   const scanType = (s: Row): ScanType =>
     s.teaser
       ? "teaser"
       : s.source === "scheduled"
         ? "scheduled"
-        : Array.isArray(s.manual_pages) && s.manual_pages.length > 0
-          ? "manual"
-          : "auto";
+        : s.source === "extension"
+          ? "extension"
+          : Array.isArray(s.manual_pages) && s.manual_pages.length > 0
+            ? "manual"
+            : "auto";
 
   /** 보고서 점수 — 통합 점수 우선, 없으면 자동 준수율 (대시보드와 동일 기준) */
   const scoreLabel = (s: Row): string => {
