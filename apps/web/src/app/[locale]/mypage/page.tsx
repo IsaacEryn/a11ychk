@@ -84,7 +84,7 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
   // ── 등급 표시 + 미션 진행 상태 ──
-  // 유효 등급 = 근거(초대·관리자 배정) 중 서열이 가장 높은 쪽. 프로 미만이면 미션 안내를 노출한다.
+  // 유효 등급 = 근거(초대·관리자 배정·구독·기관 계약) 중 서열이 가장 높은 쪽. 프로 미만이면 미션 안내를 노출한다.
   const displayTier: PlanId = ent.tier;
   const showMissions = PLAN_RANK[ent.tier] < PLAN_RANK.pro;
 
@@ -142,6 +142,11 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
             </span>
             {dailyBonus > 0 && (
               <span className="text-xs font-semibold text-[var(--color-seal)]">{t("tier.invitedBonus")}</span>
+            )}
+            {ent.source === "contract" && ent.until && (
+              <span className="text-xs font-semibold text-[var(--color-ink-soft)]">
+                {t("tier.contractUntil", { date: format.dateTime(new Date(ent.until), { dateStyle: "medium" }) })}
+              </span>
             )}
           </div>
           <p className="mt-4 text-sm font-semibold text-[var(--color-ink-soft)]">{t("tier.scanUsageLabel")}</p>

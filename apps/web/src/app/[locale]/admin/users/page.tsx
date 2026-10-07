@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { adminBase } from "@/lib/adminSlug";
 import { escapeLike } from "@/lib/like";
 import { getEarnedPlan, getPlan } from "@/lib/quota";
-import { resolveEntitlement } from "@/lib/entitlements";
+import { loadSubscriptionGrants, resolveEntitlement } from "@/lib/entitlements";
 import { AdminLink } from "../AdminLink";
 import { Pager, PAGE_SIZE, parsePage } from "../Pager";
 import { FILTER_BTN, INPUT, TABLE, TH, TR, TR_HEAD } from "../tableStyles";
@@ -69,6 +69,12 @@ export default async function AdminUsersPage({
     users = (data ?? []) as unknown as UserProfileRow[];
     total = count ?? 0;
   }
+
+  // 권한 근거 구독 — 목록 행과 드로어가 같이 쓴다 (0041 미적용이면 빈 목록)
+  const subsByUser = await loadSubscriptionGrants(
+    admin,
+    [...new Set([...users.map((u) => u.id), ...(drawerUserId ? [drawerUserId] : [])])],
+  );
 
   // 오늘 확장 검사 사용량 — 목록 사용자 대상 일괄 조회 (테이블 미적용 시 빈 맵)
   const today = new Date().toISOString().slice(0, 10);
@@ -152,7 +158,7 @@ export default async function AdminUsersPage({
             {users.map((u) => {
               const plan = getPlan(u.scan_limit_override);
               const earned = getEarnedPlan(u.earned_plan);
-              const extLimit = resolveEntitlement(u).limits.extDaily;
+              const extLimit = resolveEntitlement(u, subsByUser.get(u.id) ?? []).limits.extDaily;
               return (
                 <tr key={u.id} className={TR}>
                   <td className="whitespace-nowrap py-2 pr-3 font-semibold">
@@ -214,7 +220,12 @@ export default async function AdminUsersPage({
           title={drawer.u.nickname}
           closeLabel={t("users.close")}
         >
-          <UserDetail u={drawer.u} email={drawer.email} extUsedToday={drawer.extUsed} />
+          <UserDetail
+            u={drawer.u}
+            email={drawer.email}
+            extUsedToday={drawer.extUsed}
+            subscriptions={subsByUser.get(drawer.u.id) ?? []}
+          />
         </UserDrawer>
       )}
     </section>

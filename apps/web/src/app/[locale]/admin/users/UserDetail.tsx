@@ -12,7 +12,7 @@ import {
   getOverrideUntil,
   isOverrideExpired,
 } from "@/lib/quota";
-import { resolveEntitlement } from "@/lib/entitlements";
+import { resolveEntitlement, type SubscriptionGrantRow } from "@/lib/entitlements";
 import { QuotaResetForm } from "../QuotaResetForm";
 import { UserLimitsForm } from "../UserLimitsForm";
 import { SendEmailForm } from "./SendEmailForm";
@@ -37,10 +37,13 @@ export async function UserDetail({
   u,
   email,
   extUsedToday,
+  subscriptions,
 }: {
   u: UserProfileRow;
   email: string | null;
   extUsedToday: number;
+  /** 권한 근거 후보 구독(진행 중인 행) */
+  subscriptions: SubscriptionGrantRow[];
 }) {
   const t = await getTranslations("admin");
   const tDash = await getTranslations("dashboard");
@@ -48,7 +51,7 @@ export async function UserDetail({
 
   const plan = getPlan(u.scan_limit_override);
   const earned = getEarnedPlan(u.earned_plan);
-  const ent = resolveEntitlement(u);
+  const ent = resolveEntitlement(u, subscriptions);
   // 관리자 개별 지정 확장 한도 — 없으면 undefined(등급 기본 사용)
   const extOverride = getCustomInt(u.scan_limit_override, "extDaily");
 
@@ -84,6 +87,18 @@ export async function UserDetail({
           <dt className="font-semibold">{t("users.colExt")}</dt>
           <dd className="tabular-nums">
             {extUsedToday} / {ent.limits.extDaily}
+          </dd>
+        </div>
+        <div className="flex gap-2">
+          <dt className="font-semibold">{t("users.grantsLabel")}</dt>
+          <dd>
+            {ent.grants
+              .map((g) => {
+                const tier = g.source === "earned" ? t(`users.earned.${g.tier}`) : t(`users.plans.${g.tier}`);
+                const until = g.until ? ` ~${format.dateTime(new Date(g.until), { dateStyle: "short" })}` : "";
+                return `${t(`users.grantSource.${g.source}`)} ${tier}${until}`;
+              })
+              .join(" · ")}
           </dd>
         </div>
       </dl>

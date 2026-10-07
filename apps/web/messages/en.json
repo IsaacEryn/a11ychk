@@ -1050,6 +1050,7 @@
     "tier": {
       "title": "My usage",
       "invitedBonus": "Invited-signup perk · +1 daily scan",
+      "contractUntil": "Organization contract · until {date}",
       "free": "Free",
       "plus1": "Plus 1",
       "plus2": "Plus 2",
@@ -1219,6 +1220,14 @@
       "earned": {
         "plus1": "Plus 1 earned",
         "plus2": "Plus 2 earned"
+      },
+      "grantsLabel": "Grants",
+      "grantSource": {
+        "free": "Base",
+        "earned": "Referral reward",
+        "admin": "Admin grant",
+        "contract": "Organization contract",
+        "subscription": "Subscription"
       },
       "email": {
         "toggle": "Send email",

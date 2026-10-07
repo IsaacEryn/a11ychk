@@ -1050,6 +1050,7 @@
     "tier": {
       "title": "나의 사용량",
       "invitedBonus": "초대 가입 혜택 · 일 검사 +1회",
+      "contractUntil": "기관 계약 · {date}까지",
       "free": "무료",
       "plus1": "플러스1",
       "plus2": "플러스2",
@@ -1219,6 +1220,14 @@
       "earned": {
         "plus1": "플러스1 달성",
         "plus2": "플러스2 달성"
+      },
+      "grantsLabel": "적용 근거",
+      "grantSource": {
+        "free": "기본",
+        "earned": "초대 보상",
+        "admin": "관리자 배정",
+        "contract": "기관 계약",
+        "subscription": "구독"
       },
       "email": {
         "toggle": "메일 보내기",
