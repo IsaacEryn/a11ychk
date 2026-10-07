@@ -43,6 +43,10 @@ describe("kstDateToIso", () => {
   it("윤년 2월 29일은 허용", () => {
     expect(kstDateToIso("2028-02-29", "end")).toBe("2028-02-29T23:59:59+09:00");
   });
+  it("윤년이 아닌 해의 2월 29일은 null (100년 단위 평년 포함)", () => {
+    expect(kstDateToIso("2027-02-29", "start")).toBeNull();
+    expect(kstDateToIso("2100-02-29", "start")).toBeNull();
+  });
 });
 
 describe("parseContractCreate", () => {
@@ -74,6 +78,11 @@ describe("parseContractCreate", () => {
   });
   it("시작과 종료가 같은 날이면 허용(하루 계약)", () => {
     expect(parseContractCreate(fd({ ...base, endDate: "2026-11-01" })).ok).toBe(true);
+  });
+  it("금액 경계 — 0과 100억은 허용, 100억 1은 invalid", () => {
+    expect(parseContractCreate(fd({ ...base, amount: "0" })).ok).toBe(true);
+    expect(parseContractCreate(fd({ ...base, amount: "10000000000" })).ok).toBe(true);
+    expect(parseContractCreate(fd({ ...base, amount: "10000000001" }))).toEqual({ ok: false, error: "invalid" });
   });
   it.each([
     ["알 수 없는 등급", { planCode: "unlimited" }],
