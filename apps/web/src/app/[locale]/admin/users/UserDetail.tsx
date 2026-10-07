@@ -13,6 +13,8 @@ import {
   isOverrideExpired,
 } from "@/lib/quota";
 import { resolveEntitlement, type SubscriptionGrantRow } from "@/lib/entitlements";
+import { CONTRACT_PLAN_IDS } from "@/lib/billing/contract";
+import { ContractCreateForm } from "../billing/ContractCreateForm";
 import { QuotaResetForm } from "../QuotaResetForm";
 import { UserLimitsForm } from "../UserLimitsForm";
 import { SendEmailForm } from "./SendEmailForm";
@@ -137,6 +139,12 @@ export async function UserDetail({
           customHint: t("users.customHint"),
           effective: t("users.effective"),
         }}
+      />
+
+      {/* 기관 계약 등록 — 견적·입금·세금계산서는 화면 밖에서 처리한 뒤 기간제 등급을 준다 */}
+      <ContractCreateForm
+        userId={u.id}
+        planOptions={CONTRACT_PLAN_IDS.map((p) => ({ id: p, label: t(`users.plans.${p}`) }))}
       />
 
       {/* 초기화 · 차단 */}

@@ -1286,7 +1286,8 @@
       "settings": "Settings",
       "logs": "Logs",
       "referrals": "Referrals",
-      "teaser": "Teaser"
+      "teaser": "Teaser",
+      "billing": "Billing"
     },
     "dashboard": {
       "goDetail": "Details →",
@@ -1501,6 +1502,95 @@
       "bannerDaysHint": "After this period the banner comes down automatically; the notice stays on the notices page. The banner also stops after a user dismisses it or has seen it 5 times.",
       "until": "Banner ends: {date}",
       "untilNone": "No end date"
+    },
+    "billing": {
+      "title": "Billing & contracts",
+      "intro": "Subscriptions and organization contracts. To add a contract, find the user on the Users page and open their details.",
+      "migrationMissing": "Apply migration 0041 to see this page.",
+      "empty": "No subscriptions match these filters.",
+      "filters": {
+        "status": "Status",
+        "provider": "Payment method",
+        "all": "All",
+        "apply": "Apply"
+      },
+      "status": {
+        "active": "Active",
+        "past_due": "Past due",
+        "ended": "Ended",
+        "expired": "Expired"
+      },
+      "provider": {
+        "toss": "Card subscription",
+        "mor": "International payment",
+        "manual": "Organization contract"
+      },
+      "cols": {
+        "user": "User",
+        "plan": "Plan",
+        "provider": "Payment method",
+        "status": "Status",
+        "period": "Period",
+        "org": "Organization"
+      },
+      "testBadge": "Test",
+      "detail": {
+        "back": "Back to list",
+        "user": "User",
+        "plan": "Plan",
+        "provider": "Payment method",
+        "status": "Status",
+        "period": "Period",
+        "amount": "Contract amount",
+        "endedReason": "End reason",
+        "createdAt": "Created",
+        "nonManual": "Card and international subscriptions will be managed here once payment integration is live."
+      },
+      "endedReason": {
+        "user_canceled": "Canceled by user",
+        "payment_failed": "Payment failed",
+        "admin": "Ended by admin",
+        "refunded": "Refunded",
+        "contract_expired": "Contract expired"
+      },
+      "contract": {
+        "createToggle": "Add organization contract",
+        "plan": "Plan",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "periodHint": "Applies from 00:00 on the start date to 23:59 on the end date (Korea time).",
+        "amount": "Contract amount (KRW)",
+        "amountHint": "Including VAT. For records only; no payment is made.",
+        "orgName": "Organization",
+        "contractRef": "Contract number",
+        "memo": "Memo",
+        "paidDate": "Payment confirmed",
+        "taxInvoiceDate": "Tax invoice issued",
+        "create": "Add contract",
+        "creating": "Adding…",
+        "created": "Contract added",
+        "editTitle": "Contract details",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "endDateTitle": "Change end date",
+        "endDateSubmit": "Change end date",
+        "endDateSaved": "End date changed",
+        "endTitle": "End contract now",
+        "endHint": "Ending removes this user's contract limits immediately.",
+        "endConfirm": "End this contract now",
+        "endSubmit": "End contract",
+        "ended": "Contract ended",
+        "errors": {
+          "invalid": "Please check the values.",
+          "period": "The end date must be on or after the start date.",
+          "hasActive": "This user already has an active subscription or contract.",
+          "notFound": "Contract not found.",
+          "notManual": "Only organization contracts can be changed here.",
+          "ended": "This contract has already ended.",
+          "failed": "Couldn't save. Please try again shortly."
+        }
+      }
     },
     "pager": {
       "label": "Pagination",

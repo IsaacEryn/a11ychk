@@ -7,6 +7,7 @@ interface AdminNavLabels {
   label: string;
   dashboard: string;
   users: string;
+  billing: string;
   referrals: string;
   teaser: string;
   inquiries: string;
@@ -25,6 +26,7 @@ export function AdminNav({ labels, basePath }: { labels: AdminNavLabels; basePat
   const items: { href: string; label: string }[] = [
     { href: basePath, label: labels.dashboard },
     { href: `${basePath}/users`, label: labels.users },
+    { href: `${basePath}/billing`, label: labels.billing },
     { href: `${basePath}/referrals`, label: labels.referrals },
     { href: `${basePath}/teaser`, label: labels.teaser },
     { href: `${basePath}/inquiries`, label: labels.inquiries },
