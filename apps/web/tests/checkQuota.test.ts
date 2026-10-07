@@ -22,6 +22,7 @@ describe("checkQuota", () => {
     const { db, calls } = recordingDb(0);
     await checkQuota(db, "u1", { daily: 3, weekly: 5, monthly: 10 });
     expect(calls).toContainEqual(["eq", ["source", "user"]]);
+    expect(calls).toContainEqual(["eq", ["admin_retry", false]]);
     expect(calls.some(([m, a]) => m === "neq" && a[0] === "source")).toBe(false);
   });
   it("한도에 닿으면 초과 창을 알려 준다", async () => {

@@ -104,7 +104,7 @@
 
 유효 초대 5명 → 플러스1, 추가로 소유확인 도메인 + 보고서 공개 → 플러스2로 **자동 승급**해
 검사 한도를 상향한다. 유효 한도는 필드별 `max(배정 요금제, 달성 등급)` + 초대 보너스로 계산
-(`lib/quota.ts`의 `resolveLimits`). 부정 방지: 이메일 정규화 해시 전역 unique·일회용 도메인
+(`lib/entitlements.ts`의 `resolveEntitlement`). 부정 방지: 이메일 정규화 해시 전역 unique·일회용 도메인
 차단·동일 IP는 suspect로 보류 후 관리자 승인·일2/총20 캡. 피초대자에게도 일 한도 +1을 즉시
 부여하고 부정 기각 시 회수한다. (`lib/referral/`, `0024_referrals.sql`)
 

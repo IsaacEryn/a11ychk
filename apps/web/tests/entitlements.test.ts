@@ -6,6 +6,9 @@ import { loadEntitlement, resolveEntitlement, sampleFor } from "../src/lib/entit
 const PAST = "2020-01-01T23:59:59+09:00";
 
 describe("TIERS 불변식", () => {
+  it("TIER_LIMIT_KEYS가 TierLimits의 모든 필드를 담는다 — 빠지면 그 필드는 근거 병합에서 조용히 free에 머문다", () => {
+    expect([...TIER_LIMIT_KEYS].sort()).toEqual(Object.keys(TIERS.free).sort());
+  });
   it("모든 등급의 모든 한도는 free 이상이다", () => {
     for (const id of PLAN_IDS) {
       for (const k of TIER_LIMIT_KEYS) expect(TIERS[id][k], `${id}.${k}`).toBeGreaterThanOrEqual(TIERS.free[k]);

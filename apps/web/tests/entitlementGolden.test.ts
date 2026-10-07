@@ -48,6 +48,11 @@ const GOLDEN: { name: string; profile: ProfileFields; expected: Limits }[] = [
   { name: "명시적 free 배정", profile: { scan_limit_override: { plan: "free" } }, expected: FREE },
   { name: "알 수 없는 등급", profile: { scan_limit_override: { plan: "vip" } }, expected: FREE },
   { name: "구 plus earned_plan 값은 무시", profile: { earned_plan: "plus" }, expected: FREE },
+  { name: "daily 0 개별값은 초대 등급보다 우선", profile: { scan_limit_override: { daily: 0 }, earned_plan: "plus2" }, expected: L(0, 8, 20, 8, 10, 2, 15, 20) },
+  { name: "음수 개별값은 무시", profile: { scan_limit_override: { daily: -1 } }, expected: FREE },
+  { name: "문자열 개별값은 무시", profile: { scan_limit_override: { daily: "10" } }, expected: FREE },
+  { name: "정수가 아닌 소유 확인 수는 무시", profile: { scan_limit_override: { verifiedDomains: 1.5 } }, expected: FREE },
+  { name: "pages 0은 무시", profile: { scan_limit_override: { pages: 0 } }, expected: FREE },
 ];
 
 /** 관리자 배정 행 — after는 관리자 배정이 즉시 모든 한도에 적용된 뒤의 기대값 */
