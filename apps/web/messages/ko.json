@@ -1535,6 +1535,7 @@
       },
       "testBadge": "테스트",
       "noNickname": "(닉네임 없음)",
+      "deletedUser": "(탈퇴한 사용자)",
       "detail": {
         "back": "목록으로",
         "user": "사용자",
@@ -1591,6 +1592,8 @@
           "notFound": "계약을 찾을 수 없습니다.",
           "notManual": "기관 계약만 바꿀 수 있습니다.",
           "ended": "이미 종료된 계약입니다.",
+          "migrationMissing": "0041 마이그레이션을 적용한 뒤 다시 시도해 주세요.",
+          "userNotFound": "사용자를 찾을 수 없습니다.",
           "failed": "저장하지 못했습니다. 잠시 후 다시 시도해 주세요."
         }
       }

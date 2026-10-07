@@ -46,7 +46,7 @@ export function ContractEditForm({
       <h3 id={headingId} className="font-display text-lg font-bold">
         {t("editTitle")}
       </h3>
-      <form onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
+      <form method="post" onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="subscriptionId" value={subscriptionId} />
         <div>
           <label htmlFor={id("org")} className={LABEL}>

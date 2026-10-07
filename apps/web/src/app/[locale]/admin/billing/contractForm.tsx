@@ -39,7 +39,17 @@ export function Optional() {
 }
 
 /** 서버 액션(adminBilling)이 돌려주는 오류 코드 전부 */
-const ERROR_CODES = ["invalid", "period", "hasActive", "notFound", "notManual", "ended", "failed"] as const;
+const ERROR_CODES = [
+  "invalid",
+  "period",
+  "hasActive",
+  "notFound",
+  "notManual",
+  "ended",
+  "migrationMissing",
+  "userNotFound",
+  "failed",
+] as const;
 
 /** FormFeedback에 넘길 오류 문구 맵과 fallback */
 export function useContractErrors() {

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { MAX_PAGES_PER_SCAN, PLAN_IDS, TIERS, TIER_LIMIT_KEYS, getCustomInt } from "../src/lib/quota";
 import {
@@ -200,7 +200,13 @@ describe("loadEntitlement / loadSubscriptionGrants", () => {
     return { db, calls };
   }
 
-  beforeEach(() => logAppError.mockClear());
+  beforeEach(() => {
+    logAppError.mockClear();
+    // 실결제 여부(livemode)는 환경변수로 정해지므로 로컬 설정에 테스트가 흔들리지 않게 고정한다
+    vi.stubEnv("BILLING_MODE", "");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+  });
+  afterEach(() => vi.unstubAllEnvs());
 
   it("프로필과 진행 중 실결제 구독을 함께 읽는다", async () => {
     const s = stub({

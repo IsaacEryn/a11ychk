@@ -114,7 +114,7 @@ export default async function AdminBillingPage({
                     <tr key={r.id as string} className={TR}>
                       <th scope="row" className="py-2 pr-3 text-left font-semibold">
                         <AdminLink href={`${adminBase()}/billing/${r.id}`} className="underline underline-offset-4">
-                          {r.user_id ? nickname.get(r.user_id as string) || t("billing.noNickname") : "—"}
+                          {r.user_id ? nickname.get(r.user_id as string) || t("billing.noNickname") : t("billing.deletedUser")}
                         </AdminLink>
                         {!r.livemode && (
                           <span className="ml-1.5 rounded-full bg-[var(--color-paper-warm)] px-2 py-0.5 text-xs font-bold text-[var(--color-ink-soft)]">

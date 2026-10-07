@@ -1535,6 +1535,7 @@
       },
       "testBadge": "Test",
       "noNickname": "(no nickname)",
+      "deletedUser": "(deleted user)",
       "detail": {
         "back": "Back to list",
         "user": "User",
@@ -1591,6 +1592,8 @@
           "notFound": "Contract not found.",
           "notManual": "Only organization contracts can be changed here.",
           "ended": "This contract has already ended.",
+          "migrationMissing": "Apply migration 0041, then try again.",
+          "userNotFound": "User not found.",
           "failed": "Couldn't save. Please try again shortly."
         }
       }

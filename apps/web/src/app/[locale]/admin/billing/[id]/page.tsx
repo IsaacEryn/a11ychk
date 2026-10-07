@@ -144,8 +144,9 @@ export default async function AdminBillingDetailPage({
       </p>
 
       {isManual ? (
-        contract && (
-          <>
+        <>
+          {/* 상세 행이 없는 고아 계약도 종료할 수 있게, 종료일 변경·즉시 종료는 상세 행과 무관하게 연다 */}
+          {contract && (
             <ContractEditForm
               subscriptionId={sub.id as string}
               orgName={contract.org_name ?? ""}
@@ -154,14 +155,14 @@ export default async function AdminBillingDetailPage({
               paidDate={contract.paid_confirmed_at ? toKstDate(contract.paid_confirmed_at) : null}
               taxInvoiceDate={contract.tax_invoice_issued_at ? toKstDate(contract.tax_invoice_issued_at) : null}
             />
-            {sub.status !== "ended" && (
-              <>
-                <ContractEndDateForm subscriptionId={sub.id as string} endDate={toKstDate(periodEnd)} />
-                <ContractEndForm subscriptionId={sub.id as string} />
-              </>
-            )}
-          </>
-        )
+          )}
+          {sub.status !== "ended" && (
+            <>
+              <ContractEndDateForm subscriptionId={sub.id as string} endDate={toKstDate(periodEnd)} />
+              <ContractEndForm subscriptionId={sub.id as string} />
+            </>
+          )}
+        </>
       ) : (
         <p className="mt-6 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-ink-soft)]">
           {t("billing.detail.nonManual")}

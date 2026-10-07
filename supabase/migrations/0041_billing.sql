@@ -27,13 +27,15 @@ create table if not exists public.billing_prices (
 );
 comment on table public.billing_prices is
   '판매 가격표 — 행은 불변(금액을 바꾸면 새 행을 만들고 이전 행은 active=false). KRW는 원(VAT 포함), USD는 cent';
+create unique index if not exists billing_prices_one_active
+  on public.billing_prices (plan_code, provider, currency, interval, livemode) where active;
 
 create table if not exists public.billing_customers (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.profiles (id) on delete cascade,
   livemode boolean not null,
   toss_customer_key text unique,
-  toss_billing_key_enc text,
+  toss_billing_key_enc text check (toss_billing_key_enc is null or toss_billing_key_enc like 'v1:%'),
   toss_card_summary jsonb,
   mor_customer_id text,
   updated_at timestamptz not null default now(),
@@ -41,20 +43,6 @@ create table if not exists public.billing_customers (
 );
 comment on column public.billing_customers.toss_billing_key_enc is
   '토스 빌링키 암호문(AES-256-GCM, v1:iv:tag:ct). 결제 수단이라 탈퇴하면 행째 파기한다';
-
-create table if not exists public.billing_checkouts (
-  id uuid primary key default gen_random_uuid(),
-  user_id uuid not null references public.profiles (id) on delete cascade,
-  provider text not null check (provider in ('toss', 'mor')),
-  livemode boolean not null,
-  price_id uuid not null references public.billing_prices (id),
-  status text not null default 'open'
-    check (status in ('open', 'processing', 'completed', 'failed', 'expired')),
-  failure_code text,
-  subscription_id uuid,
-  created_at timestamptz not null default now(),
-  expires_at timestamptz not null
-);
 
 create table if not exists public.subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -95,6 +83,20 @@ create index if not exists subscriptions_toss_due_idx
 comment on column public.subscriptions.amount is
   '구독 시점 가격 스냅샷 — 가격표가 바뀌어도 기존 구독은 이 금액으로 갱신한다(가격 인상은 별도 동의)';
 
+create table if not exists public.billing_checkouts (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references public.profiles (id) on delete cascade,
+  provider text not null check (provider in ('toss', 'mor')),
+  livemode boolean not null,
+  price_id uuid not null references public.billing_prices (id),
+  status text not null default 'open'
+    check (status in ('open', 'processing', 'completed', 'failed', 'expired')),
+  failure_code text,
+  subscription_id uuid references public.subscriptions (id) on delete set null,
+  created_at timestamptz not null default now(),
+  expires_at timestamptz not null
+);
+
 create table if not exists public.billing_contracts (
   subscription_id uuid primary key references public.subscriptions (id) on delete cascade,
   org_name text not null,
@@ -131,6 +133,8 @@ create table if not exists public.billing_payments (
   refunded_amount bigint not null default 0 check (refunded_amount >= 0),
   requested_at timestamptz not null default now(),
   approved_at timestamptz,
+  -- 갱신·재시도 결제는 구독과 기간이 있어야 아래 유니크 인덱스가 중복 결제를 막는다(NULL은 서로 다른 값)
+  check (kind not in ('renewal', 'retry') or (subscription_id is not null and period_start is not null)),
   unique (provider, external_payment_id)
 );
 create unique index if not exists billing_payments_one_per_attempt
@@ -190,16 +194,16 @@ drop policy if exists billing_payments_select_own on public.billing_payments;
 create policy billing_payments_select_own on public.billing_payments
   for select to authenticated using ((select auth.uid()) = user_id or public.is_admin());
 
--- Supabase 기본 권한이 새 테이블에 anon·authenticated grant를 붙이므로 명시적으로 회수한다
--- (0035와 같은 이유). 정책이 없어도 회수해 두면 콘솔에서 정책이 잘못 붙는 사고를 한 겹 더 막는다.
-revoke insert, update, delete on public.billing_prices, public.billing_customers, public.billing_checkouts, public.subscriptions,
+-- Supabase 기본 권한이 새 테이블에 anon·authenticated grant를 붙이므로 전부 회수하고(0035와 같은 이유)
+-- 필요한 것만 명시한다: 로그인 사용자는 구독·결제를 읽을 수 있고(행은 RLS가 본인 것으로 거른다),
+-- 나머지 조회와 모든 쓰기는 service role 전용이다.
+revoke all on public.billing_prices, public.billing_customers, public.subscriptions, public.billing_checkouts,
   public.billing_contracts, public.billing_payments, public.billing_refunds, public.billing_consents,
-  public.billing_webhook_events
- from anon, authenticated;
-
-revoke select on public.billing_prices, public.billing_customers, public.billing_checkouts, public.billing_contracts,
-  public.billing_refunds, public.billing_consents, public.billing_webhook_events
- from anon, authenticated;
+  public.billing_webhook_events from anon, authenticated;
+grant select on public.subscriptions, public.billing_payments to authenticated;
+grant all on public.billing_prices, public.billing_customers, public.subscriptions, public.billing_checkouts,
+  public.billing_contracts, public.billing_payments, public.billing_refunds, public.billing_consents,
+  public.billing_webhook_events to service_role;
 
 -- 공개 범위 플래그 — 가격 표시·결제 시작을 런타임에 연다(시크릿·가격은 넣지 않는다:
 -- app_settings는 누구나 읽을 수 있다)

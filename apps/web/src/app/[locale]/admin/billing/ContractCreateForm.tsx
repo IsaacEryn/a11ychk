@@ -66,7 +66,7 @@ export function ContractCreateForm({
   return (
     <details className="mt-3 border-[1.5px] border-dashed border-[var(--color-line)] p-3">
       <summary className="cursor-pointer text-xs font-bold text-[var(--color-ink-soft)]">{t("createToggle")}</summary>
-      <form onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
+      <form method="post" onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="userId" value={userId} />
         <div>
           <label htmlFor={id("plan")} className={LABEL}>

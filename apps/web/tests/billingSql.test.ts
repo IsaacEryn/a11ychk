@@ -19,7 +19,6 @@ const TABLES = [
   "billing_consents",
   "billing_webhook_events",
 ];
-const SERVICE_ONLY = TABLES.filter((t) => t !== "subscriptions" && t !== "billing_payments");
 
 describe("0041 결제 스키마", () => {
   it("모든 결제 테이블에 RLS를 켠다", () => {
@@ -34,17 +33,16 @@ describe("0041 결제 스키마", () => {
     ]);
   });
 
-  it("anon·authenticated의 쓰기 권한을 모든 결제 테이블에서 회수한다", () => {
-    const m = sql.match(/revoke insert, update, delete on ([\s\S]+?) from anon, authenticated;/);
-    expect(m).not.toBeNull();
-    for (const t of TABLES) expect(m![1], t).toContain(`public.${t}`);
-  });
-
-  it("service role 전용 테이블은 조회 권한도 회수한다", () => {
-    const m = sql.match(/revoke select on ([\s\S]+?) from anon, authenticated;/);
-    expect(m).not.toBeNull();
-    for (const t of SERVICE_ONLY) expect(m![1], t).toContain(`public.${t}`);
-    expect(m![1]).not.toContain("public.subscriptions");
+  it("anon·authenticated 권한을 전부 회수하고 구독·결제 조회만 로그인 사용자에게 준다", () => {
+    const revoke = sql.match(/revoke all on\s+([\s\S]+?)\s+from anon, authenticated;/);
+    expect(revoke).not.toBeNull();
+    for (const t of TABLES) expect(revoke![1], t).toContain(`public.${t}`);
+    const grants = [...sql.matchAll(/grant (\w+(?:, \w+)*) on\s+([\s\S]+?)\s+to (\w+);/g)].map((m) => [m[1], m[3], m[2].replace(/\s+/g, " ")]);
+    const toUsers = grants.filter(([, role]) => role === "authenticated" || role === "anon");
+    expect(toUsers).toEqual([["select", "authenticated", "public.subscriptions, public.billing_payments"]]);
+    const toService = grants.find(([, role]) => role === "service_role");
+    expect(toService?.[0]).toBe("all");
+    for (const t of TABLES) expect(toService?.[2], t).toContain(`public.${t}`);
   });
 
   it("가격 행을 넣지 않는다", () => {
@@ -71,5 +69,22 @@ describe("0041 결제 스키마", () => {
   it("정책은 다시 실행해도 깨지지 않게 먼저 지운다", () => {
     expect(sql).toContain("drop policy if exists subscriptions_select_own on public.subscriptions;");
     expect(sql).toContain("drop policy if exists billing_payments_select_own on public.billing_payments;");
+  });
+
+  it("갱신·재시도 결제는 구독과 기간이 있어야 한다", () => {
+    expect(sql).toMatch(/check \(kind not in \('renewal', 'retry'\) or \(subscription_id is not null and period_start is not null\)\)/);
+  });
+
+  it("같은 조건의 활성 가격은 하나", () => {
+    expect(sql).toMatch(/create unique index if not exists billing_prices_one_active\s+on public\.billing_prices \(plan_code, provider, currency, interval, livemode\) where active;/);
+  });
+
+  it("결제 시도는 구독을 참조한다(구독이 먼저 만들어진다)", () => {
+    expect(sql.indexOf("create table if not exists public.subscriptions")).toBeLessThan(sql.indexOf("create table if not exists public.billing_checkouts"));
+    expect(sql).toMatch(/subscription_id uuid references public\.subscriptions \(id\) on delete set null/);
+  });
+
+  it("빌링키 열은 암호문 형식만 받는다", () => {
+    expect(sql).toMatch(/toss_billing_key_enc text check \(toss_billing_key_enc is null or toss_billing_key_enc like 'v1:%'\)/);
   });
 });

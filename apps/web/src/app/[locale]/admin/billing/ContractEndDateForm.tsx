@@ -27,7 +27,7 @@ export function ContractEndDateForm({ subscriptionId, endDate }: { subscriptionI
       <h3 id={headingId} className="font-display text-lg font-bold">
         {t("endDateTitle")}
       </h3>
-      <form onSubmit={onSubmit} className="mt-3 space-y-3">
+      <form method="post" onSubmit={onSubmit} className="mt-3 space-y-3">
         <input type="hidden" name="subscriptionId" value={subscriptionId} />
         <div className="max-w-xs">
           <label htmlFor={inputId} className={LABEL}>

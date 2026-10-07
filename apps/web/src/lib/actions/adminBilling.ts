@@ -19,6 +19,9 @@ import { requireAdmin, type SaveState } from "./shared";
 
 const PATH = "adminBilling";
 
+/** 0041 미적용(테이블 없음) — Postgres 42P01, PostgREST 스키마 캐시 PGRST205. 운영 오류가 아니라 적용 순서 문제라 기록 없이 안내만 한다 */
+const isMissingTable = (e?: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
+
 /** 기관 계약 등록 */
 export async function createContract(_prev: SaveState, fd: FormData): Promise<SaveState> {
   const { user: actor } = await requireAdmin();
@@ -30,14 +33,16 @@ export async function createContract(_prev: SaveState, fd: FormData): Promise<Sa
   // 기간이 끝난 이전 기관 계약은 먼저 종료 처리한다 — 진행 중 구독 1건 유니크 인덱스가
   // 갱신 계약 등록을 막지 않게(권한은 이미 시각으로 끊겨 있다)
   const nowIso = new Date().toISOString();
-  const { error: expireError } = await admin
+  const { data: expired, error: expireError } = await admin
     .from("subscriptions")
     .update({ status: "ended", ended_reason: "contract_expired", ended_at: nowIso, updated_at: nowIso })
     .eq("user_id", c.userId)
     .eq("provider", "manual")
     .in("status", ["active", "past_due"])
-    .lt("current_period_end", nowIso);
+    .lt("current_period_end", nowIso)
+    .select("id");
   if (expireError) {
+    if (isMissingTable(expireError)) return { error: "migrationMissing" };
     // 정리가 실패한 채 insert로 가면 관리자에게 "이미 진행 중 구독"이라는 엉뚱한 안내가 나간다
     await logAppError(admin, `createContract expire previous contracts failed: ${expireError.message}`, { path: PATH });
     return { error: "failed" };
@@ -61,7 +66,7 @@ export async function createContract(_prev: SaveState, fd: FormData): Promise<Sa
     .single();
   if (error || !sub) {
     if (error?.code === "23505") return { error: "hasActive" };
-    if (error?.code === "23503") return { error: "notFound" };
+    if (error?.code === "23503") return { error: "userNotFound" };
     await logAppError(admin, `createContract subscription insert failed: ${error?.message ?? "no row"}`, { path: PATH });
     return { error: "failed" };
   }
@@ -86,11 +91,14 @@ export async function createContract(_prev: SaveState, fd: FormData): Promise<Sa
     return { error: "failed" };
   }
 
+  // 만료 정리로 끝낸 이전 계약도 감사에 남긴다 — 관리자가 한 번의 등록으로 바꾼 행 전부가 추적되게
+  const expiredIds = (expired ?? []).map((r) => r.id as string);
   await logAdminAction(admin, actor.id, "billing.contract_create", c.userId, {
     subscriptionId: sub.id,
     plan: c.planCode,
     start: c.startAt,
     end: c.endAt,
+    ...(expiredIds.length > 0 ? { expired: expiredIds } : {}),
   });
   return { ok: true };
 }
@@ -115,6 +123,7 @@ export async function updateContract(_prev: SaveState, fd: FormData): Promise<Sa
     .eq("subscription_id", c.subscriptionId)
     .select("subscription_id");
   if (error) {
+    if (isMissingTable(error)) return { error: "migrationMissing" };
     await logAppError(admin, `updateContract failed: ${error.message}`, { path: PATH });
     return { error: "failed" };
   }
@@ -137,6 +146,7 @@ async function loadManual(admin: ReturnType<typeof createAdminClient>, id: strin
     .eq("id", id)
     .maybeSingle();
   if (error) {
+    if (isMissingTable(error)) return { error: "migrationMissing" as const };
     await logAppError(admin, `loadManual failed: ${error.message}`, { path: PATH });
     return { error: "failed" as const };
   }
@@ -157,14 +167,18 @@ export async function setContractEnd(_prev: SaveState, fd: FormData): Promise<Sa
   if (Date.parse(parsed.value.endAt) <= Date.parse(found.sub.current_period_start as string)) {
     return { error: "period" };
   }
-  const { error } = await admin
+  const { data: changed, error } = await admin
     .from("subscriptions")
     .update({ current_period_end: parsed.value.endAt, updated_at: new Date().toISOString() })
-    .eq("id", found.sub.id);
+    .eq("id", found.sub.id)
+    .neq("status", "ended") // 조회 뒤 다른 관리자가 먼저 종료했으면 종료된 계약을 되살리지 않는다
+    .select("id");
   if (error) {
+    if (isMissingTable(error)) return { error: "migrationMissing" };
     await logAppError(admin, `setContractEnd failed: ${error.message}`, { path: PATH });
     return { error: "failed" };
   }
+  if (!changed || changed.length === 0) return { error: "ended" };
   await logAdminAction(admin, actor.id, "billing.contract_extend", (found.sub.user_id as string | null) ?? undefined, {
     subscriptionId: found.sub.id,
     from: found.sub.current_period_end,
@@ -183,14 +197,18 @@ export async function endContract(_prev: SaveState, fd: FormData): Promise<SaveS
   const found = await loadManual(admin, parsed.value.subscriptionId);
   if ("error" in found) return { error: found.error };
   const now = new Date().toISOString();
-  const { error } = await admin
+  const { data: changed, error } = await admin
     .from("subscriptions")
     .update({ status: "ended", ended_reason: "admin", ended_at: now, updated_at: now })
-    .eq("id", found.sub.id);
+    .eq("id", found.sub.id)
+    .neq("status", "ended") // 조회 뒤 다른 경로가 먼저 종료했으면 사유·종료 시각을 덮어쓰지 않는다
+    .select("id");
   if (error) {
+    if (isMissingTable(error)) return { error: "migrationMissing" };
     await logAppError(admin, `endContract failed: ${error.message}`, { path: PATH });
     return { error: "failed" };
   }
+  if (!changed || changed.length === 0) return { error: "ended" };
   await logAdminAction(admin, actor.id, "billing.contract_end", (found.sub.user_id as string | null) ?? undefined, {
     subscriptionId: found.sub.id,
   });
