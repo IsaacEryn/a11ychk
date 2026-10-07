@@ -5,7 +5,7 @@ import { useTranslations } from "next-intl";
 import { createContract, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
 import { useAdminAction } from "../useAdminAction";
-import { BTN_PRIMARY, FIELD, HINT, LABEL, Optional, useContractErrors } from "./contractForm";
+import { BTN_PRIMARY, FIELD, HINT, LABEL, Optional, useContractErrors, useManualSubmit } from "./contractForm";
 
 type Values = {
   planCode: string;
@@ -24,8 +24,9 @@ type Values = {
  * 견적·입금·세금계산서는 화면 밖에서 처리하고, 여기서는 기간제 등급과 계약 정보만 기록한다.
  * 입력 id는 사용자별로 유일하게(드로어는 한 번에 한 사용자지만 id 충돌을 구조적으로 막는다).
  *
- * 입력은 제어 컴포넌트다 — React 19는 <form action> 제출 뒤 비제어 입력을 비우므로, 오류(hasActive·period 등)가
- * 났을 때 9개 값이 사라지지 않게 상태로 들고 있다가 등록에 성공했을 때만 처음 값으로 되돌린다.
+ * 입력은 제어 컴포넌트이고 제출은 수동(useManualSubmit)이다 — React 19의 <form action> 자동 reset은 제어 입력도
+ * 완전히 지키지 못하므로(select는 첫 옵션으로, 포커스된 number는 빈 값으로), 오류(hasActive·period 등)가 났을 때
+ * 9개 값이 그대로 남도록 자동 reset을 피하고, 등록에 성공했을 때만 처음 값으로 되돌린다.
  */
 export function ContractCreateForm({
   userId,
@@ -37,6 +38,7 @@ export function ContractCreateForm({
   const t = useTranslations("admin.billing.contract");
   const [state, formAction, pending] = useAdminAction<SaveState, FormData>(createContract, {});
   const { errors, fallback } = useContractErrors();
+  const onSubmit = useManualSubmit(formAction);
   const id = (field: string) => `contract-${field}-${userId}`;
 
   const initial: Values = {
@@ -64,7 +66,7 @@ export function ContractCreateForm({
   return (
     <details className="mt-3 border-[1.5px] border-dashed border-[var(--color-line)] p-3">
       <summary className="cursor-pointer text-xs font-bold text-[var(--color-ink-soft)]">{t("createToggle")}</summary>
-      <form action={formAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+      <form onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="userId" value={userId} />
         <div>
           <label htmlFor={id("plan")} className={LABEL}>

@@ -5,11 +5,12 @@ import { useTranslations } from "next-intl";
 import { updateContract, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
 import { useAdminAction } from "../useAdminAction";
-import { BTN_PRIMARY, FIELD, HINT, LABEL, Optional, useContractErrors } from "./contractForm";
+import { BTN_PRIMARY, FIELD, HINT, LABEL, Optional, useContractErrors, useManualSubmit } from "./contractForm";
 
 /**
  * 기관 계약 상세(기관명·계약번호·메모·입금 확인일·세금계산서 발행일) 수정 폼. 날짜는 KST YYYY-MM-DD.
- * 입력은 제어 컴포넌트 — 제출 뒤 비제어 입력이 초기값으로 되돌아가 오류 때 수정 내용이 사라지는 것을 막는다.
+ * 입력은 제어 컴포넌트이고 제출은 수동(useManualSubmit) — React 19의 <form action> 자동 reset으로 오류 때
+ * 수정 내용이 초기값으로 되돌아가는 것을 막는다.
  * 성공하면 refresh가 저장된 값을 props로 내려 주므로 따로 비우지 않는다.
  */
 export function ContractEditForm({
@@ -30,6 +31,7 @@ export function ContractEditForm({
   const t = useTranslations("admin.billing.contract");
   const [state, formAction, pending] = useAdminAction<SaveState, FormData>(updateContract, {});
   const { errors, fallback } = useContractErrors();
+  const onSubmit = useManualSubmit(formAction);
   const id = (field: string) => `contract-edit-${field}-${subscriptionId}`;
   const headingId = id("heading");
 
@@ -44,7 +46,7 @@ export function ContractEditForm({
       <h3 id={headingId} className="font-display text-lg font-bold">
         {t("editTitle")}
       </h3>
-      <form action={formAction} className="mt-3 grid gap-3 sm:grid-cols-2">
+      <form onSubmit={onSubmit} className="mt-3 grid gap-3 sm:grid-cols-2">
         <input type="hidden" name="subscriptionId" value={subscriptionId} />
         <div>
           <label htmlFor={id("org")} className={LABEL}>

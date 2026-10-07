@@ -137,9 +137,10 @@ export default async function AdminBillingDetailPage({
         <dd className="tabular-nums">{day(sub.created_at as string)}</dd>
       </dl>
 
-      {/* 항상 마운트된 상태 안내 — 종료가 성공하면 refresh로 종료 폼이 사라져 폼 안의 성공 메시지가 읽히기 전에 없어진다 */}
+      {/* 항상 마운트된 상태 안내 — 종료가 성공하면 refresh로 종료 폼이 사라져 폼 안의 성공 메시지가 읽히기 전에 없어진다.
+          관리자 종료(ended_reason=admin)만 알린다: 결제 실패·환불 등으로 끝난 구독에 "계약을 종료했습니다"를 읽히지 않으려는 것 */}
       <p role="status" className="sr-only">
-        {sub.status === "ended" ? t("billing.contract.ended") : ""}
+        {sub.status === "ended" && sub.ended_reason === "admin" ? t("billing.contract.ended") : ""}
       </p>
 
       {isManual ? (

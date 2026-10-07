@@ -1,5 +1,6 @@
 "use client";
 
+import { useTransition, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
 import { INPUT } from "../tableStyles";
 
@@ -14,6 +15,22 @@ export const BTN_PRIMARY =
   "rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-3 py-1.5 text-xs font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] disabled:opacity-60";
 export const BTN_DANGER =
   "rounded border-[1.5px] border-[var(--color-crit)] px-3 py-1.5 text-xs font-bold text-[var(--color-crit)] hover:bg-[var(--color-crit-tint)] disabled:opacity-60";
+
+/**
+ * 폼 수동 제출 — `<form action>` 대신 onSubmit에서 FormData를 만들어 transition으로 액션을 부른다.
+ * React 19는 `<form action>` 제출이 끝나면 폼을 자동으로 reset하는데, 제어 입력이어도 완전히 막지 못한다
+ * (select는 defaultSelected를 동기화하지 않아 첫 옵션으로 되돌아가고, 포커스된 number 입력은 비워진다).
+ * 오류 뒤에 관리자가 고른 값이 바뀌거나 사라지면 안 되므로 자동 reset 자체를 피한다.
+ * 버튼의 pending 상태는 useAdminAction이 돌려주는 값을 그대로 쓴다(transition 안에서 불러도 정확하다).
+ */
+export function useManualSubmit(formAction: (formData: FormData) => void) {
+  const [, startTransition] = useTransition();
+  return (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const formData = new FormData(e.currentTarget);
+    startTransition(() => formAction(formData));
+  };
+}
 
 /** 선택 입력 레이블 뒤에 붙는 "(선택)" 표시 — 색에 기대지 않고 글자로 알린다 */
 export function Optional() {

@@ -5,16 +5,18 @@ import { useTranslations } from "next-intl";
 import { setContractEnd, type SaveState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
 import { useAdminAction } from "../useAdminAction";
-import { BTN_PRIMARY, FIELD, HINT, LABEL, useContractErrors } from "./contractForm";
+import { BTN_PRIMARY, FIELD, HINT, LABEL, useContractErrors, useManualSubmit } from "./contractForm";
 
 /**
  * 기관 계약 종료일 변경(연장·단축) 폼. endDate는 현재 종료일(KST YYYY-MM-DD).
- * 입력은 제어 컴포넌트 — 오류(period 등) 뒤에 비제어 입력이 옛 날짜로 되돌아가 오류 문구와 어긋나는 것을 막는다.
+ * 입력은 제어 컴포넌트이고 제출은 수동(useManualSubmit) — 오류(period 등) 뒤에 자동 reset으로 입력이 옛 날짜로
+ * 되돌아가 오류 문구와 어긋나는 것을 막는다.
  */
 export function ContractEndDateForm({ subscriptionId, endDate }: { subscriptionId: string; endDate: string }) {
   const t = useTranslations("admin.billing.contract");
   const [state, formAction, pending] = useAdminAction<SaveState, FormData>(setContractEnd, {});
   const { errors, fallback } = useContractErrors();
+  const onSubmit = useManualSubmit(formAction);
   const [value, setValue] = useState(endDate);
   const headingId = `contract-enddate-heading-${subscriptionId}`;
   const inputId = `contract-enddate-${subscriptionId}`;
@@ -25,7 +27,7 @@ export function ContractEndDateForm({ subscriptionId, endDate }: { subscriptionI
       <h3 id={headingId} className="font-display text-lg font-bold">
         {t("endDateTitle")}
       </h3>
-      <form action={formAction} className="mt-3 space-y-3">
+      <form onSubmit={onSubmit} className="mt-3 space-y-3">
         <input type="hidden" name="subscriptionId" value={subscriptionId} />
         <div className="max-w-xs">
           <label htmlFor={inputId} className={LABEL}>
