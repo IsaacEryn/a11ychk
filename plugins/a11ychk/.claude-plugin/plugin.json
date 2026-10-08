@@ -1,6 +1,6 @@
 {
   "name": "a11ychk",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Web accessibility audit skills (WCAG 2.2 AA + KWCAG 2.2 dual mapping) with the @a11ychk/mcp scanner. Scan localhost or public pages, fix violations with Korean remediation guides, and audit against all 33 KWCAG checkpoints. / 웹 접근성 감사 스킬 — 검사·수정·재검사 루프와 KWCAG 33항목 점검.",
   "author": {
     "name": "IsaacEryn",

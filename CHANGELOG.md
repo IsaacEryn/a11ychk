@@ -12,6 +12,36 @@ carry their own versions.*
 
 ---
 
+## 광고 iframe 오탐 제거 / Hidden ad frames are no longer reported — v1.3.1
+
+### 한국어
+
+AdSense 같은 광고를 붙인 페이지에서, 화면에 보이지 않는 광고 iframe 안의 빈 문서가
+`document-title`·`html-has-lang` 위반(심각)으로 잡히던 문제를 고쳤습니다. 광고 iframe은 원래
+검사에서 빼도록 되어 있었지만, 페이지 안의 프레임을 하나씩 따로 검사하는 단계에서는 이 제외
+기준이 적용되지 않았습니다. 그래서 실제 위반이 없는 페이지도 준수율이 낮게 나오고, `fail-on:
+serious`면 잡이 실패할 수 있었습니다.
+
+이제 프레임별 검사에서도 광고 iframe(과 그 안의 프레임)은 건너뛰고, `display`·`visibility`로
+숨었거나 크기가 0×0이라 화면에 그려지지 않는 iframe의 내부 문서도 검사하지 않습니다. iframe
+요소 자체에 대한 검사(제목 속성 등)와 화면에 보이는 iframe 내부 검사는 그대로입니다. 웹
+서비스와 MCP 서버(0.2.1)도 같은 기준으로 바뀌었습니다. 입력·출력 형식은 그대로입니다.
+
+### English
+
+On pages with ads such as AdSense, empty documents inside ad iframes that are never shown on
+screen were reported as serious `document-title` and `html-has-lang` violations. Ad iframes were
+already meant to be excluded, but the exclusion was not applied when each frame on the page was
+scanned on its own, so pages without real violations scored lower and `fail-on: serious` could
+fail the job.
+
+The per-frame scan now skips ad iframes (and frames nested in them) and the documents of iframes
+that are not rendered, either hidden with `display`/`visibility` or sized 0×0. Checks on the iframe
+element itself (such as its title attribute) and scans of visible iframes are unchanged. The web
+service and the MCP server (0.2.1) use the same rule. Input and output formats are unchanged.
+
+---
+
 ## KWCAG 검사항목 번호를 표준 원문에 맞춤 / KWCAG checkpoint numbers now follow the standard — v1.3.0
 
 ### 한국어
