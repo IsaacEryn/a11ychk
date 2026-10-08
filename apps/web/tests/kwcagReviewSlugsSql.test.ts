@@ -22,4 +22,16 @@ describe("0039 정리 SQL", () => {
     expect(sql.match(/r\.standard = 'kwcag'/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(sql).not.toMatch(/standard = 'wcag'/);
   });
+
+  it("한 문장으로 끝난다 — SQL Editor가 문장을 따로 실행해도 깨지지 않게", () => {
+    // 임시 테이블을 만든 뒤 다음 문장에서 쓰던 처음 판은 SQL Editor에서 42P01로 실패했다
+    expect(sql).not.toMatch(/create temporary table/i);
+    expect(sql).not.toMatch(/^\s*(begin|commit);/im);
+    expect(sql.match(/;\s*$/gm)?.length).toBe(1);
+  });
+
+  it("같은 문장에서 지운 행은 갱신 대상에서 뺀다", () => {
+    // 데이터 변경 CTE의 delete 결과는 같은 문장의 update에 보이지 않는다
+    expect(sql).toMatch(/r\.id not in \(select id from stale\)/);
+  });
 });
