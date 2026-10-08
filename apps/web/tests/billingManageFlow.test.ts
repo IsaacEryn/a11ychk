@@ -441,7 +441,14 @@ describe("탈퇴 정리 — 모으고(collectDeletionTargets) → 계정 삭제 
 
     const targets = await collectDeletionTargets(store, USER);
 
-    expect(targets).toEqual({ subscriptionIds: [live.id, test.id], pendingInitialModes: 0 });
+    // 구독마다 모은 시점의 기간 끝을 함께 담는다 — 끝낼 때 그 사이 갱신이 끼어들었는지 가른다
+    expect(targets).toEqual({
+      subscriptions: [
+        { id: live.id, currentPeriodEnd: pgTime(live.current_period_end) },
+        { id: test.id, currentPeriodEnd: pgTime(test.current_period_end) },
+      ],
+      pendingInitialModes: 0,
+    });
     expect(store.rows).toEqual(before);
   });
 
@@ -469,7 +476,7 @@ describe("탈퇴 정리 — 모으고(collectDeletionTargets) → 계정 삭제 
 
   it("진행 중 구독이 없으면 0 — 저장소를 부르지 않는다. 그 사이 크론이 끝낸 구독은 세지 않는다", async () => {
     const empty = createMemoryStore({ customers: [keyed()] });
-    const quiet = { subscriptionIds: [], pendingInitialModes: 0 };
+    const quiet = { subscriptions: [], pendingInitialModes: 0 };
     const update = vi.spyOn(empty, "updateSubscriptionIf");
     const pending = vi.spyOn(empty, "hasPendingPayment");
     expect(await endSubscriptionsForDeletion(empty, quiet, NOW, logger())).toBe(0);
@@ -727,5 +734,125 @@ describe("해지와 결제 크론의 경합 — 양쪽 다 먼저 쓰고 나중�
     const logged = deps.log.mock.calls.map(([m]) => m).join("\n");
     expect(logged).toContain(`billing needs review: unsent payment ${deps.store.rows.payments[0].id}`);
     expect(logged).not.toContain(BILLING_KEY);
+  });
+});
+
+describe("탈퇴와 결제 크론의 경합 — 끝낼 구독을 모은 뒤 계정을 지우기 전에 갱신이 확정된 경우", () => {
+  const HOUR = 3_600_000;
+  const BILLING_KEY = "bk_plain_secret_0001";
+  const done = (_bk: string, req: { orderId: string; amount: number }) =>
+    tossPayment({ paymentKey: `pk_${req.orderId}`, orderId: req.orderId, totalAmount: req.amount });
+
+  /** 결제 기한이 된 구독 — 빌링키(진짜 암호문)가 있어 크론이 실제로 갱신할 수 있다 */
+  function dueSetup(sub: SubscriptionRow) {
+    const deps = makeDeps({ toss: createFakeToss({ chargeBillingKey: [done] }), now: () => NOW });
+    const enc = encryptBillingKey(BILLING_KEY, { userId: USER, livemode: LIVEMODE }, deps.encKey);
+    deps.store.rows.subscriptions.push(structuredClone(sub));
+    deps.store.rows.customers.push(keyed({ toss_billing_key_enc: enc }));
+    return deps;
+  }
+
+  /**
+   * 탈퇴 한 번 — 모으고 → 계정을 지우고(0041의 cascade 흉내) → 끝낸다. meanwhile이 있으면 저장소 훅으로 모은 직후(계정을
+   * 지우기 전, 빌링키가 아직 있을 때) 한 번 부른다
+   */
+  async function deleteDuring(deps: FakeDeps, meanwhile?: () => Promise<void>) {
+    const list = deps.store.listLiveSubscriptions.bind(deps.store);
+    deps.store.listLiveSubscriptions = async (userId) => {
+      const rows = await list(userId);
+      if (meanwhile) await meanwhile();
+      return rows;
+    };
+    const targets = await collectDeletionTargets(deps.store, USER);
+    deleteUserCascade(deps.store, USER);
+    const log = vi.fn<(message: string) => Promise<void>>(async () => undefined);
+    const ended = await endSubscriptionsForDeletion(deps.store, targets, NOW, log);
+    return { targets, ended, log };
+  }
+
+  /** 결제 기한이 된 active 구독(기간 끝 12시간 전)과 재시도 기한이 된 미납 구독 */
+  const dueActive = () =>
+    subscriptionRow({ user_id: USER, current_period_start: iso(NOW - 27 * DAY), current_period_end: iso(NOW + 12 * HOUR) });
+  const dueRetry = () => pastDue({ next_retry_at: iso(NOW - HOUR) });
+
+  it.each<[string, () => SubscriptionRow, "renewal" | "retry", string]>([
+    ["갱신", dueActive, "renewal", "charge_paid"],
+    ["미납 재시도", dueRetry, "retry", "retry_paid"],
+  ])("%s으로 기간이 넘어갔어도 구독을 끝내고, 그 결제를 확인 필요 한 줄(구독·결제 id만)로 남긴다 — 자동 취소는 하지 않는다", async (_label, make, kind, counted) => {
+    const sub = make();
+    const deps = dueSetup(sub);
+    const cycles: Array<Record<string, number>> = [];
+
+    const { targets, ended, log } = await deleteDuring(deps, async () => {
+      cycles.push(await runBillingCycle(deps, LIVEMODE));
+    });
+
+    expect(cycles[0]).toMatchObject({ [counted]: 1 });
+    expect(targets.subscriptions).toEqual([{ id: sub.id, currentPeriodEnd: pgTime(sub.current_period_end) }]);
+    const charged = deps.store.rows.payments[0];
+    expect(charged).toMatchObject({ kind, status: "paid", period_start: pgTime(sub.current_period_end) });
+    // 모은 기간 끝과 엇갈렸으니 다시 읽어, 아직 진행 중이라 상태만 조건으로 끝냈다
+    expect(ended).toBe(1);
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({
+      status: "ended",
+      ended_reason: "user_canceled",
+      ended_at: pgTime(NOW),
+      user_id: null,
+      current_period_start: pgTime(sub.current_period_end),
+    });
+    expect(log.mock.calls).toEqual([[`billing needs review: subscription ${sub.id} renewed during account deletion (payment ${charged.id})`]]);
+    // 돌려주지 않는다 — 탈퇴 직후 결제를 어떻게 할지는 운영자가 정한다
+    expect(deps.toss.calls.cancelPayment).toHaveLength(0);
+    expect(deps.store.rows.payments.map((p) => p.status)).toEqual(["paid"]);
+  });
+
+  it("끼어든 갱신이 없으면 모은 기간 끝을 조건으로 끝내고 기록은 없다 — 계정을 지운 뒤의 크론은 결제하지 않는다", async () => {
+    const sub = dueActive();
+    const deps = dueSetup(sub);
+    const update = vi.spyOn(deps.store, "updateSubscriptionIf");
+
+    const { ended, log } = await deleteDuring(deps);
+
+    expect(ended).toBe(1);
+    expect(update).toHaveBeenCalledTimes(1);
+    expect(update.mock.calls[0][1]).toEqual({ statuses: ["active", "past_due"], currentPeriodEnd: pgTime(sub.current_period_end) });
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled", current_period_end: pgTime(sub.current_period_end) });
+    expect(log).not.toHaveBeenCalled();
+    expect(await runBillingCycle(deps, LIVEMODE)).toMatchObject({ candidates: 0 });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+  });
+
+  it("기간은 넘어갔는데 그 결제가 아직 확정 전(pending)이면 갱신 줄 대신 결과를 모르는 결제 줄을 남긴다", async () => {
+    const sub = dueActive();
+    const deps = dueSetup(sub);
+    const pending = paymentRow({ user_id: USER, subscription_id: sub.id, kind: "renewal", status: "pending", period_start: sub.current_period_end, period_end: iso(NOW + 40 * DAY) });
+
+    const { ended, log } = await deleteDuring(deps, async () => {
+      // 크론이 구독을 먼저 전진시키고 결제 행을 확정하기 전에 멈췄다(settlePaid의 쓰는 순서)
+      Object.assign(deps.store.rows.subscriptions[0], { current_period_start: pgTime(sub.current_period_end), current_period_end: pgTime(NOW + 40 * DAY) });
+      deps.store.rows.payments.push(structuredClone(pending));
+    });
+
+    expect(ended).toBe(1);
+    expect(deps.store.rows.subscriptions[0].status).toBe("ended");
+    expect(log).toHaveBeenCalledTimes(1);
+    expect(log.mock.calls[0][0]).toMatch(/^billing needs review: account deleted with pending payment/);
+    expect(log.mock.calls[0][0]).toContain(sub.id);
+  });
+
+  it("갱신 결제를 찾다 저장소 오류가 나도 던지지 않는다 — 구독은 끝내고, 결제를 확인하지 못했다는 확인 필요 한 줄(구독 id만)", async () => {
+    const sub = dueActive();
+    const deps = dueSetup(sub);
+    deps.store.findPaidRenewal = async () => {
+      throw new Error("billing store findPaidRenewal: timeout");
+    };
+
+    const { ended, log } = await deleteDuring(deps, async () => {
+      await runBillingCycle(deps, LIVEMODE);
+    });
+
+    expect(ended).toBe(1);
+    expect(deps.store.rows.subscriptions[0].status).toBe("ended");
+    expect(log.mock.calls).toEqual([[`billing needs review: subscription ${sub.id} renewed during account deletion (payment lookup failed)`]]);
   });
 });

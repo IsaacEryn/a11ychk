@@ -14,6 +14,7 @@ import {
   loadCardSummaries,
   loadLiveSubscriptions,
   loadPaymentHistory,
+  paymentStatusKey,
   type ManagedSubscription,
 } from "@/lib/billing/manageData";
 import { graceOver, graceUntil, upcomingChargeAt } from "@/lib/billing/period";
@@ -152,7 +153,7 @@ export default async function BillingManagePage({
         <FocusOnMount className="mt-6">
           <Notice
             variant={
-              returned.kind === "cardChanged" && returned.retry === "failed"
+              returned.kind === "cardChanged" && (returned.retry === "failed" || returned.retry === "refunded")
                 ? "warn"
                 : returned.kind === "pending" || (returned.kind === "cardChanged" && returned.retry === "pending")
                   ? "info"
@@ -314,7 +315,8 @@ export default async function BillingManagePage({
                         {isTestRow(p.livemode) && ` · ${t("payments.testTag")}`}
                       </td>
                       <td className="whitespace-nowrap py-2.5 pr-3 tabular-nums">{money(p.amount, p.currency)}</td>
-                      <td className="py-2.5 pr-3">{t(`payments.status.${p.status}`)}</td>
+                      {/* 사용자 탓이 아닌 실패(설정 사고·대사로 확정)는 "실패" 대신 청구 없는 미처리로 */}
+                      <td className="py-2.5 pr-3">{t(`payments.status.${paymentStatusKey(p)}`)}</td>
                       <td className="py-2.5">
                         {receipt ? (
                           <a

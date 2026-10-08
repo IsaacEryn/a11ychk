@@ -1,6 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
-import { isCardChangeTarget } from "@/lib/billing/checkout";
+import { isCardChangeTarget, type CardChangeRetry } from "@/lib/billing/checkout";
 import { encryptBillingKey } from "@/lib/billing/crypto";
 import type { BillingEmailData, BillingEmailKind } from "@/lib/billing/emails";
 import { addInterval, earliestChargeAt, graceOver, iso, kstDayOfMonth } from "@/lib/billing/period";
@@ -32,7 +32,7 @@ import { chargeSubscription } from "@/lib/billing/flows/renew";
 
 export type CheckoutOutcome =
   | { kind: "subscribed"; subscriptionId: string }
-  | { kind: "cardChanged"; subscriptionId: string; retry: "paid" | "failed" | "pending" | "none" }
+  | { kind: "cardChanged"; subscriptionId: string; retry: CardChangeRetry }
   | { kind: "pending" }
   | {
       kind: "error";
@@ -342,12 +342,13 @@ async function runCardChange(
   // 6. 미납이면 새 카드로 바로 재결제 — skipped는 같은 시도의 결제가 이미 진행 중이라는 뜻이라 확인 중으로 안내한다.
   // 해지를 예약한 구독은 재결제하지 않는다(크론과 같은 규칙 — 해지한 사람에게 청구하지 않는다). 유예가 끝난 구독도
   // 재결제하지 않는다: 그 시각부터 크론이 미납 종료를 하므로, 재결제와 종료가 시각으로 서로 배타가 된다(카드만 바뀐다).
-  // refunded는 결제했지만 그 사이 구독이 끝나 자동 취소한 경우다 — 밀린 결제를 마쳤다고 알리지 않는다(failed).
-  let retry: "paid" | "failed" | "pending" | "none" = "none";
+  // refunded는 결제했지만 그 사이 구독이 끝나 자동 취소한 경우다 — 카드 실패와 구분해 그대로 알린다(새로 구독하라는 안내).
+  // review는 결제가 paid로 남았지만 운영자 확인이 필요한 경우다(자동 취소 실패 등) — 마쳤다고 알리지 않고 확인 중으로 안내한다.
+  let retry: CardChangeRetry = "none";
   if (sub.status === "past_due" && !sub.cancel_at_period_end && !graceOver(sub, deps.now())) {
     try {
       const result = await chargeSubscription(deps, sub, "retry");
-      retry = result === "skipped" ? "pending" : result === "refunded" ? "failed" : result;
+      retry = result === "skipped" || result === "review" ? "pending" : result;
     } catch (e) {
       // 돈이 움직이기 전의 저장소 오류 — 카드는 바뀌었고, 다음 재시도 시점에 크론이 다시 결제한다
       await deps.log(`billing card change retry failed for subscription ${sub.id}: ${errorText(e)}`);

@@ -356,5 +356,20 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       if (error) throw fail("hasUserFacingFailure", error);
       return Array.isArray(data) && data.length > 0;
     },
+
+    async findPaidRenewal(subscriptionId, periodStart) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .select(PAYMENT_COLS)
+        .eq("subscription_id", subscriptionId)
+        .eq("period_start", periodStart)
+        .eq("status", "paid")
+        .in("kind", ["renewal", "retry"])
+        .order("requested_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw fail("findPaidRenewal", error);
+      return (data as PaymentRow | null) ?? null;
+    },
   };
 }

@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { getBillingFlags } from "@/lib/appSettings";
 import { billingMode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { shouldLog } from "@/lib/billing/logThrottle";
 import { SELF_SERVE_PLAN_IDS } from "@/lib/billing/price";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout, canSeePrices, priceLivemode } from "@/lib/billing/visibility";
@@ -33,6 +34,7 @@ interface ShownPrice {
 /**
  * 진열할 가격 — 토스·원화·지금 모드의 활성 가격(billing_prices는 service role 전용이라 관리자 클라이언트로 읽는다).
  * 0041 미적용(테이블 없음)이면 조용히 가격 없음, 그 밖의 오류는 기록하고 가격 없음 — 요금제 페이지는 늘 열린다.
+ * 렌더마다 읽으므로 오류가 이어지는 동안 기록은 프로세스당 1분에 한 번(logThrottle).
  */
 async function loadShownPrices(livemode: boolean): Promise<ShownPrice[]> {
   const admin = createAdminClient();
@@ -45,7 +47,9 @@ async function loadShownPrices(livemode: boolean): Promise<ShownPrice[]> {
     .eq("active", true)
     .in("plan_code", [...SELF_SERVE_PLAN_IDS]);
   if (error) {
-    if (!isMissingTable(error)) await logAppError(admin, `pricing price lookup failed: ${error.message}`, { path: "pricing" });
+    if (!isMissingTable(error) && shouldLog("pricing price lookup failed")) {
+      await logAppError(admin, `pricing price lookup failed: ${error.message}`, { path: "pricing" });
+    }
     return [];
   }
   return ((data as ShownPrice[] | null) ?? []).sort((a, b) => (a.interval === b.interval ? 0 : a.interval === "month" ? -1 : 1));

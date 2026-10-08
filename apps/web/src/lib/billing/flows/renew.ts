@@ -51,8 +51,11 @@ import {
  */
 
 export type RenewalAction = "end_canceled" | "end_unpaid" | "charge" | "retry" | "remind" | "none";
-/** refunded: 결제는 승인됐지만 그 사이 구독이 끝나 줄 기간이 없어 자동 취소했다 */
-export type ChargeResult = "paid" | "failed" | "pending" | "skipped" | "refunded";
+/**
+ * refunded: 결제는 승인됐지만 그 사이 구독이 끝나 줄 기간이 없어 자동 취소했다.
+ * review: 결제는 paid로 남았지만 운영자 확인이 필요하다(자동 취소 실패, 진행 중 구독이 다른 기간에 있음) — paid로 세지 않는다
+ */
+export type ChargeResult = "paid" | "failed" | "pending" | "skipped" | "refunded" | "review";
 
 /** 대사 대상 — 토스 요청 시간 제한(15초)보다 충분히 오래된 pending만. 아직 진행 중인 요청을 건드리지 않는다 */
 const RECONCILE_AFTER_MS = 10 * 60_000;
@@ -73,9 +76,10 @@ const ACCOUNT_HALT_CODES = new Set(["UNAUTHORIZED_KEY", "INVALID_API_KEY", "FORB
 const INCIDENT_STREAK_HALT = 3;
 /**
  * 사용자에게 실패 메일을 보내지 않은 실패 코드 — 설정 사고와 대사로 확정한 실패. 같은 기간에 이것만 있었다면
- * 다음의 실제 카드 거절이 그 기간의 첫 안내다(이 목록은 여기 한 곳에서만 정한다)
+ * 다음의 실제 카드 거절이 그 기간의 첫 안내다. 결제 관리의 결제 내역도 이 코드의 실패를 "실패" 대신 청구 없는 미처리로
+ * 보인다(manageData.ts). 이 목록은 여기 한 곳에서만 정한다
  */
-const NOT_USER_FACING = { codes: [DECRYPT_FAILED, ...FATAL_TOSS_CODES], prefixes: ["RECONCILED_"] } as const;
+export const NOT_USER_FACING = { codes: [DECRYPT_FAILED, ...FATAL_TOSS_CODES], prefixes: ["RECONCILED_"] } as const;
 const LIVE: SubscriptionExpectation["statuses"] = ["active", "past_due"];
 /** 토스가 이 결제는 돈이 움직이지 않았다고 답한 상태 */
 const NOT_PAID = new Set(["ABORTED", "EXPIRED"]);
@@ -358,8 +362,9 @@ async function chargeOnce(deps: BillingDeps, candidate: SubscriptionRow, kind: "
       await deps.log(`billing ${kind} charge payment ${payment.id} returned status ${charged.status.slice(0, 40)}, left pending`);
       return { result: "pending" };
     }
-    // 결제 행이 paid로 남으면(기간을 줬거나 운영자 확인) paid, 자동 취소했으면 refunded
-    return { result: (await settlePaid(deps, sub, payment, charged)) === "refunded" ? "refunded" : "paid" };
+    // 기간을 줬으면 paid, 자동 취소했으면 refunded, paid로 남았지만 운영자 확인이 필요하면 review
+    const settled = await settlePaid(deps, sub, payment, charged);
+    return { result: settled === "granted" ? "paid" : settled };
   } catch (e) {
     if (!moneyInFlight) throw e;
     await deps.log(`billing ${kind} payment ${payment.id} may have been charged but was not settled, left pending: ${errorText(e)}`);
@@ -370,7 +375,7 @@ async function chargeOnce(deps: BillingDeps, candidate: SubscriptionRow, kind: "
 /**
  * 갱신·재시도 결제 한 번 — 카드 변경 직후 재결제도 쓴다.
  * paid: 결제됨 / failed: 미납으로 넘김(설정 사고 포함) / pending: 결과 불명(대사가 확정) / skipped: 이 주기·시도는 이미 처리 중이거나 끝남 /
- * refunded: 승인됐지만 그 사이 구독이 끝나 자동 취소함.
+ * refunded: 승인됐지만 그 사이 구독이 끝나 자동 취소함 / review: 결제는 paid로 남았지만 운영자 확인이 필요함(자동 취소 실패 등).
  * 돈이 움직이기 전의 저장소 오류는 그대로 던진다(호출부가 기록). 결제 행이 먼저 만들어졌다면 pending으로 남아 대사가 정리한다.
  */
 export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeResult> {
@@ -378,7 +383,9 @@ export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow
   return result === "halted" || result === "incident" ? "failed" : result;
 }
 
-type Resolution = "paid" | "failed" | "unresolved";
+/** review: 결제는 paid로 남았지만 운영자 확인이 필요하다(자동 취소 실패, 진행 중 구독이 다른 기간에 있음) */
+type Resolution = "paid" | "failed" | "unresolved" | "review";
+export type ReconcileCounts = Record<Resolution, number>;
 
 /** 토스가 돌려준 금액 — 응답의 결제액·남은 금액으로 계산하고, 응답에 없으면 결제 금액 전액으로 본다 */
 function returnedAmount(payment: PaymentRow, found: TossPayment): number {
@@ -437,8 +444,8 @@ async function reconcileNotPaid(deps: BillingDeps, p: PaymentRow, found: TossPay
   return "failed";
 }
 
-/** 자동 취소 결과 → 대사 결과: 돌려줬으면 기간을 주지 않은 것(failed), 취소에 실패해 paid로 남았으면 paid */
-const refundResolution = (r: "refunded" | "review"): Resolution => (r === "refunded" ? "failed" : "paid");
+/** 자동 취소 결과 → 대사 결과: 돌려줬으면 기간을 주지 않은 것(failed), 취소에 실패해 paid로 남았으면 운영자 확인(review) */
+const refundResolution = (r: "refunded" | "review"): Resolution => (r === "refunded" ? "failed" : "review");
 
 /** 대사: 토스가 승인됐다고 답했다 */
 async function reconcileDone(deps: BillingDeps, p: PaymentRow, found: TossPayment): Promise<Resolution> {
@@ -468,7 +475,7 @@ async function reconcileDone(deps: BillingDeps, p: PaymentRow, found: TossPaymen
   const sub = await store.getSubscription(p.subscription_id);
   if (!sub) return refundResolution(await refundUngranted(deps, p, found, `subscription ${p.subscription_id} is gone`));
   const settled = await settlePaid(deps, sub, p, found);
-  return settled === "refunded" ? "failed" : "paid";
+  return settled === "granted" ? "paid" : settled === "refunded" ? "failed" : "review";
 }
 
 async function reconcileOne(deps: BillingDeps, p: PaymentRow): Promise<Resolution> {
@@ -488,8 +495,8 @@ async function reconcileOne(deps: BillingDeps, p: PaymentRow): Promise<Resolutio
   return "unresolved";
 }
 
-async function reconcile(deps: BillingDeps, livemode: boolean, deadline: number): Promise<{ paid: number; failed: number; unresolved: number }> {
-  const counts = { paid: 0, failed: 0, unresolved: 0 };
+async function reconcile(deps: BillingDeps, livemode: boolean, deadline: number): Promise<ReconcileCounts> {
+  const counts: ReconcileCounts = { paid: 0, failed: 0, unresolved: 0, review: 0 };
   const pending = await deps.store.listPendingPayments(livemode, iso(deps.now() - RECONCILE_AFTER_MS), RECONCILE_LIMIT);
   for (const p of pending) {
     if (deps.now() >= deadline) {
@@ -507,7 +514,7 @@ async function reconcile(deps: BillingDeps, livemode: boolean, deadline: number)
 }
 
 /** 10분 지난 pending 결제를 토스 주문 조회로 확정한다 */
-export async function reconcilePending(deps: BillingDeps, livemode: boolean): Promise<{ paid: number; failed: number; unresolved: number }> {
+export async function reconcilePending(deps: BillingDeps, livemode: boolean): Promise<ReconcileCounts> {
   return reconcile(deps, livemode, Number.POSITIVE_INFINITY);
 }
 
@@ -561,6 +568,8 @@ async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<bo
  * 그 행만의 사고는 charge_incident·retry_incident로 세고 다음 행을 계속 처리한다. 다만 같은 코드의 행 사고가
  * 연달아 INCIDENT_STREAK_HALT번 나면 그 자리에서 같은 방식으로 멈춘다(결제 결과가 하나라도 끼면 다시 센다).
  * 반환은 대사 결과·처리 결과별 개수(예: charge_paid, retry_failed, remind, end_unpaid, held, errors, deferred).
+ * 결제는 paid로 남았지만 운영자 확인이 필요한 건은 *_paid가 아니라 *_review(charge_review·retry_review·reconciled_review)로
+ * 따로 센다 — 관리자 도구가 오류·중단과 함께 문제로 보인다(cycleSummary.ts).
  */
 export async function runBillingCycle(
   deps: BillingDeps,
@@ -574,6 +583,7 @@ export async function runBillingCycle(
     reconciled_paid: rec.paid,
     reconciled_failed: rec.failed,
     reconciled_unresolved: rec.unresolved,
+    reconciled_review: rec.review,
     candidates: 0,
     errors: 0,
     deferred: 0,

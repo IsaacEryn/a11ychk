@@ -3,44 +3,12 @@
 import { useTranslations } from "next-intl";
 import { runBillingCycleNow, type CycleState } from "@/lib/actions";
 import { FormFeedback } from "@/components/FormFeedback";
+import { CYCLE_SUMMARY_KEYS, cycleIssues } from "@/lib/billing/cycleSummary";
 import { useAdminAction } from "../../useAdminAction";
 import { BTN_PRIMARY } from "../contractForm";
 
 /** runBillingCycleNow가 돌려주는 오류 코드 전부 */
 const ERROR_CODES = ["off", "notConfigured", "confirm", "failed"] as const;
-
-/** runBillingCycle 요약의 키 — renew.ts가 정한 이름. 목록에 없는 키는 이름 그대로 보여 준다 */
-const SUMMARY_KEYS = [
-  "reconciled_paid",
-  "reconciled_failed",
-  "reconciled_unresolved",
-  "candidates",
-  "errors",
-  "deferred",
-  "none",
-  "remind",
-  "remind_skipped",
-  "charge_paid",
-  "charge_failed",
-  "charge_pending",
-  "charge_skipped",
-  "charge_incident",
-  "charge_halted",
-  "charge_refunded",
-  "retry_paid",
-  "retry_failed",
-  "retry_pending",
-  "retry_skipped",
-  "retry_incident",
-  "retry_halted",
-  "retry_refunded",
-  "halt_skipped",
-  "end_canceled",
-  "end_unpaid",
-  "held",
-  "changed",
-  "halted",
-] as const;
 
 /**
  * 결제 크론 지금 실행 — 결과 개수를 작은 정의 목록으로 보여 준다.
@@ -60,10 +28,9 @@ export function RunCycleForm({
   const [state, formAction, pending] = useAdminAction<CycleState, FormData>(runBillingCycleNow, {});
   const errors = Object.fromEntries(ERROR_CODES.map((c) => [c, t(`errors.${c}`)])) as Record<string, string>;
   const summary = state.ok ? Object.entries(state.summary ?? {}) : [];
-  const errorCount = state.summary?.errors ?? 0;
-  const haltedCount = state.summary?.halted ?? 0;
-  // 크론이 끝까지 돌았어도 오류가 났거나 설정 사고로 결제를 멈췄다면 성공 표시(✓)로 덮지 않는다
-  const hasIssues = state.ok === true && (errorCount > 0 || haltedCount > 0);
+  // 크론이 끝까지 돌았어도 오류·설정 사고로 인한 중단·운영자 확인이 필요한 결제가 있으면 성공 표시(✓)로 덮지 않는다
+  const issues = cycleIssues(state.summary);
+  const hasIssues = state.ok === true && issues.any;
   const candidates = state.summary?.candidates ?? 0;
 
   return (
@@ -86,7 +53,7 @@ export function RunCycleForm({
         </button>
         {hasIssues ? (
           <span role="alert" className="text-xs font-bold text-[var(--color-crit)]">
-            {t("ranIssues", { candidates, errors: errorCount, halted: haltedCount })}
+            {t("ranIssues", { candidates, errors: issues.errors, review: issues.review, halted: issues.halted })}
           </span>
         ) : (
           <FormFeedback state={state} okLabel={t("ran", { candidates })} errors={errors} fallback={errors.failed} />
@@ -98,7 +65,7 @@ export function RunCycleForm({
           <dl className="mt-1 grid grid-cols-[max-content_max-content] gap-x-6 gap-y-1 text-sm">
             {summary.map(([key, count]) => (
               <div key={key} className="contents">
-                <dt>{(SUMMARY_KEYS as readonly string[]).includes(key) ? t(`summary.${key}`) : key}</dt>
+                <dt>{(CYCLE_SUMMARY_KEYS as readonly string[]).includes(key) ? t(`summary.${key}`) : key}</dt>
                 <dd className="text-right font-semibold tabular-nums">{count}</dd>
               </div>
             ))}

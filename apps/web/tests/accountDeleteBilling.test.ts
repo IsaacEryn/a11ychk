@@ -43,7 +43,7 @@ vi.mock("next/navigation", () => ({
 
 import { deleteAccount } from "../src/lib/actions/profile";
 import type { BillingStore } from "../src/lib/billing/types";
-import { NOW, createMemoryStore, customerRow, deleteUserCascade, iso, DAY, paymentRow, subscriptionRow, type MemoryStore } from "./billingFakes";
+import { NOW, createMemoryStore, customerRow, deleteUserCascade, iso, DAY, paymentRow, pgTime, subscriptionRow, type MemoryStore } from "./billingFakes";
 
 const USER = m.user.id;
 const OLD_KEY = "v1:old-iv:old-tag:old-ct";
@@ -136,6 +136,27 @@ describe("deleteAccount — 결제 정리", () => {
 
     expect(m.deleteUser).toHaveBeenCalledTimes(1);
     expect(m.logAppError.mock.calls[0][1]).toMatch(/^billing needs review: account deleted with pending payment/);
+  });
+
+  it("모은 뒤 계정을 지우기 전에 갱신이 확정돼 기간이 넘어갔어도 끝내고, 그 결제를 확인 필요 한 줄(id만)로 남긴다", async () => {
+    const sub = subscriptionRow({ user_id: USER });
+    const store = memory({ subscriptions: [sub], customers: [customerRow({ user_id: USER, livemode: false, toss_billing_key_enc: OLD_KEY })] });
+    const renewal = paymentRow({ user_id: USER, subscription_id: sub.id, kind: "renewal", status: "paid", period_start: sub.current_period_end, period_end: iso(NOW + 50 * DAY) });
+    const deleteAfterCascade = m.deleteUser.getMockImplementation()!;
+    m.deleteUser.mockImplementationOnce(async (id: string) => {
+      // 크론의 갱신이 계정 삭제 직전에 확정됐다 — 구독이 한 주기 전진하고 결제는 paid
+      Object.assign(store.rows.subscriptions[0], { current_period_start: pgTime(sub.current_period_end), current_period_end: pgTime(NOW + 50 * DAY) });
+      store.rows.payments.push(structuredClone(renewal));
+      return deleteAfterCascade(id);
+    });
+
+    await expectDeleted();
+
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled", user_id: null });
+    expect(store.rows.payments[0].status).toBe("paid");
+    expect(m.logAppError).toHaveBeenCalledTimes(1);
+    expect(m.logAppError.mock.calls[0][1]).toBe(`billing needs review: subscription ${sub.id} renewed during account deletion (payment ${renewal.id})`);
+    expect(m.logAppError.mock.calls[0][2]).toEqual({ path: "actions.deleteAccount" });
   });
 
   it("계정을 지운 뒤 구독을 끝내지 못하면(저장소 오류) 구독 id로 확인 필요를 남기고 탈퇴는 성공한다 — 빌링키가 없어 청구되지 않는다", async () => {

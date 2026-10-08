@@ -1,6 +1,7 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { NOT_USER_FACING } from "@/lib/billing/flows/renew";
 import type { CardSummary } from "@/lib/billing/toss";
 import type { PaymentRow, SubscriptionRow } from "@/lib/billing/types";
 
@@ -70,10 +71,27 @@ export async function hasBillingRecord(db: SupabaseClient, userId: string, livem
 
 export type PaymentHistoryRow = Pick<
   PaymentRow,
-  "id" | "livemode" | "kind" | "amount" | "currency" | "status" | "receipt_url" | "requested_at" | "approved_at"
+  "id" | "livemode" | "kind" | "amount" | "currency" | "status" | "failure_code" | "receipt_url" | "requested_at" | "approved_at"
 >;
 
-const PAYMENT_COLS = "id, livemode, kind, amount, currency, status, receipt_url, requested_at, approved_at";
+/** failure_code는 표기를 가르는 데만 쓴다(paymentStatusKey) — 화면에 코드를 싣지 않는다 */
+const PAYMENT_COLS = "id, livemode, kind, amount, currency, status, failure_code, receipt_url, requested_at, approved_at";
+
+/** 결제 내역 상태 칸의 표기 — 결제 행의 상태와, 사용자 탓이 아닌 실패의 notProcessed(청구 없음) */
+export const PAYMENT_STATUS_KEYS = ["pending", "paid", "failed", "refunded", "partially_refunded", "notProcessed"] as const;
+export type PaymentStatusKey = (typeof PAYMENT_STATUS_KEYS)[number];
+
+/**
+ * 결제 내역의 상태 표기 — 실패 중 사용자 탓이 아닌 것(설정 사고·대사로 확정한 실패, 갱신 흐름이 사용자에게 실패를 알리지 않는
+ * 코드·접두와 같은 목록)은 "실패" 대신 notProcessed(처리되지 않음 — 청구 없음)로 보인다. 그 밖에는 결제 행의 상태 그대로.
+ */
+export function paymentStatusKey(p: Pick<PaymentRow, "status" | "failure_code">): PaymentStatusKey {
+  const code = p.failure_code;
+  if (p.status !== "failed" || !code) return p.status;
+  const operational =
+    (NOT_USER_FACING.codes as readonly string[]).includes(code) || NOT_USER_FACING.prefixes.some((prefix) => code.startsWith(prefix));
+  return operational ? "notProcessed" : "failed";
+}
 
 /** 본인 결제 내역 — 최근 것부터 limit건 */
 export async function loadPaymentHistory(db: SupabaseClient, userId: string, livemodes: boolean[], limit = 24): Promise<PaymentHistoryRow[]> {

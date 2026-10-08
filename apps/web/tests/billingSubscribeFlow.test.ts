@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptBillingKey } from "../src/lib/billing/crypto";
 import { addInterval } from "../src/lib/billing/period";
-import { TossError } from "../src/lib/billing/toss";
+import { TossError, type TossPayment } from "../src/lib/billing/toss";
 import type { CheckoutRow, SubscriptionRow } from "../src/lib/billing/types";
 import {
   activateInitialPayment,
@@ -629,6 +629,43 @@ describe("completeCheckout — 카드 변경", () => {
     expect(store.rows.checkouts[0]).toMatchObject({ status: "completed" });
   });
 
+  /** 재결제가 승인되는 사이 구독이 끝나는 장면 — 줄 기간이 없어 자동 취소한다. cancel은 토스 취소 응답(성공·실패) */
+  function endsWhileCharging(cancel: TossPayment | TossError) {
+    const late: { store?: ReturnType<typeof createMemoryStore> } = {};
+    const ctx = setupCardChange({
+      sub: { status: "past_due", current_period_start: iso(NOW - 30 * DAY), current_period_end: iso(NOW - 2 * DAY), dunning_attempts: 1, grace_until: iso(NOW + 5 * DAY) },
+      toss: {
+        issueBillingKey: [newCard()],
+        chargeBillingKey: [
+          (bk, req) => {
+            Object.assign(late.store!.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
+            return doneFor(bk, req);
+          },
+        ],
+        cancelPayment: [cancel],
+      },
+    });
+    late.store = ctx.store;
+    return ctx;
+  }
+
+  it("재결제가 승인되는 사이 구독이 끝나 자동 취소했으면 retry refunded — 카드 실패(failed)로 안내하지 않는다", async () => {
+    const { deps, store, sub, input } = endsWhileCharging(tossPayment({ status: "CANCELED" }));
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "refunded" });
+    expect(store.rows.payments[0]).toMatchObject({ kind: "retry", status: "refunded" });
+    expect(deps.toss.calls.cancelPayment).toHaveLength(1);
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "completed" });
+  });
+
+  it("자동 취소에 실패해 결제가 paid로 남고 운영자 확인이 필요하면 retry pending — 밀린 결제를 마쳤다(paid)고 안내하지 않는다", async () => {
+    const { deps, store, sub, input } = endsWhileCharging(new TossError("NETWORK", "toss request failed (network)", 0));
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "pending" });
+    expect(store.rows.payments[0]).toMatchObject({ kind: "retry", status: "paid", failure_code: "CANCEL_FAILED" });
+    expect(store.rows.subscriptions[0].status).toBe("ended");
+  });
+
   it("시작한 뒤 유예가 끝난 미납 구독은 카드만 바꾸고 재결제하지 않는다(retry none) — 크론의 미납 종료와 겹치지 않게", async () => {
     for (const over of [
       { grace_until: iso(NOW) },
@@ -1101,6 +1138,47 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     // 표기가 달라도(Z) 같은 기간 시작
     expect(await store.hasUserFacingFailure(sub.id, iso(NOW), exclude)).toBe(true);
     expect(await store.hasUserFacingFailure("other-sub", iso(NOW), exclude)).toBe(false);
+  });
+
+  it("기간 시작으로 확정된 갱신 결제 찾기 — 같은 구독·같은 기간 시작의 paid 갱신·재시도 중 가장 늦게 요청한 것", async () => {
+    const start = "2026-02-27T16:00:00+00:00";
+    const row = { id: "p1" };
+    const hit = fakeAdmin({ data: row, error: null });
+    expect(await createSupabaseBillingStore(hit.admin).findPaidRenewal("s1", start)).toEqual(row);
+    expect(hit.calls).toEqual(
+      expect.arrayContaining([
+        ["from", ["billing_payments"]],
+        ["eq", ["subscription_id", "s1"]],
+        ["eq", ["period_start", start]],
+        ["eq", ["status", "paid"]],
+        ["in", ["kind", ["renewal", "retry"]]],
+        ["order", ["requested_at", { ascending: false }]],
+        ["limit", [1]],
+        ["maybeSingle", []],
+      ]),
+    );
+    expect(await createSupabaseBillingStore(fakeAdmin({ data: null, error: null }).admin).findPaidRenewal("s1", start)).toBeNull();
+    await expect(createSupabaseBillingStore(fakeAdmin({ data: null, error: { message: "timeout" } }).admin).findPaidRenewal("s1", start)).rejects.toThrow(
+      "billing store findPaidRenewal: timeout",
+    );
+
+    // 메모리 가짜도 같은 규칙 — 첫 결제·다른 기간·확정 전·다른 구독은 고르지 않고, 표기(Z)가 달라도 같은 기간 시작
+    const sub = subscriptionRow({ user_id: USER });
+    const base = { user_id: USER, subscription_id: sub.id, kind: "renewal" as const, status: "paid" as const, period_start: iso(NOW) };
+    const older = paymentRow({ ...base, attempt: 1, requested_at: iso(NOW - 2 * MIN) });
+    const newer = paymentRow({ ...base, kind: "retry", attempt: 2, requested_at: iso(NOW - MIN) });
+    const store = createMemoryStore({
+      subscriptions: [sub],
+      payments: [
+        paymentRow({ ...base, kind: "initial" }),
+        paymentRow({ ...base, attempt: 3, period_start: iso(NOW - 28 * DAY) }),
+        paymentRow({ ...base, attempt: 4, status: "pending" }),
+        paymentRow({ ...base, attempt: 5, subscription_id: "other-sub" }),
+      ],
+    });
+    expect(await store.findPaidRenewal(sub.id, pgTime(NOW))).toBeNull();
+    store.rows.payments.push(older, newer);
+    expect((await store.findPaidRenewal(sub.id, iso(NOW)))?.id).toBe(newer.id);
   });
 
   it("메모리 저장소의 조건부 갱신도 같은 시각이면 표기(+00:00·Z)가 달라도 같다고 본다", async () => {

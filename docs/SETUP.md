@@ -123,7 +123,7 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 
 ### 준비
 
-1. **키 발급** — 토스페이먼츠 개발자센터(developers.tosspayments.com) → 내 개발 정보 → API 키.
+1. **키 발급** — 토스페이먼츠 개발자센터(developers.tosspayments.com)의 **API 키** 메뉴에서 상점을 고른 뒤 테스트 환경의 키를 확인한다.
    자동결제(빌링)는 "결제위젯 연동 키"가 아니라 **"API 개별 연동 키"**(`test_ck_…` / `test_sk_…`)를 쓴다.
    클라이언트 키는 결제창을 여는 서버 액션의 응답으로만 브라우저에 전달된다(`NEXT_PUBLIC_` 변수를 만들지 않는다).
 2. **환경변수** — `apps/web/.env.local`에만 넣는다(`apps/web/.env.example`의 결제 블록 참고).
@@ -226,11 +226,13 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
   크론은 아무것도 하지 않는다. 다시 켜면 그동안 기간 끝이 지난 구독은 **다음 크론 실행에서 바로 결제가 나갈 수 있다.**
   끄기 전에 구독자에게 알리고, 다시 켜기 전에 구독자를 확인해 안내한다.
 - **회원 탈퇴** — 끝낼 구독을 먼저 모으고, 계정을 지운 뒤 진행 중인 토스 구독(테스트·실결제 모두)을 사용자 해지로 끝낸다
-  (메일 없음). 계정 삭제가 실패하면 구독은 그대로다. 빌링키는 고객 행과 함께 지워지므로 계정을 지운 뒤에는 청구되지 않는다.
+  (메일 없음). 계정 삭제가 실패하면 구독은 그대로다. 빌링키는 고객 행과 함께 지워지므로 계정을 지운 뒤에는 새 청구가 시작되지 않는다.
+  `billing needs review: subscription … renewed during account deletion (payment …)`는 끝낼 구독을 모은 뒤 계정을 지우기 전에
+  갱신 결제가 승인돼 기간이 넘어갔다는 뜻으로, 구독은 그래도 끝냈지만 그 결제는 자동 취소하지 않았으니 처리(환불 여부)를 운영자가 정한다.
   구독을 끝내지 못하면 `billing needs review: subscriptions … could not be ended after account deletion`이 남는데, 그 구독은
   빌링키가 없어 미납 → 유예 → 종료로 저절로 끝난다. 결제 상태는 탈퇴를 막지 않는다. 결과를 모르는 결제가 남은 채 탈퇴하면
   `billing needs review: account deleted with pending payment…`가 남는다. 그 결제가 나중에 승인으로 확인되면 크론의 대사가
-  줄 기간이 없음을 보고 자동 취소한다(위 "받은 돈과 이용 기간이 어긋나지 않게"). 자동 취소 실패 기록이 있을 때만 토스
+  줄 기간이 없음을 보고 자동 취소한다(위 "받은 돈과 이용 기간이 어긋나지 않게"). 이 경우에는 자동 취소 실패 기록이 있을 때만 토스
   상점관리자에서 그 결제를 찾아 환불한다:
   `select created_at, message from app_errors where message like 'billing needs review:%' order by created_at desc;`
   구독·결제·동의 기록은 `user_id`만 비워서 남는다. 고객 행(빌링키 암호문)은 계정과 함께 지워진다.

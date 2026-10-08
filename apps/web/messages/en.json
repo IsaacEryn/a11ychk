@@ -1693,6 +1693,7 @@
           "reconciled_paid": "Confirmed paid by reconciliation",
           "reconciled_failed": "Confirmed failed by reconciliation",
           "reconciled_unresolved": "Still unresolved after reconciliation",
+          "reconciled_review": "Paid per reconciliation, needs review",
           "candidates": "Candidate subscriptions",
           "errors": "Errors",
           "deferred": "Deferred (out of time)",
@@ -1706,6 +1707,7 @@
           "charge_incident": "Renewal charges hit a setup incident",
           "charge_halted": "Renewal charges halted",
           "charge_refunded": "Renewal charges auto-canceled (no period to grant)",
+          "charge_review": "Renewal charges needing review",
           "retry_paid": "Retries succeeded",
           "retry_failed": "Retries failed",
           "retry_pending": "Retries with unknown result",
@@ -1713,6 +1715,7 @@
           "retry_incident": "Retries hit a setup incident",
           "retry_halted": "Retries halted",
           "retry_refunded": "Retries auto-canceled (no period to grant)",
+          "retry_review": "Retries needing review",
           "halt_skipped": "Charges deferred by a halt",
           "end_canceled": "Ended after scheduled cancellation",
           "end_unpaid": "Ended for non-payment",
@@ -1741,7 +1744,7 @@
           "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription.",
           "cancelScheduled": "Upcoming-charge notices aren't sent for a subscription with a scheduled cancellation, so it can't be pulled to notice time. Use Pull due date to test the ending, or undo the cancellation and try again."
         },
-        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
+        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{review, plural, =0 {} other {, payments needing review: #}}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
         "subsItems": {
           "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge. For a subscription with a scheduled cancellation this tests the ending instead: run the cron after that minute and the subscription ends.",
           "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet. Not available for subscriptions with a scheduled cancellation (the cron doesn't send them a notice).",
@@ -2279,7 +2282,8 @@
           "paid": "Paid",
           "failed": "Failed",
           "refunded": "Refunded",
-          "partially_refunded": "Partially refunded"
+          "partially_refunded": "Partially refunded",
+          "notProcessed": "Not processed (no charge)"
         }
       },
       "results": {
@@ -2289,7 +2293,8 @@
           "none": "Your payment card has been changed.",
           "paid": "Your payment card has been changed and the overdue payment went through.",
           "pending": "Your payment card has been changed. We are confirming the overdue payment, which can take up to a day; once it is confirmed, the result will appear on this page.",
-          "failed": "Your payment card has been changed, but the payment with the new card did not go through. Please check the card or change to another card."
+          "failed": "Your payment card has been changed, but the payment with the new card did not go through. Please check the card or change to another card.",
+          "refunded": "The subscription has already ended, so this payment will be canceled automatically. To use the service again, please start a new subscription."
         }
       },
       "returnErrors": {

@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
+  CARD_CHANGE_RETRIES,
   CHECKOUT_TTL_MS,
   RETURN_ERRORS,
   DISCLOSURE_VERSION,
@@ -250,6 +251,10 @@ describe("토스 리다이렉트 뒤 이동", () => {
     expect(callbackRedirectPath({ kind: "cardChanged", subscriptionId: SUB_ID, retry: "none" }, "ko")).toBe(
       "/ko/mypage/billing?result=cardChanged&retry=none",
     );
+    // 재결제가 승인됐지만 그 사이 구독이 끝나 자동 취소했다 — 실패(failed)와 다른 값으로 싣는다
+    expect(callbackRedirectPath({ kind: "cardChanged", subscriptionId: SUB_ID, retry: "refunded" }, "ko")).toBe(
+      "/ko/mypage/billing?result=cardChanged&retry=refunded",
+    );
     expect(callbackRedirectPath({ kind: "pending" }, "ko")).toBe("/ko/mypage/billing?result=pending");
   });
 
@@ -303,6 +308,15 @@ describe("돌아온 화면의 안내(쿼리 검증)", () => {
     }
   });
 
+  it("카드 변경 재결제 결과마다 결제 관리 문구가 ko·en 모두 있다", () => {
+    for (const locale of ["ko", "en"]) {
+      const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}.json`, import.meta.url), "utf8"));
+      for (const retry of CARD_CHANGE_RETRIES) {
+        expect(typeof messages.billing.manage.results.cardChanged[retry], `${locale} billing.manage.results.cardChanged.${retry}`).toBe("string");
+      }
+    }
+  });
+
   it("모르는 값·배열·빈 값은 null", () => {
     expect(returnErrorOf("<script>")).toBeNull();
     expect(returnErrorOf(["failed", "canceled"])).toBeNull();
@@ -313,13 +327,23 @@ describe("돌아온 화면의 안내(쿼리 검증)", () => {
   it("결과: 콜백이 싣는 조합만 — 카드 변경은 재결제 결과가 목록에 있어야 한다", () => {
     expect(manageReturnOf("subscribed", undefined)).toEqual({ kind: "subscribed" });
     expect(manageReturnOf("pending", "paid")).toEqual({ kind: "pending" });
-    for (const retry of ["paid", "failed", "pending", "none"]) {
+    // 흐름의 재결제 결과가 늘면 이 표가 컴파일되지 않는다 — 허용 목록·문구를 함께 늘리게
+    const retries: Record<Extract<CheckoutOutcome, { kind: "cardChanged" }>["retry"], true> = {
+      paid: true,
+      failed: true,
+      pending: true,
+      refunded: true,
+      none: true,
+    };
+    expect([...CARD_CHANGE_RETRIES].sort()).toEqual(Object.keys(retries).sort());
+    for (const retry of Object.keys(retries)) {
       const path = callbackRedirectPath({ kind: "cardChanged", subscriptionId: SUB_ID, retry: retry as "paid" }, "ko");
       const q = new URL(path, "https://x.test").searchParams;
       expect(manageReturnOf(q.get("result"), q.get("retry"))).toEqual({ kind: "cardChanged", retry });
     }
     expect(manageReturnOf("cardChanged", undefined)).toBeNull();
     expect(manageReturnOf("cardChanged", "charged")).toBeNull();
+    expect(manageReturnOf("cardChanged", "review")).toBeNull();
     expect(manageReturnOf(["subscribed"], undefined)).toBeNull();
     expect(manageReturnOf("ended", undefined)).toBeNull();
   });

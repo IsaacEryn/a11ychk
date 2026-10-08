@@ -3,15 +3,19 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { logAppError } from "@/lib/logs";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { billingTestUserIds } from "./config";
+import { shouldLog } from "./logThrottle";
 import { ANONYMOUS_VIEWER, type Viewer } from "./visibility";
 
 /**
  * 결제 공개 범위 판정의 읽기 오류 기록 — 오류 코드만 남긴다(메시지에는 행 값·호스트가 섞일 수 있다). 사용자 세션
  * 클라이언트는 app_errors에 쓸 수 없어 기록만 service role로 한다(entitlements.ts와 같은 방식). 기록 실패는 무시한다.
+ * 요금제·결제 화면은 렌더마다 읽으므로, 오류가 이어지는 동안 같은 메시지는 프로세스당 1분에 한 번만 남긴다(logThrottle).
  */
-export async function reportBillingReadError(what: string, error: { code?: string }): Promise<void> {
+export async function reportBillingReadError(what: string, error: { code?: string }, now: number = Date.now()): Promise<void> {
+  const message = `billing ${what} read failed (${error.code ?? "unknown"}); treated as closed`;
+  if (!shouldLog(message, now)) return;
   try {
-    await logAppError(createAdminClient(), `billing ${what} read failed (${error.code ?? "unknown"}); treated as closed`, { path: "billing" });
+    await logAppError(createAdminClient(), message, { path: "billing" });
   } catch {
     // 관측은 best-effort
   }

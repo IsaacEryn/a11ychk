@@ -99,6 +99,11 @@ export interface BillingStore {
    * 실패 코드가 없는 행은 세지 않는다
    */
   hasUserFacingFailure(subscriptionId: string, periodStart: string, exclude: { codes: readonly string[]; prefixes: readonly string[] }): Promise<boolean>;
+  /**
+   * 이 구독에서 그 기간 시작(periodStart)으로 확정된(paid) 갱신·재시도 결제 — 여럿이면 가장 늦게 요청한 것, 없으면 null.
+   * 탈퇴 정리가 모은 뒤 끼어든 갱신을 찾을 때 쓴다
+   */
+  findPaidRenewal(subscriptionId: string, periodStart: string): Promise<PaymentRow | null>;
 }
 
 export type BillingEmailKind = "receipt" | "failed" | "reminder" | "cancelScheduled" | "ended";

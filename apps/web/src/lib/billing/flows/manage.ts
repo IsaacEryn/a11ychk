@@ -145,43 +145,70 @@ export async function resumeSubscription(deps: BillingDeps, userId: string, live
   return "retryLater";
 }
 
+/** 탈퇴 정리로 끝낼 구독 — 모은 시점의 기간 끝을 함께 둔다(끝낼 때 그 사이 갱신이 끼어들었는지 가른다) */
+export interface DeletionTarget {
+  id: string;
+  /** 모을 때 읽은 current_period_end 그대로 */
+  currentPeriodEnd: string;
+}
+
 /** 탈퇴 전에 읽어 두는 결제 정리 대상 — 계정을 지우면 구독·결제의 user_id가 비어(set null) 더는 사용자로 찾을 수 없다 */
 export interface DeletionTargets {
-  /** 계정을 지운 뒤 끝낼 진행 중 토스 구독 id(두 livemode — 기관 계약은 건드리지 않는다) */
-  subscriptionIds: string[];
+  /** 계정을 지운 뒤 끝낼 진행 중 토스 구독(두 livemode — 기관 계약은 건드리지 않는다) */
+  subscriptions: DeletionTarget[];
   /** 결과를 모르는 첫 결제가 있는 모드 수 — 확인하지 못했으면 null(탈퇴 뒤 그 사실을 기록한다) */
   pendingInitialModes: number | null;
 }
 
 /**
- * 탈퇴 전 — 끝낼 구독 id와 결과를 모르는 첫 결제를 모은다. 아무것도 바꾸지 않는다(계정 삭제가 실패하면 유료 기간을 그대로 둔다).
- * 구독을 읽는 저장소 오류는 던진다 — 호출부가 0041 미적용(테이블 없음)이면 빈 목록으로 보고, 그 밖이면 탈퇴를 멈춘다(끝낼 구독을
- * 모른 채 계정을 지우지 않는다). 첫 결제 확인이 실패하면 null로 두고 탈퇴를 막지 않는다 — 탈퇴한 사용자의 첫 결제가 나중에
- * 승인으로 확인되면 대사가 자동 취소한다(renew.ts 머리말의 불변식).
+ * 탈퇴 전 — 끝낼 구독(id·기간 끝)과 결과를 모르는 첫 결제를 모은다. 아무것도 바꾸지 않는다(계정 삭제가 실패하면 유료 기간을
+ * 그대로 둔다). 구독을 읽는 저장소 오류는 던진다 — 호출부가 0041 미적용(테이블 없음)이면 빈 목록으로 보고, 그 밖이면 탈퇴를
+ * 멈춘다(끝낼 구독을 모른 채 계정을 지우지 않는다). 첫 결제 확인이 실패하면 null로 두고 탈퇴를 막지 않는다 — 탈퇴한 사용자의
+ * 첫 결제가 나중에 승인으로 확인되면 대사가 자동 취소한다(renew.ts 머리말의 불변식).
  */
 export async function collectDeletionTargets(store: BillingStore, userId: string): Promise<DeletionTargets> {
   const live = await store.listLiveSubscriptions(userId);
-  const subscriptionIds = live.filter((sub) => sub.provider === "toss").map((sub) => sub.id);
+  const subscriptions = live.filter((sub) => sub.provider === "toss").map((sub) => ({ id: sub.id, currentPeriodEnd: sub.current_period_end }));
   let pendingInitialModes: number | null = 0;
   try {
     for (const livemode of [false, true]) if (await store.hasPendingInitialPayment(userId, livemode)) pendingInitialModes++;
   } catch {
     pendingInitialModes = null;
   }
-  return { subscriptionIds, pendingInitialModes };
+  return { subscriptions, pendingInitialModes };
+}
+
+const LIVE: SubscriptionExpectation["statuses"] = ["active", "past_due"];
+
+/**
+ * 모아 둔 구독 하나를 끝낸다 — ended: 모은 그 기간에서 끝냄 / renewed: 그 사이 기간이 넘어갔지만 아직 진행 중이라 그래도 끝냄 /
+ * gone: 그 사이 크론이 끝냈다(세지 않는다). 저장소 오류는 던진다.
+ */
+async function endOneForDeletion(store: BillingStore, target: DeletionTarget, endedAt: string): Promise<"ended" | "renewed" | "gone"> {
+  const patch = { status: "ended", ended_reason: "user_canceled", ended_at: endedAt } as const;
+  if (await store.updateSubscriptionIf(target.id, { statuses: LIVE, currentPeriodEnd: target.currentPeriodEnd }, patch)) return "ended";
+  // 엇갈렸다 — 다시 읽어 아직 진행 중이면 상태만 조건으로 끝낸다(계정은 이미 없다. 기간이 넘어갔어도 끝내는 게 맞다)
+  const fresh = await store.getSubscription(target.id);
+  if (!fresh || (fresh.status !== "active" && fresh.status !== "past_due")) return "gone";
+  if (!(await store.updateSubscriptionIf(target.id, { statuses: LIVE }, patch))) return "gone";
+  return Date.parse(fresh.current_period_end) === Date.parse(target.currentPeriodEnd) ? "ended" : "renewed";
 }
 
 /**
- * 탈퇴 뒤 정리 — 계정을 지운(deleteUser 성공) 다음, 모아 둔 구독을 id로 ended(user_canceled)로 끝낸다. 상태만 조건으로 건다:
- * 사용자 id는 이미 비었고, 그 사이 갱신으로 기간이 넘어갔어도 끝내는 게 맞다. 메일은 보내지 않는다(계정이 없다).
- * 끝낸 개수를 돌려준다 — 그 사이 크론이 끝낸 구독은 세지 않는다.
+ * 탈퇴 뒤 정리 — 계정을 지운(deleteUser 성공) 다음, 모아 둔 구독을 id로 ended(user_canceled)로 끝낸다. 모은 기간 끝을 조건으로
+ * 걸고, 엇갈리면 다시 읽어 아직 진행 중이면 상태만 조건으로 그래도 끝낸다(사용자 id는 이미 비었다). 메일은 보내지 않는다(계정이
+ * 없다). 끝낸 개수를 돌려준다 — 그 사이 크론이 끝낸 구독은 세지 않는다.
  *
- * 계정을 지운 뒤 끝내도 그 사이 청구되지 않는다: 고객 행(빌링키 암호문)이 계정과 함께 cascade로 지워져 크론이 결제할 카드가 없다
+ * 계정을 지운 뒤에는 새 청구가 시작되지 않는다: 고객 행(빌링키 암호문)이 계정과 함께 cascade로 지워져 크론이 결제할 카드가 없다
  * (NO_BILLING_KEY). 빌링키를 따로 거둘 것도 없다. 끝내기가 실패한 구독은 needs review(구독 id)로 남기고 탈퇴는 성공으로 둔다 —
  * 남은 구독은 키가 없어 크론이 미납 → 유예 → 종료로 스스로 끝낸다.
  *
+ * 다만 모은 뒤 계정을 지우기 전(빌링키가 아직 있다)에는 크론의 갱신이 확정될 수 있다. 기간이 엇갈렸던 구독은 모은 기간 끝을
+ * 기간 시작으로 하는 paid 갱신·재시도 결제를 찾아, 있으면 needs review 한 줄(구독·결제 id)을 남긴다. 자동 취소는 하지 않는다 —
+ * 그 결제를 어떻게 할지는 운영자가 정한다.
+ *
  * 끝낸 뒤에 결과를 모르는(pending) 결제를 읽는다(먼저 쓰고 나중에 읽는다 — 이 파일 머리말). 있으면 log에 "확인 필요" 한 줄을
- * 남긴다: 그 결제가 실제로 승인됐다면 대사가 줄 기간이 없음을 보고 자동 취소한다. 기록에는 구독 id와 개수만 넣는다.
+ * 남긴다: 그 결제가 실제로 승인됐다면 대사가 줄 기간이 없음을 보고 자동 취소한다. 기록에는 구독·결제 id와 개수만 넣는다.
  * 던지지 않는다 — 계정은 이미 지워졌다.
  */
 export async function endSubscriptionsForDeletion(
@@ -191,20 +218,39 @@ export async function endSubscriptionsForDeletion(
   log: (message: string) => Promise<void>,
 ): Promise<number> {
   const endedIds: string[] = [];
+  const renewed: DeletionTarget[] = [];
   const failedIds: string[] = [];
-  for (const id of targets.subscriptionIds) {
+  for (const target of targets.subscriptions) {
     try {
-      const ended = await store.updateSubscriptionIf(id, { statuses: ["active", "past_due"] }, { status: "ended", ended_reason: "user_canceled", ended_at: iso(now) });
-      if (ended) endedIds.push(id);
+      const outcome = await endOneForDeletion(store, target, iso(now));
+      if (outcome === "gone") continue;
+      endedIds.push(target.id);
+      if (outcome === "renewed") renewed.push(target);
     } catch {
-      failedIds.push(id);
+      failedIds.push(target.id);
     }
   }
   if (failedIds.length > 0) {
     await log(`billing needs review: subscriptions ${failedIds.join(",")} could not be ended after account deletion (no billing key remains; the cron ends them as unpaid)`);
   }
+  for (const target of renewed) await logRenewalDuringDeletion(store, target, log);
   await logPendingPaymentsForDeletion(store, endedIds, targets.pendingInitialModes, log);
   return endedIds.length;
+}
+
+/**
+ * 모은 뒤 기간이 넘어간 구독 — 그 사이 확정된 갱신·재시도 결제가 있으면 운영자 확인 한 줄. 찾지 못했으면(아직 pending이면 아래
+ * pending 기록이 잡는다) 남기지 않고, 찾다 실패하면 확인하지 못했다고 남긴다.
+ */
+async function logRenewalDuringDeletion(store: BillingStore, target: DeletionTarget, log: (message: string) => Promise<void>): Promise<void> {
+  let paymentId: string | null;
+  try {
+    paymentId = (await store.findPaidRenewal(target.id, target.currentPeriodEnd))?.id ?? null;
+  } catch {
+    await log(`billing needs review: subscription ${target.id} renewed during account deletion (payment lookup failed)`);
+    return;
+  }
+  if (paymentId) await log(`billing needs review: subscription ${target.id} renewed during account deletion (payment ${paymentId})`);
 }
 
 /**

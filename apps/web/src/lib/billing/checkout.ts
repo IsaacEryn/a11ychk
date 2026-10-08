@@ -276,7 +276,12 @@ export function returnErrorOf(raw: unknown): ReturnError | null {
   return typeof raw === "string" && (RETURN_ERRORS as readonly string[]).includes(raw) ? (raw as ReturnError) : null;
 }
 
-export const CARD_CHANGE_RETRIES = ["paid", "failed", "pending", "none"] as const;
+/**
+ * 카드 변경 뒤 재결제 결과 — paid: 밀린 결제를 마침 / failed: 새 카드로도 결제하지 못함 / pending: 결과를 확인하는 중
+ * (운영자 확인이 필요한 결제도 여기로 — 마쳤다고 알리지 않는다) / refunded: 승인됐지만 그 사이 구독이 끝나 자동 취소함 /
+ * none: 재결제하지 않음
+ */
+export const CARD_CHANGE_RETRIES = ["paid", "failed", "pending", "refunded", "none"] as const;
 export type CardChangeRetry = (typeof CARD_CHANGE_RETRIES)[number];
 
 /** 결제 관리로 돌아온 결과(callbackRedirectPath가 싣는 값) */

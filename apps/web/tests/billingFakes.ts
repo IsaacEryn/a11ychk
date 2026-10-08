@@ -381,6 +381,14 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
           !exclude.prefixes.some((prefix) => p.failure_code!.startsWith(prefix)),
       );
     },
+
+    async findPaidRenewal(subscriptionId, periodStart) {
+      // Supabase 저장소와 같게 가장 늦게 요청한 것 하나
+      const [latest] = rows.payments
+        .filter((p) => p.subscription_id === subscriptionId && ATTEMPT_KINDS.has(p.kind) && p.status === "paid" && sameInstant(p.period_start, periodStart))
+        .sort((a, b) => Date.parse(b.requested_at) - Date.parse(a.requested_at));
+      return latest ? outPayment(latest) : null;
+    },
   };
 }
 

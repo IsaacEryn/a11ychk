@@ -87,6 +87,15 @@ describe("토스 성공 콜백 라우트", () => {
     });
   });
 
+  it("카드 변경 결과는 재결제 결과를 그대로 싣는다 — 자동 취소(refunded)는 실패와 구분된 값으로", async () => {
+    for (const retry of ["paid", "failed", "pending", "refunded", "none"] as const) {
+      m.completeCheckout.mockResolvedValueOnce({ kind: "cardChanged", subscriptionId: "s1", retry });
+      const res = await callback(req(`/api/billing/toss/callback?checkout=${CHECKOUT}&locale=ko&customerKey=ck-1&authKey=${AUTH_KEY}`));
+      expect(res.status).toBe(303);
+      expect(location(res)).toBe(`http://localhost:3100/ko/mypage/billing?result=cardChanged&retry=${retry}`);
+    }
+  });
+
   it("live 모드면 실결제 행(livemode: true)으로 흐름을 부른다 — 콜백·실패 모두", async () => {
     vi.stubEnv("BILLING_MODE", "live");
     vi.stubEnv("TOSS_SECRET_KEY", "live_sk_fake_secret");

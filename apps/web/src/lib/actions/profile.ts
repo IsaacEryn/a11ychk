@@ -76,9 +76,10 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
  *
  * 결제 기록은 지워지지 않는다(0041): 구독·결제·동의는 user_id만 set null로 남는다(전자상거래법상 5년 보존).
  * 반대로 billing_customers(고객 행 — 빌링키 암호문·카드 요약)와 billing_checkouts는 profiles cascade로 함께 지워진다.
- * 정기결제 정리 순서: 끝낼 구독 id를 먼저 모으고(아무것도 바꾸지 않는다) → 계정을 지우고 → 성공하면 그 id로 구독을 끝낸다.
+ * 정기결제 정리 순서: 끝낼 구독(id·기간 끝)을 먼저 모으고(아무것도 바꾸지 않는다) → 계정을 지우고 → 성공하면 그 id로 구독을 끝낸다.
  * 계정 삭제가 실패하면 아무것도 끝내지 않는다 — 사용자는 "실패"만 보는데 유료 기간을 그 자리에서 잃으면 안 된다.
- * 지운 뒤 끝내기 전에 크론이 청구할 수는 없다: 빌링키가 고객 행과 함께 cascade로 지워졌다. 끝내기가 실패해도 탈퇴는 성공으로
+ * 지운 뒤 끝내기 전에 새 청구가 시작되지는 않는다: 빌링키가 고객 행과 함께 cascade로 지워졌다. 모은 뒤 지우기 전에 확정된 갱신은
+ * 끝낼 때 기간이 엇갈린 것으로 드러나 확인 필요(구독·결제 id)로 남는다. 끝내기가 실패해도 탈퇴는 성공으로
  * 두고 확인 필요를 남긴다(남은 구독은 키가 없어 미납 → 유예 → 종료로 스스로 끝난다). 결제 상태는 탈퇴를 막지 않는다 — 결과를
  * 모르는 결제는 기록만 남기고, 승인으로 확인되면 대사가 자동 취소한다. 결제 모드가 off여도 라이브 구독은 남아 있을 수 있어
  * 모드와 상관없이 정리한다.
@@ -112,7 +113,7 @@ export async function deleteAccount(_prev: SaveState, formData: FormData): Promi
   //    것이다 — 막으면 결제와 무관한 모든 탈퇴가 깨진다. 그 밖의 저장소 오류면 무엇을 끝내야 하는지 몰라 여기서 멈춘다.
   const billingStore = createSupabaseBillingStore(admin);
   const billingLog = (message: string) => logAppError(admin, message, { path: "actions.deleteAccount" });
-  let targets: DeletionTargets = { subscriptionIds: [], pendingInitialModes: 0 };
+  let targets: DeletionTargets = { subscriptions: [], pendingInitialModes: 0 };
   try {
     targets = await collectDeletionTargets(billingStore, user.id);
   } catch (e) {

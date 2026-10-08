@@ -737,7 +737,7 @@ describe("갱신 결제", () => {
     store.updatePayment = realUpdatePayment;
 
     clock.t = E - HOUR + DAY;
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0, review: 0 });
     expect(store.rows.subscriptions[0]).toMatchObject({ current_period_start: pgTime(END), current_period_end: pgTime(END2) });
     expect(store.rows.payments[0]).toMatchObject({ status: "paid", external_payment_id: `pk_${store.rows.payments[0].order_id}` });
     expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["receipt"]);
@@ -749,7 +749,8 @@ describe("갱신 결제", () => {
     const old = paymentRow({ user_id: USER, kind: "renewal", period_start: iso(NOW - 28 * DAY), period_end: START, requested_at: iso(NOW - 28 * DAY) });
     store.rows.payments.push({ ...old, subscription_id: sub.id, period_start: pgTime(old.period_start!), period_end: pgTime(START), requested_at: pgTime(old.requested_at) });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    // 결제는 paid로 남지만 운영자 확인 대상이라 대사 결과는 paid가 아니라 review로 센다
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0, review: 1 });
     expect(store.rows.payments[0].status).toBe("paid");
     expect(store.rows.subscriptions[0]).toMatchObject({ current_period_start: pgTime(START), current_period_end: pgTime(END) });
     expect(deps.mailer.sent).toHaveLength(0);
@@ -763,7 +764,7 @@ describe("갱신 결제", () => {
     const orphan = paymentRow({ user_id: USER, kind: "renewal", period_start: END, period_end: END2, requested_at: iso(E - HOUR) });
     store.rows.payments.push({ ...orphan, subscription_id: "99999999-9999-4999-8999-999999999999", period_start: pgTime(END), period_end: pgTime(END2), requested_at: pgTime(orphan.requested_at) });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${orphan.order_id}` });
     expect(deps.toss.calls.cancelPayment).toEqual([[`pk_${orphan.order_id}`, { cancelReason: UNGRANTED_REASON }, `cancel_${orphan.id}`]]);
     expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", current_period_end: pgTime(END) });
@@ -776,7 +777,7 @@ describe("갱신 결제", () => {
     const p = paymentRow({ user_id: null, kind: "renewal", period_start: END, period_end: END2, requested_at: iso(E - HOUR) });
     store.rows.payments.push({ ...p, subscription_id: sub.id, period_start: pgTime(END), period_end: pgTime(END2), requested_at: pgTime(p.requested_at) });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234 });
     expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", current_period_end: pgTime(END) });
     expect(deps.mailer.sent).toHaveLength(0);
@@ -801,19 +802,42 @@ describe("갱신 결제", () => {
     expect(deps.mailer.sent).toHaveLength(0);
   });
 
-  it("자동 취소가 실패하면 결제는 paid·CANCEL_FAILED로 두고 운영자 확인(needs review)을 남긴다", async () => {
+  it("자동 취소가 실패하면 결제는 paid·CANCEL_FAILED로 두고 운영자 확인(needs review)을 남긴다 — 결과는 paid가 아니라 review", async () => {
     const { deps, store, sub } = setup({ toss: { cancelPayment: [new TossError("NETWORK", "toss request failed (network)", 0)] } });
     deps.toss.script.chargeBillingKey.push((bk, req) => {
       Object.assign(store.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(E - HOUR) });
       return done(bk, req);
     });
-    expect(await chargeSubscription(deps, sub, "renewal")).toBe("paid");
+    expect(await chargeSubscription(deps, sub, "renewal")).toBe("review");
     const pay = store.rows.payments[0];
     expect(pay).toMatchObject({ status: "paid", failure_code: "CANCEL_FAILED", refunded_amount: 0, external_payment_id: `pk_${pay.order_id}` });
     expect(deps.toss.calls.cancelPayment).toHaveLength(1);
     expect(logged(deps)).toContain("needs review");
     expect(logged(deps)).toContain(pay.id);
     expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("크론 집계: 자동 취소에 실패해 paid로 남은 결제는 charge_paid가 아니라 charge_review로 센다(관리자 도구의 문제 표시)", async () => {
+    const { deps, store } = setup({ toss: { cancelPayment: [new TossError("NETWORK", "toss request failed (network)", 0)] } });
+    deps.toss.script.chargeBillingKey.push((bk, req) => {
+      Object.assign(store.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(E - HOUR) });
+      return done(bk, req);
+    });
+
+    const out = await runBillingCycle(deps, false);
+
+    expect(out).toMatchObject({ charge_review: 1, reconciled_review: 0 });
+    expect(out.charge_paid).toBeUndefined();
+    expect(store.rows.payments[0]).toMatchObject({ status: "paid", failure_code: "CANCEL_FAILED" });
+  });
+
+  it("크론 집계: 대사가 다른 기간의 승인 결제를 확인해 운영자 확인을 남기면 reconciled_paid가 아니라 reconciled_review", async () => {
+    const { deps, store, sub } = setup({ at: E - 3 * DAY, toss: { getPaymentByOrderId: [lookup("DONE")] } });
+    const old = paymentRow({ user_id: USER, kind: "renewal", period_start: iso(NOW - 28 * DAY), period_end: START, requested_at: iso(NOW - 28 * DAY) });
+    store.rows.payments.push({ ...old, subscription_id: sub.id, period_start: pgTime(old.period_start!), period_end: pgTime(START), requested_at: pgTime(old.requested_at) });
+
+    expect(await runBillingCycle(deps, false)).toMatchObject({ reconciled_paid: 0, reconciled_failed: 0, reconciled_review: 1 });
+    expect(logged(deps)).toContain("needs review");
   });
 
   it("거절 정리 사이에 구독이 끝났으면 덮어쓰지 않고 실패 메일도 보내지 않는다", async () => {
@@ -858,7 +882,7 @@ describe("갱신 결제", () => {
     clock.t = E - HOUR + DAY;
     deps.log.mockClear();
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234, failure_code: "RECONCILED_CANCELED" });
     // 재시도 없이 미납 — 유예가 끝나면 저절로 끝난다
     expect(store.rows.subscriptions[0]).toMatchObject({
@@ -908,7 +932,7 @@ describe("대사 — 첫 결제", () => {
   it("pending + DONE → 구독 생성·시도 completed·결제 paid·영수증", async () => {
     const { deps, store, price, checkout, payment } = initial({ toss: { getPaymentByOrderId: [lookup("DONE")] } });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0, review: 0 });
 
     expect(store.rows.subscriptions).toHaveLength(1);
     const sub = store.rows.subscriptions[0];
@@ -925,7 +949,7 @@ describe("대사 — 첫 결제", () => {
     const existing = subscriptionRow({ user_id: USER, price_id: price.id, current_period_start: START, current_period_end: END, billing_anchor_day: 31 });
     store.rows.subscriptions.push({ ...existing, current_period_start: pgTime(START), current_period_end: pgTime(END) });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0, review: 0 });
     expect(store.rows.subscriptions).toHaveLength(1);
     expect(deps.toss.calls.cancelPayment).toHaveLength(0);
     expect(store.rows.payments[0]).toMatchObject({ status: "paid", subscription_id: existing.id });
@@ -935,7 +959,7 @@ describe("대사 — 첫 결제", () => {
   it("시도가 이미 failed로 닫혔어도(거절 확정 뒤 정리 실패) 토스가 DONE이면 활성화하고 기록한다", async () => {
     const { deps, store, payment, checkout } = initial({ checkout: { status: "failed", failure_code: "error" }, toss: { getPaymentByOrderId: [lookup("DONE")] } });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0, review: 0 });
     expect(store.rows.subscriptions).toHaveLength(1);
     expect(store.rows.subscriptions[0]).toMatchObject({ user_id: USER, status: "active" });
     expect(store.rows.payments[0]).toMatchObject({ status: "paid", subscription_id: store.rows.subscriptions[0].id });
@@ -951,7 +975,7 @@ describe("대사 — 첫 결제", () => {
       toss: { getPaymentByOrderId: [lookup("DONE")], cancelPayment: [tossPayment({ status: "CANCELED" })] },
     });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${payment.order_id}` });
     expect(deps.toss.calls.cancelPayment).toEqual([[`pk_${payment.order_id}`, { cancelReason: UNGRANTED_REASON }, `cancel_${payment.id}`]]);
     expect(store.rows.subscriptions).toHaveLength(0);
@@ -959,7 +983,7 @@ describe("대사 — 첫 결제", () => {
     expect(logged(deps)).toContain(payment.id);
 
     // 확정했으니 다음 대사는 다시 조회하지 않는다
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0, review: 0 });
     expect(deps.toss.calls.getPaymentByOrderId).toHaveLength(1);
   });
 
@@ -969,17 +993,17 @@ describe("대사 — 첫 결제", () => {
       toss: { getPaymentByOrderId: [lookup("DONE")], cancelPayment: [new TossError("HTTP_503", "toss error", 503)] },
     });
 
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0, review: 1 });
     expect(store.rows.payments[0]).toMatchObject({ status: "paid", failure_code: "CANCEL_FAILED", refunded_amount: 0 });
     expect(logged(deps)).toContain("needs review");
     expect(logged(deps)).toContain(payment.id);
     expect(store.rows.subscriptions).toHaveLength(0);
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0, review: 0 });
   });
 
   it("시도가 failed인데 토스도 결제가 없다고 하면 결제만 failed", async () => {
     const { deps, store } = initial({ checkout: { status: "failed", failure_code: "REJECT_CARD_PAYMENT" }, toss: { getPaymentByOrderId: [null] } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "failed", failure_code: "RECONCILED_NOT_FOUND" });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "REJECT_CARD_PAYMENT" });
     expect(store.rows.subscriptions).toHaveLength(0);
@@ -987,7 +1011,7 @@ describe("대사 — 첫 결제", () => {
 
   it.each(["ABORTED", "EXPIRED"])("%s → 결제 failed·시도 failed, 구독 없음", async (status) => {
     const { deps, store } = initial({ toss: { getPaymentByOrderId: [lookup(status)] } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "failed", failure_code: `RECONCILED_${status}` });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: `RECONCILED_${status}` });
     expect(store.rows.subscriptions).toHaveLength(0);
@@ -996,14 +1020,14 @@ describe("대사 — 첫 결제", () => {
 
   it("토스에 주문이 없으면(null) RECONCILED_NOT_FOUND", async () => {
     const { deps, store } = initial({ toss: { getPaymentByOrderId: [null] } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "failed", failure_code: "RECONCILED_NOT_FOUND" });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed" });
   });
 
   it("CANCELED → refunded(응답의 취소액)·구독 없음·시도 failed", async () => {
     const { deps, store, payment } = initial({ toss: { getPaymentByOrderId: [lookup("CANCELED", { totalAmount: 1234, balanceAmount: 0 })] } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({
       status: "refunded",
       refunded_amount: 1234,
@@ -1018,7 +1042,7 @@ describe("대사 — 첫 결제", () => {
 
   it("PARTIAL_CANCELED → partially_refunded, 취소액 = 결제액 − 남은 금액", async () => {
     const { deps, store } = initial({ toss: { getPaymentByOrderId: [lookup("PARTIAL_CANCELED", { totalAmount: 1234, balanceAmount: 734 })] } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0, review: 0 });
     expect(store.rows.payments[0]).toMatchObject({ status: "partially_refunded", refunded_amount: 500 });
     expect(store.rows.subscriptions).toHaveLength(0);
   });
@@ -1043,7 +1067,7 @@ describe("대사 — 첫 결제", () => {
     ["조회 권한 오류(401)", new TossError("UNAUTHORIZED_KEY", "bad key", 401)],
   ])("확정할 수 없으면 그대로 둔다 — %s", async (_name, step) => {
     const { deps, store } = initial({ toss: { getPaymentByOrderId: [step] } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 1 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 1, review: 0 });
     expect(store.rows.payments[0].status).toBe("pending");
     expect(store.rows.checkouts[0].status).toBe("processing");
     expect(store.rows.payments[0].failure_code).toBeNull();
@@ -1055,14 +1079,14 @@ describe("대사 — 첫 결제", () => {
   it("10분이 안 된 pending은 조회하지 않는다(결제 요청이 아직 진행 중일 수 있다)", async () => {
     const { deps, store, clock } = initial({ payment: { requested_at: iso(NOW) } });
     clock.t = NOW + 9 * MIN;
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0, review: 0 });
     expect(deps.toss.calls.getPaymentByOrderId).toHaveLength(0);
     expect(store.rows.payments[0].status).toBe("pending");
   });
 
   it("다른 모드의 pending은 건드리지 않는다", async () => {
     const { deps } = initial({ payment: { livemode: true } });
-    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0 });
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0, review: 0 });
     expect(deps.toss.calls.getPaymentByOrderId).toHaveLength(0);
   });
 });
@@ -1265,8 +1289,8 @@ describe("돈 안전 불변식 — 카드 변경 재결제와 미납 종료의 �
     releaseCharge();
     const out = await cardRun!;
 
-    // 6. 기간을 줄 수 없는 결제 — 자동 취소(refunded). 사용자에게 "밀린 결제를 마쳤다"고 알리지 않는다
-    expect(out).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "failed" });
+    // 6. 기간을 줄 수 없는 결제 — 자동 취소(refunded). 사용자에게 "밀린 결제를 마쳤다"고도, 카드 실패라고도 알리지 않는다
+    expect(out).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "refunded" });
     expect(store.rows.payments).toHaveLength(1);
     const pay = store.rows.payments[0];
     expect(pay).toMatchObject({ kind: "retry", status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${pay.order_id}` });
