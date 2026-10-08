@@ -34,6 +34,10 @@ export const AUDIT_ACTIONS = [
   "billing.contract_update",
   "billing.contract_extend",
   "billing.contract_end",
+  "billing.price_create",
+  "billing.price_deactivate",
+  "billing.cycle_run",
+  "billing.pull_due",
 ] as const;
 
 /** 오류 메시지 → 분류 키 (code|timeout|network|db|generic) */

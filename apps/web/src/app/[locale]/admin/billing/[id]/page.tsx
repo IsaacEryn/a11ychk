@@ -2,8 +2,10 @@ import { notFound } from "next/navigation";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { requireAdmin } from "@/lib/adminGuard";
 import { adminBase } from "@/lib/adminSlug";
+import { isMissingTable } from "@/lib/billing/dbErrors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminLink } from "../../AdminLink";
+import { TABLE, TH, TR, TR_HEAD } from "../../tableStyles";
 import { ContractEditForm } from "../ContractEditForm";
 import { ContractEndDateForm } from "../ContractEndDateForm";
 import { ContractEndForm } from "../ContractEndForm";
@@ -22,6 +24,30 @@ function toKstDate(iso: string): string {
   return new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
+/** 영수증 주소는 http(s)일 때만 링크로 쓴다 — 결제사 응답이라도 javascript: 같은 스킴은 링크로 만들지 않는다 */
+function receiptHref(raw: string | null): string | null {
+  if (!raw) return null;
+  try {
+    const u = new URL(raw);
+    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
+  } catch {
+    return null;
+  }
+}
+
+interface PaymentRow {
+  id: string;
+  kind: string;
+  status: string;
+  amount: number;
+  currency: string;
+  refunded_amount: number;
+  failure_code: string | null;
+  receipt_url: string | null;
+  requested_at: string;
+  approved_at: string | null;
+}
+
 interface ContractRow {
   org_name: string | null;
   contract_ref: string | null;
@@ -32,7 +58,7 @@ interface ContractRow {
 
 /**
  * 구독 상세 — 요약 정보와, 기관 계약(manual)이면 상세 수정·종료일 변경·즉시 종료 폼.
- * 카드·해외 결제 구독은 결제 연동 뒤에 이 화면에서 다룬다(지금은 읽기 전용 안내).
+ * 카드·해외 결제 구독은 결제 내역 표를 읽기 전용으로 보여 준다(환불은 토스 상점관리자에서).
  */
 export default async function AdminBillingDetailPage({
   params,
@@ -79,6 +105,22 @@ export default async function AdminBillingDetailPage({
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
   const isManual = sub.provider === "manual";
   const endedReason = sub.ended_reason as string | null;
+
+  // 결제 내역 — 카드·해외 구독만(기관 계약은 결제가 화면 밖에서 일어난다). 0041 미적용은 위에서 이미 404로 갔다
+  let payments: PaymentRow[] = [];
+  if (!isManual) {
+    const { data, error: paymentsError } = await admin
+      .from("billing_payments")
+      .select("id, kind, status, amount, currency, refunded_amount, failure_code, receipt_url, requested_at, approved_at")
+      .eq("subscription_id", id)
+      .order("requested_at", { ascending: false })
+      .limit(100);
+    if (paymentsError && !isMissingTable(paymentsError)) {
+      throw new Error(`admin billing payments query failed: ${paymentsError.message}`);
+    }
+    payments = (data ?? []) as PaymentRow[];
+  }
+  const dateTime = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "short", timeStyle: "short" });
 
   return (
     <section aria-labelledby="admin-billing-detail-heading" className="mt-8">
@@ -164,9 +206,77 @@ export default async function AdminBillingDetailPage({
           )}
         </>
       ) : (
-        <p className="mt-6 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-ink-soft)]">
-          {t("billing.detail.nonManual")}
-        </p>
+        <>
+          <p className="mt-6 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-ink-soft)]">
+            {t("billing.detail.nonManual")}
+          </p>
+
+          <section aria-labelledby="admin-billing-payments-heading" className="mt-6">
+            <h3 id="admin-billing-payments-heading" className="font-display text-lg font-bold">
+              {t("billing.payments.title")}
+            </h3>
+            {payments.length === 0 ? (
+              <p className="mt-3 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-[var(--color-ink-faint)]">
+                {t("billing.payments.empty")}
+              </p>
+            ) : (
+              <div className="mt-3 overflow-x-auto">
+                <table className={TABLE}>
+                  <caption className="sr-only">{t("billing.payments.title")}</caption>
+                  <thead>
+                    <tr className={TR_HEAD}>
+                      <th scope="col" className={TH}>{t("billing.payments.cols.at")}</th>
+                      <th scope="col" className={TH}>{t("billing.payments.cols.kind")}</th>
+                      <th scope="col" className={TH}>{t("billing.payments.cols.amount")}</th>
+                      <th scope="col" className={TH}>{t("billing.payments.cols.status")}</th>
+                      <th scope="col" className={TH}>{t("billing.payments.cols.receipt")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {payments.map((p) => {
+                      const href = receiptHref(p.receipt_url);
+                      const money = (n: number) => format.number(n, { style: "currency", currency: p.currency || "KRW" });
+                      return (
+                        <tr key={p.id} className={TR}>
+                          <th scope="row" className="whitespace-nowrap py-2 pr-3 text-left font-normal tabular-nums">
+                            {dateTime(p.approved_at ?? p.requested_at)}
+                          </th>
+                          <td className="py-2 pr-3">{t(`billing.payments.kind.${p.kind}`)}</td>
+                          <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{money(p.amount)}</td>
+                          <td className="py-2 pr-3">
+                            {t(`billing.payments.status.${p.status}`)}
+                            {p.refunded_amount > 0 && (
+                              <span className="ml-1.5 text-xs text-[var(--color-ink-soft)]">
+                                {t("billing.payments.refunded", { amount: money(p.refunded_amount) })}
+                              </span>
+                            )}
+                            {p.status === "failed" && p.failure_code && (
+                              <span className="ml-1.5 text-xs text-[var(--color-ink-soft)]">({p.failure_code})</span>
+                            )}
+                          </td>
+                          <td className="py-2">
+                            {href ? (
+                              <a href={href} target="_blank" rel="noopener noreferrer" className="underline underline-offset-4">
+                                {t("billing.payments.receipt")}
+                                <span className="sr-only"> {t("billing.payments.newWindow")}</span>
+                              </a>
+                            ) : (
+                              <>
+                                <span aria-hidden="true">—</span>
+                                <span className="sr-only">{t("billing.payments.noReceipt")}</span>
+                              </>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            <p className="mt-3 text-xs text-[var(--color-ink-faint)]">{t("billing.payments.refundNote")}</p>
+          </section>
+        </>
       )}
     </section>
   );

@@ -1336,7 +1336,11 @@
         "billing_contract_create": "Contract created",
         "billing_contract_update": "Contract updated",
         "billing_contract_extend": "Contract end date changed",
-        "billing_contract_end": "Contract ended"
+        "billing_contract_end": "Contract ended",
+        "billing_price_create": "Price added",
+        "billing_price_deactivate": "Price deactivated",
+        "billing_cycle_run": "Billing cron run manually",
+        "billing_pull_due": "Test due date pulled forward"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",
@@ -1547,7 +1551,7 @@
         "amount": "Contract amount",
         "endedReason": "End reason",
         "createdAt": "Created",
-        "nonManual": "Card and international subscriptions will be managed here once payment integration is live."
+        "nonManual": "Managing card and international subscriptions (canceling and so on) is on the way. For now you can only view their payments."
       },
       "endedReason": {
         "user_canceled": "Canceled by user",
@@ -1597,6 +1601,166 @@
           "userNotFound": "User not found.",
           "failed": "Couldn't save. Please try again shortly."
         }
+      },
+      "subnav": {
+        "label": "Billing sections",
+        "list": "List",
+        "prices": "Prices",
+        "tools": "Test tools"
+      },
+      "prices": {
+        "title": "Price list",
+        "intro": "Selling prices for card subscriptions (Toss). Price rows are never edited or deleted. To change an amount, deactivate the old price and add a new one. There is only one active price per plan, interval and mode.",
+        "deactivateNote": "A deactivated price can no longer start new payments. Existing subscribers keep renewing at the amount they subscribed with.",
+        "empty": "No prices yet.",
+        "cols": {
+          "plan": "Plan",
+          "interval": "Interval",
+          "amount": "Amount",
+          "mode": "Mode",
+          "status": "Status",
+          "createdAt": "Created",
+          "actions": "Actions"
+        },
+        "intervals": {
+          "month": "Monthly",
+          "year": "Yearly"
+        },
+        "modes": {
+          "test": "Test",
+          "live": "Live"
+        },
+        "status": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "deactivate": "Deactivate",
+        "deactivating": "Working…",
+        "deactivated": "Deactivated",
+        "addTitle": "Add a price",
+        "addIntro": "Prices are entered only on this screen and never stored in the repository. The provider is fixed to Toss and the currency to KRW.",
+        "plan": "Plan",
+        "interval": "Interval",
+        "amount": "Amount (KRW)",
+        "amountHint": "In won, including VAT; not stored in the repository. Whole numbers from {min} to {max}.",
+        "mode": "Mode",
+        "modeHint": "Test prices apply in test mode; live prices apply in off and live mode.",
+        "activeLabel": "Activate when added",
+        "activeHint": "Each plan, interval and mode has only one active price. If one exists, deactivate it first.",
+        "create": "Add price",
+        "creating": "Adding…",
+        "created": "Price added",
+        "errors": {
+          "invalid": "Please check the values.",
+          "activeExists": "There is already an active price for this plan, interval and mode. Deactivate it first.",
+          "notFound": "Price not found or already inactive.",
+          "migrationMissing": "Apply migration 0041, then try again.",
+          "failed": "Couldn't complete that. Please try again shortly."
+        }
+      },
+      "tools": {
+        "title": "Test tools",
+        "stateTitle": "Billing setup",
+        "mode": "Billing mode",
+        "modes": {
+          "off": "off (billing disabled)",
+          "test": "test (test payments)",
+          "live": "live (real payments)"
+        },
+        "tossKeys": "Toss keys",
+        "encKey": "Billing-key encryption key",
+        "yes": "Configured",
+        "no": "Not configured",
+        "stateHint": "Shows only whether the environment variables match the mode. Key values are never displayed. In off mode, keys show as not configured even if they exist.",
+        "cycleTitle": "Run billing cron now",
+        "cycleHint": {
+          "off": "Billing mode is off, so this can't run. Change the BILLING_MODE environment variable and redeploy.",
+          "test": "Runs the daily billing cron (10:00 Korea time) once, now. It handles test subscriptions: renewal charges, retries for past-due payments, cancellation and non-payment endings, and upcoming-charge emails.",
+          "live": "Runs the daily billing cron (10:00 Korea time) once, now. Real charges go out for live subscriptions that are due."
+        },
+        "run": "Run billing cron now",
+        "running": "Running…",
+        "runConfirm": "I understand real charges will go out for due live subscriptions",
+        "ran": "Billing cron ran ({candidates} candidate subscriptions)",
+        "summaryLabel": "Result (counts)",
+        "summary": {
+          "reconciled_paid": "Confirmed paid by reconciliation",
+          "reconciled_failed": "Confirmed failed by reconciliation",
+          "reconciled_unresolved": "Still unresolved after reconciliation",
+          "candidates": "Candidate subscriptions",
+          "errors": "Errors",
+          "deferred": "Deferred (out of time)",
+          "none": "Nothing to do",
+          "remind": "Upcoming-charge notices sent",
+          "remind_skipped": "Upcoming-charge notices skipped",
+          "charge_paid": "Renewal charges succeeded",
+          "charge_failed": "Renewal charges failed",
+          "charge_pending": "Renewal charges with unknown result",
+          "charge_skipped": "Renewal charges skipped",
+          "charge_incident": "Renewal charges hit a setup incident",
+          "charge_halted": "Renewal charges halted",
+          "retry_paid": "Retries succeeded",
+          "retry_failed": "Retries failed",
+          "retry_pending": "Retries with unknown result",
+          "retry_skipped": "Retries skipped",
+          "retry_incident": "Retries hit a setup incident",
+          "retry_halted": "Retries halted",
+          "halt_skipped": "Charges deferred by a halt",
+          "end_canceled": "Ended after scheduled cancellation",
+          "end_unpaid": "Ended for non-payment",
+          "held": "Ending held (unresolved payment)",
+          "changed": "Skipped (changed meanwhile)",
+          "halted": "Charging halted"
+        },
+        "subsTitle": "Test subscriptions",
+        "subsIntro": "Pulling the due date moves the period end to one minute from now and clears the upcoming-charge notice record. Run the billing cron afterwards to trigger the renewal charge. Only test (livemode=false) card subscriptions are listed.",
+        "subsEmpty": "No active test subscriptions.",
+        "cols": {
+          "periodEnd": "Period end"
+        },
+        "pull": "Pull due date",
+        "pulling": "Working…",
+        "pulled": "Due date pulled forward",
+        "errors": {
+          "off": "Billing mode is off. Change the BILLING_MODE environment variable and redeploy.",
+          "notConfigured": "The Toss keys or the billing-key encryption key are not configured.",
+          "confirm": "Please tick the live-charge confirmation.",
+          "invalid": "Couldn't identify the subscription.",
+          "notFound": "Subscription not found.",
+          "notTest": "Only test card subscriptions can have their due date pulled forward.",
+          "ended": "This subscription has ended or changed in the meantime.",
+          "migrationMissing": "Apply migration 0041, then try again.",
+          "failed": "Couldn't complete that. Check the error log."
+        }
+      },
+      "payments": {
+        "title": "Payments",
+        "empty": "No payments yet.",
+        "cols": {
+          "at": "Date",
+          "kind": "Type",
+          "amount": "Amount",
+          "status": "Status",
+          "receipt": "Receipt"
+        },
+        "kind": {
+          "initial": "First payment",
+          "renewal": "Renewal",
+          "retry": "Retry",
+          "manual": "Manual"
+        },
+        "status": {
+          "pending": "Pending",
+          "paid": "Paid",
+          "failed": "Failed",
+          "refunded": "Refunded",
+          "partially_refunded": "Partially refunded"
+        },
+        "refunded": "refunded {amount}",
+        "receipt": "Receipt",
+        "newWindow": "(opens in a new window)",
+        "noReceipt": "No receipt",
+        "refundNote": "Refunds are handled in the Toss merchant dashboard (an admin refund feature is on the way)."
       }
     },
     "pager": {

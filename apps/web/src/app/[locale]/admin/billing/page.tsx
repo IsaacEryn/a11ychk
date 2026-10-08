@@ -4,6 +4,7 @@ import { adminBase } from "@/lib/adminSlug";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminLink } from "../AdminLink";
 import { FILTER_BTN, INPUT, TABLE, TH, TR, TR_HEAD } from "../tableStyles";
+import { BillingSubnav } from "./BillingSubnav";
 import { displayStatus } from "./subscriptionStatus";
 
 const STATUSES = ["active", "past_due", "ended"] as const;
@@ -66,6 +67,7 @@ export default async function AdminBillingPage({
   return (
     <section aria-labelledby="admin-billing-heading" className="mt-8">
       <h2 id="admin-billing-heading" className="font-display text-2xl font-bold">{t("billing.title")}</h2>
+      <BillingSubnav current="list" />
       <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{t("billing.intro")}</p>
 
       {missing ? (
