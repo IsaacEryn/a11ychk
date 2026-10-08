@@ -115,12 +115,23 @@ export async function resumeSubscription(deps: BillingDeps, userId: string, live
 /**
  * 탈퇴 전 정리 — 그 사용자의 진행 중 토스 구독(두 livemode 모두)을 ended(user_canceled)로 끝내고, 끝낸 모드의
  * 빌링키를 지운다(읽은 암호문일 때만). 메일은 보내지 않는다(곧 계정이 사라진다). 기관 계약은 건드리지 않는다.
- * 끝낸 개수를 돌려준다 — 그 사이 크론이 끝낸 구독은 세지 않는다. 저장소 오류는 던진다(탈퇴를 멈출지는 호출부가 정한다).
+ * 끝낸 개수를 돌려준다 — 그 사이 크론이 끝낸 구독은 세지 않는다.
+ *
+ * 끝낸 뒤에 결과를 모르는(pending) 결제를 읽는다(먼저 쓰고 나중에 읽는다 — 이 파일 머리말). 있으면 탈퇴를 막지 않고
+ * log에 "확인 필요" 한 줄을 남긴다: 계정은 지워져도 그 결제는 실제로 청구됐을 수 있어, 운영자가 대사한 뒤 환불을 판단한다.
+ * 기록에는 구독 id와 개수만 넣는다. 이 확인이 실패해도 던지지 않는다 — 구독은 이미 끝났다.
+ *
+ * 구독을 읽거나 끝내는 저장소 오류는 던진다(탈퇴를 멈출지는 호출부가 정한다 — 진행 중 구독을 둔 채 계정을 지우면 안 된다).
  */
-export async function endSubscriptionsForDeletion(store: BillingStore, userId: string, now: number): Promise<number> {
+export async function endSubscriptionsForDeletion(
+  store: BillingStore,
+  userId: string,
+  now: number,
+  log: (message: string) => Promise<void>,
+): Promise<number> {
   const live = await store.listLiveSubscriptions(userId);
   const endedModes = new Set<boolean>();
-  let count = 0;
+  const endedIds: string[] = [];
   for (const sub of live) {
     if (sub.provider !== "toss") continue;
     // 상태만 본다 — 그 사이 갱신으로 기간이 넘어갔어도 끝내는 게 맞다
@@ -130,9 +141,37 @@ export async function endSubscriptionsForDeletion(store: BillingStore, userId: s
       { status: "ended", ended_reason: "user_canceled", ended_at: iso(now) },
     );
     if (!ended) continue;
-    count++;
+    endedIds.push(sub.id);
     endedModes.add(sub.livemode);
   }
+  // 빌링키를 거두기 전에 — 키 정리가 던져도 확인 필요 기록은 남는다
+  await logPendingPaymentsForDeletion(store, userId, endedIds, log);
   for (const livemode of endedModes) await clearBillingKey(store, userId, livemode);
-  return count;
+  return endedIds.length;
+}
+
+/**
+ * 탈퇴하는 사용자에게 결과를 모르는 결제가 남았는지 본다 — 방금 끝낸 구독에 걸린 결제와, 구독이 만들어지기 전의
+ * 첫 결제(두 모드 모두). 구독이 없어도 첫 결제는 청구됐을 수 있으니 끝낸 구독이 0개여도 본다.
+ */
+async function logPendingPaymentsForDeletion(
+  store: BillingStore,
+  userId: string,
+  endedIds: string[],
+  log: (message: string) => Promise<void>,
+): Promise<void> {
+  const subscriptionIds: string[] = [];
+  let initialModes = 0;
+  try {
+    for (const id of endedIds) if (await store.hasPendingPayment(id)) subscriptionIds.push(id);
+    for (const livemode of [false, true]) if (await store.hasPendingInitialPayment(userId, livemode)) initialModes++;
+  } catch (e) {
+    const reason = (e instanceof Error ? e.message : String(e)).slice(0, 200);
+    await log(`billing needs review: account deleted without checking pending payments (${endedIds.length} subscriptions ended): ${reason}`);
+    return;
+  }
+  if (subscriptionIds.length === 0 && initialModes === 0) return;
+  await log(
+    `billing needs review: account deleted with pending payment (subscriptions: ${subscriptionIds.join(",") || "none"}; modes with pending initial payment: ${initialModes})`,
+  );
 }

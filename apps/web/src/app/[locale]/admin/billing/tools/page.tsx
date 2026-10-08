@@ -40,7 +40,7 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("subscriptions")
-    .select("id, user_id, plan_code, status, current_period_start, current_period_end")
+    .select("id, user_id, provider, plan_code, status, current_period_start, current_period_end, grace_until, cancel_at_period_end")
     .eq("provider", "toss")
     .eq("livemode", false)
     .in("status", ["active", "past_due"])
@@ -130,7 +130,7 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
                       </AdminLink>
                     </th>
                     <td className="py-2 pr-3">{t(`users.plans.${r.plan_code}`)}</td>
-                    <td className="py-2 pr-3">{t(`billing.status.${displayStatus(r.status as string, r.current_period_end as string)}`)}</td>
+                    <td className="py-2 pr-3">{t(`billing.status.${displayStatus(r)}`)}</td>
                     <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{dateTime(r.current_period_end as string)}</td>
                     <td className="py-2">
                       <PullDueForm subscriptionId={r.id as string} label={nameOf(r.user_id as string | null)} pastDue={r.status === "past_due"} />

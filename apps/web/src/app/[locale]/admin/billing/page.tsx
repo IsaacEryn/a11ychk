@@ -40,7 +40,9 @@ export default async function AdminBillingPage({
   const admin = createAdminClient();
   let query = admin
     .from("subscriptions")
-    .select("id, user_id, provider, plan_code, status, livemode, current_period_start, current_period_end, cancel_at_period_end, billing_contracts(org_name)")
+    .select(
+      "id, user_id, provider, plan_code, status, livemode, current_period_start, current_period_end, grace_until, cancel_at_period_end, billing_contracts(org_name)",
+    )
     .order("created_at", { ascending: false })
     .limit(200);
   if (status === undefined) query = query.in("status", ["active", "past_due"]);
@@ -63,7 +65,7 @@ export default async function AdminBillingPage({
     const one = Array.isArray(c) ? c[0] : c;
     return (one as { org_name?: string } | null)?.org_name ?? "";
   };
-  const statusKey = (r: (typeof rows)[number]) => displayStatus(r.status as string, r.current_period_end as string);
+  const statusKey = (r: (typeof rows)[number]) => displayStatus(r);
 
   return (
     <section aria-labelledby="admin-billing-heading" className="mt-8">

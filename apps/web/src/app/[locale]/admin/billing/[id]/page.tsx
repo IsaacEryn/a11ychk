@@ -76,7 +76,7 @@ export default async function AdminBillingDetailPage({
   const { data: sub, error } = await admin
     .from("subscriptions")
     .select(
-      "id, user_id, provider, plan_code, status, ended_reason, livemode, amount, currency, current_period_start, current_period_end, cancel_at_period_end, created_at, billing_contracts(org_name, contract_ref, memo, paid_confirmed_at, tax_invoice_issued_at)",
+      "id, user_id, provider, plan_code, status, ended_reason, livemode, amount, currency, current_period_start, current_period_end, grace_until, cancel_at_period_end, created_at, billing_contracts(org_name, contract_ref, memo, paid_confirmed_at, tax_invoice_issued_at)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -101,7 +101,7 @@ export default async function AdminBillingDetailPage({
   })();
 
   const periodEnd = sub.current_period_end as string;
-  const statusKey = displayStatus(sub.status as string, periodEnd);
+  const statusKey = displayStatus(sub);
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
   const isManual = sub.provider === "manual";
   const endedReason = sub.ended_reason as string | null;

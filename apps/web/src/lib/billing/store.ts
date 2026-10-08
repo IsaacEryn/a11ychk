@@ -40,8 +40,12 @@ interface PgError {
 
 const UNIQUE_VIOLATION = "23505";
 
-function fail(method: string, error: PgError): Error {
-  return new Error(`billing store ${method}: ${error.message}`);
+/**
+ * 던지는 오류에는 PostgREST 코드를 code로 단다(메시지에는 넣지 않는다) — 호출부가 dbErrors의 isMissingTable로
+ * 0041 미적용(테이블 없음)을 운영 오류와 가른다. 코드는 오류 종류를 가리킬 뿐 행 값이 아니다.
+ */
+function fail(method: string, error: PgError): Error & { code?: string } {
+  return Object.assign(new Error(`billing store ${method}: ${error.message}`), { code: error.code });
 }
 
 /** PostgREST는 undefined 키를 보내지 않지만, 의도를 분명히 하려고 미리 뺀다 */

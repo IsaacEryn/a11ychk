@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DISCLOSURE_VERSION } from "../src/lib/billing/checkout";
 import { abandonOpenCheckouts, startCardChangeCheckout, startSubscribeCheckout } from "../src/lib/billing/flows/start";
+import { isMissingTable } from "../src/lib/billing/dbErrors";
 import { createSupabaseBillingStore } from "../src/lib/billing/store";
 import type { MemoryRows } from "./billingFakes";
 import {
@@ -401,5 +402,27 @@ describe("Supabase 저장소 — 결제 시작 메서드", () => {
     const none = fakeAdmin([{ data: null, error: null }]);
     await createSupabaseBillingStore(none.admin).expireCheckouts([], "open", null);
     expect(none.calls).toHaveLength(0);
+  });
+
+  it("던지는 오류에 PostgREST 코드를 code로 단다 — 호출부가 0041 미적용(테이블 없음)을 가려낸다", async () => {
+    const missing = { code: "42P01", message: 'relation "public.subscriptions" does not exist' };
+    const err = await createSupabaseBillingStore(fakeAdmin([{ data: null, error: missing }]).admin)
+      .listLiveSubscriptions(USER)
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(Error);
+    expect((err as Error).message).toBe(`billing store listLiveSubscriptions: ${missing.message}`);
+    expect(isMissingTable(err)).toBe(true);
+
+    const cache = await createSupabaseBillingStore(fakeAdmin([{ data: null, error: { code: "PGRST205", message: "schema cache" } }]).admin)
+      .hasPendingPayment("s1")
+      .catch((e: unknown) => e);
+    expect(isMissingTable(cache)).toBe(true);
+
+    const denied = await createSupabaseBillingStore(fakeAdmin([{ data: null, error: { code: "42501", message: "permission denied" } }]).admin)
+      .listLiveSubscriptions(USER)
+      .catch((e: unknown) => e);
+    expect(isMissingTable(denied)).toBe(false);
+    expect(isMissingTable(new Error("billing store x: timeout"))).toBe(false);
+    expect(isMissingTable(undefined)).toBe(false);
   });
 });

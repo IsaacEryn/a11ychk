@@ -8,6 +8,9 @@ import { isImpersonatingNickname } from "@/lib/nickname";
 import { sendAdminInquiryAlert } from "@/lib/notify";
 import { logAppError } from "@/lib/logs";
 import { accountDeleteConfirmPhrase, confirmMatches } from "@/lib/accountDelete";
+import { isMissingTable } from "@/lib/billing/dbErrors";
+import { endSubscriptionsForDeletion } from "@/lib/billing/flows/manage";
+import { createSupabaseBillingStore } from "@/lib/billing/store";
 import { actionLocale, requireUser, revalidateAll, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 인증 ───────────────
@@ -71,8 +74,15 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
  * 이 사용자가 **받은** 초대 기록(invitee_id set null — 이메일 해시·가입 IP 90일), 관리자 열람 감사 기록
  * (audit_logs, FK 없음). 탈퇴 화면 안내(mypage.account.kept)와 맞춰 둘 것.
  *
+ * 결제 기록은 지워지지 않는다(0041): 구독·결제·동의는 user_id만 set null로 남는다(전자상거래법상 5년 보존).
+ * 반대로 billing_customers(고객 행 — 빌링키 암호문·카드 요약)와 billing_checkouts는 profiles cascade로 함께 지워진다.
+ * 그래서 계정을 지우기 **전에** 진행 중 구독을 끝낸다 — 그렇지 않으면 user_id를 잃은 구독이 진행 중으로 남아, 크론이
+ * 결제할 빌링키를 찾지 못한 채 미납으로 흘러간다. 결제 상태는 탈퇴를 막지 않는다(결과를 모르는 결제는 기록만 남기고 운영자가
+ * 대사 뒤 환불을 판단한다). 결제 모드가 off여도 라이브 구독은 남아 있을 수 있어 모드와 상관없이 정리한다.
+ *
  * 거절 조건: 확인 문구 불일치 · 관리자 계정(콘솔 잠김 방지 — 권한을 넘긴 뒤 탈퇴) ·
- * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다).
+ * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다) ·
+ * 진행 중 구독을 끝내지 못한 저장소 오류(구독을 둔 채 계정을 지우지 않는다).
  * error: "mismatch" | "admin" | "active" | "failed"
  */
 export async function deleteAccount(_prev: SaveState, formData: FormData): Promise<SaveState> {
@@ -94,6 +104,21 @@ export async function deleteAccount(_prev: SaveState, formData: FormData): Promi
     .eq("user_id", user.id)
     .in("status", ["queued", "running"]);
   if ((count ?? 0) > 0) return { error: "active" };
+
+  // 진행 중 정기결제를 먼저 끝낸다. 0041이 아직 적용되지 않은 환경(테이블 없음)은 끝낼 구독이 없는 것이다 — 막으면
+  // 결제와 무관한 모든 탈퇴가 깨진다. 그 밖의 저장소 오류면 구독이 살아 있을 수 있어 여기서 멈춘다.
+  try {
+    await endSubscriptionsForDeletion(createSupabaseBillingStore(admin), user.id, Date.now(), (message) =>
+      logAppError(admin, message, { path: "actions.deleteAccount" }),
+    );
+  } catch (e) {
+    if (!isMissingTable(e)) {
+      await logAppError(admin, `account delete: ending subscriptions failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`, {
+        path: "actions.deleteAccount",
+      });
+      return { error: "failed" };
+    }
+  }
 
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {

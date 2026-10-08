@@ -59,6 +59,12 @@ export interface SubscriptionGrantRow {
   cancel_at_period_end: boolean;
 }
 
+/** 구독이 지금 권한을 주는지 가르는 데 쓰는 열만 — 관리자 화면 같은 호출부가 plan_code 없이도 판정하게 */
+export type SubscriptionEntitlementFields = Pick<
+  SubscriptionGrantRow,
+  "provider" | "status" | "current_period_start" | "current_period_end" | "grace_until" | "cancel_at_period_end"
+>;
+
 export const SUBSCRIPTION_GRANT_COLUMNS =
   "plan_code, provider, status, current_period_start, current_period_end, grace_until, cancel_at_period_end";
 
@@ -75,7 +81,7 @@ const TIE_ORDER: Record<GrantSource, number> = { free: 0, admin: 1, earned: 2, c
  * - 미납(past_due)은 유예 기한(grace_until)까지
  * - 기관 계약·해지 예약은 기간 끝까지, 그 밖의 active는 기간 끝 + 48시간
  */
-export function isSubscriptionEntitled(sub: SubscriptionGrantRow, now: number = Date.now()): boolean {
+export function isSubscriptionEntitled(sub: SubscriptionEntitlementFields, now: number = Date.now()): boolean {
   const start = Date.parse(sub.current_period_start);
   const end = Date.parse(sub.current_period_end);
   if (Number.isNaN(start) || Number.isNaN(end) || now < start) return false;
