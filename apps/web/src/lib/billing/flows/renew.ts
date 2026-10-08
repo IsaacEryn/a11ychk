@@ -8,8 +8,8 @@ import {
   nextRetryAt,
   reminderLeadMs,
 } from "@/lib/billing/period";
-import { TossError, classifyTossError, isOutcomeUnknown, type TossErrorKind, type TossPayment } from "@/lib/billing/toss";
-import type { BillingDeps, PaymentRow, SubscriptionRow } from "@/lib/billing/types";
+import { TossError, classifyTossError, isOutcomeUnknown, type TossPayment } from "@/lib/billing/toss";
+import type { BillingDeps, PaymentRow, SubscriptionExpectation, SubscriptionRow } from "@/lib/billing/types";
 import {
   activateInitialPayment,
   errorText,
@@ -29,9 +29,13 @@ import {
  * 만들고, 같은 주기·같은 시도의 행이 이미 있으면 결제하지 않는다(skipped). 크론이 겹치거나 다시 돌아도,
  * 카드 변경 뒤 재결제가 크론과 엇갈려도 같다.
  *
- * 쓰는 순서도 같은 이유로 정했다 — 구독을 먼저 고치고 결제 행을 나중에 확정한다. 중간에 멈추면 결제 행이
- * pending으로 남아 다음 날 대사가 토스 조회로 마무리한다. 반대 순서면 결제 행은 끝났는데 구독은 그대로라,
- * 같은 시도 번호에 막혀 영영 갱신되지 않는다.
+ * 구독은 조건부로만 고친다(읽은 상태·기간 끝과 같을 때만). 크론이 후보를 읽고 처리하는 사이 카드 변경
+ * 재결제·해지가 구독을 바꿨다면 덮어쓰지 않는다. 쓰는 순서는 구독을 먼저, 결제 행을 나중에 — 중간에
+ * 멈추면 결제 행이 pending으로 남아 다음 날 대사가 토스 조회로 마무리한다. 반대 순서면 결제 행은 끝났는데
+ * 구독은 그대로라, 같은 시도 번호에 막혀 영영 갱신되지 않는다.
+ *
+ * 설정 사고(토스 키 오류·빌링키 복호화 실패)는 카드 실패가 아니다. 사용자에게 알리지 않고, 새 시도 번호를
+ * 비운 뒤 다음 날 다시 시도하며, 그 실행의 남은 결제를 멈춘다(같은 원인으로 모두 실패한다).
  *
  * 시각은 모두 Date.parse로 비교한다(DB는 +00:00, 흐름은 Z로 쓴다). 빌링키 평문은 결제 요청 인자로만 쓴다.
  */
@@ -45,7 +49,11 @@ const RECONCILE_LIMIT = 50;
 /** 크론 최대 실행 시간(300초) 안에 끝나게 — 남은 건은 다음 날 */
 const DEFAULT_BUDGET_MS = 240_000;
 const DEFAULT_LIMIT = 500;
+/** 설정 사고 뒤 다시 시도하기까지 */
+const INCIDENT_RETRY_MS = 86_400_000;
 const NO_BILLING_KEY = "NO_BILLING_KEY";
+const DECRYPT_FAILED = "DECRYPT_FAILED";
+const LIVE: SubscriptionExpectation["statuses"] = ["active", "past_due"];
 /** 토스가 이 결제는 돈이 움직이지 않았다고 답한 상태 */
 const NOT_PAID = new Set(["ABORTED", "EXPIRED"]);
 /** 승인 뒤 돌려준 상태 — 돈이 돌아갔다 */
@@ -58,6 +66,8 @@ const iso = (t: number) => new Date(t).toISOString();
 const sameInstant = (a: string | null, b: string | null) => a !== null && b !== null && Date.parse(a) === Date.parse(b);
 const isLive = (s: SubscriptionRow) => s.status === "active" || s.status === "past_due";
 const isAttempt = (p: PaymentRow) => p.kind === "renewal" || p.kind === "retry";
+/** 읽은 그 기간에 아직 진행 중일 때만 */
+const onPeriod = (periodEnd: string): SubscriptionExpectation => ({ statuses: LIVE, currentPeriodEnd: periodEnd });
 
 export function decideRenewalAction(sub: SubscriptionRow, now: number): RenewalAction {
   if (sub.provider !== "toss" || !isLive(sub) || sub.interval === "contract") return "none";
@@ -76,25 +86,31 @@ export function decideRenewalAction(sub: SubscriptionRow, now: number): RenewalA
   return "none";
 }
 
-/** 고객 행의 빌링키 — 없거나 풀 수 없으면 null(카드를 다시 등록해야 한다) */
-async function loadBillingKey(deps: BillingDeps, sub: SubscriptionRow): Promise<{ billingKey: string; customerKey: string } | null> {
-  if (!sub.user_id) return null;
+type KeyLookup = { ok: true; billingKey: string; customerKey: string } | { ok: false; reason: "missing" | "undecryptable" };
+
+/**
+ * 고객 행의 빌링키. 고객 행·암호문이 없으면 사용자가 카드를 다시 등록해야 하고(missing),
+ * 암호문이 있는데 풀리지 않으면 암호화 키가 바뀐 설정 사고다(undecryptable).
+ */
+async function loadBillingKey(deps: BillingDeps, sub: SubscriptionRow): Promise<KeyLookup> {
+  if (!sub.user_id) return { ok: false, reason: "missing" };
   const customer = await deps.store.getCustomer(sub.user_id, sub.livemode);
-  if (!customer?.toss_billing_key_enc || !customer.toss_customer_key) return null;
+  if (!customer?.toss_billing_key_enc || !customer.toss_customer_key) return { ok: false, reason: "missing" };
   const billingKey = decryptBillingKey(customer.toss_billing_key_enc, { userId: sub.user_id, livemode: sub.livemode }, deps.encKey);
-  if (!billingKey) {
-    // 암호화 키가 바뀌었거나 행이 옮겨졌다 — 사용자 카드 문제가 아니라 운영자가 봐야 한다
-    await deps.log(`billing key for subscription ${sub.id} could not be decrypted`);
-    return null;
-  }
-  return { billingKey, customerKey: customer.toss_customer_key };
+  if (!billingKey) return { ok: false, reason: "undecryptable" };
+  return { ok: true, billingKey, customerKey: customer.toss_customer_key };
 }
 
-/** 이번 주기 결제 성공 — 구독을 한 주기 전진시키고(먼저) 결제 행을 확정한 뒤 영수증 */
+/**
+ * 결제 성공 — 구독이 아직 이 결제의 기간 시작에 있으면 한 주기 전진시키고(먼저) 결제 행을 paid로 확정한다.
+ * 그 사이 구독이 바뀌었으면 되살리거나 덮어쓰지 않는다. 앞선 실행이 이미 이 결제로 전진시켰다면 영수증만
+ * 마저 보내고, 아니면(끝났거나 다른 기간) 돈은 받았으니 결제는 paid로 두고 운영자 확인을 남긴다.
+ */
 async function settlePaid(deps: BillingDeps, sub: SubscriptionRow, payment: PaymentRow, charged: TossPayment): Promise<void> {
   if (!payment.period_start || !payment.period_end) throw new Error(`billing payment ${payment.id} has no period`);
+  const { store } = deps;
   await warnIfResponseDiffers(deps, payment, charged);
-  await deps.store.updateSubscription(sub.id, {
+  const advanced = await store.updateSubscriptionIf(sub.id, onPeriod(payment.period_start), {
     status: "active",
     current_period_start: payment.period_start,
     current_period_end: payment.period_end,
@@ -103,48 +119,66 @@ async function settlePaid(deps: BillingDeps, sub: SubscriptionRow, payment: Paym
     grace_until: null,
     reminder_sent_for: null,
   });
-  await deps.store.updatePayment(payment.id, { status: "paid", ...paidFields(deps, charged) });
+  await store.updatePayment(payment.id, { status: "paid", ...paidFields(deps, charged) });
+  if (!advanced) {
+    const current = await store.getSubscription(sub.id);
+    if (!current || !isLive(current) || !sameInstant(current.current_period_end, payment.period_end)) {
+      await deps.log(`billing payment ${payment.id} is paid but subscription ${sub.id} is no longer on that period; needs review`);
+      return;
+    }
+  }
   await sendReceipt(deps, sub.user_id, sub.plan_code, payment, charged);
 }
 
 /**
- * 이번 주기 결제 실패 — 미납으로 넘기고(먼저) 결제 행을 확정한다. 기간 끝(결제 예정 시각)은 미납 동안
- * 바뀌지 않아 재시도·유예가 모두 그 시각 기준이다. 메일은 첫 실패, 또는 재시도로 풀리지 않는 실패일 때만.
+ * 결제 실패(카드 거절·빌링키 없음·대사로 확정된 실패) — 미납으로 넘기고(먼저) 결제 행을 확정한다.
+ * 기간 끝(결제 예정 시각)은 미납 동안 바뀌지 않아 재시도·유예가 모두 그 시각 기준이다.
+ * 메일은 notify일 때, 첫 실패이거나 재시도로 풀리지 않는 실패에만 — 구독을 실제로 바꿨을 때만 보낸다.
  */
 async function settleUnpaid(
   deps: BillingDeps,
   sub: SubscriptionRow,
   payment: PaymentRow,
-  failure: { failures: number; errKind: TossErrorKind },
+  failure: { failures: number; retryable: boolean; notify: boolean },
   paymentPatch: Partial<Omit<PaymentRow, "id">>,
 ): Promise<void> {
   const end = sub.current_period_end;
   const grace = graceUntil(end);
-  const retryable = failure.errKind === "retryable";
-  await deps.store.updateSubscription(sub.id, {
+  const moved = await deps.store.updateSubscriptionIf(sub.id, onPeriod(end), {
     status: "past_due",
     dunning_attempts: failure.failures,
-    next_retry_at: retryable ? nextRetryAt(end, failure.failures) : null,
+    next_retry_at: failure.retryable ? nextRetryAt(end, failure.failures) : null,
     grace_until: grace,
   });
   await deps.store.updatePayment(payment.id, paymentPatch);
-  if (failure.failures === 1 || !retryable) {
+  if (moved && failure.notify && (failure.failures === 1 || !failure.retryable)) {
     await sendBillingMail(
       deps,
       sub.user_id,
       "failed",
-      { planName: planNameFor(sub.plan_code), amount: sub.amount, currency: sub.currency, graceUntil: grace, needsCardChange: !retryable },
+      { planName: planNameFor(sub.plan_code), amount: sub.amount, currency: sub.currency, graceUntil: grace, needsCardChange: !failure.retryable },
       `payment ${payment.id}`,
     );
   }
 }
 
 /**
- * 갱신·재시도 결제 한 번 — 카드 변경 직후 재결제도 쓴다.
- * paid: 구독 전진 / failed: 미납으로 넘김 / pending: 결과 불명(대사가 확정) / skipped: 이 주기·시도는 이미 처리 중이거나 끝남.
- * 돈이 움직이기 전의 저장소 오류는 그대로 던진다(호출부가 기록). 결제 행이 먼저 만들어졌다면 pending으로 남아 대사가 정리한다.
+ * 설정 사고 — 사용자 탓이 아니라 메일을 보내지 않는다. 시도 번호를 하나 올려 새 시도 칸을 비우고 하루 뒤
+ * 다시 시도한다. 유예는 기간 끝 기준 그대로(이미 정했으면 바꾸지 않는다). 기록에는 코드만 남긴다.
  */
-export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeResult> {
+async function settleIncident(deps: BillingDeps, sub: SubscriptionRow, payment: PaymentRow, kind: "renewal" | "retry", code: string): Promise<void> {
+  await deps.store.updateSubscriptionIf(sub.id, onPeriod(sub.current_period_end), {
+    status: "past_due",
+    dunning_attempts: sub.dunning_attempts + 1,
+    next_retry_at: iso(deps.now() + INCIDENT_RETRY_MS),
+    grace_until: sub.grace_until ?? graceUntil(sub.current_period_end),
+  });
+  await deps.store.updatePayment(payment.id, { status: "failed", failure_code: code, failure_message: null });
+  await deps.log(`billing ${kind} charging halted by operational error ${code}, payment ${payment.id}; remaining charges in this run skipped`);
+}
+
+/** 크론용 — halted: 설정 사고로 이 실행의 남은 결제를 멈춰야 한다 */
+async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeResult | "halted"> {
   if (sub.provider !== "toss" || !isLive(sub) || sub.interval === "contract") return "skipped";
   const interval = sub.interval;
   // 앵커일로 계산한다 — 앞 기간 끝의 일자를 쓰면 2월을 지난 31일 구독이 28일로 굳는다
@@ -170,8 +204,12 @@ export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow
   if (payment === "duplicate") return "skipped";
 
   const key = await loadBillingKey(deps, sub);
-  if (!key) {
-    await settleUnpaid(deps, sub, payment, { failures, errKind: "card_action_required" }, { status: "failed", failure_code: NO_BILLING_KEY, failure_message: null });
+  if (!key.ok) {
+    if (key.reason === "undecryptable") {
+      await settleIncident(deps, sub, payment, kind, DECRYPT_FAILED);
+      return "halted";
+    }
+    await settleUnpaid(deps, sub, payment, { failures, retryable: false, notify: true }, { status: "failed", failure_code: NO_BILLING_KEY, failure_message: null });
     return "failed";
   }
 
@@ -193,8 +231,17 @@ export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow
       // 토스가 거절했다고 답했다 — 돈은 움직이지 않았다
       moneyInFlight = false;
       const errKind = classifyTossError(e.code);
-      if (errKind === "fatal") await deps.log(`billing ${kind} charge fatal error, payment ${payment.id}: ${e.code}`);
-      await settleUnpaid(deps, sub, payment, { failures, errKind }, { status: "failed", failure_code: e.code, failure_message: e.message });
+      if (errKind === "fatal") {
+        await settleIncident(deps, sub, payment, kind, e.code);
+        return "halted";
+      }
+      await settleUnpaid(
+        deps,
+        sub,
+        payment,
+        { failures, retryable: errKind === "retryable", notify: true },
+        { status: "failed", failure_code: e.code, failure_message: e.message },
+      );
       return "failed";
     }
     if (charged.status !== "DONE") {
@@ -208,6 +255,16 @@ export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow
     await deps.log(`billing ${kind} payment ${payment.id} may have been charged but was not settled, left pending: ${errorText(e)}`);
     return "pending";
   }
+}
+
+/**
+ * 갱신·재시도 결제 한 번 — 카드 변경 직후 재결제도 쓴다.
+ * paid: 결제됨 / failed: 미납으로 넘김(설정 사고 포함) / pending: 결과 불명(대사가 확정) / skipped: 이 주기·시도는 이미 처리 중이거나 끝남.
+ * 돈이 움직이기 전의 저장소 오류는 그대로 던진다(호출부가 기록). 결제 행이 먼저 만들어졌다면 pending으로 남아 대사가 정리한다.
+ */
+export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeResult> {
+  const result = await chargeOnce(deps, sub, kind);
+  return result === "halted" ? "failed" : result;
 }
 
 type Resolution = "paid" | "failed" | "unresolved";
@@ -230,32 +287,40 @@ async function reconcileNotPaid(deps: BillingDeps, p: PaymentRow, found: TossPay
     found && returned
       ? { ...paidFields(deps, found), status: returned, refunded_amount: returnedAmount(p, found), failure_code: code }
       : { status: "failed", failure_code: code };
-  if (returned) {
-    // 우리 흐름은 갱신 결제를 취소하지 않는다 — 토스 쪽에서 돌려준 결제라 운영자가 확인한다
-    await deps.log(`billing reconcile: payment ${p.id} was ${status.toLowerCase()} at toss, recorded as ${returned}; subscription left as is for review`);
-  }
 
   if (p.kind === "initial") {
+    if (returned) await deps.log(`billing reconcile: initial payment ${p.id} was ${status.toLowerCase()} at toss, recorded as ${returned}; manual check`);
     await store.updatePayment(p.id, patch);
     // 끝나지 않은(open·processing) 시도만 닫힌다
     if (p.checkout_id) await store.finishCheckout(p.checkout_id, { status: "failed", failure_code: code });
     return "failed";
   }
 
-  if (!returned && isAttempt(p) && p.subscription_id) {
-    // 실패로 확정된 시도 — 결제를 보내자마자 멈춘 경우 등. 미납으로 넘겨야 다음 시도 번호로 재시도한다
-    // (그대로 두면 같은 시도 번호의 실패 행에 막혀 이 주기를 영영 결제하지 못한다)
-    const sub = await store.getSubscription(p.subscription_id);
-    if (
-      sub &&
-      sub.provider === "toss" &&
-      isLive(sub) &&
-      sameInstant(sub.current_period_end, p.period_start) &&
-      sub.dunning_attempts < p.attempt
-    ) {
-      await settleUnpaid(deps, sub, p, { failures: p.attempt, errKind: "retryable" }, patch);
-      return "failed";
+  const sub = isAttempt(p) && p.subscription_id ? await store.getSubscription(p.subscription_id) : null;
+  const onThisPeriod = !!sub && sub.provider === "toss" && isLive(sub) && sameInstant(sub.current_period_end, p.period_start);
+
+  if (returned) {
+    // 우리 흐름은 갱신 결제를 취소하지 않는다 — 토스 쪽에서 돌려준 결제다. 다시 청구하지 않고(재시도 없음)
+    // 유예가 끝나면 저절로 끝나게 미납으로 둔다. 시도 번호는 올려 둔다(카드 변경 재결제가 막히지 않게)
+    if (sub && onThisPeriod) {
+      await store.updateSubscriptionIf(sub.id, onPeriod(sub.current_period_end), {
+        status: "past_due",
+        dunning_attempts: Math.max(sub.dunning_attempts, p.attempt),
+        next_retry_at: null,
+        grace_until: graceUntil(sub.current_period_end),
+      });
     }
+    await store.updatePayment(p.id, patch);
+    await deps.log(`billing manual check: renewal canceled at Toss, subscription ${p.subscription_id ?? "none"}, payment ${p.id}`);
+    return "failed";
+  }
+
+  // 실패로 확정된 시도(결제를 보내자마자 멈춘 경우 등) — 미납으로 넘겨야 다음 시도 번호로 재시도한다.
+  // 그대로 두면 같은 시도 번호의 실패 행에 막혀 이 주기를 영영 결제하지 못한다. 카드 거절이 확인된 게
+  // 아니라 사용자 메일은 보내지 않는다
+  if (sub && onThisPeriod && sub.dunning_attempts < p.attempt) {
+    await settleUnpaid(deps, sub, p, { failures: p.attempt, retryable: true, notify: false }, patch);
+    return "failed";
   }
   await store.updatePayment(p.id, patch);
   return "failed";
@@ -283,17 +348,12 @@ async function reconcileDone(deps: BillingDeps, p: PaymentRow, found: TossPaymen
     return "unresolved";
   }
   const sub = await store.getSubscription(p.subscription_id);
-  if (sub && sub.provider === "toss" && isLive(sub) && sameInstant(sub.current_period_end, p.period_start)) {
-    await settlePaid(deps, sub, p, found);
+  if (!sub) {
+    await store.updatePayment(p.id, { status: "paid", ...paidFields(deps, found) });
+    await deps.log(`billing payment ${p.id} is paid but subscription ${p.subscription_id} is gone; needs review`);
     return "paid";
   }
-  await store.updatePayment(p.id, { status: "paid", ...paidFields(deps, found) });
-  if (sub && isLive(sub) && sameInstant(sub.current_period_end, p.period_end)) {
-    // 앞선 실행이 구독을 전진시킨 뒤 결제 행을 확정하기 전에 멈췄다 — 영수증만 마저 보낸다
-    await sendReceipt(deps, sub.user_id, sub.plan_code, p, found);
-  } else {
-    await deps.log(`billing reconcile: payment ${p.id} is DONE at toss but subscription ${p.subscription_id} is not on its period; needs review`);
-  }
+  await settlePaid(deps, sub, p, found);
   return "paid";
 }
 
@@ -314,52 +374,47 @@ async function reconcileOne(deps: BillingDeps, p: PaymentRow): Promise<Resolutio
   return "unresolved";
 }
 
-/** held: 결과를 확정하지 못한 갱신·재시도 결제의 구독 — 이번 실행에서는 끝내지 않는다(결제가 됐을 수 있다) */
-async function reconcile(
-  deps: BillingDeps,
-  livemode: boolean,
-  deadline: number,
-): Promise<{ counts: { paid: number; failed: number; unresolved: number }; held: Set<string> }> {
+async function reconcile(deps: BillingDeps, livemode: boolean, deadline: number): Promise<{ paid: number; failed: number; unresolved: number }> {
   const counts = { paid: 0, failed: 0, unresolved: 0 };
-  const held = new Set<string>();
   const pending = await deps.store.listPendingPayments(livemode, iso(deps.now() - RECONCILE_AFTER_MS), RECONCILE_LIMIT);
   for (const p of pending) {
-    let result: Resolution;
     if (deps.now() >= deadline) {
-      result = "unresolved";
-    } else {
-      try {
-        result = await reconcileOne(deps, p);
-      } catch (e) {
-        await deps.log(`billing reconcile failed for payment ${p.id}: ${errorText(e)}`);
-        result = "unresolved";
-      }
+      counts.unresolved++;
+      continue;
     }
-    counts[result]++;
-    if (result === "unresolved" && p.subscription_id) held.add(p.subscription_id);
+    try {
+      counts[await reconcileOne(deps, p)]++;
+    } catch (e) {
+      await deps.log(`billing reconcile failed for payment ${p.id}: ${errorText(e)}`);
+      counts.unresolved++;
+    }
   }
-  return { counts, held };
+  return counts;
 }
 
 /** 10분 지난 pending 결제를 토스 주문 조회로 확정한다 */
 export async function reconcilePending(deps: BillingDeps, livemode: boolean): Promise<{ paid: number; failed: number; unresolved: number }> {
-  return (await reconcile(deps, livemode, Number.POSITIVE_INFINITY)).counts;
+  return reconcile(deps, livemode, Number.POSITIVE_INFINITY);
 }
 
-/** 해지 예약 만료·미납 유예 만료 — 빌링키를 먼저 거두고 구독을 끝낸다(중간에 멈추면 다음 날 다시 끝낸다) */
-async function endSubscription(deps: BillingDeps, sub: SubscriptionRow, action: "end_canceled" | "end_unpaid"): Promise<void> {
+/**
+ * 해지 예약 만료·미납 유예 만료 — 판정한 그 기간에 아직 있을 때만 끝낸다(false면 그 사이 바뀜).
+ * 끝낸 뒤 빌링키를 거둔다: 먼저 거두면 그 사이 재결제로 되살아난 구독이 갱신할 카드를 잃는다.
+ */
+async function endSubscription(deps: BillingDeps, sub: SubscriptionRow, action: "end_canceled" | "end_unpaid"): Promise<boolean> {
   const { store } = deps;
+  const ended = await store.updateSubscriptionIf(sub.id, onPeriod(sub.current_period_end), {
+    status: "ended",
+    ended_reason: action === "end_canceled" ? "user_canceled" : "payment_failed",
+    ended_at: iso(deps.now()),
+  });
+  if (!ended) return false;
   if (sub.user_id) {
     // 사용자·모드당 진행 중 구독은 하나라 지금 고객 행의 빌링키가 이 구독의 것이다.
     // 읽은 암호문일 때만 지운다 — 그 사이 새 결제창이 쓴 빌링키는 남긴다
     const customer = await store.getCustomer(sub.user_id, sub.livemode);
     if (customer?.toss_billing_key_enc) await store.clearCustomerKeyIf(customer.id, customer.toss_billing_key_enc);
   }
-  await store.updateSubscription(sub.id, {
-    status: "ended",
-    ended_reason: action === "end_canceled" ? "user_canceled" : "payment_failed",
-    ended_at: iso(deps.now()),
-  });
   await sendBillingMail(
     deps,
     sub.user_id,
@@ -367,10 +422,18 @@ async function endSubscription(deps: BillingDeps, sub: SubscriptionRow, action: 
     { planName: planNameFor(sub.plan_code), reason: action === "end_canceled" ? "canceled" : "unpaid" },
     `subscription ${sub.id}`,
   );
+  return true;
 }
 
-/** 결제 예정 안내 — 보내고 나서 기록한다(못 보낸 채 기록되는 것보다 두 번 가는 편이 낫다) */
-async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<void> {
+/** 결제 예정 안내 — 이번 기간 안내를 먼저 선점(기록)한 실행만 보낸다. 겹친 크론이 두 번 보내지 않게 */
+async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<boolean> {
+  const end = sub.current_period_end;
+  const claimed = await deps.store.updateSubscriptionIf(
+    sub.id,
+    { statuses: ["active"], currentPeriodEnd: end, reminderNotSentFor: end },
+    { reminder_sent_for: end },
+  );
+  if (!claimed) return false;
   await sendBillingMail(
     deps,
     sub.user_id,
@@ -380,24 +443,26 @@ async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<vo
       amount: sub.amount,
       currency: sub.currency,
       // 결제는 기간 끝 하루 전부터 시도한다 — 안내한 날보다 먼저 청구되지 않게 가장 이른 시각을 적는다
-      chargeAt: iso(Date.parse(sub.current_period_end) - CHARGE_LEAD_MS),
+      chargeAt: iso(Date.parse(end) - CHARGE_LEAD_MS),
     },
     `subscription ${sub.id}`,
   );
-  await deps.store.updateSubscription(sub.id, { reminder_sent_for: sub.current_period_end });
+  return true;
 }
 
 /**
  * 결제 크론 한 번 — ① 대사 ② 후보 구독마다 판정·처리. 예산(기본 240초)을 넘기면 멈추고 남은 건은 다음 날.
- * 반환은 대사 결과·처리 결과별 개수(예: charge_paid, retry_failed, remind, end_unpaid, errors, deferred).
+ * 설정 사고가 나면 halted = 1이고 그 실행의 남은 결제·재시도는 halt_skipped로 미룬다(종료·안내는 계속).
+ * 반환은 대사 결과·처리 결과별 개수(예: charge_paid, retry_failed, remind, end_unpaid, held, errors, deferred).
  */
 export async function runBillingCycle(
   deps: BillingDeps,
   livemode: boolean,
   opts: { budgetMs?: number; limit?: number } = {},
 ): Promise<Record<string, number>> {
+  const { store } = deps;
   const deadline = deps.now() + (opts.budgetMs ?? DEFAULT_BUDGET_MS);
-  const { counts: rec, held } = await reconcile(deps, livemode, deadline);
+  const rec = await reconcile(deps, livemode, deadline);
   const summary: Record<string, number> = {
     reconciled_paid: rec.paid,
     reconciled_failed: rec.failed,
@@ -409,8 +474,9 @@ export async function runBillingCycle(
   const bump = (key: string) => {
     summary[key] = (summary[key] ?? 0) + 1;
   };
+  let halted = false;
 
-  const candidates = await deps.store.listCycleCandidates(livemode, iso(deps.now()), opts.limit ?? DEFAULT_LIMIT);
+  const candidates = await store.listCycleCandidates(livemode, iso(deps.now()), opts.limit ?? DEFAULT_LIMIT);
   summary.candidates = candidates.length;
   for (let i = 0; i < candidates.length; i++) {
     if (deps.now() >= deadline) {
@@ -426,28 +492,35 @@ export async function runBillingCycle(
           bump("none");
           break;
         case "remind":
-          await sendReminder(deps, sub);
-          bump("remind");
+          bump((await sendReminder(deps, sub)) ? "remind" : "remind_skipped");
           break;
         case "charge":
-          bump(`charge_${await chargeSubscription(deps, sub, "renewal")}`);
+        case "retry": {
+          if (halted) {
+            bump("halt_skipped");
+            break;
+          }
+          const result = await chargeOnce(deps, sub, action === "charge" ? "renewal" : "retry");
+          if (result === "halted") {
+            halted = true;
+            summary.halted = 1;
+          }
+          bump(`${action}_${result}`);
           break;
-        case "retry":
-          bump(`retry_${await chargeSubscription(deps, sub, "retry")}`);
-          break;
+        }
         case "end_canceled":
         case "end_unpaid": {
-          if (held.has(sub.id)) {
+          // 결과를 모르는 결제가 있으면(나이·대사 한도와 무관하게) 끝내지 않는다 — 결제가 됐을 수 있다
+          if (await store.hasPendingPayment(sub.id)) {
             bump("held");
             break;
           }
-          // 후보를 읽은 뒤 카드 변경 재결제·해지 취소가 있었을 수 있다 — 끝내기 직전에 다시 읽고 다시 판정한다
-          const fresh = await deps.store.getSubscription(sub.id);
-          if (!fresh || decideRenewalAction(fresh, now) !== action) {
+          // 후보를 읽은 뒤 카드 변경 재결제·해지 취소가 있었을 수 있다 — 다시 읽고 다시 판정한 뒤 조건부로 끝낸다
+          const fresh = await store.getSubscription(sub.id);
+          if (!fresh || decideRenewalAction(fresh, now) !== action || !(await endSubscription(deps, fresh, action))) {
             bump("changed");
             break;
           }
-          await endSubscription(deps, fresh, action);
           bump(action);
           break;
         }

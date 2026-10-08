@@ -6,6 +6,7 @@ import type {
   CustomerRow,
   PaymentRow,
   PriceRow,
+  SubscriptionExpectation,
   SubscriptionRow,
 } from "@/lib/billing/types";
 
@@ -169,6 +170,23 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       if (error) throw fail("updateSubscription", error);
     },
 
+    async updateSubscriptionIf(id, expected: SubscriptionExpectation, patch) {
+      let query = admin
+        .from("subscriptions")
+        .update({ ...defined(patch), updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .in("status", expected.statuses);
+      // timestamptz 비교라 표기(+00:00·Z)가 달라도 같은 시각이면 맞는다
+      if (expected.currentPeriodEnd !== undefined) query = query.eq("current_period_end", expected.currentPeriodEnd);
+      if (expected.reminderNotSentFor !== undefined) {
+        // NULL은 neq로 걸리지 않아 따로 둔다. 시각에는 PostgREST 예약 문자(:, .)가 있어 큰따옴표로 감싼다
+        query = query.or(`reminder_sent_for.is.null,reminder_sent_for.neq."${expected.reminderNotSentFor}"`);
+      }
+      const { data, error } = await query.select("id");
+      if (error) throw fail("updateSubscriptionIf", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
     async linkConsents(checkoutId, subscriptionId) {
       const { error } = await admin
         .from("billing_consents")
@@ -204,6 +222,17 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .limit(limit);
       if (error) throw fail("listPendingPayments", error);
       return (data as PaymentRow[] | null) ?? [];
+    },
+
+    async hasPendingPayment(subscriptionId) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .select("id")
+        .eq("subscription_id", subscriptionId)
+        .eq("status", "pending")
+        .limit(1);
+      if (error) throw fail("hasPendingPayment", error);
+      return Array.isArray(data) && data.length > 0;
     },
   };
 }

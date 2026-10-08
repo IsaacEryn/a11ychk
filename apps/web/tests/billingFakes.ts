@@ -270,6 +270,19 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       Object.assign(s, next);
     },
 
+    async updateSubscriptionIf(id, expected, patch) {
+      const s = found(rows.subscriptions, id);
+      if (!s) return false;
+      if (!(expected.statuses as string[]).includes(s.status)) return false;
+      if (expected.currentPeriodEnd !== undefined && !sameInstant(s.current_period_end, expected.currentPeriodEnd)) return false;
+      if (expected.reminderNotSentFor !== undefined && sameInstant(s.reminder_sent_for, expected.reminderNotSentFor)) return false;
+      const next: SubscriptionRow = withPgTimes({ ...s, ...defined(clone(patch)) }, SUBSCRIPTION_TIMES);
+      checkSubscription("updateSubscriptionIf", next);
+      if (liveConflict(rows.subscriptions, next)) throw storeError("updateSubscriptionIf", "duplicate key value violates unique constraint");
+      Object.assign(s, next);
+      return true;
+    },
+
     async linkConsents(checkoutId, subscriptionId) {
       for (const c of rows.consents) if (c.checkout_id === checkoutId) c.subscription_id = subscriptionId;
     },
@@ -290,6 +303,10 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
         .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at))
         .slice(0, limit)
         .map(outPayment);
+    },
+
+    async hasPendingPayment(subscriptionId) {
+      return rows.payments.some((p) => p.subscription_id === subscriptionId && p.status === "pending");
     },
   };
 }

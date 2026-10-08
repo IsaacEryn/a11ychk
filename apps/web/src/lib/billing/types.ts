@@ -15,6 +15,15 @@ export interface PaymentRow { id: string; user_id: string | null; subscription_i
 export type NewPayment = Omit<PaymentRow, "id" | "requested_at" | "external_payment_id" | "failure_code" | "failure_message" | "receipt_url" | "card_summary" | "refunded_amount" | "approved_at">;
 export type NewSubscription = Pick<SubscriptionRow, "user_id" | "provider" | "livemode" | "plan_code" | "price_id" | "amount" | "currency" | "interval" | "current_period_start" | "current_period_end" | "billing_anchor_day">;
 
+/** 조건부 구독 갱신의 기대값 — 읽은 뒤 다른 요청이 바꿨으면 덮어쓰지 않는다 */
+export interface SubscriptionExpectation {
+  statuses: Array<"active" | "past_due">;
+  /** 행에서 읽은 값 그대로 — 표기가 달라도 같은 시각이면 같다 */
+  currentPeriodEnd?: string;
+  /** 안내 선점: reminder_sent_for가 비었거나 이 시각이 아닐 때만 */
+  reminderNotSentFor?: string;
+}
+
 export interface BillingStore {
   /** open이고 만료 전이며 그 사용자 것이면 processing으로 바꿔 돌려준다(원자적 선점) */
   claimCheckout(id: string, userId: string, nowIso: string): Promise<CheckoutRow | null>;
@@ -38,11 +47,15 @@ export interface BillingStore {
   /** 진행 중 구독 1건 유니크 위반이면 "hasActive". 새 행은 status active */
   insertSubscription(row: NewSubscription): Promise<SubscriptionRow | "hasActive">;
   updateSubscription(id: string, patch: Partial<Omit<SubscriptionRow, "id">>): Promise<void>;
+  /** 기대값과 맞을 때만 바꾼다(바꿨으면 true) — 크론과 카드 변경·해지가 엇갈려도 서로 덮어쓰지 않게 */
+  updateSubscriptionIf(id: string, expected: SubscriptionExpectation, patch: Partial<Omit<SubscriptionRow, "id">>): Promise<boolean>;
   linkConsents(checkoutId: string, subscriptionId: string): Promise<void>;
   /** 크론 후보: toss, livemode, active·past_due, 기간 끝이 now+31일 이내 — 오래된 것부터 limit건 */
   listCycleCandidates(livemode: boolean, nowIso: string, limit: number): Promise<SubscriptionRow[]>;
   /** 대사 후보: toss, livemode, pending, requested_at < olderThanIso */
   listPendingPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;
+  /** 이 구독에 결과를 모르는(pending) 결제가 있는지 — 나이·개수 제한 없이 */
+  hasPendingPayment(subscriptionId: string): Promise<boolean>;
 }
 
 export type BillingEmailKind = "receipt" | "failed" | "reminder" | "cancelScheduled" | "ended";

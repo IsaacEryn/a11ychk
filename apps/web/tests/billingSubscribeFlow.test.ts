@@ -751,6 +751,72 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     expect(await createSupabaseBillingStore(miss.admin).clearCustomerKeyIf("c1", "v1:mine")).toBe(false);
   });
 
+  it("구독 조건부 갱신은 상태·기간 끝·안내 기록 조건을 한 번의 update로 건다 — 바뀐 행이 있으면 true", async () => {
+    const end = "2026-02-27T16:00:00+00:00";
+    const hit = fakeAdmin({ data: [{ id: "s1" }], error: null });
+    expect(
+      await createSupabaseBillingStore(hit.admin).updateSubscriptionIf(
+        "s1",
+        { statuses: ["active"], currentPeriodEnd: end, reminderNotSentFor: end },
+        { reminder_sent_for: end },
+      ),
+    ).toBe(true);
+    expect(hit.calls).toEqual(
+      expect.arrayContaining([
+        ["from", ["subscriptions"]],
+        ["eq", ["id", "s1"]],
+        ["in", ["status", ["active"]]],
+        ["eq", ["current_period_end", end]],
+        // 시각에는 PostgREST 예약 문자(:, .)가 있어 큰따옴표로 감싼다. NULL은 neq로 걸리지 않아 따로 둔다
+        ["or", [`reminder_sent_for.is.null,reminder_sent_for.neq."${end}"`]],
+        ["select", ["id"]],
+      ]),
+    );
+    const update = hit.calls.find(([m]) => m === "update");
+    expect(update?.[1][0]).toMatchObject({ reminder_sent_for: end });
+
+    const plain = fakeAdmin({ data: [], error: null });
+    expect(await createSupabaseBillingStore(plain.admin).updateSubscriptionIf("s1", { statuses: ["active", "past_due"] }, { status: "ended" })).toBe(false);
+    expect(plain.calls.some(([m, a]) => m === "eq" && a[0] === "current_period_end")).toBe(false);
+    expect(plain.calls.some(([m]) => m === "or")).toBe(false);
+
+    const boom = fakeAdmin({ data: null, error: { message: "permission denied" } });
+    await expect(createSupabaseBillingStore(boom.admin).updateSubscriptionIf("s1", { statuses: ["active"] }, {})).rejects.toThrow(
+      "billing store updateSubscriptionIf: permission denied",
+    );
+  });
+
+  it("구독의 pending 결제 확인은 나이·개수 제한 없이 한 건만 본다", async () => {
+    const yes = fakeAdmin({ data: [{ id: "p1" }], error: null });
+    expect(await createSupabaseBillingStore(yes.admin).hasPendingPayment("s1")).toBe(true);
+    expect(yes.calls).toEqual(
+      expect.arrayContaining([
+        ["from", ["billing_payments"]],
+        ["eq", ["subscription_id", "s1"]],
+        ["eq", ["status", "pending"]],
+        ["limit", [1]],
+      ]),
+    );
+    expect(await createSupabaseBillingStore(fakeAdmin({ data: [], error: null }).admin).hasPendingPayment("s1")).toBe(false);
+  });
+
+  it("메모리 저장소의 조건부 갱신도 같은 시각이면 표기(+00:00·Z)가 달라도 같다고 본다", async () => {
+    const sub = subscriptionRow({ user_id: USER, current_period_end: iso(NOW + 28 * DAY), reminder_sent_for: null });
+    const store = createMemoryStore({ subscriptions: [sub] });
+    const end = iso(NOW + 28 * DAY);
+    // 상태가 다르면 바꾸지 않는다
+    expect(await store.updateSubscriptionIf(sub.id, { statuses: ["past_due"] }, { reminder_sent_for: end })).toBe(false);
+    // 기간 끝이 다르면 바꾸지 않는다
+    expect(await store.updateSubscriptionIf(sub.id, { statuses: ["active"], currentPeriodEnd: iso(NOW) }, { reminder_sent_for: end })).toBe(false);
+    expect(store.rows.subscriptions[0].reminder_sent_for).toBeNull();
+    // 같은 시각(표기만 다름)이면 바꾼다 — 안내 선점은 한 번만
+    const claim = { statuses: ["active" as const], currentPeriodEnd: pgTime(end), reminderNotSentFor: pgTime(end) };
+    expect(await store.updateSubscriptionIf(sub.id, claim, { reminder_sent_for: end })).toBe(true);
+    expect(await store.updateSubscriptionIf(sub.id, { ...claim, reminderNotSentFor: end }, { reminder_sent_for: end })).toBe(false);
+    expect(store.rows.subscriptions[0].reminder_sent_for).toBe(pgTime(end));
+    expect(await store.hasPendingPayment(sub.id)).toBe(false);
+  });
+
   it("선점은 open·만료 전·본인 조건을 한 번의 update로 건다", async () => {
     const { admin, calls } = fakeAdmin({ data: null, error: null });
     expect(await createSupabaseBillingStore(admin).claimCheckout("ck1", USER, iso(NOW))).toBeNull();
