@@ -226,6 +226,7 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
     },
 
     async hasPendingPayment(subscriptionId) {
+      // 모든 kind를 본다 — 그 구독에 걸린 첫 결제가 pending이어도 결제가 됐을 수 있어 종료를 미룬다
       const { data, error } = await admin
         .from("billing_payments")
         .select("id")
@@ -243,10 +244,12 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .eq("subscription_id", subscriptionId)
         .eq("period_start", periodStart)
         .eq("status", "failed")
+        .in("kind", ["renewal", "retry"])
         .filter("failure_code", "not.is", null);
       // 실패 코드는 토스·흐름이 정한 대문자·밑줄 모양이라 따옴표 없이 목록에 넣는다
       if (exclude.codes.length > 0) query = query.filter("failure_code", "not.in", `(${exclude.codes.join(",")})`);
-      for (const prefix of exclude.prefixes) query = query.filter("failure_code", "not.like", `${prefix}%`);
+      // LIKE의 _·%·\는 이스케이프해 접두를 글자 그대로 비교한다(가짜의 startsWith와 같은 뜻)
+      for (const prefix of exclude.prefixes) query = query.filter("failure_code", "not.like", `${prefix.replace(/[\\%_]/g, "\\$&")}%`);
       const { data, error } = await query.limit(1);
       if (error) throw fail("hasUserFacingFailure", error);
       return Array.isArray(data) && data.length > 0;

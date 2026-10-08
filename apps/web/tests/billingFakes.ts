@@ -307,6 +307,7 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
     },
 
     async hasPendingPayment(subscriptionId) {
+      // 모든 kind — 첫 결제 pending도 종료를 미룬다(Supabase 저장소와 같음)
       return rows.payments.some((p) => p.subscription_id === subscriptionId && p.status === "pending");
     },
 
@@ -314,6 +315,7 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       return rows.payments.some(
         (p) =>
           p.subscription_id === subscriptionId &&
+          ATTEMPT_KINDS.has(p.kind) &&
           sameInstant(p.period_start, periodStart) &&
           p.status === "failed" &&
           p.failure_code !== null &&

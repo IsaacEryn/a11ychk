@@ -57,6 +57,11 @@ const DECRYPT_FAILED = "DECRYPT_FAILED";
 /** 토스 계정 단위 오류 — 다른 행도 같은 이유로 실패하니 그 실행의 결제를 멈춘다 */
 const ACCOUNT_HALT_CODES = new Set(["UNAUTHORIZED_KEY", "INVALID_API_KEY", "FORBIDDEN_REQUEST"]);
 /**
+ * 행 단위 사고(복호화 실패·요청 형식 오류)도 같은 코드로 이만큼 연달아 나면 실제로는 전역 원인(암호화 키
+ * 환경변수·요청 조립 회귀)으로 보고 그 실행의 결제를 멈춘다
+ */
+const INCIDENT_STREAK_HALT = 3;
+/**
  * 사용자에게 실패 메일을 보내지 않은 실패 코드 — 설정 사고와 대사로 확정한 실패. 같은 기간에 이것만 있었다면
  * 다음의 실제 카드 거절이 그 기간의 첫 안내다(이 목록은 여기 한 곳에서만 정한다)
  */
@@ -202,9 +207,11 @@ async function settleIncident(
   );
 }
 
-/** 크론용 — incident: 그 행만의 설정 사고, halted: 계정 단위 사고라 이 실행의 남은 결제를 멈춰야 한다 */
-async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeResult | "incident" | "halted"> {
-  if (sub.provider !== "toss" || !isLive(sub) || sub.interval === "contract") return "skipped";
+/** 크론용 결과 — incident: 그 행만의 설정 사고, halted: 계정 단위 사고라 이 실행의 남은 결제를 멈춰야 한다 */
+type ChargeOutcome = { result: ChargeResult } | { result: "incident" | "halted"; code: string };
+
+async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeOutcome> {
+  if (sub.provider !== "toss" || !isLive(sub) || sub.interval === "contract") return { result: "skipped" };
   const interval = sub.interval;
   // 앵커일로 계산한다 — 앞 기간 끝의 일자를 쓰면 2월을 지난 31일 구독이 28일로 굳는다
   const anchor = sub.billing_anchor_day ?? kstDayOfMonth(Date.parse(sub.current_period_end));
@@ -226,16 +233,16 @@ async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewa
     attempt: kind === "renewal" ? 1 : failures,
     status: "pending",
   });
-  if (payment === "duplicate") return "skipped";
+  if (payment === "duplicate") return { result: "skipped" };
 
   const key = await loadBillingKey(deps, sub);
   if (!key.ok) {
     if (key.reason === "undecryptable") {
       await settleIncident(deps, sub, payment, kind, DECRYPT_FAILED, false);
-      return "incident";
+      return { result: "incident", code: DECRYPT_FAILED };
     }
     await settleUnpaid(deps, sub, payment, { failures, retryable: false, notify: true }, { status: "failed", failure_code: NO_BILLING_KEY, failure_message: null });
-    return "failed";
+    return { result: "failed" };
   }
 
   let moneyInFlight = true;
@@ -251,7 +258,7 @@ async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewa
       if (!(e instanceof TossError) || isOutcomeUnknown(e)) {
         // 결과 불명 — 결제 pending·구독 그대로. 다음 실행의 대사가 확정한다
         await deps.log(`billing ${kind} charge outcome unknown, payment ${payment.id}: ${errorText(e)}`);
-        return "pending";
+        return { result: "pending" };
       }
       // 토스가 거절했다고 답했다 — 돈은 움직이지 않았다
       moneyInFlight = false;
@@ -259,7 +266,7 @@ async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewa
       if (errKind === "fatal") {
         const halt = ACCOUNT_HALT_CODES.has(e.code);
         await settleIncident(deps, sub, payment, kind, e.code, halt);
-        return halt ? "halted" : "incident";
+        return { result: halt ? "halted" : "incident", code: e.code };
       }
       await settleUnpaid(
         deps,
@@ -268,18 +275,18 @@ async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewa
         { failures, retryable: errKind === "retryable", notify: true },
         { status: "failed", failure_code: e.code, failure_message: e.message },
       );
-      return "failed";
+      return { result: "failed" };
     }
     if (charged.status !== "DONE") {
       await deps.log(`billing ${kind} charge payment ${payment.id} returned status ${charged.status.slice(0, 40)}, left pending`);
-      return "pending";
+      return { result: "pending" };
     }
     await settlePaid(deps, sub, payment, charged);
-    return "paid";
+    return { result: "paid" };
   } catch (e) {
     if (!moneyInFlight) throw e;
     await deps.log(`billing ${kind} payment ${payment.id} may have been charged but was not settled, left pending: ${errorText(e)}`);
-    return "pending";
+    return { result: "pending" };
   }
 }
 
@@ -289,7 +296,7 @@ async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewa
  * 돈이 움직이기 전의 저장소 오류는 그대로 던진다(호출부가 기록). 결제 행이 먼저 만들어졌다면 pending으로 남아 대사가 정리한다.
  */
 export async function chargeSubscription(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeResult> {
-  const result = await chargeOnce(deps, sub, kind);
+  const { result } = await chargeOnce(deps, sub, kind);
   return result === "halted" || result === "incident" ? "failed" : result;
 }
 
@@ -486,7 +493,8 @@ async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<bo
 /**
  * 결제 크론 한 번 — ① 대사 ② 후보 구독마다 판정·처리. 예산(기본 240초)을 넘기면 멈추고 남은 건은 다음 날.
  * 계정 단위 설정 사고가 나면 halted = 1이고 그 실행의 남은 결제·재시도는 halt_skipped로 미룬다(종료·안내는 계속).
- * 그 행만의 사고는 charge_incident·retry_incident로 세고 다음 행을 계속 처리한다.
+ * 그 행만의 사고는 charge_incident·retry_incident로 세고 다음 행을 계속 처리한다. 다만 같은 코드의 행 사고가
+ * 연달아 INCIDENT_STREAK_HALT번 나면 그 자리에서 같은 방식으로 멈춘다(결제 결과가 하나라도 끼면 다시 센다).
  * 반환은 대사 결과·처리 결과별 개수(예: charge_paid, retry_failed, remind, end_unpaid, held, errors, deferred).
  */
 export async function runBillingCycle(
@@ -509,6 +517,8 @@ export async function runBillingCycle(
     summary[key] = (summary[key] ?? 0) + 1;
   };
   let halted = false;
+  /** 같은 코드의 행 단위 사고가 몇 번 연달아 났는지 — 결제·재시도 결과만 센다 */
+  const streak = { code: "", count: 0 };
 
   const candidates = await store.listCycleCandidates(livemode, iso(deps.now()), opts.limit ?? DEFAULT_LIMIT);
   summary.candidates = candidates.length;
@@ -534,12 +544,24 @@ export async function runBillingCycle(
             bump("halt_skipped");
             break;
           }
-          const result = await chargeOnce(deps, sub, action === "charge" ? "renewal" : "retry");
-          if (result === "halted") {
+          const outcome = await chargeOnce(deps, sub, action === "charge" ? "renewal" : "retry");
+          bump(`${action}_${outcome.result}`);
+          if (outcome.result === "halted") {
             halted = true;
             summary.halted = 1;
+          } else if (outcome.result === "incident") {
+            streak.count = streak.code === outcome.code ? streak.count + 1 : 1;
+            streak.code = outcome.code;
+            if (streak.count >= INCIDENT_STREAK_HALT) {
+              // 이미 처리한 행은 행 단위 사고 상태 그대로 두고, 남은 결제만 멈춘다. 기록은 코드만 한 번
+              halted = true;
+              summary.halted = 1;
+              await deps.log(`billing halted: ${outcome.code} repeated`);
+            }
+          } else {
+            streak.code = "";
+            streak.count = 0;
           }
-          bump(`${action}_${result}`);
           break;
         }
         case "end_canceled":

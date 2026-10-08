@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { encryptBillingKey } from "../src/lib/billing/crypto";
 import { addInterval } from "../src/lib/billing/period";
 import { TossError, type TossPayment } from "../src/lib/billing/toss";
-import type { CheckoutRow, PaymentRow, SubscriptionRow } from "../src/lib/billing/types";
+import type { CheckoutRow, CustomerRow, PaymentRow, SubscriptionRow } from "../src/lib/billing/types";
 import {
   chargeSubscription,
   decideRenewalAction,
@@ -95,6 +95,29 @@ function setup(opts: SetupOpts = {}) {
   const store = createMemoryStore({ prices: [price], customers: [customer], subscriptions: [sub], ...opts.rows }, { now });
   const deps = makeDeps({ store, toss: createFakeToss(opts.toss), encKey, now });
   return { deps, store, clock, price, customer, sub, enc, encKey };
+}
+
+/**
+ * 갱신 시점의 구독 n개(기간 끝이 1분씩 늦어 순서대로 처리된다). good[i]가 false면 그 고객의 암호문은
+ * 다른 키로 만든 것이라 풀리지 않는다(DECRYPT_FAILED)
+ */
+function manyDue(good: boolean[], toss: Partial<TossScript> = {}) {
+  const clock = { t: E - HOUR };
+  const now = () => clock.t;
+  const encKey = randomBytes(32);
+  const otherKey = randomBytes(32);
+  const customers: CustomerRow[] = [];
+  const subscriptions: SubscriptionRow[] = [];
+  for (let i = 0; i < good.length; i++) {
+    const userId = `00000000-0000-4000-8000-${String(i + 1).padStart(12, "0")}`;
+    const enc = encryptBillingKey(BILLING_KEY, { userId, livemode: false }, good[i] ? encKey : otherKey);
+    customers.push(customerRow({ user_id: userId, toss_customer_key: `cust-${i + 1}`, toss_billing_key_enc: enc }));
+    subscriptions.push(subscriptionRow({ user_id: userId, current_period_start: START, current_period_end: iso(E + i * MIN), billing_anchor_day: 31 }));
+  }
+  const store = createMemoryStore({ customers, subscriptions }, { now });
+  const deps = makeDeps({ store, toss: createFakeToss(toss), encKey, now });
+  const row = (i: number) => store.rows.subscriptions.find((x) => x.id === subscriptions[i].id)!;
+  return { deps, store, clock, subscriptions, row };
 }
 
 /** 결제 요청에 맞춘 DONE 응답 — paymentKey도 주문마다 다르다(DB 유니크) */
@@ -499,6 +522,45 @@ describe("갱신 결제", () => {
     expect(logged(deps)).toContain("DECRYPT_FAILED");
     expect(logged(deps)).not.toContain(BILLING_KEY);
     expect(logged(deps)).not.toContain(foreign);
+  });
+
+  it("같은 행 사고(DECRYPT_FAILED)가 세 번 연달아 나면 세 번째에서 그 실행의 결제를 멈춘다", async () => {
+    const { deps, store, row, subscriptions } = manyDue([false, false, false, true], { chargeBillingKey: [done] });
+
+    const out = await runBillingCycle(deps, false);
+
+    expect(out).toMatchObject({ candidates: 4, charge_incident: 3, halted: 1, halt_skipped: 1 });
+    // 네 번째(빌링키가 멀쩡한 행)도 이번 실행에서는 결제하지 않는다
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(row(3)).toMatchObject({ status: "active", dunning_attempts: 0 });
+    expect(store.rows.payments.some((p) => p.subscription_id === subscriptions[3].id)).toBe(false);
+    // 이미 처리한 세 행은 행 단위 사고 상태 그대로
+    for (const i of [0, 1, 2]) {
+      expect(row(i)).toMatchObject({ status: "past_due", dunning_attempts: 1, next_retry_at: pgTime(E - HOUR + INCIDENT_RETRY) });
+    }
+    expect(store.rows.payments.map((p) => p.failure_code)).toEqual(["DECRYPT_FAILED", "DECRYPT_FAILED", "DECRYPT_FAILED"]);
+    expect(deps.mailer.sent).toHaveLength(0);
+    const lines = deps.log.mock.calls.map((c) => String(c[0]));
+    expect(lines.filter((l) => l.includes("billing halted: DECRYPT_FAILED repeated"))).toHaveLength(1);
+    expect(lines.join("\n")).not.toContain(BILLING_KEY);
+  });
+
+  it("사고·성공·사고·사고처럼 중간에 성공이 끼면 연속이 끊겨 멈추지 않는다", async () => {
+    const { deps, store } = manyDue([false, true, false, false], { chargeBillingKey: [done] });
+    const out = await runBillingCycle(deps, false);
+    expect(out).toMatchObject({ charge_incident: 3, charge_paid: 1 });
+    expect(out.halted).toBeUndefined();
+    expect(out.halt_skipped).toBeUndefined();
+    expect(deps.log.mock.calls.some((c) => String(c[0]).includes("billing halted"))).toBe(false);
+    expect(store.rows.payments.filter((p) => p.status === "paid")).toHaveLength(1);
+  });
+
+  it("코드가 다른 사고는 연속으로 세지 않는다", async () => {
+    // DECRYPT_FAILED, DECRYPT_FAILED, INVALID_REQUEST, DECRYPT_FAILED — 같은 코드가 세 번 연달아 나지 않았다
+    const { deps } = manyDue([false, false, true, false], { chargeBillingKey: [reject("INVALID_REQUEST", "bad body", 400)] });
+    const out = await runBillingCycle(deps, false);
+    expect(out).toMatchObject({ charge_incident: 4 });
+    expect(out.halted).toBeUndefined();
   });
 
   it("INVALID_REQUEST는 그 행만의 사고 — 메일 없이 미납·나중에 재시도, 다음 후보는 결제한다", async () => {

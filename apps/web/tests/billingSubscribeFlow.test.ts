@@ -816,9 +816,12 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
         ["eq", ["subscription_id", "s1"]],
         ["eq", ["period_start", start]],
         ["eq", ["status", "failed"]],
+        // 갱신·재시도 결제만 — 같은 기간 시작의 첫 결제 실패는 미납 안내와 무관하다
+        ["in", ["kind", ["renewal", "retry"]]],
         ["filter", ["failure_code", "not.is", null]],
         ["filter", ["failure_code", "not.in", "(DECRYPT_FAILED,UNAUTHORIZED_KEY)"]],
-        ["filter", ["failure_code", "not.like", "RECONCILED_%"]],
+        // LIKE의 _는 한 글자 와일드카드라 이스케이프한다(가짜의 startsWith와 같은 뜻)
+        ["filter", ["failure_code", "not.like", "RECONCILED\\_%"]],
         ["limit", [1]],
       ]),
     );
@@ -837,6 +840,9 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
       ],
     });
     const exclude = { codes: ["DECRYPT_FAILED"], prefixes: ["RECONCILED_"] };
+    expect(await store.hasUserFacingFailure(sub.id, pgTime(NOW), exclude)).toBe(false);
+    // 첫 결제(initial)의 실패는 세지 않는다 — 갱신·재시도 결제만 본다
+    store.rows.payments.push({ ...paymentRow({ ...base, kind: "initial", attempt: 9, failure_code: "REJECT_CARD_PAYMENT" }), period_start: pgTime(NOW) });
     expect(await store.hasUserFacingFailure(sub.id, pgTime(NOW), exclude)).toBe(false);
     store.rows.payments.push({ ...paymentRow({ ...base, attempt: 5, failure_code: "REJECT_CARD_PAYMENT" }), period_start: pgTime(NOW) });
     // 표기가 달라도(Z) 같은 기간 시작
