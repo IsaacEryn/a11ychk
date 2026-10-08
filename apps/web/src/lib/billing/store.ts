@@ -23,7 +23,7 @@ const CHECKOUT_COLS = "id, user_id, provider, livemode, price_id, purpose, statu
 const SUBSCRIPTION_COLS =
   "id, user_id, provider, livemode, plan_code, status, ended_reason, price_id, amount, currency, interval, current_period_start, current_period_end, billing_anchor_day, cancel_at_period_end, canceled_at, ended_at, dunning_attempts, next_retry_at, grace_until, reminder_sent_for";
 const PAYMENT_COLS =
-  "id, user_id, subscription_id, checkout_id, provider, livemode, kind, order_id, external_payment_id, amount, currency, period_start, period_end, attempt, status, failure_code, failure_message, receipt_url, card_summary, requested_at, approved_at";
+  "id, user_id, subscription_id, checkout_id, provider, livemode, kind, order_id, external_payment_id, amount, currency, period_start, period_end, attempt, status, failure_code, failure_message, receipt_url, card_summary, refunded_amount, requested_at, approved_at";
 
 const LIVE_STATUSES = ["active", "past_due"];
 const DAY_MS = 86_400_000;
@@ -100,6 +100,18 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq("id", id);
       if (error) throw fail("updateCustomer", error);
+    },
+
+    async clearCustomerKeyIf(customerId, expectedEnc) {
+      // 조건부 update — 다른 시도가 그 사이 쓴 암호문이면 0행이 바뀌고 false
+      const { data, error } = await admin
+        .from("billing_customers")
+        .update({ toss_billing_key_enc: null, toss_card_summary: null, updated_at: new Date().toISOString() })
+        .eq("id", customerId)
+        .eq("toss_billing_key_enc", expectedEnc)
+        .select("id");
+      if (error) throw fail("clearCustomerKeyIf", error);
+      return Array.isArray(data) && data.length > 0;
     },
 
     async insertPayment(row) {

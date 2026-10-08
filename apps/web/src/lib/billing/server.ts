@@ -25,12 +25,18 @@ export interface BillingRecipient {
   locale: "ko" | "en";
 }
 
-/** 메일 수신자 — auth 이메일 + profiles.locale. 이메일이 없으면(탈퇴 등) null */
+/**
+ * 메일 수신자 — auth 이메일 + profiles.locale. 이메일이 없으면(탈퇴 등) null.
+ * 조회가 오류를 돌려주면 던진다(메일러가 기록하고 건너뛴다). 오류 문구에는 코드만 넣는다 —
+ * 수신자 정보가 기록에 섞이지 않게.
+ */
 export async function loadRecipient(admin: SupabaseClient, userId: string): Promise<BillingRecipient | null> {
-  const { data } = await admin.auth.admin.getUserById(userId);
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  if (error) throw new Error(`recipient auth lookup failed (${error.code ?? error.status ?? "unknown"})`);
   const email = data?.user?.email;
   if (!email) return null;
-  const { data: profile } = await admin.from("profiles").select("locale").eq("id", userId).maybeSingle();
+  const { data: profile, error: profileError } = await admin.from("profiles").select("locale").eq("id", userId).maybeSingle();
+  if (profileError) throw new Error(`recipient profile lookup failed (${profileError.code ?? "unknown"})`);
   return { email, locale: mailLocale(profile?.locale) };
 }
 

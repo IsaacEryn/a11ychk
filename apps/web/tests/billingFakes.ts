@@ -6,6 +6,8 @@
  * insert는 표지값("duplicate"·"hasActive")을, update는 "billing store <메서드>: ..." 오류를 낸다.
  * 모든 읽기·쓰기는 structuredClone 사본을 주고받는다 — 호출부가 돌려받은 객체를 고쳐도
  * 저장소가 바뀌지 않는다(실제 DB와 같다). 상태 검사는 store.rows로 한다.
+ * timestamptz 열은 PostgREST가 돌려주는 모양(2026-01-30T16:00:00+00:00)으로 저장·반환한다 —
+ * 흐름이 시각을 문자열로 비교하는 실수를 테스트가 잡게. 저장소 안의 비교는 Date.parse로 한다.
  */
 import { randomBytes, randomUUID } from "node:crypto";
 import { vi, type Mock } from "vitest";
@@ -52,6 +54,40 @@ const ATTEMPT_KINDS = new Set<PaymentRow["kind"]>(["renewal", "retry"]);
 const CLAIMABLE_END = new Set<CheckoutRow["status"]>(["open", "processing"]);
 
 const clone = <T>(v: T): T => structuredClone(v);
+
+/**
+ * PostgREST(UTC 세션)의 timestamptz 표기 — 초 아래가 0이면 생략하고, 있으면 뒤 0을 뺀다.
+ * 예: 2026-01-30T16:00:00+00:00, 2026-01-30T16:00:05.12+00:00
+ */
+export function pgTime(v: string | number): string {
+  const t = typeof v === "number" ? v : Date.parse(v);
+  if (Number.isNaN(t)) return String(v);
+  const [base, frac] = new Date(t).toISOString().slice(0, -1).split(".");
+  const trimmed = (frac ?? "").replace(/0+$/, "");
+  return `${base}${trimmed ? `.${trimmed}` : ""}+00:00`;
+}
+
+const CHECKOUT_TIMES = ["expires_at"] as const;
+const SUBSCRIPTION_TIMES = [
+  "current_period_start",
+  "current_period_end",
+  "canceled_at",
+  "ended_at",
+  "next_retry_at",
+  "grace_until",
+  "reminder_sent_for",
+] as const;
+const PAYMENT_TIMES = ["period_start", "period_end", "requested_at", "approved_at"] as const;
+
+function withPgTimes<T extends object>(row: T, fields: readonly string[]): T {
+  const r = row as Record<string, unknown>;
+  for (const f of fields) if (typeof r[f] === "string") r[f] = pgTime(r[f] as string);
+  return row;
+}
+/** 반환용 사본 — 테스트가 store.rows에 직접 넣은 행도 DB 모양으로 나간다 */
+const outCheckout = (c: CheckoutRow) => withPgTimes(clone(c), CHECKOUT_TIMES);
+const outSubscription = (s: SubscriptionRow) => withPgTimes(clone(s), SUBSCRIPTION_TIMES);
+const outPayment = (p: PaymentRow) => withPgTimes(clone(p), PAYMENT_TIMES);
 /** timestamptz 비교 — 저장 형식(+00:00·Z)이 달라도 같은 시각이면 같다 */
 const sameInstant = (a: string | null, b: string | null) => a !== null && b !== null && Date.parse(a) === Date.parse(b);
 /** PostgREST는 undefined 키를 보내지 않는다 — 메모리에서도 덮어쓰지 않는다 */
@@ -100,6 +136,7 @@ function checkPayment(method: string, p: PaymentRow) {
     throw storeError(method, "renewal/retry payment needs subscription and period");
   }
   if (p.amount < 0) throw storeError(method, "amount check violation");
+  if (p.refunded_amount < 0) throw storeError(method, "refunded_amount check violation");
 }
 
 export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: () => number } = {}): MemoryStore {
@@ -107,9 +144,9 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
   const rows: MemoryRows = {
     prices: clone(seed.prices ?? []),
     customers: clone(seed.customers ?? []),
-    checkouts: clone(seed.checkouts ?? []),
-    subscriptions: clone(seed.subscriptions ?? []),
-    payments: clone(seed.payments ?? []),
+    checkouts: clone(seed.checkouts ?? []).map((c) => withPgTimes(c, CHECKOUT_TIMES)),
+    subscriptions: clone(seed.subscriptions ?? []).map((s) => withPgTimes(s, SUBSCRIPTION_TIMES)),
+    payments: clone(seed.payments ?? []).map((p) => withPgTimes(p, PAYMENT_TIMES)),
     consents: clone(seed.consents ?? []),
   };
   const found = <T extends { id: string }>(list: T[], id: string) => list.find((r) => r.id === id);
@@ -123,12 +160,12 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       );
       if (!c) return null;
       c.status = "processing";
-      return clone(c);
+      return outCheckout(c);
     },
 
     async getCheckout(id) {
       const c = found(rows.checkouts, id);
-      return c ? clone(c) : null;
+      return c ? outCheckout(c) : null;
     },
 
     async finishCheckout(id, patch) {
@@ -156,6 +193,14 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       if (c) Object.assign(c, clone(patch));
     },
 
+    async clearCustomerKeyIf(customerId, expectedEnc) {
+      const c = found(rows.customers, customerId);
+      if (!c || c.toss_billing_key_enc !== expectedEnc) return false;
+      c.toss_billing_key_enc = null;
+      c.toss_card_summary = null;
+      return true;
+    },
+
     async insertPayment(row) {
       const p: PaymentRow = {
         ...clone(row),
@@ -166,18 +211,20 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
         failure_message: null,
         receipt_url: null,
         card_summary: null,
+        refunded_amount: 0,
         approved_at: null,
       };
+      withPgTimes(p, PAYMENT_TIMES);
       checkPayment("insertPayment", p);
       if (paymentConflict(rows.payments, p)) return "duplicate";
       rows.payments.push(p);
-      return clone(p);
+      return outPayment(p);
     },
 
     async updatePayment(id, patch) {
       const p = found(rows.payments, id);
       if (!p) return;
-      const next: PaymentRow = { ...p, ...defined(clone(patch)) };
+      const next: PaymentRow = withPgTimes({ ...p, ...defined(clone(patch)) }, PAYMENT_TIMES);
       checkPayment("updatePayment", next);
       if (paymentConflict(rows.payments, next)) throw storeError("updatePayment", "duplicate key value violates unique constraint");
       Object.assign(p, next);
@@ -185,12 +232,12 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
 
     async getSubscription(id) {
       const s = found(rows.subscriptions, id);
-      return s ? clone(s) : null;
+      return s ? outSubscription(s) : null;
     },
 
     async getLiveSubscription(userId, livemode) {
       const s = rows.subscriptions.find((r) => r.user_id === userId && r.livemode === livemode && LIVE.has(r.status));
-      return s ? clone(s) : null;
+      return s ? outSubscription(s) : null;
     },
 
     async insertSubscription(row) {
@@ -207,16 +254,17 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
         grace_until: null,
         reminder_sent_for: null,
       };
+      withPgTimes(s, SUBSCRIPTION_TIMES);
       checkSubscription("insertSubscription", s);
       if (liveConflict(rows.subscriptions, s)) return "hasActive";
       rows.subscriptions.push(s);
-      return clone(s);
+      return outSubscription(s);
     },
 
     async updateSubscription(id, patch) {
       const s = found(rows.subscriptions, id);
       if (!s) return;
-      const next: SubscriptionRow = { ...s, ...defined(clone(patch)) };
+      const next: SubscriptionRow = withPgTimes({ ...s, ...defined(clone(patch)) }, SUBSCRIPTION_TIMES);
       checkSubscription("updateSubscription", next);
       if (liveConflict(rows.subscriptions, next)) throw storeError("updateSubscription", "duplicate key value violates unique constraint");
       Object.assign(s, next);
@@ -228,22 +276,20 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
 
     async listCycleCandidates(livemode, nowIso, limit) {
       const horizon = Date.parse(nowIso) + 31 * DAY;
-      return clone(
-        rows.subscriptions
-          .filter((s) => s.provider === "toss" && s.livemode === livemode && LIVE.has(s.status) && Date.parse(s.current_period_end) <= horizon)
-          .sort((a, b) => Date.parse(a.current_period_end) - Date.parse(b.current_period_end))
-          .slice(0, limit),
-      );
+      return rows.subscriptions
+        .filter((s) => s.provider === "toss" && s.livemode === livemode && LIVE.has(s.status) && Date.parse(s.current_period_end) <= horizon)
+        .sort((a, b) => Date.parse(a.current_period_end) - Date.parse(b.current_period_end))
+        .slice(0, limit)
+        .map(outSubscription);
     },
 
     async listPendingPayments(livemode, olderThanIso, limit) {
       const before = Date.parse(olderThanIso);
-      return clone(
-        rows.payments
-          .filter((p) => p.provider === "toss" && p.livemode === livemode && p.status === "pending" && Date.parse(p.requested_at) < before)
-          .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at))
-          .slice(0, limit),
-      );
+      return rows.payments
+        .filter((p) => p.provider === "toss" && p.livemode === livemode && p.status === "pending" && Date.parse(p.requested_at) < before)
+        .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at))
+        .slice(0, limit)
+        .map(outPayment);
     },
   };
 }

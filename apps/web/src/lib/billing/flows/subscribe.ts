@@ -63,7 +63,9 @@ export function cardLabel(card: CardSummary | null): string | null {
 /** 실행 중 어디까지 왔는지 — 예외가 났을 때 시도를 닫을지, 결제를 대사에 맡길지 정한다 */
 interface RunState {
   checkout: CheckoutRow | null;
-  /** 결제 요청을 보낸 뒤 — 이후 예외는 돈이 움직였을 수 있어 pending으로 남긴다 */
+  /** 이 실행이 고객 행에 쓴 암호문 — 지울 때는 이 값일 때만 지운다 */
+  storedKey: { customerId: string; enc: string } | null;
+  /** 결제 요청을 보냈고 거절이 확정되지 않았다 — 이후 예외는 돈이 움직였을 수 있어 pending으로 남긴다 */
   moneyInFlight: boolean;
 }
 
@@ -71,7 +73,7 @@ export async function completeCheckout(
   deps: BillingDeps,
   input: { checkoutId: string; userId: string; authKey: string; customerKey: string; customerEmail: string | null },
 ): Promise<CheckoutOutcome> {
-  const state: RunState = { checkout: null, moneyInFlight: false };
+  const state: RunState = { checkout: null, storedKey: null, moneyInFlight: false };
   try {
     return await runCheckout(deps, input, state);
   } catch (e) {
@@ -79,7 +81,10 @@ export async function completeCheckout(
     // 결제 행은 pending으로 남아 있다 — 대사가 토스 주문 조회로 확정한다
     if (state.moneyInFlight) return { kind: "pending" };
     if (state.checkout) {
-      // 결제 전 단계에서 멈췄다 — processing으로 두면 다시 들어올 때 "확인 중"으로 오해된다
+      // 돈이 움직이지 않았다(결제 전이거나 거절 확정 뒤) — 이 실행이 쓴 빌링키를 거두고 시도를 닫는다.
+      // processing으로 두면 다시 들어올 때 "확인 중"으로 오해된다
+      const key = state.storedKey;
+      if (key) await deps.store.clearCustomerKeyIf(key.customerId, key.enc).catch(() => false);
       await deps.store.finishCheckout(state.checkout.id, { status: "failed", failure_code: "error" }).catch(() => undefined);
       return { kind: "error", code: "failed", priceId: state.checkout.price_id };
     }
@@ -134,12 +139,11 @@ async function runCheckout(
   }
 
   // 6. 암호화해 저장 — 평문 빌링키는 이 함수의 지역 변수로만 남는다
-  const keyCtx = { userId: input.userId, livemode: checkout.livemode };
-  await store.updateCustomer(customer.id, {
-    toss_billing_key_enc: encryptBillingKey(auth.billingKey, keyCtx, deps.encKey),
-    toss_card_summary: auth.card,
-  });
-  const forgetCard = () => store.updateCustomer(customer.id, { toss_billing_key_enc: null, toss_card_summary: null });
+  const enc = encryptBillingKey(auth.billingKey, { userId: input.userId, livemode: checkout.livemode }, deps.encKey);
+  await store.updateCustomer(customer.id, { toss_billing_key_enc: enc, toss_card_summary: auth.card });
+  state.storedKey = { customerId: customer.id, enc };
+  // 지울 때는 이 실행이 쓴 암호문일 때만 — 그 사이 다른 시도가 쓴 빌링키는 그 시도의 것이다
+  const forgetCard = () => store.clearCustomerKeyIf(customer.id, enc);
 
   // 7. 기간 — 오늘부터, 앵커일은 오늘의 KST 일자
   const anchor = kstDayOfMonth(nowMs);
@@ -175,7 +179,7 @@ async function runCheckout(
       auth.billingKey,
       {
         customerKey: input.customerKey,
-        amount: price.amount,
+        amount: payment.amount,
         orderId: payment.order_id,
         orderName: orderNameFor(price.plan_code, price.interval),
         ...(input.customerEmail ? { customerEmail: input.customerEmail } : {}),
@@ -188,14 +192,18 @@ async function runCheckout(
       await deps.log(`billing initial charge outcome unknown, payment ${payment.id}: ${errorText(e)}`);
       return { kind: "pending" };
     }
-    // 토스가 거절했다고 답했다 — 돈은 움직이지 않았다
+    // 토스가 거절했다고 답했다 — 돈은 움직이지 않았다. 이후 정리가 실패하면 시도를 failed로 닫는다
+    state.moneyInFlight = false;
     await store.updatePayment(payment.id, { status: "failed", failure_code: e.code, failure_message: e.message });
     await forgetCard();
     const kind = classifyTossError(e.code);
     if (kind === "fatal") await deps.log(`billing initial charge fatal error, payment ${payment.id}: ${errorText(e)}`);
     return fail(kind === "card_action_required" ? "cardRejected" : "failed", e.code);
   }
-  if (charged.status !== "DONE") return { kind: "pending" };
+  if (charged.status !== "DONE") {
+    await deps.log(`billing initial charge payment ${payment.id} returned status ${charged.status.slice(0, 40)}, left pending`);
+    return { kind: "pending" };
+  }
 
   // 10. 구독 생성
   const activated = await activateInitialPayment(deps, payment, charged);
@@ -246,15 +254,22 @@ export async function activateInitialPayment(
   const price = await store.getPrice(checkout.price_id);
   if (!price) return null;
   const userId = payment.user_id;
+  if (charged.totalAmount !== payment.amount || charged.orderId !== payment.order_id) {
+    // 보낸 금액·주문번호와 응답이 다르다 — 결제 행(실제로 요청한 값)을 기준으로 진행하고 운영자가 확인한다
+    await deps.log(
+      `billing payment ${payment.id} response differs from the payment row (amount ${charged.totalAmount} vs ${payment.amount}, orderId ${charged.orderId === payment.order_id ? "same" : "different"})`,
+    );
+  }
 
+  // 금액 스냅샷은 실제로 청구한 결제 행의 값이다
   const inserted = await store.insertSubscription({
     user_id: userId,
     provider: "toss",
     livemode: payment.livemode,
     plan_code: price.plan_code,
     price_id: price.id,
-    amount: price.amount,
-    currency: price.currency,
+    amount: payment.amount,
+    currency: payment.currency,
     interval: price.interval,
     current_period_start: payment.period_start,
     current_period_end: payment.period_end,
@@ -283,8 +298,8 @@ export async function activateInitialPayment(
 
   const receipt: Omit<BillingEmailData["receipt"], "manageUrl"> = {
     planName: planNameFor(price.plan_code),
-    amount: price.amount,
-    currency: price.currency,
+    amount: payment.amount,
+    currency: payment.currency,
     periodEnd: payment.period_end,
     receiptUrl: charged.receiptUrl,
     card: cardLabel(charged.card),
@@ -316,7 +331,9 @@ async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout:
   }
   await deps.store.updatePayment(
     payment.id,
-    refunded ? { ...settled, status: "refunded" } : { ...settled, status: "paid", failure_code: "CANCEL_FAILED" },
+    refunded
+      ? { ...settled, status: "refunded", refunded_amount: payment.amount }
+      : { ...settled, status: "paid", failure_code: "CANCEL_FAILED" },
   );
   await deps.store.finishCheckout(checkout.id, { status: "failed", failure_code: "hasActive" });
   return "hasActive";

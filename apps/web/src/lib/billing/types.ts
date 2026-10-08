@@ -9,9 +9,10 @@ export interface PriceRow { id: string; plan_code: string; provider: "toss" | "m
 export interface CustomerRow { id: string; user_id: string; livemode: boolean; toss_customer_key: string | null; toss_billing_key_enc: string | null; toss_card_summary: CardSummary | null }
 export interface CheckoutRow { id: string; user_id: string; provider: "toss" | "mor"; livemode: boolean; price_id: string; purpose: "subscribe" | "card_change"; status: "open" | "processing" | "completed" | "failed" | "expired"; failure_code: string | null; subscription_id: string | null; expires_at: string }
 export interface SubscriptionRow { id: string; user_id: string | null; provider: "toss" | "mor" | "manual"; livemode: boolean; plan_code: string; status: "active" | "past_due" | "ended"; ended_reason: string | null; price_id: string | null; amount: number; currency: "KRW" | "USD"; interval: "month" | "year" | "contract"; current_period_start: string; current_period_end: string; billing_anchor_day: number | null; cancel_at_period_end: boolean; canceled_at: string | null; ended_at: string | null; dunning_attempts: number; next_retry_at: string | null; grace_until: string | null; reminder_sent_for: string | null }
-export interface PaymentRow { id: string; user_id: string | null; subscription_id: string | null; checkout_id: string | null; provider: "toss" | "mor" | "manual"; livemode: boolean; kind: "initial" | "renewal" | "retry" | "manual"; order_id: string; external_payment_id: string | null; amount: number; currency: "KRW" | "USD"; period_start: string | null; period_end: string | null; attempt: number; status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded"; failure_code: string | null; failure_message: string | null; receipt_url: string | null; card_summary: CardSummary | null; requested_at: string; approved_at: string | null }
+export interface PaymentRow { id: string; user_id: string | null; subscription_id: string | null; checkout_id: string | null; provider: "toss" | "mor" | "manual"; livemode: boolean; kind: "initial" | "renewal" | "retry" | "manual"; order_id: string; external_payment_id: string | null; amount: number; currency: "KRW" | "USD"; period_start: string | null; period_end: string | null; attempt: number; status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded"; failure_code: string | null; failure_message: string | null; receipt_url: string | null; card_summary: CardSummary | null; refunded_amount: number; requested_at: string; approved_at: string | null }
 
-export type NewPayment = Omit<PaymentRow, "id" | "requested_at" | "external_payment_id" | "failure_code" | "failure_message" | "receipt_url" | "card_summary" | "approved_at">;
+/** refunded_amount는 DB 기본값 0으로 시작한다 */
+export type NewPayment = Omit<PaymentRow, "id" | "requested_at" | "external_payment_id" | "failure_code" | "failure_message" | "receipt_url" | "card_summary" | "refunded_amount" | "approved_at">;
 export type NewSubscription = Pick<SubscriptionRow, "user_id" | "provider" | "livemode" | "plan_code" | "price_id" | "amount" | "currency" | "interval" | "current_period_start" | "current_period_end" | "billing_anchor_day">;
 
 export interface BillingStore {
@@ -23,6 +24,11 @@ export interface BillingStore {
   getPrice(id: string): Promise<PriceRow | null>;
   getCustomer(userId: string, livemode: boolean): Promise<CustomerRow | null>;
   updateCustomer(id: string, patch: { toss_billing_key_enc: string | null; toss_card_summary: CardSummary | null }): Promise<void>;
+  /**
+   * 이 실행이 쓴 암호문일 때만 빌링키·카드 요약을 지운다(지웠으면 true). 그 사이 다른 시도가
+   * 새 빌링키를 썼다면 그대로 둔다 — 남의 빌링키를 지우면 진행 중 구독이 갱신할 카드를 잃는다.
+   */
+  clearCustomerKeyIf(customerId: string, expectedEnc: string): Promise<boolean>;
   /** 유니크 위반(같은 시도·같은 주문번호)이면 "duplicate" */
   insertPayment(row: NewPayment): Promise<PaymentRow | "duplicate">;
   updatePayment(id: string, patch: Partial<Omit<PaymentRow, "id">>): Promise<void>;

@@ -25,6 +25,7 @@ import {
   customerRow,
   iso,
   makeDeps,
+  pgTime,
   priceRow,
   subscriptionRow,
   tossPayment,
@@ -83,12 +84,13 @@ describe("completeCheckout — 첫 정기결제", () => {
       amount: 1234,
       currency: "KRW",
       interval: "month",
-      current_period_start: start,
-      current_period_end: addInterval(start, "month", 31),
+      current_period_start: pgTime(start),
+      current_period_end: pgTime(addInterval(start, "month", 31)),
       billing_anchor_day: 31,
       cancel_at_period_end: false,
     });
-    expect(sub.current_period_end).toBe("2026-02-27T16:00:00.000Z");
+    // 저장소는 PostgREST 모양(+00:00)으로 돌려준다
+    expect(sub.current_period_end).toBe("2026-02-27T16:00:00+00:00");
 
     // 결제 행
     expect(store.rows.payments).toHaveLength(1);
@@ -104,12 +106,13 @@ describe("completeCheckout — 첫 정기결제", () => {
       status: "paid",
       amount: 1234,
       currency: "KRW",
-      period_start: start,
+      period_start: pgTime(start),
       period_end: sub.current_period_end,
       external_payment_id: "pk_0001",
       receipt_url: "https://dashboard.tosspayments.com/receipt/0001",
       card_summary: { issuerCode: "61", number: "1234****", cardType: "신용" },
-      approved_at: "2026-01-31T01:00:05+09:00",
+      refunded_amount: 0,
+      approved_at: "2026-01-30T16:00:05+00:00",
       failure_code: null,
     });
     expect(pay.order_id).toMatch(/^pay_[0-9a-f-]{36}$/);
@@ -186,8 +189,18 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(tossCallCount(deps.toss)).toBe(0);
     expect(store.rows.customers[0]).toEqual(customer);
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "hasActive" });
-    expect(store.rows.subscriptions).toEqual([existing]);
+    expect(store.rows.subscriptions.map((s) => [s.id, s.status])).toEqual([[existing.id, "active"]]);
     expect(store.rows.payments).toHaveLength(0);
+  });
+
+  it("3'. 미납(past_due) 구독도 진행 중 — hasActive, 빌링키 발급 없음", async () => {
+    const pastDue = subscriptionRow({ user_id: USER, status: "past_due", dunning_attempts: 1, grace_until: iso(NOW + 5 * DAY) });
+    const { deps, store, price, input } = setup({ toss: toss(), rows: { subscriptions: [pastDue] } });
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: "hasActive", priceId: price.id });
+    expect(tossCallCount(deps.toss)).toBe(0);
+    expect(store.rows.customers[0].toss_billing_key_enc).toBeNull();
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "hasActive" });
   });
 
   it("4. customerKey가 다르거나 고객 행이 없으면 customerMismatch, 토스 호출 0회", async () => {
@@ -265,6 +278,52 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(deps.mailer.sent).toHaveLength(0);
   });
 
+  it("7''. 거절된 시도를 다시 열면(새로고침) 새 결제 없이 expired", async () => {
+    const { deps, store, price, input } = setup({ toss: toss({ chargeBillingKey: [new TossError("REJECT_CARD_PAYMENT", "한도 초과", 400)] }) });
+    expect(await completeCheckout(deps, input)).toMatchObject({ kind: "error", code: "failed" });
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: "expired", priceId: price.id });
+    expect(deps.toss.calls.issueBillingKey).toHaveLength(1);
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(1);
+    expect(store.rows.payments).toHaveLength(1);
+  });
+
+  it("거절 뒤 정리는 이 실행이 쓴 빌링키만 지운다 — 그 사이 다른 시도가 쓴 빌링키는 남긴다", async () => {
+    const rivalEnc = "v1:rival-iv:rival-tag:rival-ct";
+    const rivalCard = { issuerCode: "11", number: "5555****", cardType: "체크" };
+    const late: { store?: ReturnType<typeof createMemoryStore> } = {};
+    const ctx = setup({
+      toss: toss({
+        chargeBillingKey: [
+          () => {
+            // 결제가 진행되는 사이 같은 사용자의 다른 시도가 새 빌링키를 저장했다
+            Object.assign(late.store!.rows.customers[0], { toss_billing_key_enc: rivalEnc, toss_card_summary: rivalCard });
+            throw new TossError("REJECT_CARD_PAYMENT", "한도 초과", 400);
+          },
+        ],
+      }),
+    });
+    late.store = ctx.store;
+
+    expect(await completeCheckout(ctx.deps, ctx.input)).toMatchObject({ kind: "error", code: "failed" });
+    expect(ctx.store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: rivalEnc, toss_card_summary: rivalCard });
+    expect(ctx.store.rows.payments[0].status).toBe("failed");
+    expect(ctx.store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "REJECT_CARD_PAYMENT" });
+  });
+
+  it("거절이 확정된 뒤 정리 중 저장소 오류가 나도 시도는 failed로 닫고 빌링키를 거둔다(processing·pending으로 남기지 않음)", async () => {
+    const { deps, store, price, input } = setup({ toss: toss({ chargeBillingKey: [new TossError("REJECT_CARD_PAYMENT", "한도 초과", 400)] }) });
+    store.updatePayment = async () => {
+      throw new Error("billing store updatePayment: connection reset");
+    };
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: "failed", priceId: price.id });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "error" });
+    expect(store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: null, toss_card_summary: null });
+    expect(store.rows.subscriptions).toHaveLength(0);
+    expect(deps.log).toHaveBeenCalledTimes(1);
+  });
+
   it("7'. 결제가 카드 문제로 거절(INVALID_STOPPED_CARD)되면 cardRejected", async () => {
     const { deps, store, input } = setup({ toss: toss({ chargeBillingKey: [new TossError("INVALID_STOPPED_CARD", "정지된 카드", 400)] }) });
     expect(await completeCheckout(deps, input)).toMatchObject({ kind: "error", code: "cardRejected" });
@@ -301,6 +360,8 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(await completeCheckout(deps, input)).toEqual({ kind: "pending" });
     expect(store.rows.payments[0].status).toBe("pending");
     expect(store.rows.checkouts[0].status).toBe("processing");
+    expect(deps.log).toHaveBeenCalledTimes(1);
+    expect(String(deps.log.mock.calls[0][0])).toContain("IN_PROGRESS");
 
     // 뒤로 가기 등으로 콜백을 다시 열면 "만료"가 아니라 확인 중 — 새 결제를 유도하지 않는다
     expect(await completeCheckout(deps, input)).toEqual({ kind: "pending" });
@@ -331,7 +392,7 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(out).toEqual({ kind: "error", code: "hasActive", priceId: ctx.price.id });
     const pay = store.rows.payments[0];
     expect(ctx.deps.toss.calls.cancelPayment).toEqual([["pk_0001", { cancelReason: "중복 구독 자동 취소" }, `cancel_${pay.id}`]]);
-    expect(pay).toMatchObject({ status: "refunded", external_payment_id: "pk_0001", subscription_id: null });
+    expect(pay).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: "pk_0001", subscription_id: null });
     expect(store.rows.subscriptions).toEqual([rival]);
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "hasActive" });
     expect(store.rows.consents[0].subscription_id).toBeNull();
@@ -360,7 +421,13 @@ describe("completeCheckout — 첫 정기결제", () => {
 
     expect(out).toEqual({ kind: "error", code: "hasActive", priceId: ctx.price.id });
     expect(ctx.deps.toss.calls.cancelPayment).toHaveLength(1);
-    expect(store.rows.payments[0]).toMatchObject({ status: "paid", failure_code: "CANCEL_FAILED", external_payment_id: "pk_0001", subscription_id: null });
+    expect(store.rows.payments[0]).toMatchObject({
+      status: "paid",
+      failure_code: "CANCEL_FAILED",
+      refunded_amount: 0,
+      external_payment_id: "pk_0001",
+      subscription_id: null,
+    });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "hasActive" });
     expect(store.rows.subscriptions).toEqual([rival]);
     expect(ctx.deps.log).toHaveBeenCalledTimes(1);
@@ -416,6 +483,44 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(store.rows.checkouts[0].status).toBe("processing");
     expect(deps.log).toHaveBeenCalledTimes(1);
   });
+
+  it("빌링키 저장 뒤·결제 전 저장소 오류(결제 행 insert 실패)면 이 실행의 빌링키를 거두고 failed로 닫는다", async () => {
+    const { deps, store, price, input } = setup({ toss: toss() });
+    store.insertPayment = async () => {
+      throw new Error("billing store insertPayment: connection reset");
+    };
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: "failed", priceId: price.id });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: null, toss_card_summary: null });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "error" });
+    expect(deps.log).toHaveBeenCalledTimes(1);
+  });
+
+  it("결제 행 insert가 duplicate면 결제를 보내지 않고 빌링키를 거둔 뒤 failed(duplicate)", async () => {
+    const { deps, store, price, input } = setup({ toss: toss() });
+    store.insertPayment = async () => "duplicate";
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: "failed", priceId: price.id });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: null, toss_card_summary: null });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "duplicate" });
+  });
+
+  it("같은 시도를 동시에 두 번 완료해도 결제 1회·구독 1건", async () => {
+    const { deps, store, input } = setup({ toss: toss() });
+
+    const outs = await Promise.all([completeCheckout(deps, input), completeCheckout(deps, input)]);
+
+    expect(deps.toss.calls.issueBillingKey).toHaveLength(1);
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(1);
+    expect(store.rows.subscriptions).toHaveLength(1);
+    expect(store.rows.payments).toHaveLength(1);
+    const sub = store.rows.subscriptions[0];
+    // 먼저 선점한 쪽이 구독을 만들고, 다른 쪽은 처리 중으로 안내받는다
+    expect(outs).toEqual(expect.arrayContaining([{ kind: "subscribed", subscriptionId: sub.id }, { kind: "pending" }]));
+    expect(deps.mailer.sent).toHaveLength(1);
+  });
 });
 
 describe("activateInitialPayment — 대사도 쓰는 구독 생성", () => {
@@ -442,6 +547,37 @@ describe("activateInitialPayment — 대사도 쓰는 구독 생성", () => {
     expect(store.rows.payments[0]).toMatchObject({ status: "paid", subscription_id: sub.id });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "completed", subscription_id: sub.id });
     expect(deps.mailer.sent).toHaveLength(1);
+  });
+
+  it("구독 금액·영수증은 실제로 청구한 결제 행 값을 쓰고, 응답 금액·주문번호가 다르면 기록한다", async () => {
+    const { deps, store, checkout } = setup();
+    const payment = await store.insertPayment({
+      user_id: USER,
+      subscription_id: null,
+      checkout_id: checkout.id,
+      provider: "toss",
+      livemode: false,
+      kind: "initial",
+      order_id: newOrderId(),
+      amount: 1000,
+      currency: "KRW",
+      period_start: iso(NOW),
+      period_end: iso(NOW + 28 * DAY),
+      attempt: 1,
+      status: "pending",
+    });
+    if (payment === "duplicate") throw new Error("unexpected");
+
+    const subId = await activateInitialPayment(deps, payment, tossPayment({ orderId: "pay_someone_else", totalAmount: 9999 }));
+
+    expect(store.rows.subscriptions[0]).toMatchObject({ id: subId, amount: 1000, currency: "KRW" });
+    expect(deps.mailer.sent[0].data).toMatchObject({ amount: 1000, currency: "KRW" });
+    expect(store.rows.payments[0]).toMatchObject({ status: "paid", amount: 1000, subscription_id: subId });
+    expect(deps.log).toHaveBeenCalledTimes(1);
+    const logged = String(deps.log.mock.calls[0][0]);
+    expect(logged).toContain(payment.id);
+    expect(logged).toContain("9999");
+    expect(logged).not.toContain(BILLING_KEY);
   });
 
   it("시도를 찾지 못하면 null", async () => {
@@ -598,6 +734,23 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     expect((err as Error).message).not.toContain("secret-cipher");
   });
 
+  it("빌링키 조건부 삭제는 암호문이 같을 때만 — 바뀐 행이 있으면 true", async () => {
+    const hit = fakeAdmin({ data: [{ id: "c1" }], error: null });
+    expect(await createSupabaseBillingStore(hit.admin).clearCustomerKeyIf("c1", "v1:mine")).toBe(true);
+    expect(hit.calls).toEqual(
+      expect.arrayContaining([
+        ["from", ["billing_customers"]],
+        ["eq", ["id", "c1"]],
+        ["eq", ["toss_billing_key_enc", "v1:mine"]],
+      ]),
+    );
+    const update = hit.calls.find(([m]) => m === "update");
+    expect(update?.[1][0]).toMatchObject({ toss_billing_key_enc: null, toss_card_summary: null });
+
+    const miss = fakeAdmin({ data: [], error: null });
+    expect(await createSupabaseBillingStore(miss.admin).clearCustomerKeyIf("c1", "v1:mine")).toBe(false);
+  });
+
   it("선점은 open·만료 전·본인 조건을 한 번의 update로 건다", async () => {
     const { admin, calls } = fakeAdmin({ data: null, error: null });
     expect(await createSupabaseBillingStore(admin).claimCheckout("ck1", USER, iso(NOW))).toBeNull();
@@ -616,15 +769,20 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
 });
 
 describe("메일러 — 수신자 조회·주소 조립·실패 삼킴", () => {
-  function mailerAdmin(opts: { email: string | null; locale: string | null; throws?: boolean }) {
-    const profileQuery = fakeAdmin({ data: opts.locale === null ? null : { locale: opts.locale }, error: null });
+  function mailerAdmin(opts: { email: string | null; locale: string | null; authError?: boolean; profileError?: boolean }) {
+    const profileQuery = fakeAdmin(
+      opts.profileError
+        ? { data: null, error: { code: "57014", message: "canceling statement due to statement timeout" } }
+        : { data: opts.locale === null ? null : { locale: opts.locale }, error: null },
+    );
     const admin = {
       auth: {
         admin: {
-          getUserById: async () => {
-            if (opts.throws) throw new Error("auth down");
-            return { data: { user: opts.email ? { email: opts.email } : null }, error: null };
-          },
+          // supabase-js는 던지지 않고 error 객체를 돌려준다
+          getUserById: async () =>
+            opts.authError
+              ? { data: { user: null }, error: { name: "AuthApiError", message: "Database error loading user", status: 500, code: "unexpected_failure" } }
+              : { data: { user: opts.email ? { email: opts.email } : null }, error: null },
         },
       },
       from: (t: string) => (profileQuery.admin as unknown as { from: (t: string) => unknown }).from(t),
@@ -651,22 +809,60 @@ describe("메일러 — 수신자 조회·주소 조립·실패 삼킴", () => {
     expect(opts).toMatchObject({ locale: "en" });
   });
 
-  it("이메일이 없으면 조용히 건너뛰고, 조회·발송 실패는 기록만 하고 삼킨다", async () => {
+  it("이메일이 없으면 조용히 건너뛰고, 조회가 돌려준 오류·발송 실패는 기록만 하고 삼킨다", async () => {
     const logs: string[] = [];
     const log = async (m: string) => {
       logs.push(m);
     };
-    const send = async () => true;
+    let sends = 0;
+    const send = async () => {
+      sends++;
+      return true;
+    };
 
     await createBillingMailer(mailerAdmin({ email: null, locale: "ko" }), log, send).send(USER, "receipt", {});
     expect(logs).toHaveLength(0);
 
-    await expect(createBillingMailer(mailerAdmin({ email: "a@b.c", locale: "ko", throws: true }), log, send).send(USER, "receipt", {})).resolves.toBeUndefined();
-    await createBillingMailer(mailerAdmin({ email: "a@b.c", locale: "ko" }), log, async () => false).send(USER, "receipt", {});
+    await expect(createBillingMailer(mailerAdmin({ email: "a@b.c", locale: "ko", authError: true }), log, send).send(USER, "receipt", {})).resolves.toBeUndefined();
+    await expect(createBillingMailer(mailerAdmin({ email: "a@b.c", locale: "ko", profileError: true }), log, send).send(USER, "receipt", {})).resolves.toBeUndefined();
+    expect(sends).toBe(0);
     expect(logs).toHaveLength(2);
-    expect(logs.join("\n")).not.toContain("a@b.c");
+    expect(logs[0]).toContain("unexpected_failure");
+    expect(logs[1]).toContain("57014");
+
+    await createBillingMailer(mailerAdmin({ email: "a@b.c", locale: "ko" }), log, async () => false).send(USER, "receipt", {});
+    expect(logs).toHaveLength(3);
+    expect(logs.every((l) => l.includes(USER) && !l.includes("a@b.c"))).toBe(true);
 
     await createBillingMailer(mailerAdmin({ email: "a@b.c", locale: "ko" }), log, send).send(null, "receipt", {});
-    expect(logs).toHaveLength(2);
+    expect(logs).toHaveLength(3);
+    expect(sends).toBe(0);
+  });
+});
+
+describe("메모리 저장소 — DB 모양 흉내", () => {
+  it("timestamptz는 PostgREST 모양(+00:00, 소수 초 뒤 0 생략)으로 돌려준다", async () => {
+    expect(pgTime("2026-01-30T16:00:00.000Z")).toBe("2026-01-30T16:00:00+00:00");
+    expect(pgTime("2026-01-30T16:00:05.120Z")).toBe("2026-01-30T16:00:05.12+00:00");
+    expect(pgTime("2026-01-31T01:00:00+09:00")).toBe("2026-01-30T16:00:00+00:00");
+
+    const { store, checkout } = setup();
+    expect((await store.getCheckout(checkout.id))?.expires_at).toBe(pgTime(NOW + 30 * MIN));
+    const sub = await store.insertSubscription({
+      user_id: USER,
+      provider: "toss",
+      livemode: false,
+      plan_code: "pro",
+      price_id: null,
+      amount: 1234,
+      currency: "KRW",
+      interval: "month",
+      current_period_start: iso(NOW),
+      current_period_end: iso(NOW + 28 * DAY),
+      billing_anchor_day: 31,
+    });
+    if (sub === "hasActive") throw new Error("unexpected");
+    expect(sub.current_period_start).toBe("2026-01-30T16:00:00+00:00");
+    expect(sub.current_period_start).not.toBe(iso(NOW));
   });
 });
