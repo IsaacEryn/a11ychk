@@ -22,6 +22,8 @@ export interface SubscriptionExpectation {
   currentPeriodEnd?: string;
   /** 안내 선점: reminder_sent_for가 비었거나 이 시각이 아닐 때만 */
   reminderNotSentFor?: string;
+  /** 해지 예약 여부가 이 값일 때만(예약 만료 종료 — 그 사이 해지를 취소했으면 끝내지 않는다) */
+  cancelAtPeriodEnd?: boolean;
 }
 
 export interface BillingStore {
@@ -56,6 +58,11 @@ export interface BillingStore {
   listPendingPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;
   /** 이 구독에 결과를 모르는(pending) 결제가 있는지 — 나이·개수 제한 없이 */
   hasPendingPayment(subscriptionId: string): Promise<boolean>;
+  /**
+   * 같은 구독·같은 기간 시작의 failed 결제 중 실패 코드가 제외 목록(코드·접두)에 없는 것이 있는지.
+   * 실패 코드가 없는 행은 세지 않는다
+   */
+  hasUserFacingFailure(subscriptionId: string, periodStart: string, exclude: { codes: readonly string[]; prefixes: readonly string[] }): Promise<boolean>;
 }
 
 export type BillingEmailKind = "receipt" | "failed" | "reminder" | "cancelScheduled" | "ended";

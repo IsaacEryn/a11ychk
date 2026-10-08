@@ -48,6 +48,8 @@ const CUSTOMER_KEY = "5b0c7a7e-0f4e-4a40-9c55-8a3f4e1d2c10";
 const BILLING_KEY = "bk_plain_secret_0001";
 const CARD = { issuerCode: "61", number: "1234****", cardType: "신용" };
 const HOUR = 3_600_000;
+/** 설정 사고 뒤 재시도까지 — 다음 날 크론(Hobby ±59분)이 늘 기한이 지난 것으로 보게 24시간보다 짧다 */
+const INCIDENT_RETRY = 20 * HOUR;
 
 /** 앵커 31일: 첫 기간 1/31 01:00 KST → 2/28 01:00 KST(짧은 달 말일) */
 const START = iso(NOW);
@@ -385,7 +387,7 @@ describe("갱신 결제", () => {
     expect(row(sub.id)).toMatchObject({
       status: "past_due",
       dunning_attempts: 1,
-      next_retry_at: pgTime(E - HOUR + DAY),
+      next_retry_at: pgTime(E - HOUR + INCIDENT_RETRY),
       grace_until: pgTime(E + 7 * DAY),
       current_period_end: pgTime(END),
     });
@@ -427,7 +429,7 @@ describe("갱신 결제", () => {
     expect(store.rows.subscriptions[0]).toMatchObject({
       status: "past_due",
       dunning_attempts: 3,
-      next_retry_at: pgTime(E + 4 * DAY),
+      next_retry_at: pgTime(E + 3 * DAY + INCIDENT_RETRY),
       grace_until: pgTime(E + 10 * DAY),
     });
     expect(store.rows.payments[0]).toMatchObject({ kind: "retry", attempt: 3, status: "failed", failure_code: "FORBIDDEN_REQUEST" });
@@ -470,18 +472,26 @@ describe("갱신 결제", () => {
     expect(store.rows.payments[0]).toMatchObject({ status: "failed", failure_code: "NO_BILLING_KEY" });
   });
 
-  it("암호문을 풀 수 없으면(암호화 키가 바뀜) 운영 사고 — DECRYPT_FAILED·메일 없음·다음 날 재시도·남은 결제 멈춤", async () => {
+  it("암호문을 풀 수 없으면 그 행만의 사고 — DECRYPT_FAILED·메일 없음·나중에 재시도, 다음 후보는 그대로 결제한다", async () => {
     const foreign = encryptBillingKey(BILLING_KEY, { userId: USER, livemode: false }, randomBytes(32));
-    const { deps, store, sub, second, third, row } = withMore({}, { reminder: true });
+    const { deps, store, sub, second, third, row } = withMore({ chargeBillingKey: [done] }, { reminder: true });
     store.rows.customers[0].toss_billing_key_enc = foreign;
 
-    expect(await runBillingCycle(deps, false)).toMatchObject({ charge_halted: 1, halted: 1, halt_skipped: 1, remind: 1 });
-    expect(tossCalls(deps)).toBe(0);
-    expect(row(sub.id)).toMatchObject({ status: "past_due", dunning_attempts: 1, next_retry_at: pgTime(E - HOUR + DAY), grace_until: pgTime(E + 7 * DAY) });
-    expect(store.rows.payments).toHaveLength(1);
-    expect(store.rows.payments[0]).toMatchObject({ status: "failed", failure_code: "DECRYPT_FAILED" });
-    expect(row(second.id)).toMatchObject({ status: "active", dunning_attempts: 0 });
-    expect(deps.mailer.sent.map((m) => [m.userId, m.kind])).toEqual([[USER3, "reminder"]]);
+    const out = await runBillingCycle(deps, false);
+    expect(out).toMatchObject({ charge_incident: 1, charge_paid: 1, remind: 1 });
+    expect(out.halted).toBeUndefined();
+    expect(out.halt_skipped).toBeUndefined();
+    // 사고 난 행은 토스를 부르지 않고, 다음 후보만 결제됐다
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(1);
+    expect(row(sub.id)).toMatchObject({ status: "past_due", dunning_attempts: 1, next_retry_at: pgTime(E - HOUR + INCIDENT_RETRY), grace_until: pgTime(E + 7 * DAY) });
+    const own = store.rows.payments.filter((p) => p.subscription_id === sub.id);
+    expect(own).toHaveLength(1);
+    expect(own[0]).toMatchObject({ status: "failed", failure_code: "DECRYPT_FAILED" });
+    expect(row(second.id)).toMatchObject({ status: "active", current_period_start: pgTime(E + 10 * MIN) });
+    expect(deps.mailer.sent.map((m) => [m.userId, m.kind])).toEqual([
+      [USER2, "receipt"],
+      [USER3, "reminder"],
+    ]);
     expect(row(third.id).status).toBe("active");
     // 고객 행의 암호문은 지우지 않는다(키를 되돌리면 다시 쓸 수 있다)
     expect(store.rows.customers[0].toss_billing_key_enc).toBe(foreign);
@@ -489,6 +499,77 @@ describe("갱신 결제", () => {
     expect(logged(deps)).toContain("DECRYPT_FAILED");
     expect(logged(deps)).not.toContain(BILLING_KEY);
     expect(logged(deps)).not.toContain(foreign);
+  });
+
+  it("INVALID_REQUEST는 그 행만의 사고 — 메일 없이 미납·나중에 재시도, 다음 후보는 결제한다", async () => {
+    const { deps, store, sub, second, row } = withMore({ chargeBillingKey: [reject("INVALID_REQUEST", "bad body", 400), done] });
+    const out = await runBillingCycle(deps, false);
+    expect(out).toMatchObject({ charge_incident: 1, charge_paid: 1 });
+    expect(out.halted).toBeUndefined();
+    expect(row(sub.id)).toMatchObject({ status: "past_due", dunning_attempts: 1, next_retry_at: pgTime(E - HOUR + INCIDENT_RETRY) });
+    expect(store.rows.payments.find((p) => p.subscription_id === sub.id)).toMatchObject({ status: "failed", failure_code: "INVALID_REQUEST" });
+    expect(row(second.id).current_period_start).toBe(pgTime(E + 10 * MIN));
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["receipt"]);
+    expect(deps.log).toHaveBeenCalledTimes(1);
+    expect(logged(deps)).not.toContain("bad body");
+  });
+
+  it("운영 사고 뒤 첫 실제 카드 거절은 실패 메일을 한 번 보낸다", async () => {
+    const declined = () => reject("REJECT_CARD_PAYMENT", "한도가 초과됐어요");
+    const { deps, store, clock } = setup({ toss: { chargeBillingKey: [reject("INVALID_REQUEST", "bad body", 400), declined(), declined()] } });
+    await runBillingCycle(deps, false);
+    expect(deps.mailer.sent).toHaveLength(0);
+
+    clock.t = E - HOUR + DAY;
+    expect(await runBillingCycle(deps, false)).toMatchObject({ retry_failed: 1 });
+    expect(store.rows.subscriptions[0]).toMatchObject({ dunning_attempts: 2, next_retry_at: pgTime(E + 3 * DAY) });
+    expect(deps.mailer.sent).toEqual([
+      { userId: USER, kind: "failed", data: { planName: "Pro", amount: 1234, currency: "KRW", graceUntil: iso(E + 7 * DAY), needsCardChange: false } },
+    ]);
+
+    clock.t = E + 3 * DAY;
+    expect(await runBillingCycle(deps, false)).toMatchObject({ retry_failed: 1 });
+    expect(deps.mailer.sent).toHaveLength(1);
+  });
+
+  it("대사로 확정한 실패 뒤 첫 실제 카드 거절은 실패 메일을 한 번 보낸다", async () => {
+    const declined = () => reject("REJECT_CARD_PAYMENT", "한도가 초과됐어요");
+    const { deps, clock } = setup({
+      toss: { chargeBillingKey: [new TossError("NETWORK", "toss request failed (network)", 0), declined(), declined()], getPaymentByOrderId: [null] },
+    });
+    await runBillingCycle(deps, false);
+    clock.t = E - HOUR + DAY;
+    expect(await runBillingCycle(deps, false)).toMatchObject({ reconciled_failed: 1 });
+    expect(deps.mailer.sent).toHaveLength(0);
+
+    clock.t = E + DAY;
+    expect(await runBillingCycle(deps, false)).toMatchObject({ retry_failed: 1 });
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["failed"]);
+    clock.t = E + 3 * DAY;
+    expect(await runBillingCycle(deps, false)).toMatchObject({ retry_failed: 1 });
+    expect(deps.mailer.sent).toHaveLength(1);
+  });
+
+  it("한 기간에 실제 거절이 두 번이면 메일은 한 번 — 다음 기간의 첫 거절은 다시 보낸다", async () => {
+    const declined = () => reject("REJECT_CARD_PAYMENT", "한도가 초과됐어요");
+    const { deps, store, clock, sub } = setup({ toss: { chargeBillingKey: [declined(), declined(), declined()] } });
+    await runBillingCycle(deps, false);
+    clock.t = E + DAY;
+    await runBillingCycle(deps, false);
+    expect(deps.mailer.sent).toHaveLength(1);
+
+    // 구독이 다음 기간으로 넘어간 뒤 그 갱신(END2 시작)의 첫 거절 — 지난 기간의 거절 기록은 세지 않는다
+    Object.assign(store.rows.subscriptions[0], {
+      status: "active",
+      current_period_start: pgTime(END),
+      current_period_end: pgTime(END2),
+      dunning_attempts: 0,
+      next_retry_at: null,
+      grace_until: null,
+    });
+    clock.t = Date.parse(END2) - HOUR;
+    expect(await chargeSubscription(deps, (await store.getSubscription(sub.id))!, "renewal")).toBe("failed");
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["failed", "failed"]);
   });
 
   it.each<[string, number]>([
@@ -634,6 +715,19 @@ describe("갱신 결제", () => {
     };
     await expect(chargeSubscription(deps, sub, "renewal")).rejects.toThrow("connection reset");
     expect(store.rows.payments[0].status).toBe("pending");
+  });
+
+  it("재시도 결제가 토스에서 취소됐으면 기록에 결제 종류(retry)를 적는다", async () => {
+    const { deps, store, sub } = setup({
+      sub: { status: "past_due", dunning_attempts: 1, next_retry_at: iso(E + DAY), grace_until: iso(E + 7 * DAY) },
+      at: E + 2 * DAY,
+      toss: { getPaymentByOrderId: [lookup("CANCELED", { totalAmount: 1234, balanceAmount: 0 })] },
+    });
+    const p = paymentRow({ user_id: USER, kind: "retry", attempt: 2, period_start: END, period_end: END2, requested_at: iso(E + DAY) });
+    store.rows.payments.push({ ...p, subscription_id: sub.id, period_start: pgTime(END), period_end: pgTime(END2), requested_at: pgTime(p.requested_at) });
+    await reconcilePending(deps, false);
+    expect(logged(deps)).toContain("manual check: retry canceled at Toss");
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "past_due", dunning_attempts: 2, next_retry_at: null });
   });
 
   it("갱신 결제가 토스에서 취소(CANCELED)됐으면 환불로 적고 재시도 없는 미납으로 넘기며 운영자 확인을 남긴다", async () => {
@@ -878,6 +972,35 @@ describe("해지·종료", () => {
     expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", current_period_end: pgTime(END2) });
     expect(store.rows.customers[0].toss_billing_key_enc).toMatch(/^v1:/);
     expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("해지 예약 만료를 판정한 뒤 사용자가 해지를 취소했으면(재개) 끝내지 않는다", async () => {
+    const { deps, store, sub } = setup({ sub: { cancel_at_period_end: true, canceled_at: iso(NOW + DAY) }, at: E });
+    const realGet = store.getSubscription.bind(store);
+    store.getSubscription = async (id) => {
+      const read = await realGet(id);
+      // 다시 읽은 바로 뒤 해지 취소(재개)가 들어왔다
+      await store.updateSubscription(sub.id, { cancel_at_period_end: false, canceled_at: null });
+      return read;
+    };
+    expect(await runBillingCycle(deps, false)).toMatchObject({ changed: 1 });
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", cancel_at_period_end: false });
+    expect(store.rows.customers[0].toss_billing_key_enc).toMatch(/^v1:/);
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("종료 뒤 빌링키 정리가 실패하면 기록만 남기고 종료·메일은 그대로", async () => {
+    const { deps, store, sub, enc } = setup({ sub: { cancel_at_period_end: true, canceled_at: iso(NOW + DAY) }, at: E });
+    store.clearCustomerKeyIf = async () => {
+      throw new Error("billing store clearCustomerKeyIf: connection reset");
+    };
+    expect(await runBillingCycle(deps, false)).toMatchObject({ end_canceled: 1, errors: 0 });
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled" });
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["ended"]);
+    const text = logged(deps);
+    expect(text).toContain("needs review: key cleanup");
+    expect(text).toContain(sub.id);
+    expect(text).not.toContain(enc);
   });
 
   it("10분이 안 된 pending 결제(카드 변경 재결제 진행 중)가 있으면 유예가 끝나도 끝내지 않는다", async () => {

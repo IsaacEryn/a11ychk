@@ -25,6 +25,7 @@ import {
   customerRow,
   iso,
   makeDeps,
+  paymentRow,
   pgTime,
   priceRow,
   subscriptionRow,
@@ -775,10 +776,15 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     const update = hit.calls.find(([m]) => m === "update");
     expect(update?.[1][0]).toMatchObject({ reminder_sent_for: end });
 
+    const canceled = fakeAdmin({ data: [{ id: "s1" }], error: null });
+    await createSupabaseBillingStore(canceled.admin).updateSubscriptionIf("s1", { statuses: ["active"], cancelAtPeriodEnd: true }, { status: "ended" });
+    expect(canceled.calls).toEqual(expect.arrayContaining([["eq", ["cancel_at_period_end", true]]]));
+
     const plain = fakeAdmin({ data: [], error: null });
     expect(await createSupabaseBillingStore(plain.admin).updateSubscriptionIf("s1", { statuses: ["active", "past_due"] }, { status: "ended" })).toBe(false);
     expect(plain.calls.some(([m, a]) => m === "eq" && a[0] === "current_period_end")).toBe(false);
     expect(plain.calls.some(([m]) => m === "or")).toBe(false);
+    expect(plain.calls.some(([m, a]) => m === "eq" && a[0] === "cancel_at_period_end")).toBe(false);
 
     const boom = fakeAdmin({ data: null, error: { message: "permission denied" } });
     await expect(createSupabaseBillingStore(boom.admin).updateSubscriptionIf("s1", { statuses: ["active"] }, {})).rejects.toThrow(
@@ -800,6 +806,44 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     expect(await createSupabaseBillingStore(fakeAdmin({ data: [], error: null }).admin).hasPendingPayment("s1")).toBe(false);
   });
 
+  it("사용자에게 알린 실패가 있는지 — 같은 구독·같은 기간 시작의 failed 중 제외 코드·접두가 아닌 것", async () => {
+    const start = "2026-02-27T16:00:00+00:00";
+    const yes = fakeAdmin({ data: [{ id: "p1" }], error: null });
+    expect(await createSupabaseBillingStore(yes.admin).hasUserFacingFailure("s1", start, { codes: ["DECRYPT_FAILED", "UNAUTHORIZED_KEY"], prefixes: ["RECONCILED_"] })).toBe(true);
+    expect(yes.calls).toEqual(
+      expect.arrayContaining([
+        ["from", ["billing_payments"]],
+        ["eq", ["subscription_id", "s1"]],
+        ["eq", ["period_start", start]],
+        ["eq", ["status", "failed"]],
+        ["filter", ["failure_code", "not.is", null]],
+        ["filter", ["failure_code", "not.in", "(DECRYPT_FAILED,UNAUTHORIZED_KEY)"]],
+        ["filter", ["failure_code", "not.like", "RECONCILED_%"]],
+        ["limit", [1]],
+      ]),
+    );
+    expect(await createSupabaseBillingStore(fakeAdmin({ data: [], error: null }).admin).hasUserFacingFailure("s1", start, { codes: [], prefixes: [] })).toBe(false);
+
+    // 메모리 가짜도 같은 규칙
+    const sub = subscriptionRow({ user_id: USER });
+    const base = { user_id: USER, subscription_id: sub.id, kind: "retry" as const, status: "failed" as const, period_start: iso(NOW) };
+    const store = createMemoryStore({
+      subscriptions: [sub],
+      payments: [
+        paymentRow({ ...base, attempt: 1, failure_code: "DECRYPT_FAILED" }),
+        paymentRow({ ...base, attempt: 2, failure_code: "RECONCILED_NOT_FOUND" }),
+        paymentRow({ ...base, attempt: 3, period_start: iso(NOW - 28 * DAY), failure_code: "REJECT_CARD_PAYMENT" }),
+        paymentRow({ ...base, attempt: 4, status: "pending", failure_code: null }),
+      ],
+    });
+    const exclude = { codes: ["DECRYPT_FAILED"], prefixes: ["RECONCILED_"] };
+    expect(await store.hasUserFacingFailure(sub.id, pgTime(NOW), exclude)).toBe(false);
+    store.rows.payments.push({ ...paymentRow({ ...base, attempt: 5, failure_code: "REJECT_CARD_PAYMENT" }), period_start: pgTime(NOW) });
+    // 표기가 달라도(Z) 같은 기간 시작
+    expect(await store.hasUserFacingFailure(sub.id, iso(NOW), exclude)).toBe(true);
+    expect(await store.hasUserFacingFailure("other-sub", iso(NOW), exclude)).toBe(false);
+  });
+
   it("메모리 저장소의 조건부 갱신도 같은 시각이면 표기(+00:00·Z)가 달라도 같다고 본다", async () => {
     const sub = subscriptionRow({ user_id: USER, current_period_end: iso(NOW + 28 * DAY), reminder_sent_for: null });
     const store = createMemoryStore({ subscriptions: [sub] });
@@ -815,6 +859,9 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     expect(await store.updateSubscriptionIf(sub.id, { ...claim, reminderNotSentFor: end }, { reminder_sent_for: end })).toBe(false);
     expect(store.rows.subscriptions[0].reminder_sent_for).toBe(pgTime(end));
     expect(await store.hasPendingPayment(sub.id)).toBe(false);
+    // 해지 예약 조건 — 예약이 없으면 끝내지 않는다
+    expect(await store.updateSubscriptionIf(sub.id, { statuses: ["active"], cancelAtPeriodEnd: true }, { status: "ended", ended_reason: "user_canceled" })).toBe(false);
+    expect(store.rows.subscriptions[0].status).toBe("active");
   });
 
   it("선점은 open·만료 전·본인 조건을 한 번의 update로 건다", async () => {

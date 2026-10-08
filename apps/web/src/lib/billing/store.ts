@@ -178,6 +178,7 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .in("status", expected.statuses);
       // timestamptz 비교라 표기(+00:00·Z)가 달라도 같은 시각이면 맞는다
       if (expected.currentPeriodEnd !== undefined) query = query.eq("current_period_end", expected.currentPeriodEnd);
+      if (expected.cancelAtPeriodEnd !== undefined) query = query.eq("cancel_at_period_end", expected.cancelAtPeriodEnd);
       if (expected.reminderNotSentFor !== undefined) {
         // NULL은 neq로 걸리지 않아 따로 둔다. 시각에는 PostgREST 예약 문자(:, .)가 있어 큰따옴표로 감싼다
         query = query.or(`reminder_sent_for.is.null,reminder_sent_for.neq."${expected.reminderNotSentFor}"`);
@@ -232,6 +233,22 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .eq("status", "pending")
         .limit(1);
       if (error) throw fail("hasPendingPayment", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async hasUserFacingFailure(subscriptionId, periodStart, exclude) {
+      let query = admin
+        .from("billing_payments")
+        .select("id")
+        .eq("subscription_id", subscriptionId)
+        .eq("period_start", periodStart)
+        .eq("status", "failed")
+        .filter("failure_code", "not.is", null);
+      // 실패 코드는 토스·흐름이 정한 대문자·밑줄 모양이라 따옴표 없이 목록에 넣는다
+      if (exclude.codes.length > 0) query = query.filter("failure_code", "not.in", `(${exclude.codes.join(",")})`);
+      for (const prefix of exclude.prefixes) query = query.filter("failure_code", "not.like", `${prefix}%`);
+      const { data, error } = await query.limit(1);
+      if (error) throw fail("hasUserFacingFailure", error);
       return Array.isArray(data) && data.length > 0;
     },
   };

@@ -52,7 +52,8 @@ const CARD_ACTION = new Set([
   "NOT_SUPPORTED_CARD_TYPE",
 ]);
 /** 설정·코드 오류 — 재시도해도 같다. 관리자가 봐야 한다 */
-const FATAL = new Set(["UNAUTHORIZED_KEY", "INVALID_API_KEY", "INVALID_REQUEST", "FORBIDDEN_REQUEST"]);
+export const FATAL_TOSS_CODES = ["UNAUTHORIZED_KEY", "INVALID_API_KEY", "INVALID_REQUEST", "FORBIDDEN_REQUEST"] as const;
+const FATAL = new Set<string>(FATAL_TOSS_CODES);
 
 /** 모르는 코드는 재시도 쪽으로 — 재시도는 유예 기간 안에서만 일어나 손해가 작다 */
 export function classifyTossError(code: string): TossErrorKind {

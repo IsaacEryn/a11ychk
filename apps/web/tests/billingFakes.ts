@@ -276,6 +276,7 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       if (!(expected.statuses as string[]).includes(s.status)) return false;
       if (expected.currentPeriodEnd !== undefined && !sameInstant(s.current_period_end, expected.currentPeriodEnd)) return false;
       if (expected.reminderNotSentFor !== undefined && sameInstant(s.reminder_sent_for, expected.reminderNotSentFor)) return false;
+      if (expected.cancelAtPeriodEnd !== undefined && s.cancel_at_period_end !== expected.cancelAtPeriodEnd) return false;
       const next: SubscriptionRow = withPgTimes({ ...s, ...defined(clone(patch)) }, SUBSCRIPTION_TIMES);
       checkSubscription("updateSubscriptionIf", next);
       if (liveConflict(rows.subscriptions, next)) throw storeError("updateSubscriptionIf", "duplicate key value violates unique constraint");
@@ -307,6 +308,18 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
 
     async hasPendingPayment(subscriptionId) {
       return rows.payments.some((p) => p.subscription_id === subscriptionId && p.status === "pending");
+    },
+
+    async hasUserFacingFailure(subscriptionId, periodStart, exclude) {
+      return rows.payments.some(
+        (p) =>
+          p.subscription_id === subscriptionId &&
+          sameInstant(p.period_start, periodStart) &&
+          p.status === "failed" &&
+          p.failure_code !== null &&
+          !exclude.codes.includes(p.failure_code) &&
+          !exclude.prefixes.some((prefix) => p.failure_code!.startsWith(prefix)),
+      );
     },
   };
 }
