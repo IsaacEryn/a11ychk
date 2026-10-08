@@ -2294,7 +2294,7 @@
           "paid": "Your payment card has been changed and the overdue payment went through.",
           "pending": "Your payment card has been changed. We are confirming the overdue payment, which can take up to a day; once it is confirmed, the result will appear on this page.",
           "failed": "Your payment card has been changed, but the payment with the new card did not go through. Please check the card or change to another card.",
-          "refunded": "The subscription has already ended, so this payment will be canceled automatically. To use the service again, please start a new subscription."
+          "refunded": "The subscription had already ended, so we canceled this payment automatically. To use the service again, please start a new subscription."
         }
       },
       "returnErrors": {

@@ -200,6 +200,8 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 탈퇴한 첫 결제) 토스 결제를 자동 취소하고 결제 행을 `refunded`로 적는다(`app_errors`에 `billing auto-canceled payment …`).
 취소에 실패하면 결제는 `paid`·`CANCEL_FAILED`로 남고 `billing needs review: automatic cancel failed …`가 기록된다. 구독은
 진행 중인데 결제가 다른 기간의 것이면 자동 취소하지 않고 `needs review`만 남긴다(그 기간이 다른 결제로 넘어갔는지 사람이 본다).
+이렇게 운영자 확인이 필요한 결제는 `cron_runs` 요약에 `charge_review`·`retry_review`·`reconciled_review`로 따로 세어지고,
+관리자 결제 테스트 도구의 실행 결과에도 문제로 표시된다.
 
 안내 시점·재시도 간격·유예 기간은 `apps/web/src/lib/billing/period.ts`에 있다. 실행 결과는 `cron_runs`에 남는다:
 `select started_at, ok, summary from cron_runs where job='billing' order by started_at desc limit 7;`
@@ -229,11 +231,13 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
   (메일 없음). 계정 삭제가 실패하면 구독은 그대로다. 빌링키는 고객 행과 함께 지워지므로 계정을 지운 뒤에는 새 청구가 시작되지 않는다.
   `billing needs review: subscription … renewed during account deletion (payment …)`는 끝낼 구독을 모은 뒤 계정을 지우기 전에
   갱신 결제가 승인돼 기간이 넘어갔다는 뜻으로, 구독은 그래도 끝냈지만 그 결제는 자동 취소하지 않았으니 처리(환불 여부)를 운영자가 정한다.
+  같은 줄 끝이 `(payment lookup failed)`이면 결제 조회가 실패한 것이니 그 구독 id로 `billing_payments`를 직접 조회해 확인한다.
   구독을 끝내지 못하면 `billing needs review: subscriptions … could not be ended after account deletion`이 남는데, 그 구독은
   빌링키가 없어 미납 → 유예 → 종료로 저절로 끝난다. 결제 상태는 탈퇴를 막지 않는다. 결과를 모르는 결제가 남은 채 탈퇴하면
   `billing needs review: account deleted with pending payment…`가 남는다. 그 결제가 나중에 승인으로 확인되면 크론의 대사가
   줄 기간이 없음을 보고 자동 취소한다(위 "받은 돈과 이용 기간이 어긋나지 않게"). 이 경우에는 자동 취소 실패 기록이 있을 때만 토스
-  상점관리자에서 그 결제를 찾아 환불한다:
+  상점관리자에서 그 결제를 찾아 환불한다. 탈퇴 정리가 결제 확정과 거의 같은 순간에 겹치면 pending 기록만 남고 그 결제가 `paid`로
+  끝날 수 있으니, pending 기록이 있으면 그 결제가 결국 어떤 상태로 끝났는지도 확인한다:
   `select created_at, message from app_errors where message like 'billing needs review:%' order by created_at desc;`
   구독·결제·동의 기록은 `user_id`만 비워서 남는다. 고객 행(빌링키 암호문)은 계정과 함께 지워진다.
 - **로컬 로그인** — 로그인 폼의 Turnstile 위젯이 통과하려면 `localhost`가 위젯의 허용 도메인에 있어야 한다.
