@@ -1,10 +1,13 @@
 import { describe, expect, it } from "vitest";
+import { encryptBillingKey } from "../src/lib/billing/crypto";
 import { cancelSubscription, endSubscriptionsForDeletion, resumeSubscription } from "../src/lib/billing/flows/manage";
+import { decideRenewalAction, runBillingCycle } from "../src/lib/billing/flows/renew";
 import type { CustomerRow, SubscriptionRow } from "../src/lib/billing/types";
 import {
   DAY,
   MIN,
   NOW,
+  createFakeToss,
   createMemoryStore,
   customerRow,
   iso,
@@ -12,6 +15,7 @@ import {
   paymentRow,
   pgTime,
   subscriptionRow,
+  tossPayment,
   type FakeDeps,
   type MemoryRows,
 } from "./billingFakes";
@@ -70,14 +74,20 @@ describe("cancelSubscription — 해지", () => {
     expect(deps.mailer.sent).toHaveLength(0);
   });
 
-  it("past_due → 바로 끝냄(endedNow): ended·user_canceled·ended_at, 빌링키·카드 요약을 지우고 ended(canceled) 메일", async () => {
+  it("past_due → 바로 끝냄(endedNow): 예약을 먼저 쓰고 ended·user_canceled·ended_at, 빌링키·카드 요약을 지우고 ended(canceledNow) 메일", async () => {
     const deps = setup({ subscriptions: [pastDue()], customers: [keyed()] });
 
     expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("endedNow");
 
-    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({
+      status: "ended",
+      ended_reason: "user_canceled",
+      ended_at: pgTime(NOW),
+      cancel_at_period_end: true,
+      canceled_at: pgTime(NOW),
+    });
     expect(deps.store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: null, toss_card_summary: null });
-    expect(deps.mailer.sent).toEqual([{ userId: USER, kind: "ended", data: { planName: "Pro", reason: "canceled" } }]);
+    expect(deps.mailer.sent).toEqual([{ userId: USER, kind: "ended", data: { planName: "Pro", reason: "canceledNow" } }]);
     expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
   });
 
@@ -108,7 +118,7 @@ describe("cancelSubscription — 해지", () => {
     expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["ended"]);
   });
 
-  it("past_due인데 결과를 모르는 결제가 있으면 busy — 끝내지 않는다(그 재시도가 실제로 청구됐을 수 있다)", async () => {
+  it("past_due인데 결과를 모르는 결제가 있으면 busy — 끝내지 않고 쓴 예약도 되돌린다(그 재시도가 실제로 청구됐을 수 있다)", async () => {
     const sub = pastDue();
     const pending = paymentRow({
       user_id: USER,
@@ -122,9 +132,55 @@ describe("cancelSubscription — 해지", () => {
     const deps = setup({ subscriptions: [sub], customers: [keyed()], payments: [pending] });
 
     expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("busy");
-    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "past_due", ended_at: null, cancel_at_period_end: false });
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "past_due", ended_at: null, cancel_at_period_end: false, canceled_at: null });
     expect(deps.store.rows.customers[0].toss_billing_key_enc).toBe(OLD_KEY);
     expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("active인데 결과를 모르는 결제(갱신)가 있으면 busy — 예약을 쓴 뒤 보고 되돌린다, 메일 없음", async () => {
+    const sub = subscriptionRow({ user_id: USER, current_period_end: iso(NOW + 12 * 3_600_000) });
+    const pending = paymentRow({ user_id: USER, subscription_id: sub.id, kind: "renewal", period_start: sub.current_period_end, requested_at: iso(NOW - MIN) });
+    const deps = setup({ subscriptions: [sub], payments: [pending] });
+    const writes: Array<boolean | undefined> = [];
+    const update = deps.store.updateSubscriptionIf.bind(deps.store);
+    deps.store.updateSubscriptionIf = async (id, expected, patch) => {
+      writes.push(patch.cancel_at_period_end);
+      return update(id, expected, patch);
+    };
+
+    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("busy");
+    // 먼저 쓰고(true) 보고 되돌렸다(false)
+    expect(writes).toEqual([true, false]);
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "active", cancel_at_period_end: false, canceled_at: null });
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("되돌리는 사이 그 결제가 확정돼 기간이 넘어갔으면 기록하고 다시 읽어 알린다(already) — 성공 메일 없음", async () => {
+    const sub = subscriptionRow({ user_id: USER, current_period_end: iso(NOW + 12 * 3_600_000) });
+    const nextEnd = iso(NOW + 12 * 3_600_000 + 28 * DAY);
+    const pending = paymentRow({ user_id: USER, subscription_id: sub.id, kind: "renewal", period_start: sub.current_period_end, requested_at: iso(NOW - MIN) });
+    const deps = setup({ subscriptions: [sub], payments: [pending] });
+    const check = deps.store.hasPendingPayment.bind(deps.store);
+    deps.store.hasPendingPayment = async (id) => {
+      const result = await check(id);
+      // 본 직후 대사가 paid로 확정해 기간을 전진시켰다(예약은 그대로 — settlePaid는 예약을 건드리지 않는다)
+      deps.store.rows.payments[0].status = "paid";
+      Object.assign(deps.store.rows.subscriptions[0], { current_period_start: pgTime(sub.current_period_end), current_period_end: pgTime(nextEnd) });
+      return result;
+    };
+
+    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("already");
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ cancel_at_period_end: true, current_period_end: pgTime(nextEnd) });
+    expect(deps.log.mock.calls.map(([m]) => m).join("\n")).toContain(`reverting the cancellation of subscription ${sub.id} failed`);
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("앞선 해지가 예약만 쓰고 멈춘 past_due(예약 있음)는 이어서 바로 끝낸다", async () => {
+    const deps = setup({ subscriptions: [pastDue({ cancel_at_period_end: true, canceled_at: iso(NOW - MIN) })], customers: [keyed()] });
+
+    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("endedNow");
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled", canceled_at: pgTime(NOW - MIN) });
+    expect(deps.mailer.sent.map((m) => m.data.reason)).toEqual(["canceledNow"]);
   });
 
   it("진행 중 구독이 없거나 토스 구독이 아니면 notFound — 다른 모드·다른 사람·기관 계약은 건드리지 않는다", async () => {
@@ -216,11 +272,15 @@ describe("cancelSubscription — 해지", () => {
       expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["cancelScheduled"]);
     });
 
-    it("조건부 갱신이 계속 실패하면 성공으로 알리지 않는다(busy) — 행·메일 그대로", async () => {
+    it("조건부 갱신이 계속 실패하면 성공으로 알리지 않는다(retryLater — 결제 확인 중인 busy와 다른 안내) — 행·메일 그대로", async () => {
       const deps = setup({ subscriptions: [subscriptionRow({ user_id: USER })] });
       deps.store.updateSubscriptionIf = async () => false;
 
-      expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("busy");
+      expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("retryLater");
+      expect(await resumeSubscription(deps, USER, LIVEMODE)).toBe("notFound");
+      deps.store.rows.subscriptions[0].cancel_at_period_end = true;
+      expect(await resumeSubscription(deps, USER, LIVEMODE)).toBe("retryLater");
+      deps.store.rows.subscriptions[0].cancel_at_period_end = false;
       expect(deps.store.rows.subscriptions[0].cancel_at_period_end).toBe(false);
       expect(deps.mailer.sent).toHaveLength(0);
     });
@@ -353,5 +413,144 @@ describe("endSubscriptionsForDeletion — 탈퇴 전 정리", () => {
     };
     expect(await endSubscriptionsForDeletion(racing, USER, NOW)).toBe(0);
     expect(racing.rows.subscriptions[0].ended_reason).toBe("payment_failed");
+  });
+});
+
+describe("해지와 결제 크론의 경합 — 양쪽 다 먼저 쓰고 나중에 읽는다", () => {
+  const HOUR = 3_600_000;
+  const BILLING_KEY = "bk_plain_secret_0001";
+  const done = (_bk: string, req: { orderId: string; amount: number }) =>
+    tossPayment({ paymentKey: `pk_${req.orderId}`, orderId: req.orderId, totalAmount: req.amount });
+
+  /** 크론이 결제할 수 있는 구독 — 빌링키(진짜 암호문)가 있는 고객 행과 함께 */
+  function cronSetup(sub: SubscriptionRow, chargeSteps: Array<typeof done> = []) {
+    const deps = makeDeps({ toss: createFakeToss({ chargeBillingKey: chargeSteps }), now: () => NOW });
+    const enc = encryptBillingKey(BILLING_KEY, { userId: USER, livemode: LIVEMODE }, deps.encKey);
+    deps.store.rows.subscriptions.push(structuredClone(sub));
+    deps.store.rows.customers.push(keyed({ toss_billing_key_enc: enc }));
+    return deps;
+  }
+
+  /** 다음 크론 실행 한 번만 — 후보를 읽은 직후(결제 전)에 사용자가 해지한다 */
+  function cancelAfterCandidates(deps: FakeDeps, results: string[]) {
+    const list = deps.store.listCycleCandidates.bind(deps.store);
+    let armed = true;
+    deps.store.listCycleCandidates = async (...args) => {
+      const candidates = await list(...args);
+      if (armed) {
+        armed = false;
+        results.push(await cancelSubscription(deps, USER, LIVEMODE));
+      }
+      return candidates;
+    };
+  }
+
+  /** 결제 기한이 된 active 구독 — 기간 끝 12시간 전(갱신 결제는 하루 전부터) */
+  const dueActive = () =>
+    subscriptionRow({ user_id: USER, current_period_start: iso(NOW - 27 * DAY), current_period_end: iso(NOW + 12 * HOUR) });
+
+  it("후보를 읽은 뒤 해지를 예약하면 크론은 토스를 부르지 않고 결제 행도 남기지 않는다", async () => {
+    const deps = cronSetup(dueActive(), [done]);
+    const results: string[] = [];
+    cancelAfterCandidates(deps, results);
+
+    const summary = await runBillingCycle(deps, LIVEMODE);
+
+    expect(results).toEqual(["scheduled"]);
+    expect(summary).toMatchObject({ charge_skipped: 1 });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(deps.store.rows.payments).toHaveLength(0);
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "active", cancel_at_period_end: true });
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["cancelScheduled"]);
+  });
+
+  it("건너뛴 뒤 기간 끝 전에 재개하면 다음 실행이 실제로 결제한다(실패 행이 시도 칸을 막는 좀비 회귀)", async () => {
+    const sub = dueActive();
+    const deps = cronSetup(sub, [done]);
+    const results: string[] = [];
+    cancelAfterCandidates(deps, results);
+    expect(await runBillingCycle(deps, LIVEMODE)).toMatchObject({ charge_skipped: 1 });
+    expect(deps.store.rows.payments).toHaveLength(0);
+
+    expect(await resumeSubscription(deps, USER, LIVEMODE)).toBe("resumed");
+    const summary = await runBillingCycle(deps, LIVEMODE);
+
+    expect(summary).toMatchObject({ charge_paid: 1 });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(1);
+    expect(deps.store.rows.payments.map((p) => [p.kind, p.attempt, p.status])).toEqual([["renewal", 1, "paid"]]);
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "active", cancel_at_period_end: false, current_period_start: pgTime(sub.current_period_end) });
+  });
+
+  it("크론이 결제 행을 쓴 뒤 해지가 끼어들면 해지가 물러나고(busy, 예약 되돌림) 크론은 결제한다 — 해지 뒤 청구는 없다", async () => {
+    const deps = cronSetup(dueActive(), [done]);
+    const results: string[] = [];
+    const read = deps.store.getSubscription.bind(deps.store);
+    let first = true;
+    deps.store.getSubscription = async (id) => {
+      if (first) {
+        // 결제 행이 들어간 직후, 크론이 구독을 다시 읽기 전
+        first = false;
+        results.push(await cancelSubscription(deps, USER, LIVEMODE));
+      }
+      return read(id);
+    };
+
+    const summary = await runBillingCycle(deps, LIVEMODE);
+
+    expect(results).toEqual(["busy"]);
+    expect(summary).toMatchObject({ charge_paid: 1 });
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ cancel_at_period_end: false, canceled_at: null });
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["receipt"]);
+  });
+
+  it("같은 실행의 미납 재시도와 겹친 즉시 해지 — 해지가 끝냈으면 재시도는 결제하지 않는다", async () => {
+    const sub = pastDue({ next_retry_at: iso(NOW - HOUR) });
+    const deps = cronSetup(sub, [done]);
+    expect(decideRenewalAction(deps.store.rows.subscriptions[0], NOW)).toBe("retry");
+    const results: string[] = [];
+    cancelAfterCandidates(deps, results);
+
+    const summary = await runBillingCycle(deps, LIVEMODE);
+
+    expect(results).toEqual(["endedNow"]);
+    expect(summary).toMatchObject({ retry_skipped: 1 });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(deps.store.rows.payments).toHaveLength(0);
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled" });
+    expect(deps.mailer.sent.map((m) => [m.kind, m.data.reason])).toEqual([["ended", "canceledNow"]]);
+  });
+
+  it("예약만 쓰고 멈춘 미납 구독(past_due + 예약)은 재시도하지 않고 끝낸다(end_canceled)", async () => {
+    // 재시도 기한이 지났어도 해지 예약을 먼저 본다
+    const crashed = pastDue({ cancel_at_period_end: true, canceled_at: iso(NOW - DAY), next_retry_at: iso(NOW - HOUR) });
+    expect(decideRenewalAction(crashed, NOW)).toBe("end_canceled");
+    // 마지막 날 결제가 실패해 기간 끝 전에 미납이 된 경우 — 기간 끝까지는 아무것도 하지 않고(재시도 없음) 그 뒤 끝낸다
+    const early = pastDue({ cancel_at_period_end: true, current_period_end: iso(NOW + 6 * HOUR), next_retry_at: iso(NOW + 30 * HOUR) });
+    expect(decideRenewalAction(early, NOW)).toBe("none");
+    expect(decideRenewalAction(early, NOW + 31 * HOUR)).toBe("end_canceled");
+
+    const deps = cronSetup(crashed, [done]);
+    const summary = await runBillingCycle(deps, LIVEMODE);
+
+    expect(summary).toMatchObject({ end_canceled: 1 });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(deps.store.rows.payments).toHaveLength(0);
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled" });
+    expect(deps.store.rows.customers[0].toss_billing_key_enc).toBeNull();
+  });
+
+  it("다시 읽은 구독이 다르면 보내지 않은 결제 행을 지운다 — 지우지 못하면 운영자 확인을 남기고(id만) 그래도 결제하지 않는다", async () => {
+    const deps = cronSetup(dueActive(), [done]);
+    const results: string[] = [];
+    cancelAfterCandidates(deps, results);
+    deps.store.deletePendingPayment = async () => {
+      throw new Error("billing store deletePendingPayment: connection reset");
+    };
+
+    expect(await runBillingCycle(deps, LIVEMODE)).toMatchObject({ charge_skipped: 1 });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    const logged = deps.log.mock.calls.map(([m]) => m).join("\n");
+    expect(logged).toContain(`billing needs review: unsent payment ${deps.store.rows.payments[0].id}`);
+    expect(logged).not.toContain(BILLING_KEY);
   });
 });

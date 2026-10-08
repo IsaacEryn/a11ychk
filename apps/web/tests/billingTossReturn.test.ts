@@ -87,6 +87,20 @@ describe("토스 성공 콜백 라우트", () => {
     });
   });
 
+  it("live 모드면 실결제 행(livemode: true)으로 흐름을 부른다 — 콜백·실패 모두", async () => {
+    vi.stubEnv("BILLING_MODE", "live");
+    vi.stubEnv("TOSS_SECRET_KEY", "live_sk_fake_secret");
+    m.completeCheckout.mockResolvedValue({ kind: "subscribed", subscriptionId: "s1" });
+    m.failCheckout.mockResolvedValue({ priceId: null, reason: "canceled", purpose: "card_change" });
+
+    const ok = await callback(req(`/api/billing/toss/callback?checkout=${CHECKOUT}&locale=ko&customerKey=ck-1&authKey=${AUTH_KEY}`));
+    expect(location(ok)).toBe("http://localhost:3100/ko/mypage/billing?result=subscribed");
+    expect(m.completeCheckout.mock.calls[0][1]).toMatchObject({ checkoutId: CHECKOUT, userId: USER, livemode: true });
+
+    await fail(req(`/api/billing/toss/fail?checkout=${CHECKOUT}&locale=ko&code=PAY_PROCESS_CANCELED`));
+    expect(m.failCheckout).toHaveBeenCalledWith(DEPS, { checkoutId: CHECKOUT, userId: USER, livemode: true, code: "PAY_PROCESS_CANCELED" });
+  });
+
   it("토스가 ?로 이어 붙인 쿼리도 같은 값으로 읽고, 오류는 가격이 있으면 그 결제 화면으로", async () => {
     m.completeCheckout.mockResolvedValue({ kind: "error", code: "cardRejected", priceId: PRICE });
     const res = await callback(req(`/api/billing/toss/callback?checkout=${CHECKOUT}&locale=en?customerKey=ck-1&authKey=${AUTH_KEY}`));

@@ -110,7 +110,8 @@ export default async function CheckoutPage({
       {/* 결제창에서 돌아온 결과 — 화면에 들어오자마자 포커스를 옮겨 먼저 읽히게 한다 */}
       {returnError && (
         <FocusOnMount className="mt-6">
-          <Notice variant="error" title={t(`returnErrors.${returnError}`)} />
+          {/* 포커스로 읽히므로 live 영역을 겹치지 않는다 */}
+          <Notice variant="error" live={false} title={t(`returnErrors.${returnError}`)} />
         </FocusOnMount>
       )}
 

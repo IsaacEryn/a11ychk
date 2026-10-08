@@ -21,6 +21,8 @@ export interface CancelTarget {
 interface State extends ManageSubscriptionState {
   /** 몇 번째 결과인지 — 같은 결과가 다시 와도 안내로 포커스를 옮긴다 */
   seq: number;
+  /** 이 결과를 낸 동작 */
+  intent?: "cancel" | "resume";
 }
 
 /**
@@ -38,15 +40,17 @@ export function CancelSection({ sub }: { sub: CancelTarget | null }) {
   const confirmId = useId();
   const [state, formAction, pending] = useActionState<State, FormData>(
     async (prev, fd) => {
-      const res = fd.get("intent") === "resume" ? await resumeSubscriptionAction() : await cancelSubscriptionAction();
-      return { ...res, seq: prev.seq + 1 };
+      const intent = fd.get("intent") === "resume" ? "resume" : "cancel";
+      const res = intent === "resume" ? await resumeSubscriptionAction() : await cancelSubscriptionAction();
+      return { ...res, seq: prev.seq + 1, intent };
     },
     { seq: 0 },
   );
 
-  // 확인 단계를 연 시점의 결과 차례 — 그 뒤 성공 결과가 오면 닫히고, 실패면 열린 채로 둔다
+  // 확인 단계를 연 시점의 결과 차례 — 연 뒤로 결과가 없거나, 마지막 결과가 그 해지의 실패일 때만 열린 채로 둔다.
+  // 해지 성공·재개 결과(성공이든 실패든)가 오면 닫힌다 — 나중의 재개 실패로 확인 단계가 저절로 다시 열리지 않게
   const [confirmAt, setConfirmAt] = useState<number | null>(null);
-  const confirming = confirmAt !== null && (state.seq === confirmAt || !state.ok);
+  const confirming = confirmAt !== null && (state.seq === confirmAt || (state.intent === "cancel" && !state.ok));
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLParagraphElement>(null);
@@ -74,10 +78,10 @@ export function CancelSection({ sub }: { sub: CancelTarget | null }) {
   };
 
   const message = state.ok && state.done ? t(`done.${state.done}`) : state.error ? t(`errors.${state.error}`) : "";
-  // 이미 예약됨·결제 확인 중은 실패가 아니라 안내다
+  // 이미 예약됨·결제 확인 중·엇갈림은 실패가 아니라 안내다
   const tone = state.ok
     ? "text-[var(--color-seal)]"
-    : state.error === "already" || state.error === "busy"
+    : state.error === "already" || state.error === "busy" || state.error === "retryLater"
       ? "text-[var(--color-ink-soft)]"
       : "text-[var(--color-crit)]";
   const pastDue = sub?.status === "past_due";

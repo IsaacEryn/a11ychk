@@ -147,7 +147,7 @@ export async function abandonCheckout(): Promise<AbandonCheckoutState> {
   return { closed: result.closed, blockedBy: result.blockedBy };
 }
 
-export type ManageSubscriptionError = "notAllowed" | "notConfigured" | "notFound" | "already" | "busy" | "tooLate" | "failed";
+export type ManageSubscriptionError = "notAllowed" | "notConfigured" | "notFound" | "already" | "busy" | "tooLate" | "retryLater" | "failed";
 
 /** 해지·재개 결과 — ok면 done이 한 일, 아니면 error가 까닭 */
 export interface ManageSubscriptionState extends SaveState {
@@ -181,7 +181,7 @@ async function runManage<R extends string>(
   return { result };
 }
 
-/** 구독 해지 — active면 기간 끝 해지 예약(scheduled), 미납이면 바로 끝냄(endedNow). 결과를 모르는 결제가 있으면 busy */
+/** 구독 해지 — active면 기간 끝 해지 예약(scheduled), 미납이면 바로 끝냄(endedNow). 결과를 모르는 결제가 있으면 busy(대사 뒤 다시) */
 export async function cancelSubscriptionAction(): Promise<ManageSubscriptionState> {
   const out = await runManage("cancel", cancelSubscription);
   if ("error" in out) return { error: out.error };

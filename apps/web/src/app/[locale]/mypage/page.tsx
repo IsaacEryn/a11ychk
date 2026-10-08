@@ -5,9 +5,9 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLAN_RANK, TIERS, checkQuota, getEarnedPlan, type PlanId } from "@/lib/quota";
 import { isSubscriptionEntitled, loadEntitlement } from "@/lib/entitlements";
-import { entitlementLivemodes } from "@/lib/billing/config";
+import { entitlementLivemodes, rowLivemode } from "@/lib/billing/config";
 import { hasBillingRecord, loadLiveSubscriptions } from "@/lib/billing/manageData";
-import { earliestChargeAt } from "@/lib/billing/period";
+import { upcomingChargeAt } from "@/lib/billing/period";
 import { ensureReferralCode } from "@/lib/referral/code";
 import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL } from "@/lib/referral/constants";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -23,6 +23,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const t = await getTranslations({ locale, namespace: "mypage" });
   return { title: t("title") };
 }
+
+/** 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘. 이 화면은 요청마다 렌더된다 */
+const nextChargeShown = (periodEnd: string) => upcomingChargeAt(periodEnd, Date.now());
 
 export default async function MyPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -76,6 +79,9 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
     ent.source === "subscription"
       ? (liveBilling.find((s) => s.provider === "toss" && s.plan_code === ent.tier && isSubscriptionEntitled(s)) ?? null)
       : null;
+  // 지금 모드가 만드는 행이 아니면(결제 꺼짐·test 모드의 실결제 행) 이 서버가 결제하지 않는다 — 다음 결제일 대신 기간 끝
+  const subscriptionManaged = subscriptionLine !== null && subscriptionLine.livemode === rowLivemode();
+  const nextChargeAt = subscriptionLine ? nextChargeShown(subscriptionLine.current_period_end) : null;
 
   // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
   //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.
@@ -165,15 +171,21 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
             {subscriptionLine && (
               <span className="text-xs font-semibold text-[var(--color-ink-soft)]">
                 {subscriptionLine.status === "past_due"
-                  ? t("tier.subscriptionPastDue")
+                  ? subscriptionManaged
+                    ? t("tier.subscriptionPastDue")
+                    : t("tier.subscriptionFailed")
                   : subscriptionLine.cancel_at_period_end
                     ? t("tier.subscriptionEnding", {
                         date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
                       })
-                    : t("tier.subscriptionNext", {
-                        // 다음 결제일 = 기간 끝 하루 전(결제 확인 화면·안내 메일과 같은 날짜)
-                        date: format.dateTime(new Date(earliestChargeAt(subscriptionLine.current_period_end)), { dateStyle: "medium" }),
-                      })}
+                    : subscriptionManaged && nextChargeAt
+                      ? t("tier.subscriptionNext", {
+                          // 다음 결제일 = 기간 끝 하루 전(결제 확인 화면·안내 메일과 같은 날짜), 이미 지났으면 오늘
+                          date: format.dateTime(new Date(nextChargeAt), { dateStyle: "medium" }),
+                        })
+                      : t("tier.subscriptionUntil", {
+                          date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
+                        })}
               </span>
             )}
           </div>

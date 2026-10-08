@@ -42,7 +42,8 @@ export interface BillingEmailData {
   };
   ended: {
     planName: string;
-    reason: "canceled" | "unpaid";
+    /** canceled: 해지 예약에 따라 기간 끝에 끝남 / canceledNow: 사용자가 바로 해지 / unpaid: 미납으로 끝남 */
+    reason: "canceled" | "canceledNow" | "unpaid";
     pricingUrl: string;
   };
 }
@@ -201,10 +202,15 @@ const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => D
               `해지 예약에 따라 ${d.planName} 구독이 끝났어요.`,
               `As scheduled, your ${d.planName} subscription has ended.`,
             )
-          : f.t(
-              `결제가 이뤄지지 않아 ${d.planName} 구독이 끝났어요.`,
-              `Your ${d.planName} subscription has ended because the payment didn't go through.`,
-            ),
+          : d.reason === "canceledNow"
+            ? f.t(
+                `요청하신 대로 ${d.planName} 구독을 바로 해지했어요. 앞으로 결제되지 않아요.`,
+                `As you requested, we've canceled your ${d.planName} subscription right away. You won't be charged again.`,
+              )
+            : f.t(
+                `결제가 이뤄지지 않아 ${d.planName} 구독이 끝났어요.`,
+                `Your ${d.planName} subscription has ended because the payment didn't go through.`,
+              ),
         f.t("언제든 요금제 보기에서 다시 구독할 수 있어요.", "You can subscribe again anytime from the pricing page."),
       ],
       button: { href: d.pricingUrl, label: f.t("요금제 보기", "View plans") },

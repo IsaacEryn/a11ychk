@@ -1,9 +1,12 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import {
   CHECKOUT_TTL_MS,
+  RETURN_ERRORS,
   DISCLOSURE_VERSION,
   PROCESSING_STALE_MS,
   callbackRedirectPath,
+  checkoutErrorPath,
   checkoutLocale,
   checkoutReturnUrls,
   checkoutTerms,
@@ -18,7 +21,7 @@ import {
   returnErrorOf,
   tossReturnParams,
 } from "../src/lib/billing/checkout";
-import type { CheckoutOutcome } from "../src/lib/billing/flows/subscribe";
+import type { CheckoutOutcome, FailCheckoutResult } from "../src/lib/billing/flows/subscribe";
 import { CHARGE_LEAD_MS, earliestChargeAt } from "../src/lib/billing/period";
 import { decideRenewalAction } from "../src/lib/billing/flows/renew";
 import { DAY, MIN, NOW, iso, priceRow, subscriptionRow } from "./billingFakes";
@@ -268,20 +271,35 @@ describe("토스 리다이렉트 뒤 이동", () => {
 
 describe("돌아온 화면의 안내(쿼리 검증)", () => {
   it("콜백·실패 주소가 싣는 오류 코드는 모두 목록에 있다 — 빠지면 화면에 아무 안내도 없이 돌아온다", () => {
-    const outcomeCodes: Array<Extract<CheckoutOutcome, { kind: "error" }>["code"]> = [
-      "notFound",
-      "expired",
-      "customerMismatch",
-      "hasActive",
-      "duplicateRefunded",
-      "priceInactive",
-      "cardRejected",
-      "failed",
-    ];
-    // 실패 주소의 canceled·failed, 설정이 없을 때의 notConfigured
-    for (const code of [...outcomeCodes, "canceled", "notConfigured"]) {
-      const path = callbackRedirectPath({ kind: "error", code: code as (typeof outcomeCodes)[number] }, "ko");
-      expect(returnErrorOf(new URL(path, "https://x.test").searchParams.get("error"))).toBe(code);
+    // 흐름의 오류 코드가 늘면 이 표가 컴파일되지 않는다(Record의 키가 빠짐) — 목록과 문구를 함께 늘리게
+    const codes: Record<Extract<CheckoutOutcome, { kind: "error" }>["code"] | FailCheckoutResult["reason"] | "notConfigured", true> = {
+      notFound: true,
+      expired: true,
+      customerMismatch: true,
+      hasActive: true,
+      duplicateRefunded: true,
+      priceInactive: true,
+      cardRejected: true,
+      failed: true,
+      // 실패 주소의 canceled·failed, 설정이 없을 때의 notConfigured(tossReturn.ts)
+      canceled: true,
+      notConfigured: true,
+    };
+    for (const code of Object.keys(codes)) {
+      const viaCallback = new URL(callbackRedirectPath({ kind: "error", code: code as "failed" }, "ko"), "https://x.test");
+      const viaPath = new URL(checkoutErrorPath("ko", null, code), "https://x.test");
+      for (const url of [viaCallback, viaPath]) expect(returnErrorOf(url.searchParams.get("error"))).toBe(code);
+    }
+    expect([...RETURN_ERRORS].sort()).toEqual(Object.keys(codes).sort());
+  });
+
+  it("목록의 오류마다 결제 화면·결제 관리 문구가 ko·en 모두 있다", () => {
+    for (const locale of ["ko", "en"]) {
+      const messages = JSON.parse(readFileSync(new URL(`../messages/${locale}.json`, import.meta.url), "utf8"));
+      for (const code of RETURN_ERRORS) {
+        expect(typeof messages.billing.checkout.returnErrors[code], `${locale} billing.checkout.returnErrors.${code}`).toBe("string");
+        expect(typeof messages.billing.manage.returnErrors[code], `${locale} billing.manage.returnErrors.${code}`).toBe("string");
+      }
     }
   });
 

@@ -272,6 +272,13 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       Object.assign(p, next);
     },
 
+    async deletePendingPayment(id) {
+      const i = rows.payments.findIndex((p) => p.id === id && p.status === "pending" && p.external_payment_id === null);
+      if (i === -1) return false;
+      rows.payments.splice(i, 1);
+      return true;
+    },
+
     async getSubscription(id) {
       const s = found(rows.subscriptions, id);
       return s ? outSubscription(s) : null;

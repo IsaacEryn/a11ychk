@@ -1,10 +1,12 @@
-import { abandonCheckout, type TossCheckoutSdk } from "@/lib/actions/billing";
+import { useActionState, useEffect, useRef } from "react";
+import { abandonCheckout, type StartCheckoutError, type StartCheckoutState, type TossCheckoutSdk } from "@/lib/actions/billing";
 import type { CheckoutBlock } from "@/lib/billing/checkout";
 import { loadTossPayments } from "@/lib/billing/tossSdk";
 
 /**
  * 토스 결제창(카드 등록) 열기와 그만둔 시도 닫기 — 결제 확인 화면(CheckoutForm)과 결제 관리의 카드 변경(CardChangeButton)이
- * 함께 쓴다. 브라우저에서만 부른다("use client" 모듈이 아니라 클라이언트 컴포넌트가 가져다 쓴다 — tossSdk.ts와 같은 규칙).
+ * 함께 쓴다(useBillingAuthAction). 브라우저에서만 부른다("use client" 모듈이 아니라 클라이언트 컴포넌트가 가져다 쓴다 —
+ * tossSdk.ts와 같은 규칙).
  */
 
 /** 사용자가 결제창을 닫았을 때 SDK가 돌려주는 코드 */
@@ -57,4 +59,42 @@ export async function releasePreviousCheckout(): Promise<ReleaseResult> {
   if (res.error) return { error: res.error };
   if (res.blockedBy) return { error: "inProgress", blockedBy: res.blockedBy };
   return { notice: (res.closed ?? 0) > 0 ? "released" : "nothingToRelease" };
+}
+
+export interface BillingAuthFormState {
+  error?: StartCheckoutError | BillingAuthError;
+  /** error가 inProgress일 때 막는 까닭 */
+  blockedBy?: CheckoutBlock;
+  /** 이전 시도 닫기 결과 — released: 닫았다, nothingToRelease: 닫을 것이 없었다(성공으로 안내하지 않는다) */
+  notice?: "released" | "nothingToRelease";
+}
+
+/**
+ * 결제창을 여는 폼의 공통 상태 — 제출하면 start(서버 액션)가 시도를 만들고 돌려준 값으로 결제창을 연다.
+ * intent=release로 제출하면 이전 시도를 닫는다. 결과가 올 때마다(같은 오류가 다시 나도) 오류 문구(errorRef)로 포커스를 옮긴다 —
+ * 제출 중 버튼이 비활성이 되며 포커스를 잃기 쉽다. 오류 문구에는 live 역할을 겹치지 않는다(포커스로 읽힌다).
+ * canRelease: 선점 전 시도(open)가 막고 있다 — 그 시도를 닫는 버튼을 보인다.
+ * waiting: 처리 중인 결제가 막고 있다 — 닫을 수 없고 기다려야 한다.
+ */
+export function useBillingAuthAction(start: (formData: FormData) => Promise<StartCheckoutState>) {
+  const [state, formAction, pending] = useActionState<BillingAuthFormState, FormData>(async (_prev, fd) => {
+    if (fd.get("intent") === "release") return releasePreviousCheckout();
+    const res = await start(fd);
+    if (!res.ok || !res.sdk) return { error: res.error ?? "failed", ...(res.blockedBy ? { blockedBy: res.blockedBy } : {}) };
+    return openBillingAuth(res.sdk);
+  }, {});
+
+  const errorRef = useRef<HTMLParagraphElement>(null);
+  useEffect(() => {
+    if (state.error) errorRef.current?.focus();
+  }, [state]);
+
+  return {
+    state,
+    formAction,
+    pending,
+    errorRef,
+    canRelease: state.error === "inProgress" && state.blockedBy === "open",
+    waiting: state.error === "inProgress" && state.blockedBy === "processing",
+  };
 }

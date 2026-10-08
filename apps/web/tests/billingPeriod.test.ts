@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addInterval, graceUntil, kstDayOfMonth, nextRetryAt, reminderLeadMs } from "../src/lib/billing/period";
+import { CHARGE_LEAD_MS, addInterval, graceUntil, kstDayOfMonth, nextRetryAt, reminderLeadMs, upcomingChargeAt } from "../src/lib/billing/period";
 
 describe("addInterval — KST 앵커일 기준", () => {
   it("월간: 같은 날, 같은 시각", () => {
@@ -42,5 +42,20 @@ describe("미납 일정", () => {
   it("결제 예정 안내: 월간 7일 전, 연간 30일 전", () => {
     expect(reminderLeadMs("month")).toBe(7 * 86400_000);
     expect(reminderLeadMs("year")).toBe(30 * 86400_000);
+  });
+});
+
+describe("upcomingChargeAt — 화면의 다음 결제일", () => {
+  const END = "2026-02-27T16:00:00.000Z";
+  const earliest = Date.parse(END) - CHARGE_LEAD_MS;
+
+  it("가장 이른 청구 시각 전이면 그 시각(기간 끝 하루 전)", () => {
+    expect(upcomingChargeAt(END, earliest - 5 * 86_400_000)).toBe(new Date(earliest).toISOString());
+  });
+
+  it("이미 지났으면(마지막 날·크론 대기) 지난 날짜가 아니라 지금", () => {
+    const now = earliest + 3_600_000;
+    expect(upcomingChargeAt(END, now)).toBe(new Date(now).toISOString());
+    expect(upcomingChargeAt(END, Date.parse(END) + 3_600_000)).toBe(new Date(Date.parse(END) + 3_600_000).toISOString());
   });
 });

@@ -1066,7 +1066,9 @@
       "subscriptionNext": "Subscribed · next payment {date}",
       "subscriptionEnding": "Cancellation scheduled · until {date}",
       "subscriptionPastDue": "Payment failed · check Billing",
-      "manageBilling": "Billing"
+      "manageBilling": "Billing",
+      "subscriptionUntil": "Subscribed · until {date}",
+      "subscriptionFailed": "Payment failed"
     },
     "account": {
       "title": "Delete account",
@@ -2159,7 +2161,7 @@
       },
       "period": "Service period",
       "periodValue": "{start} – {end}",
-      "nextChargeHint": "The next payment is made one day before the service period ends, and we email you a reminder beforehand.",
+      "nextChargeHint": "The next payment may be charged as early as one day before the service period ends, and we email you a reminder beforehand.",
       "nothingToRelease": "There was no payment attempt to cancel. Please try paying again."
     },
     "manage": {
@@ -2200,7 +2202,9 @@
         "card": "Payment card",
         "cardNone": "No card on file",
         "pastDueTitle": "Your payment failed",
-        "pastDueBody": "If the payment has not gone through by {date}, your subscription will end. If you change your card, we will try the payment again right away with the new card."
+        "pastDueBody": "If the payment has not gone through by {date}, your subscription will end. If you change your card, we will try the payment again right away with the new card.",
+        "statusActiveUntil": "Active · until {date}",
+        "readOnly": "This subscription cannot be changed here right now."
       },
       "cardType": {
         "credit": "Credit card",
@@ -2245,9 +2249,10 @@
           "notConfigured": "Payments are not set up yet, so this cannot be done right now.",
           "notFound": "We could not find a subscription to change. Please reload the page to see its current state.",
           "already": "Your cancellation is already scheduled.",
-          "busy": "We are still confirming a previous payment. Please try again in a few minutes.",
+          "busy": "We are still confirming a previous payment, so you cannot cancel right now. Once it is confirmed (usually within a day), you can cancel again.",
           "tooLate": "The current period has already ended, so the cancellation cannot be undone.",
-          "failed": "Something went wrong. Please try again in a moment."
+          "failed": "Something went wrong. Please try again in a moment.",
+          "retryLater": "Your subscription changed while this was being processed, so nothing was changed. Please try again in a moment."
         }
       },
       "payments": {

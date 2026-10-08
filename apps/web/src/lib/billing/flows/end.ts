@@ -1,4 +1,5 @@
 import "server-only";
+import type { BillingEmailData } from "@/lib/billing/emails";
 import type { BillingDeps, BillingStore, SubscriptionRow } from "@/lib/billing/types";
 // subscribe.ts → renew.ts → 이 모듈 → subscribe.ts(순환). 모두 함수 안에서만 부르고 모듈 최상위에서는 쓰지 않아 안전하다
 import { planNameFor, sendBillingMail } from "@/lib/billing/flows/subscribe";
@@ -26,7 +27,8 @@ export async function clearBillingKey(store: BillingStore, userId: string, livem
 export async function closeEndedSubscription(
   deps: BillingDeps,
   sub: Pick<SubscriptionRow, "id" | "user_id" | "livemode" | "plan_code">,
-  reason: "canceled" | "unpaid",
+  /** canceled: 해지 예약 만료(크론) / canceledNow: 사용자가 미납 구독을 바로 해지 / unpaid: 미납 유예 만료 */
+  reason: BillingEmailData["ended"]["reason"],
 ): Promise<void> {
   if (sub.user_id) {
     try {

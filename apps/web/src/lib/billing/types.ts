@@ -70,6 +70,11 @@ export interface BillingStore {
   /** 유니크 위반(같은 시도·같은 주문번호)이면 "duplicate" */
   insertPayment(row: NewPayment): Promise<PaymentRow | "duplicate">;
   updatePayment(id: string, patch: Partial<Omit<PaymentRow, "id">>): Promise<void>;
+  /**
+   * 토스에 보내지 않은 결제 행을 지운다(지웠으면 true) — pending이고 결제사 결제 id가 없을 때만.
+   * 결제 직전 다시 읽은 구독이 판정과 달라 결제하지 않을 때 쓴다(실패로 닫으면 그 시도 칸이 막힌다)
+   */
+  deletePendingPayment(id: string): Promise<boolean>;
   getSubscription(id: string): Promise<SubscriptionRow | null>;
   /** 진행 중(active·past_due) 구독 */
   getLiveSubscription(userId: string, livemode: boolean): Promise<SubscriptionRow | null>;

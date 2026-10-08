@@ -211,30 +211,70 @@ async function settleIncident(
 /** 크론용 결과 — incident: 그 행만의 설정 사고, halted: 계정 단위 사고라 이 실행의 남은 결제를 멈춰야 한다 */
 type ChargeOutcome = { result: ChargeResult } | { result: "incident" | "halted"; code: string };
 
-async function chargeOnce(deps: BillingDeps, sub: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeOutcome> {
-  if (sub.provider !== "toss" || !isLive(sub) || sub.interval === "contract") return { result: "skipped" };
-  const interval = sub.interval;
+/**
+ * 결제 행을 쓴 뒤 다시 읽은 구독이 판정한 그대로인지 — 같은 상태·같은 기간 끝·해지 예약 없음, 재시도면 같은 실패 횟수.
+ * 크론은 후보를 실행 처음에 한 번 읽어 그 사이 해지 예약·카드 변경 재결제·종료를 모른다. 해지는 예약을 먼저 쓰고
+ * 결과를 모르는 결제가 있는지 본다 — 양쪽 다 먼저 쓰고 나중에 읽으므로 둘 중 하나는 반드시 상대를 본다.
+ */
+function stillChargeable(candidate: SubscriptionRow, fresh: SubscriptionRow | null, kind: "renewal" | "retry"): fresh is SubscriptionRow {
+  return (
+    !!fresh &&
+    fresh.status === candidate.status &&
+    sameInstant(fresh.current_period_end, candidate.current_period_end) &&
+    !fresh.cancel_at_period_end &&
+    (kind !== "retry" || fresh.dunning_attempts === candidate.dunning_attempts)
+  );
+}
+
+/**
+ * 보내지 않은 결제 행을 지운다 — 실패로 닫으면 안 된다: 결제 행 유니크(구독·기간 시작·시도 번호)는 상태와 무관하고
+ * 갱신은 늘 시도 1이라, 실패 행이 남으면 그 기간의 다음 갱신이 모두 duplicate(skipped)가 되어 영영 결제·미납·종료되지 않는다.
+ * 지우지 못하면 운영자 확인을 남긴다(id만).
+ */
+async function discardUnsentPayment(deps: BillingDeps, payment: PaymentRow): Promise<void> {
+  let removed = false;
+  try {
+    removed = await deps.store.deletePendingPayment(payment.id);
+  } catch {
+    removed = false;
+  }
+  if (!removed) {
+    await deps.log(`billing needs review: unsent payment ${payment.id} for subscription ${payment.subscription_id ?? "none"} could not be removed`);
+  }
+}
+
+async function chargeOnce(deps: BillingDeps, candidate: SubscriptionRow, kind: "renewal" | "retry"): Promise<ChargeOutcome> {
+  if (candidate.provider !== "toss" || !isLive(candidate) || candidate.interval === "contract") return { result: "skipped" };
+  const interval = candidate.interval;
   // 앵커일로 계산한다 — 앞 기간 끝의 일자를 쓰면 2월을 지난 31일 구독이 28일로 굳는다
-  const anchor = sub.billing_anchor_day ?? kstDayOfMonth(Date.parse(sub.current_period_end));
-  const failures = sub.dunning_attempts + 1;
+  const anchor = candidate.billing_anchor_day ?? kstDayOfMonth(Date.parse(candidate.current_period_end));
+  const failures = candidate.dunning_attempts + 1;
 
   // 결제 행을 먼저 만든다 — 같은 주기·같은 시도의 행이 있으면 다른 실행이 맡았다. 행 id가 토스 멱등 키다
   const payment = await deps.store.insertPayment({
-    user_id: sub.user_id,
-    subscription_id: sub.id,
+    user_id: candidate.user_id,
+    subscription_id: candidate.id,
     checkout_id: null,
     provider: "toss",
-    livemode: sub.livemode,
+    livemode: candidate.livemode,
     kind,
     order_id: newOrderId(),
-    amount: sub.amount,
-    currency: sub.currency,
-    period_start: sub.current_period_end,
-    period_end: addInterval(sub.current_period_end, interval, anchor),
+    amount: candidate.amount,
+    currency: candidate.currency,
+    period_start: candidate.current_period_end,
+    period_end: addInterval(candidate.current_period_end, interval, anchor),
     attempt: kind === "renewal" ? 1 : failures,
     status: "pending",
   });
   if (payment === "duplicate") return { result: "skipped" };
+
+  // 그다음 구독을 다시 읽는다 — 판정한 뒤 해지 예약·재결제·종료가 있었으면 토스를 부르지 않고 행을 거둔다
+  const fresh = await deps.store.getSubscription(candidate.id);
+  if (!stillChargeable(candidate, fresh, kind)) {
+    await discardUnsentPayment(deps, payment);
+    return { result: "skipped" };
+  }
+  const sub = fresh;
 
   const key = await loadBillingKey(deps, sub);
   if (!key.ok) {

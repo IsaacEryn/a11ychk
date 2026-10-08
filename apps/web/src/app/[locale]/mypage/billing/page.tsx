@@ -15,7 +15,7 @@ import {
   loadPaymentHistory,
   type ManagedSubscription,
 } from "@/lib/billing/manageData";
-import { earliestChargeAt, graceUntil } from "@/lib/billing/period";
+import { graceUntil, upcomingChargeAt } from "@/lib/billing/period";
 import type { CardSummary } from "@/lib/billing/toss";
 import { loadEntitlement } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -37,6 +37,8 @@ const CARD_TYPES: Record<string, "credit" | "check" | "gift"> = { 신용: "credi
 const isTossSubscription = (s: ManagedSubscription) => s.provider === "toss" && s.interval !== "contract";
 /** 기관 계약의 시작일이 지났는지 — 이 화면은 요청마다 렌더된다(로그인 쿠키) */
 const hasStarted = (s: ManagedSubscription) => Date.now() >= Date.parse(s.current_period_start);
+/** 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘 */
+const nextChargeShown = (s: ManagedSubscription) => upcomingChargeAt(s.current_period_end, Date.now());
 
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -126,7 +128,7 @@ export default async function BillingManagePage({
           status: actionable.status,
           scheduled: actionable.status === "active" && actionable.cancel_at_period_end,
           endsAt: day(actionable.current_period_end),
-          nextCharge: day(earliestChargeAt(actionable.current_period_end)),
+          nextCharge: day(nextChargeShown(actionable)),
         }
       : null;
 
@@ -143,14 +145,15 @@ export default async function BillingManagePage({
       {mode === "test" && <Notice variant="warn" live={false} className="mt-6" title={tCheckout("testMode")} />}
 
       {/* 결제창에서 돌아온 결과 — 오류·재결제 실패는 화면에 들어오자마자 포커스를 옮겨 먼저 읽히게 한다 */}
+      {/* 포커스로 읽히므로 live 영역을 겹치지 않는다(live={false}) */}
       {returnError && (
         <FocusOnMount className="mt-6">
-          <Notice variant="error" title={t(`returnErrors.${returnError}`)} />
+          <Notice variant="error" live={false} title={t(`returnErrors.${returnError}`)} />
         </FocusOnMount>
       )}
       {returned?.kind === "cardChanged" && returned.retry === "failed" ? (
         <FocusOnMount className="mt-6">
-          <Notice variant="warn" title={t("results.cardChanged.failed")} />
+          <Notice variant="warn" live={false} title={t("results.cardChanged.failed")} />
         </FocusOnMount>
       ) : returned ? (
         <Notice
@@ -205,19 +208,24 @@ export default async function BillingManagePage({
             </p>
           ) : (
             tossRows.map((s) => {
+              // 지금 모드가 만드는 행에만 버튼이 있다. 나머지(결제 꺼짐·test 모드의 실결제 행)는 크론도 이 서버에서
+              // 결제하지 않으니 다음 결제일·카드 변경 같은 동작 안내 없이 사실만 보인다
+              const canAct = s.id === actionable?.id;
               const pastDue = s.status === "past_due";
               const status = pastDue
                 ? t("subscription.statusPastDue")
                 : s.cancel_at_period_end
                   ? t("subscription.statusScheduled", { date: day(s.current_period_end) })
-                  : t("subscription.statusActive", { date: day(earliestChargeAt(s.current_period_end)) });
+                  : canAct
+                    ? t("subscription.statusActive", { date: day(nextChargeShown(s)) })
+                    : t("subscription.statusActiveUntil", { date: day(s.current_period_end) });
               const card = cardText(cards.get(s.livemode));
               return (
                 <div key={s.id} className="mt-4">
                   {pastDue && (
                     // 정적 안내 — 화면을 열 때마다 알림으로 읽히지 않게 live 영역이 아닌 강조 상자로 둔다
                     <Notice variant="warn" live={false} title={t("subscription.pastDueTitle")}>
-                      <p>{t("subscription.pastDueBody", { date: day(s.grace_until ?? graceUntil(s.current_period_end)) })}</p>
+                      {canAct && <p>{t("subscription.pastDueBody", { date: day(s.grace_until ?? graceUntil(s.current_period_end)) })}</p>}
                     </Notice>
                   )}
                   <dl className="mt-2 divide-y divide-[var(--color-line)] text-sm">
@@ -234,7 +242,11 @@ export default async function BillingManagePage({
                     <DetailRow label={t("subscription.status")}>{status}</DetailRow>
                     <DetailRow label={t("subscription.card")}>{card ?? t("subscription.cardNone")}</DetailRow>
                   </dl>
-                  {s.id === actionable?.id && <CardChangeButton subscriptionId={s.id} emphasize={pastDue} />}
+                  {canAct ? (
+                    <CardChangeButton subscriptionId={s.id} emphasize={pastDue} />
+                  ) : (
+                    <p className="mt-3 text-sm text-[var(--color-ink-soft)]">{t("subscription.readOnly")}</p>
+                  )}
                 </div>
               );
             })

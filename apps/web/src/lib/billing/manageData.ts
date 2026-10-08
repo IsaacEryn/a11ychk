@@ -91,8 +91,8 @@ export async function loadPaymentHistory(db: SupabaseClient, userId: string, liv
   return (data as PaymentHistoryRow[] | null) ?? [];
 }
 
-/** jsonb에서 표시 값만 — 문자열이 아니면 버린다 */
-function cardSummaryOf(raw: unknown): CardSummary | null {
+/** jsonb에서 표시 값만 — 문자열이 아니거나 64자를 넘는 값은 버리고, 마스킹 번호가 없으면 요약이 없는 것으로 본다 */
+export function cardSummaryOf(raw: unknown): CardSummary | null {
   if (!raw || typeof raw !== "object") return null;
   const c = raw as Record<string, unknown>;
   const s = (v: unknown) => (typeof v === "string" && v.length <= 64 ? v : null);

@@ -189,6 +189,18 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       if (error) throw fail("updatePayment", error);
     },
 
+    async deletePendingPayment(id) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .delete()
+        .eq("id", id)
+        .eq("status", "pending")
+        .is("external_payment_id", null)
+        .select("id");
+      if (error) throw fail("deletePendingPayment", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
     async getSubscription(id) {
       const { data, error } = await admin.from("subscriptions").select(SUBSCRIPTION_COLS).eq("id", id).maybeSingle();
       if (error) throw fail("getSubscription", error);

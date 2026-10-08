@@ -119,6 +119,17 @@ describe("결제 메일", () => {
     expect(unpaid.html).not.toContain("해지 예약에 따라");
     expect(unpaid.subject).toBe("A11y Check Pro 구독이 끝났어요");
   });
+  it("종료 메일: 사용자가 바로 해지했으면 예약 문구가 아니라 바로 해지 문구(미납액 면제 같은 말은 없다)", () => {
+    const now = buildBillingEmail("ended", { planName: "Pro", reason: "canceledNow", pricingUrl: "https://a.example/ko/pricing" }, ko);
+    expect(now.html).toContain("요청하신 대로 Pro 구독을 바로 해지했어요. 앞으로 결제되지 않아요.");
+    expect(now.html).not.toContain("해지 예약에 따라");
+    expect(now.html).not.toContain("결제가 이뤄지지 않아");
+    expect(now.subject).toBe("A11y Check Pro 구독이 끝났어요");
+    const en = buildBillingEmail("ended", { planName: "Pro", reason: "canceledNow", pricingUrl: "https://a.example/en/pricing" }, { locale: "en", test: false });
+    expect(en.html).toContain("As you requested");
+    expect(en.html).toContain("Pro subscription right away");
+    expect(en.html).not.toContain("As scheduled");
+  });
   it("결제 실패: 횟수를 암시하지 않고, 재시도 안내는 카드 변경이 필요 없을 때만", () => {
     const base = { planName: "Pro", amount: 1234, currency: "KRW", graceUntil: "2026-11-22T01:00:00.000Z", manageUrl: "https://a" };
     const retry = buildBillingEmail("failed", { ...base, needsCardChange: false }, ko).html;

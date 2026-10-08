@@ -15,6 +15,13 @@ export const CHARGE_LEAD_MS = DAY_MS;
 export function earliestChargeAt(periodEnd: string): string {
   return new Date(Date.parse(periodEnd) - CHARGE_LEAD_MS).toISOString();
 }
+/**
+ * 화면에 보이는 다음 결제일 — 가장 이른 청구 시각이 이미 지났으면(기간의 마지막 날·크론 대기) 지금.
+ * 지난 날짜를 "다음 결제일"로 보이지 않게 한다.
+ */
+export function upcomingChargeAt(periodEnd: string, now: number): string {
+  return new Date(Math.max(now, Date.parse(earliestChargeAt(periodEnd)))).toISOString();
+}
 export const GRACE_DAYS = 7;
 /** 첫 실패 뒤 재시도 시점(결제 예정 시각 기준 +N일) */
 const RETRY_OFFSET_DAYS = [1, 3, 5] as const;
