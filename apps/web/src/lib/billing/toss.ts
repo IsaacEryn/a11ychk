@@ -82,11 +82,24 @@ function cardOf(raw: unknown): CardSummary | null {
   return { issuerCode: s(c.issuerCode), number: s(c.number), cardType: s(c.cardType) };
 }
 
+/** 응답을 읽지 못했거나 쓸 수 없는 모양이면 결과 불명 — 돈이 움직였을 수 있어 호출부가 대사로 확정한다 */
+function unreadable(): TossError {
+  return new TossError("NETWORK", "toss response unreadable", 0);
+}
+
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
 function paymentOf(raw: Record<string, unknown>): TossPayment {
   const receipt = raw.receipt as { url?: unknown } | null | undefined;
+  // 결제 식별자가 없는 200은 성공으로 읽을 수 없다 — 빈 결제를 돌려주면 호출부가 실패로 오판한다
+  if (typeof raw.paymentKey !== "string" || !raw.paymentKey || typeof raw.orderId !== "string" || !raw.orderId) {
+    throw unreadable();
+  }
   return {
-    paymentKey: String(raw.paymentKey ?? ""),
-    orderId: String(raw.orderId ?? ""),
+    paymentKey: raw.paymentKey,
+    orderId: raw.orderId,
     status: String(raw.status ?? ""),
     approvedAt: typeof raw.approvedAt === "string" ? raw.approvedAt : null,
     receiptUrl: typeof receipt?.url === "string" ? receipt.url : null,
@@ -101,9 +114,12 @@ async function call(
   init: { method: "GET" | "POST"; body?: unknown; idempotencyKey?: string },
 ): Promise<{ status: number; json: Record<string, unknown> }> {
   let res: Response;
+  // 지역 변수로 호출 — deps 객체가 this로 묶이면 일부 런타임의 fetch가 Illegal invocation을 낸다
+  const doFetch = deps.fetchImpl;
   try {
-    res = await deps.fetchImpl(`${API}${path}`, {
+    res = await doFetch(`${API}${path}`, {
       method: init.method,
+      cache: "no-store",
       headers: {
         Authorization: deps.auth,
         "Content-Type": "application/json",
@@ -116,13 +132,22 @@ async function call(
     // 시간 초과·연결 실패 — 결제가 실제로 됐는지 알 수 없다. 호출부는 대사로 확정한다
     throw new TossError("NETWORK", "toss request failed (network)", 0);
   }
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown>;
-  if (!res.ok) {
-    const code = typeof json.code === "string" ? json.code : `HTTP_${res.status}`;
-    const message = typeof json.message === "string" ? json.message.slice(0, 300) : "toss error";
-    throw new TossError(code, message, res.status);
+  if (res.ok) {
+    // 본문을 읽다 시간 초과·끊김이 나도 서버는 이미 처리했을 수 있다 — 빈 값으로 넘기지 않는다
+    let parsed: unknown;
+    try {
+      parsed = await res.json();
+    } catch {
+      throw unreadable();
+    }
+    if (!isPlainObject(parsed)) throw unreadable();
+    return { status: res.status, json: parsed };
   }
-  return { status: res.status, json };
+  const parsedError: unknown = await res.json().catch(() => null);
+  const json = isPlainObject(parsedError) ? parsedError : {};
+  const code = typeof json.code === "string" ? json.code : `HTTP_${res.status}`;
+  const message = typeof json.message === "string" ? json.message.slice(0, 300) : "toss error";
+  throw new TossError(code, message, res.status);
 }
 
 export function createTossClient(secretKey: string, fetchImpl: typeof fetch = fetch): TossClient {
@@ -146,7 +171,8 @@ export function createTossClient(secretKey: string, fetchImpl: typeof fetch = fe
         const { json } = await call(deps, `/v1/payments/orders/${encodeURIComponent(orderId)}`, { method: "GET" });
         return paymentOf(json);
       } catch (e) {
-        if (e instanceof TossError && e.status === 404) return null;
+        // 주문이 없다는 토스의 답일 때만 null — 게이트웨이의 일반 404까지 "결제 없음"으로 읽으면 이중 청구가 난다
+        if (e instanceof TossError && e.status === 404 && e.code === "NOT_FOUND_PAYMENT") return null;
         throw e;
       }
     },

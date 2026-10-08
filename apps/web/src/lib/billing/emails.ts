@@ -55,7 +55,6 @@ export interface BillingEmailOpts {
 }
 
 interface Fmt {
-  en: boolean;
   /** locale에 맞는 문구 고르기 */
   t: (ko: string, en: string) => string;
   money: (amount: number, currency: string) => string;
@@ -69,8 +68,9 @@ interface Draft {
   paragraphs: string[];
   details?: Array<[label: string, value: string]>;
   link?: { href: string; label: string };
+  /** 상세 표·링크 뒤에 오는 문단 */
+  after?: string[];
   button: { href: string; label: string };
-  note?: string;
 }
 
 function makeFmt(locale: "ko" | "en"): Fmt {
@@ -78,7 +78,6 @@ function makeFmt(locale: "ko" | "en"): Fmt {
   const tag = en ? "en-US" : "ko-KR";
   const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: "long", timeZone: "Asia/Seoul" });
   return {
-    en,
     t: (ko, enText) => (en ? enText : ko),
     money(amount, currency) {
       try {
@@ -95,14 +94,13 @@ function makeFmt(locale: "ko" | "en"): Fmt {
   };
 }
 
-/** 외부(결제사)에서 온 링크는 http(s)만 쓴다 */
+/** 메일에 싣는 모든 href는 http(s)만 쓴다 — 결제사 값뿐 아니라 호출부가 만든 주소도 한 번 더 거른다 */
 function httpUrl(u: string | null): string | null {
   return u && /^https?:\/\//i.test(u) ? u : null;
 }
 
 const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => Draft } = {
   receipt(d, f) {
-    const receiptUrl = httpUrl(d.receiptUrl);
     return {
       subject: f.t(`A11y Check ${d.planName} 결제가 완료됐어요`, `Your A11y Check ${d.planName} payment is complete`),
       heading: f.t("결제가 완료됐어요", "Your payment is complete"),
@@ -118,12 +116,14 @@ const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => D
         ...(d.card ? ([[f.t("결제 카드", "Card"), d.card]] as Array<[string, string]>) : []),
         [f.t("다음 결제일", "Next payment"), f.date(d.periodEnd)],
       ],
-      link: receiptUrl ? { href: receiptUrl, label: f.t("영수증 보기", "View receipt") } : undefined,
+      link: d.receiptUrl ? { href: d.receiptUrl, label: f.t("영수증 보기", "View receipt") } : undefined,
+      after: [
+        f.t(
+          "마이페이지 → 결제 관리에서 언제든 해지할 수 있어요.",
+          "You can cancel anytime under My page → Billing.",
+        ),
+      ],
       button: { href: d.manageUrl, label: f.t("결제 관리", "Manage billing") },
-      note: f.t(
-        "해지하려면 마이페이지 → 결제 관리에서 언제든 할 수 있어요.",
-        "To cancel, go to My page → Billing at any time.",
-      ),
     };
   },
 
@@ -134,12 +134,12 @@ const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => D
       paragraphs: [
         d.needsCardChange
           ? f.t(
-              "등록한 카드로 결제할 수 없어요. 결제 관리에서 카드를 바꿔 주세요.",
-              "We couldn't charge the card on file. Please change your card under Billing.",
+              "이번 카드 결제가 실패했어요. 등록한 카드로는 결제할 수 없으니 결제 관리에서 카드를 바꿔 주세요.",
+              "This card payment didn't go through. The card on file can't be charged, so please change your card under Billing.",
             )
           : f.t(
-              "카드 결제가 한 번 실패했어요. 며칠 뒤 다시 시도해요.",
-              "The card payment didn't go through. We'll try again in a few days.",
+              "이번 카드 결제가 실패했어요. 며칠 뒤 다시 시도해요.",
+              "This card payment didn't go through. We'll try again in a few days.",
             ),
         f.t(
           `${f.date(d.graceUntil)}까지 결제되지 않으면 구독이 끝나요.`,
@@ -240,22 +240,27 @@ function render(draft: Draft, f: Fmt, test: boolean): string {
     .map((p) => `<p style="margin:12px 0 0;font-size:14px;line-height:1.6">${escapeHtml(p)}</p>`)
     .join("");
   const details = draft.details ? renderDetails(draft.details) : "";
-  const link = draft.link
-    ? `<p style="margin:14px 0 0;font-size:14px"><a href="${escapeHtml(draft.link.href)}" style="color:${EMAIL.seal};font-weight:700">${escapeHtml(draft.link.label)}</a></p>`
-    : "";
-  const note = draft.note
-    ? `<p style="margin:16px 0 0;font-size:12px;line-height:1.6;color:${EMAIL.inkSoft}">${escapeHtml(draft.note)}</p>`
-    : "";
+  const linkHref = draft.link ? httpUrl(draft.link.href) : null;
+  const link =
+    draft.link && linkHref
+      ? `<p style="margin:14px 0 0;font-size:14px"><a href="${escapeHtml(linkHref)}" style="color:${EMAIL.seal};font-weight:700">${escapeHtml(draft.link.label)}</a></p>`
+      : "";
+  const after = (draft.after ?? [])
+    .map((p) => `<p style="margin:14px 0 0;font-size:14px;line-height:1.6">${escapeHtml(p)}</p>`)
+    .join("");
+  // 주소가 http(s)가 아니면 버튼을 빼고 보낸다 — 깨진 링크보다 안전하다
+  const buttonHref = httpUrl(draft.button.href);
+  const button = buttonHref ? emailButton(escapeHtml(buttonHref), escapeHtml(draft.button.label)) : "";
   return emailCard(`${banner}
       <tr><td style="padding:8px 32px">
         <p style="margin:0;font-size:16px;font-weight:700">${escapeHtml(draft.heading)}</p>
         ${paragraphs}
         ${details}
         ${link}
+        ${after}
       </td></tr>
       <tr><td style="padding:20px 32px 28px">
-        ${emailButton(escapeHtml(draft.button.href), escapeHtml(draft.button.label))}
-        ${note}
+        ${button}
       </td></tr>`);
 }
 
