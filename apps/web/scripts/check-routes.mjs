@@ -47,6 +47,7 @@ const ROUTES = [
   // 결제 모드 게이트 — 기본 빌드(BILLING_MODE 없음)에서는 결제 화면·토스 리다이렉트가 없어야 한다
   ["/ko/billing/checkout", 404, "결제 꺼짐(BILLING_MODE 없음)이면 결제 화면 없음"],
   ["/api/billing/toss/callback", 404, "결제 꺼짐이면 토스 콜백 없음"],
+  ["/api/billing/toss/fail", 404, "결제 꺼짐이면 토스 실패 주소 없음"],
 ];
 
 /**

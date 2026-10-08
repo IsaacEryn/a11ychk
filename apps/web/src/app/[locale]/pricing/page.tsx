@@ -154,6 +154,8 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                     className="inline-block rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-5 py-2.5 font-bold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
                   >
                     {t(`ctaSubscribe.${p.interval}`)}
+                    {/* 링크 이름이 플랜마다 달라야 한다(WCAG 2.4.4) — 보이는 문구는 그대로 두고 플랜 이름을 덧붙인다 */}
+                    <span className="sr-only"> — {t(`tiers.${id}.name`)}</span>
                   </Link>
                 ))
               ) : (
@@ -169,7 +171,10 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
         ))}
       </div>
 
-      <p className="mt-8 max-w-2xl text-sm leading-relaxed text-[var(--color-ink-faint)]">{t("note")}</p>
+      {/* 결제가 열린 유료 플랜이 있으면 "시행 전" 안내 대신 구독 안내 */}
+      <p className="mt-8 max-w-2xl text-sm leading-relaxed text-[var(--color-ink-faint)]">
+        {tiers.some((tier) => tier.purchasable) ? t("noteSubscribable") : t("note")}
+      </p>
     </div>
   );
 }

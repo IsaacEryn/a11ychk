@@ -35,7 +35,15 @@ export type CheckoutOutcome =
   | { kind: "subscribed"; subscriptionId: string }
   | { kind: "cardChanged"; subscriptionId: string; retry: "paid" | "failed" | "pending" | "none" }
   | { kind: "pending" }
-  | { kind: "error"; code: "notFound" | "expired" | "customerMismatch" | "hasActive" | "priceInactive" | "cardRejected" | "failed"; priceId?: string };
+  | {
+      kind: "error";
+      /**
+       * hasActive: 결제 전에 진행 중 구독을 발견해 멈췄다(청구 없음).
+       * duplicateRefunded: 결제는 됐는데 다른 시도가 먼저 구독을 만들어 이번 결제를 자동 취소했다(취소 실패면 수동 환불 대상)
+       */
+      code: "notFound" | "expired" | "customerMismatch" | "hasActive" | "duplicateRefunded" | "priceInactive" | "cardRejected" | "failed";
+      priceId?: string;
+    };
 
 type ErrorCode = Extract<CheckoutOutcome, { kind: "error" }>["code"];
 
@@ -270,7 +278,7 @@ async function runCheckout(deps: BillingDeps, input: CompleteCheckoutInput, stat
 
   // 10. 구독 생성
   const activated = await activateInitialPayment(deps, payment, charged);
-  if (activated === "hasActive") return { kind: "error", code: "hasActive", priceId: checkout.price_id };
+  if (activated === "duplicateRefunded") return { kind: "error", code: "duplicateRefunded", priceId: checkout.price_id };
   if (activated === null) {
     await deps.log(`billing initial payment ${payment.id} charged but could not be activated`);
     return { kind: "pending" };
@@ -378,14 +386,14 @@ function createdBy(sub: SubscriptionRow, payment: PaymentRow, price: PriceRow): 
 }
 
 /**
- * 첫 결제 성공 → 구독 생성(대사도 쓴다). 구독 id, 경합으로 취소했으면 "hasActive", 시도·가격을 못 찾으면 null.
+ * 첫 결제 성공 → 구독 생성(대사도 쓴다). 구독 id, 경합으로 이번 결제를 취소했으면 "duplicateRefunded", 시도·가격을 못 찾으면 null.
  * 다시 불러도 안전하다: 앞선 실행이 구독까지 만들고 멈췄다면 그 구독으로 마무리하고 취소하지 않는다.
  */
 export async function activateInitialPayment(
   deps: BillingDeps,
   payment: PaymentRow,
   charged: TossPayment,
-): Promise<string | "hasActive" | null> {
+): Promise<string | "duplicateRefunded" | null> {
   const { store } = deps;
   if (!payment.checkout_id || !payment.user_id || !payment.period_start || !payment.period_end) return null;
   const checkout = await store.getCheckout(payment.checkout_id);
@@ -429,7 +437,7 @@ export async function activateInitialPayment(
 }
 
 /** 결제는 됐는데 다른 시도가 먼저 구독을 만들었다 — 이번 결제를 돌려준다 */
-async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout: CheckoutRow, charged: TossPayment): Promise<"hasActive"> {
+async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout: CheckoutRow, charged: TossPayment): Promise<"duplicateRefunded"> {
   const settled = paidFields(deps, charged);
   let refunded = false;
   try {
@@ -445,8 +453,8 @@ async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout:
       ? { ...settled, status: "refunded", refunded_amount: payment.amount }
       : { ...settled, status: "paid", failure_code: "CANCEL_FAILED" },
   );
-  await deps.store.finishCheckout(checkout.id, { status: "failed", failure_code: "hasActive" });
-  return "hasActive";
+  await deps.store.finishCheckout(checkout.id, { status: "failed", failure_code: "duplicateRefunded" });
+  return "duplicateRefunded";
 }
 
 /** 결제창 실패 코드는 URL에서 온다 — 토스 코드 모양이 아니면 저장하지 않는다 */

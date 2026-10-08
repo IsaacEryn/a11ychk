@@ -119,7 +119,7 @@ describe("startCheckout — 결제 시작 액션", () => {
 
   it("흐름의 거절은 그대로(inProgress 등), 저장소 오류는 failed + 기록", async () => {
     await startCheckout({}, fd({ priceId: price.id, consent: "on" }));
-    expect(await startCheckout({}, fd({ priceId: price.id, consent: "on" }))).toEqual({ error: "inProgress" });
+    expect(await startCheckout({}, fd({ priceId: price.id, consent: "on" }))).toEqual({ error: "inProgress", blockedBy: "open" });
 
     deps.store.getPrice = async () => {
       throw new Error("billing store getPrice: timeout");
@@ -147,10 +147,18 @@ describe("startCardChange·abandonCheckout", () => {
     expect(await startCardChange({}, fd({ subscriptionId: "x" }))).toEqual({ error: "invalid" });
   });
 
-  it("abandonCheckout은 이 사용자의 open 시도만 닫는다, 결제 꺼짐이면 notConfigured", async () => {
+  it("abandonCheckout은 이 사용자의 open 시도만 닫고 닫은 수·남은 까닭을 준다, 결제 꺼짐이면 notConfigured", async () => {
     deps.store.rows.checkouts.push(checkoutRow({ user_id: USER, price_id: price.id }));
-    expect(await abandonCheckout()).toEqual({ ok: true });
+    expect(await abandonCheckout()).toEqual({ closed: 1, blockedBy: null });
     expect(deps.store.rows.checkouts[0]).toMatchObject({ status: "expired", failure_code: "abandoned" });
+    // 닫을 것이 없으면 0 — 화면은 성공으로 안내하지 않는다
+    expect(await abandonCheckout()).toEqual({ closed: 0, blockedBy: null });
+    deps.store.rows.checkouts.push(checkoutRow({ user_id: USER, price_id: price.id, status: "processing" }));
+    expect(await abandonCheckout()).toEqual({ closed: 0, blockedBy: "processing" });
+    deps.store.listUnfinishedCheckouts = async () => {
+      throw new Error("billing store listUnfinishedCheckouts: timeout");
+    };
+    expect(await abandonCheckout()).toEqual({ error: "failed" });
 
     vi.stubEnv("BILLING_MODE", "");
     expect(await abandonCheckout()).toEqual({ error: "notConfigured" });

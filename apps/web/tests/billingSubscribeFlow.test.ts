@@ -369,7 +369,7 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(deps.toss.calls.chargeBillingKey).toHaveLength(1);
   });
 
-  it("9. 결제 성공 뒤 구독 insert가 경합으로 hasActive → 토스 취소 1회(cancel_<결제 id>), 결제 refunded", async () => {
+  it("9. 결제 성공 뒤 구독 insert가 경합으로 막히면 → 토스 취소 1회(cancel_<결제 id>), 결제 refunded, 결과는 duplicateRefunded(hasActive와 구분)", async () => {
     const rival = subscriptionRow({ user_id: USER });
     // 결제 단계에서 저장소에 접근하려고 — setup이 저장소를 만들기 전에 스크립트를 정해야 한다
     const late: { store?: ReturnType<typeof createMemoryStore> } = {};
@@ -390,17 +390,17 @@ describe("completeCheckout — 첫 정기결제", () => {
 
     const out = await completeCheckout(ctx.deps, ctx.input);
 
-    expect(out).toEqual({ kind: "error", code: "hasActive", priceId: ctx.price.id });
+    expect(out).toEqual({ kind: "error", code: "duplicateRefunded", priceId: ctx.price.id });
     const pay = store.rows.payments[0];
     expect(ctx.deps.toss.calls.cancelPayment).toEqual([["pk_0001", { cancelReason: "중복 구독 자동 취소" }, `cancel_${pay.id}`]]);
     expect(pay).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: "pk_0001", subscription_id: null });
     expect(store.rows.subscriptions).toEqual([rival]);
-    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "hasActive" });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "duplicateRefunded" });
     expect(store.rows.consents[0].subscription_id).toBeNull();
     expect(ctx.deps.mailer.sent).toHaveLength(0);
   });
 
-  it("9'. 경합 취소 자체가 실패하면 결제는 paid·CANCEL_FAILED로 남기고(수동 환불), 시도는 hasActive로 끝낸다", async () => {
+  it("9'. 경합 취소 자체가 실패하면 결제는 paid·CANCEL_FAILED로 남기고(수동 환불), 결과는 같은 duplicateRefunded", async () => {
     const rival = subscriptionRow({ user_id: USER });
     // 결제 단계에서 저장소에 접근하려고 — setup이 저장소를 만들기 전에 스크립트를 정해야 한다
     const late: { store?: ReturnType<typeof createMemoryStore> } = {};
@@ -420,7 +420,7 @@ describe("completeCheckout — 첫 정기결제", () => {
 
     const out = await completeCheckout(ctx.deps, ctx.input);
 
-    expect(out).toEqual({ kind: "error", code: "hasActive", priceId: ctx.price.id });
+    expect(out).toEqual({ kind: "error", code: "duplicateRefunded", priceId: ctx.price.id });
     expect(ctx.deps.toss.calls.cancelPayment).toHaveLength(1);
     expect(store.rows.payments[0]).toMatchObject({
       status: "paid",
@@ -429,7 +429,7 @@ describe("completeCheckout — 첫 정기결제", () => {
       external_payment_id: "pk_0001",
       subscription_id: null,
     });
-    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "hasActive" });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "duplicateRefunded" });
     expect(store.rows.subscriptions).toEqual([rival]);
     expect(ctx.deps.log).toHaveBeenCalledTimes(1);
     const logged = String(ctx.deps.log.mock.calls[0][0]);

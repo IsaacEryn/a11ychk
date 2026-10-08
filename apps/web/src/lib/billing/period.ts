@@ -7,6 +7,14 @@ const DAY_MS = 86400_000;
 
 /** 결제 예정 시각보다 이만큼 먼저 갱신 결제를 시도한다(하루 1회 크론의 지연을 흡수) */
 export const CHARGE_LEAD_MS = DAY_MS;
+
+/**
+ * 기간 끝(periodEnd)에 대한 갱신 결제가 나갈 수 있는 가장 이른 시각 — 크론은 이때부터 결제한다.
+ * 사용자에게 "다음 결제일"로 알리는 시각은 모두 이것이다(결제 확인 화면·동의 스냅샷·결제 예정 안내 메일).
+ */
+export function earliestChargeAt(periodEnd: string): string {
+  return new Date(Date.parse(periodEnd) - CHARGE_LEAD_MS).toISOString();
+}
 export const GRACE_DAYS = 7;
 /** 첫 실패 뒤 재시도 시점(결제 예정 시각 기준 +N일) */
 const RETRY_OFFSET_DAYS = [1, 3, 5] as const;

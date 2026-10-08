@@ -6,6 +6,7 @@ import {
   consentSnapshot,
   isCardChangeTarget,
   planCheckoutGuard,
+  type CheckoutBlock,
   type CheckoutLocale,
 } from "@/lib/billing/checkout";
 import { errorText } from "@/lib/billing/flows/subscribe";
@@ -22,14 +23,17 @@ import type { BillingDeps, CheckoutRow } from "@/lib/billing/types";
  */
 
 export type StartError = "notAllowed" | "hasActive" | "priceInactive" | "inProgress" | "failed";
-export type StartOutcome = { ok: true; checkoutId: string; customerKey: string } | { ok: false; error: StartError };
+/** inProgress면 blockedBy로 막는 까닭을 함께 준다 — open이면 사용자가 이전 시도를 닫을 수 있다 */
+export type StartOutcome =
+  | { ok: true; checkoutId: string; customerKey: string }
+  | { ok: false; error: StartError; blockedBy?: CheckoutBlock };
 
 type StartDeps = Pick<BillingDeps, "store" | "now" | "log">;
 
 const iso = (t: number) => new Date(t).toISOString();
 
-/** 같은 사용자·모드의 끝나지 않은 시도를 정리하고, 그래도 진행 중인 시도·결제가 있으면 true */
-async function isBusy(deps: StartDeps, userId: string, livemode: boolean): Promise<boolean> {
+/** 같은 사용자·모드의 끝나지 않은 시도를 정리하고, 그래도 막는 까닭이 남으면 그 까닭(없으면 null) */
+async function blockReason(deps: StartDeps, userId: string, livemode: boolean): Promise<CheckoutBlock | null> {
   const { store } = deps;
   const [unfinished, pendingInitialPayment] = await Promise.all([
     store.listUnfinishedCheckouts(userId, livemode),
@@ -39,15 +43,15 @@ async function isBusy(deps: StartDeps, userId: string, livemode: boolean): Promi
   // 정리는 지금 상태가 그대로일 때만 바꾼다 — 그 사이 선점·완료된 시도는 덮지 않는다
   await store.expireCheckouts(plan.expireOpen, "open", null);
   await store.expireCheckouts(plan.expireProcessing, "processing", "stale");
-  return plan.blocked;
+  return plan.blockedBy;
 }
 
-/** 만든 뒤 다시 확인 — 다른 끝나지 않은 시도가 보이면 방금 만든 시도를 물린다(true = 물렸다) */
-async function yieldIfRaced(deps: StartDeps, created: CheckoutRow): Promise<boolean> {
-  const unfinished = await deps.store.listUnfinishedCheckouts(created.user_id, created.livemode);
-  if (!unfinished.some((c) => c.id !== created.id)) return false;
+/** 만든 뒤 다시 확인 — 다른 끝나지 않은 시도가 보이면 방금 만든 시도를 물리고 그 시도의 상태로 막는 까닭을 준다 */
+async function yieldIfRaced(deps: StartDeps, created: CheckoutRow): Promise<CheckoutBlock | null> {
+  const others = (await deps.store.listUnfinishedCheckouts(created.user_id, created.livemode)).filter((c) => c.id !== created.id);
+  if (others.length === 0) return null;
   await deps.store.expireCheckouts([created.id], "open", "superseded");
-  return true;
+  return others.some((c) => c.status === "processing") ? "processing" : "open";
 }
 
 async function openCheckout(
@@ -56,7 +60,8 @@ async function openCheckout(
   afterInsert?: (checkout: CheckoutRow) => Promise<void>,
 ): Promise<StartOutcome> {
   const { store } = deps;
-  if (await isBusy(deps, row.userId, row.livemode)) return { ok: false, error: "inProgress" };
+  const blocked = await blockReason(deps, row.userId, row.livemode);
+  if (blocked) return { ok: false, error: "inProgress", blockedBy: blocked };
 
   const customer = await store.ensureCustomer(row.userId, row.livemode, randomUUID());
   const checkout = await store.insertCheckout({
@@ -69,7 +74,8 @@ async function openCheckout(
     expires_at: iso(deps.now() + CHECKOUT_TTL_MS),
   });
   try {
-    if (await yieldIfRaced(deps, checkout)) return { ok: false, error: "inProgress" };
+    const raced = await yieldIfRaced(deps, checkout);
+    if (raced) return { ok: false, error: "inProgress", blockedBy: raced };
     if (afterInsert) await afterInsert(checkout);
   } catch (e) {
     // 열린 채로 두면 30분 동안 새 시도를 막는다 — 닫고 실패로 돌려준다
@@ -129,8 +135,13 @@ export async function startCardChangeCheckout(
 /**
  * 사용자가 그만둔 결제 시도를 닫는다 — 결제창을 닫았거나(SDK 오류) 뒤로 가기로 돌아온 경우. 선점 전(open)만 닫는다:
  * 이미 콜백이 처리 중인 시도는 건드리지 않는다. 닫힌 시도로 늦게 돌아오면 콜백은 "만료"로 안내하고 빌링키를 발급하지 않는다.
+ * 닫은 개수(시도한 개수 — 그 사이 선점된 시도는 닫히지 않고 blockedBy에 processing으로 드러난다)와 닫은 뒤에도 남는 막는 까닭을 준다.
+ * 저장소 오류는 기록하고 ok: false.
  */
-export async function abandonOpenCheckouts(deps: StartDeps, input: { userId: string; livemode: boolean }): Promise<number> {
+export async function abandonOpenCheckouts(
+  deps: StartDeps,
+  input: { userId: string; livemode: boolean },
+): Promise<{ ok: true; closed: number; blockedBy: CheckoutBlock | null } | { ok: false }> {
   try {
     const open = (await deps.store.listUnfinishedCheckouts(input.userId, input.livemode)).filter((c) => c.status === "open");
     await deps.store.expireCheckouts(
@@ -138,9 +149,9 @@ export async function abandonOpenCheckouts(deps: StartDeps, input: { userId: str
       "open",
       "abandoned",
     );
-    return open.length;
+    return { ok: true, closed: open.length, blockedBy: await blockReason(deps, input.userId, input.livemode) };
   } catch (e) {
     await deps.log(`billing abandonOpenCheckouts failed for user ${input.userId}: ${errorText(e)}`);
-    return 0;
+    return { ok: false };
   }
 }

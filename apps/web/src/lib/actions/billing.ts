@@ -2,7 +2,14 @@
 
 import { headers } from "next/headers";
 import { getBillingFlags } from "@/lib/appSettings";
-import { checkoutLocale, checkoutReturnUrls, parseCardChange, parseStartCheckout, requestOrigin } from "@/lib/billing/checkout";
+import {
+  checkoutLocale,
+  checkoutReturnUrls,
+  parseCardChange,
+  parseStartCheckout,
+  requestOrigin,
+  type CheckoutBlock,
+} from "@/lib/billing/checkout";
 import { billingMode, rowLivemode, tossKeys } from "@/lib/billing/config";
 import { abandonOpenCheckouts, startCardChangeCheckout, startSubscribeCheckout, type StartOutcome } from "@/lib/billing/flows/start";
 import { errorText } from "@/lib/billing/flows/subscribe";
@@ -40,6 +47,8 @@ export interface StartCheckoutState {
   ok?: true;
   sdk?: TossCheckoutSdk;
   error?: StartCheckoutError;
+  /** error가 inProgress일 때 막는 까닭 — open이면 이전 시도를 닫을 수 있고, processing이면 결과를 기다려야 한다 */
+  blockedBy?: CheckoutBlock;
 }
 
 type Ready = { ok: true; deps: BillingDeps; clientKey: string; livemode: boolean } | { ok: false; error: "notAllowed" | "notConfigured" };
@@ -74,7 +83,7 @@ async function toState(
     await deps.log(`billing start checkout failed: ${errorText(e)}`);
     return { error: "failed" };
   }
-  if (!outcome.ok) return { error: outcome.error };
+  if (!outcome.ok) return outcome.blockedBy ? { error: outcome.error, blockedBy: outcome.blockedBy } : { error: outcome.error };
   return {
     ok: true,
     sdk: { clientKey, customerKey: outcome.customerKey, ...checkoutReturnUrls(origin, outcome.checkoutId, locale), customerEmail: email },
@@ -117,8 +126,11 @@ export async function startCardChange(_prev: StartCheckoutState, fd: FormData): 
 }
 
 export interface AbandonCheckoutState {
-  ok?: true;
-  error?: "notConfigured";
+  /** 닫은 시도 수 — 0이면 닫을 것이 없었다(성공으로 안내하지 않는다) */
+  closed?: number;
+  /** 닫은 뒤에도 남은 막는 까닭 — processing이면 이전 결제를 확인하는 중이라 기다려야 한다 */
+  blockedBy?: CheckoutBlock | null;
+  error?: "notConfigured" | "failed";
 }
 
 /**
@@ -129,6 +141,7 @@ export async function abandonCheckout(): Promise<AbandonCheckoutState> {
   const { user } = await requireUser();
   const ready = billingReady();
   if (!ready.ok) return { error: "notConfigured" };
-  await abandonOpenCheckouts(ready.deps, { userId: user.id, livemode: ready.livemode });
-  return { ok: true };
+  const result = await abandonOpenCheckouts(ready.deps, { userId: user.id, livemode: ready.livemode });
+  if (!result.ok) return { error: "failed" };
+  return { closed: result.closed, blockedBy: result.blockedBy };
 }

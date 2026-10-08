@@ -72,7 +72,8 @@ describe("startSubscribeCheckout — 새 구독의 결제 시도", () => {
           currency: "KRW",
           interval: "month",
           first_charge_at: iso(NOW),
-          next_charge_at: "2026-02-27T16:00:00.000Z",
+          period_end: "2026-02-27T16:00:00.000Z",
+          next_charge_at: "2026-02-26T16:00:00.000Z",
           locale: "ko",
         },
       },
@@ -115,7 +116,7 @@ describe("startSubscribeCheckout — 새 구독의 결제 시도", () => {
     const { deps, store, price } = setup();
     expect(await subscribe(deps, price.id)).toMatchObject({ ok: true });
 
-    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress" });
+    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "open" });
     expect(store.rows.checkouts).toHaveLength(1);
     expect(store.rows.consents).toHaveLength(1);
   });
@@ -123,7 +124,7 @@ describe("startSubscribeCheckout — 새 구독의 결제 시도", () => {
   it("카드 변경 시도가 진행 중이어도 inProgress(목적과 무관하게 한 번에 하나)", async () => {
     const { deps, store, price } = setup({ checkouts: [] });
     store.rows.checkouts.push(checkoutRow({ user_id: USER, price_id: price.id, purpose: "card_change", status: "processing", expires_at: iso(NOW + 10 * MIN) }));
-    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress" });
+    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "processing" });
   });
 
   it("만료된 open과 멈춘 processing(만료 +30분, 결과 불명 결제 없음)은 expired로 정리하고 새 시도를 연다", async () => {
@@ -152,7 +153,7 @@ describe("startSubscribeCheckout — 새 구독의 결제 시도", () => {
     const store = createMemoryStore({ prices: [price], checkouts: [processing], payments: [pending] }, { now: () => NOW });
     const deps = makeDeps({ store });
 
-    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress" });
+    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "processing" });
     expect(store.rows.checkouts).toHaveLength(1);
     expect(store.rows.checkouts[0].status).toBe("processing");
   });
@@ -173,7 +174,7 @@ describe("startSubscribeCheckout — 새 구독의 결제 시도", () => {
       return realInsert(row);
     };
 
-    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress" });
+    expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "open" });
     const statuses = store.rows.checkouts.map((c) => [c.status, c.failure_code]);
     expect(statuses).toEqual([
       ["open", null],
@@ -248,12 +249,12 @@ describe("startCardChangeCheckout — 카드 변경의 결제 시도", () => {
     const sub = subscriptionRow({ user_id: USER, price_id: price.id });
     const store = createMemoryStore({ prices: [price], subscriptions: [sub], checkouts: [checkoutRow({ user_id: USER, price_id: price.id })] }, { now: () => NOW });
     const deps = makeDeps({ store });
-    expect(await startCardChangeCheckout(deps, { userId: USER, livemode: false, subscriptionId: sub.id })).toEqual({ ok: false, error: "inProgress" });
+    expect(await startCardChangeCheckout(deps, { userId: USER, livemode: false, subscriptionId: sub.id })).toEqual({ ok: false, error: "inProgress", blockedBy: "open" });
   });
 });
 
 describe("abandonOpenCheckouts — 그만둔 시도 닫기", () => {
-  it("그 사용자·모드의 open만 abandoned로 닫는다 — processing·다른 사용자·다른 모드는 그대로", async () => {
+  it("그 사용자·모드의 open만 abandoned로 닫는다 — processing·다른 사용자·다른 모드는 그대로, 남은 processing을 까닭으로 알린다", async () => {
     const price = priceRow();
     const mine = checkoutRow({ user_id: USER, price_id: price.id });
     const claimed = checkoutRow({ user_id: USER, price_id: price.id, status: "processing" });
@@ -262,7 +263,7 @@ describe("abandonOpenCheckouts — 그만둔 시도 닫기", () => {
     const store = createMemoryStore({ prices: [price], checkouts: [mine, claimed, others, live] }, { now: () => NOW });
     const deps = makeDeps({ store });
 
-    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toBe(1);
+    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toEqual({ ok: true, closed: 1, blockedBy: "processing" });
     expect(store.rows.checkouts.map((c) => [c.id, c.status, c.failure_code])).toEqual([
       [mine.id, "expired", "abandoned"],
       [claimed.id, "processing", null],
@@ -271,13 +272,29 @@ describe("abandonOpenCheckouts — 그만둔 시도 닫기", () => {
     ]);
   });
 
-  it("저장소 오류는 기록하고 0", async () => {
+  it("open만 있었으면 닫은 뒤 막는 까닭이 없다, 닫을 것이 없으면 closed 0", async () => {
+    const price = priceRow();
+    const store = createMemoryStore({ prices: [price], checkouts: [checkoutRow({ user_id: USER, price_id: price.id })] }, { now: () => NOW });
+    const deps = makeDeps({ store });
+    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toEqual({ ok: true, closed: 1, blockedBy: null });
+    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toEqual({ ok: true, closed: 0, blockedBy: null });
+    // 닫은 뒤에는 새 시도를 열 수 있다
+    expect(await subscribe(deps, price.id)).toMatchObject({ ok: true });
+  });
+
+  it("결과를 모르는 첫 결제가 있으면 닫을 open이 없어도 processing", async () => {
+    const store = createMemoryStore({ payments: [paymentRow({ user_id: USER, status: "pending" })] }, { now: () => NOW });
+    const deps = makeDeps({ store });
+    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toEqual({ ok: true, closed: 0, blockedBy: "processing" });
+  });
+
+  it("저장소 오류는 기록하고 ok: false", async () => {
     const store = createMemoryStore();
     store.listUnfinishedCheckouts = async () => {
       throw new Error("billing store listUnfinishedCheckouts: timeout");
     };
     const deps = makeDeps({ store });
-    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toBe(0);
+    expect(await abandonOpenCheckouts(deps, { userId: USER, livemode: false })).toEqual({ ok: false });
     expect(deps.log).toHaveBeenCalledTimes(1);
   });
 });

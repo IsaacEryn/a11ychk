@@ -2062,7 +2062,8 @@
     "ctaSubscribe": {
       "month": "Subscribe monthly",
       "year": "Subscribe yearly"
-    }
+    },
+    "noteSubscribable": "Prices include VAT. Subscriptions renew automatically at the same amount until you cancel. For organization-wide plans or higher limits, please contact us."
   },
   "notices": {
     "title": "Notices",
@@ -2134,7 +2135,8 @@
         "hasActive": "You already have a subscription, so no new payment was made.",
         "customerMismatch": "The payment details did not match, so nothing was charged. Please try again.",
         "priceInactive": "This price is no longer available, so no payment was made.",
-        "notConfigured": "Payments are not set up yet, so you cannot pay right now."
+        "notConfigured": "Payments are not set up yet, so you cannot pay right now.",
+        "duplicateRefunded": "You already have a subscription, so this payment is being canceled automatically. If the cancellation is not confirmed, please contact us."
       },
       "formErrors": {
         "invalid": "The request was not valid. Please reload the page and try again.",
@@ -2147,8 +2149,13 @@
         "failed": "The payment could not be started. Please try again in a moment.",
         "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
         "sdkFailed": "The payment window could not be opened. Please try again.",
-        "sdkCanceled": "You closed the payment window. You can try again."
-      }
+        "sdkCanceled": "You closed the payment window. You can try again.",
+        "inProgressChecking": "We are still confirming your previous payment. Please check the result under Billing in a few minutes."
+      },
+      "period": "Service period",
+      "periodValue": "{start} – {end}",
+      "nextChargeHint": "The next payment is made one day before the service period ends, and we email you a reminder beforehand.",
+      "nothingToRelease": "There was no payment attempt to cancel. Please try paying again."
     }
   }
 }

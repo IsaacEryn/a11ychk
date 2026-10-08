@@ -14,6 +14,7 @@ import { canCheckout, priceLivemode } from "@/lib/billing/visibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutForm } from "./CheckoutForm";
+import { FocusOnMount } from "./FocusOnMount";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -24,7 +25,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 결제창에서 돌아와 보여 줄 수 있는 오류 — 이 목록 밖의 값은 무시한다(쿼리 문자열을 화면에 그대로 싣지 않는다) */
-const RETURN_ERRORS = ["canceled", "cardRejected", "failed", "expired", "hasActive", "customerMismatch", "priceInactive", "notConfigured"] as const;
+const RETURN_ERRORS = [
+  "canceled",
+  "cardRejected",
+  "failed",
+  "expired",
+  "hasActive",
+  "duplicateRefunded",
+  "customerMismatch",
+  "priceInactive",
+  "notConfigured",
+] as const;
 type ReturnError = (typeof RETURN_ERRORS)[number];
 
 const PRICE_COLS = "id, plan_code, provider, currency, interval, amount, livemode, active";
@@ -110,8 +121,12 @@ export default async function CheckoutPage({
       <p className="mt-2 leading-relaxed text-[var(--color-ink-soft)]">{t("desc")}</p>
 
       {mode === "test" && <Notice variant="warn" live={false} className="mt-6" title={t("testMode")} />}
-      {/* 결제창에서 돌아온 결과 — 화면에 들어오자마자 알린다 */}
-      {returnError && <Notice variant="error" className="mt-6" title={t(`returnErrors.${returnError}`)} />}
+      {/* 결제창에서 돌아온 결과 — 화면에 들어오자마자 포커스를 옮겨 먼저 읽히게 한다 */}
+      {returnError && (
+        <FocusOnMount className="mt-6">
+          <Notice variant="error" title={t(`returnErrors.${returnError}`)} />
+        </FocusOnMount>
+      )}
 
       {subscribed ? (
         <Notice variant="info" live={false} className="mt-6" title={t("subscribedTitle")}>
@@ -154,12 +169,18 @@ export default async function CheckoutPage({
                 <dd>{t("firstChargeValue", { date: day(terms.firstChargeAt), amount: money })}</dd>
               </div>
               <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 py-2.5">
+                <dt className="font-semibold">{t("period")}</dt>
+                <dd>{t("periodValue", { start: day(terms.firstChargeAt), end: day(terms.periodEnd) })}</dd>
+              </div>
+              <div className="flex flex-wrap justify-between gap-x-6 gap-y-1 py-2.5">
                 <dt className="font-semibold">{t("nextCharge")}</dt>
+                {/* 갱신 결제는 기간 끝 하루 전부터 나간다 — 결제 예정 안내 메일과 같은 날짜 */}
                 <dd>{day(terms.nextChargeAt)}</dd>
               </div>
             </dl>
             <ul className="mt-5 list-disc space-y-2 pl-5 text-sm leading-relaxed">
               <li>{t("renewal")}</li>
+              <li>{t("nextChargeHint")}</li>
               <li>{t("cancelHow")}</li>
             </ul>
           </section>

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { addInterval, kstDayOfMonth } from "./period";
+import { addInterval, earliestChargeAt, kstDayOfMonth } from "./period";
 import type { CheckoutRow, PriceRow, SubscriptionRow } from "./types";
 import type { CheckoutOutcome } from "./flows/subscribe";
 
@@ -108,13 +108,16 @@ export function tossReturnParams(search: string): URLSearchParams {
 
 // ── 동시 시도 차단 ──
 
+/** 새 시도를 막는 까닭 — open: 선점 전 시도(사용자가 닫을 수 있다), processing: 처리 중인 시도·결과 불명 결제(기다려야 한다) */
+export type CheckoutBlock = "open" | "processing";
+
 export interface CheckoutGuardPlan {
   /** 만료 시각이 지난 open — expired로 정리한다 */
   expireOpen: string[];
   /** 선점된 채 멈춘 processing(결과를 모르는 첫 결제가 없을 때만) — expired로 정리한다 */
   expireProcessing: string[];
-  /** 정리 뒤에도 진행 중인 시도·결제가 있다 — 새 시도를 막는다(inProgress) */
-  blocked: boolean;
+  /** 정리 뒤에도 남는 막는 까닭(없으면 null) — 둘 다 있으면 processing(open을 닫아도 풀리지 않는다) */
+  blockedBy: CheckoutBlock | null;
 }
 
 /**
@@ -129,18 +132,21 @@ export function planCheckoutGuard(
   rows: Array<Pick<CheckoutRow, "id" | "status" | "expires_at">>,
   opts: { now: number; pendingInitialPayment: boolean },
 ): CheckoutGuardPlan {
-  const plan: CheckoutGuardPlan = { expireOpen: [], expireProcessing: [], blocked: opts.pendingInitialPayment };
+  const expireOpen: string[] = [];
+  const expireProcessing: string[] = [];
+  let openBlock = false;
+  let processingBlock = opts.pendingInitialPayment;
   for (const row of rows) {
     const expires = Date.parse(row.expires_at);
     if (row.status === "open") {
-      if (expires <= opts.now) plan.expireOpen.push(row.id);
-      else plan.blocked = true;
+      if (expires <= opts.now) expireOpen.push(row.id);
+      else openBlock = true;
     } else if (row.status === "processing") {
-      if (!opts.pendingInitialPayment && expires + PROCESSING_STALE_MS <= opts.now) plan.expireProcessing.push(row.id);
-      else plan.blocked = true;
+      if (!opts.pendingInitialPayment && expires + PROCESSING_STALE_MS <= opts.now) expireProcessing.push(row.id);
+      else processingBlock = true;
     }
   }
-  return plan;
+  return { expireOpen, expireProcessing, blockedBy: processingBlock ? "processing" : openBlock ? "open" : null };
 }
 
 // ── 확인 화면·동의 ──
@@ -150,22 +156,29 @@ export interface CheckoutTerms {
   amount: number;
   currency: PriceRow["currency"];
   interval: PriceRow["interval"];
-  /** 오늘 첫 결제 시각 */
+  /** 오늘 첫 결제 시각 = 첫 이용 기간의 시작 */
   firstChargeAt: string;
-  /** 다음 결제 예정 시각 — 오늘의 KST 일자를 앵커로 한 주기 뒤(짧은 달은 말일) */
+  /** 첫 이용 기간의 끝 — 오늘의 KST 일자를 앵커로 한 주기 뒤(짧은 달은 말일). 첫 결제가 만드는 구독의 current_period_end와 같은 계산 */
+  periodEnd: string;
+  /**
+   * 다음(첫 갱신) 결제가 나갈 수 있는 가장 이른 시각 — 기간 끝 하루 전(earliestChargeAt). 크론이 이때부터 결제하고
+   * 결제 예정 안내 메일도 이 시각을 결제일로 적는다. 화면의 "다음 결제일"은 이 시각의 KST 날짜다
+   */
   nextChargeAt: string;
 }
 
 /** 확인 화면과 동의 스냅샷이 같은 계산을 쓴다 — 보여 준 조건과 기록한 조건이 어긋나지 않게 */
 export function checkoutTerms(price: Pick<PriceRow, "plan_code" | "amount" | "currency" | "interval">, now: number): CheckoutTerms {
   const firstChargeAt = new Date(now).toISOString();
+  const periodEnd = addInterval(firstChargeAt, price.interval, kstDayOfMonth(now));
   return {
     planCode: price.plan_code,
     amount: price.amount,
     currency: price.currency,
     interval: price.interval,
     firstChargeAt,
-    nextChargeAt: addInterval(firstChargeAt, price.interval, kstDayOfMonth(now)),
+    periodEnd,
+    nextChargeAt: earliestChargeAt(periodEnd),
   };
 }
 
@@ -182,6 +195,7 @@ export function consentSnapshot(
     currency: terms.currency,
     interval: terms.interval,
     first_charge_at: terms.firstChargeAt,
+    period_end: terms.periodEnd,
     next_charge_at: terms.nextChargeAt,
     locale,
   };

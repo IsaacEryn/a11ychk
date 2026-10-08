@@ -1,8 +1,8 @@
 import "server-only";
 import { decryptBillingKey } from "@/lib/billing/crypto";
 import {
-  CHARGE_LEAD_MS,
   addInterval,
+  earliestChargeAt,
   graceUntil,
   kstDayOfMonth,
   nextRetryAt,
@@ -89,7 +89,7 @@ export function decideRenewalAction(sub: SubscriptionRow, now: number): RenewalA
   // 생기더라도 해지한 사람에게 재결제하지 않게 같은 규칙으로 끝낸다
   if (sub.cancel_at_period_end) return now >= end ? "end_canceled" : "none";
   if (sub.status === "active") {
-    if (now >= end - CHARGE_LEAD_MS) return "charge";
+    if (now >= Date.parse(earliestChargeAt(sub.current_period_end))) return "charge";
     if (now >= end - reminderLeadMs(sub.interval) && !sameInstant(sub.reminder_sent_for, sub.current_period_end)) return "remind";
     return "none";
   }
@@ -373,8 +373,8 @@ async function reconcileDone(deps: BillingDeps, p: PaymentRow, found: TossPaymen
       await deps.log(`billing reconcile: initial payment ${p.id} is DONE at toss but could not be activated, left pending`);
       return "unresolved";
     }
-    // hasActive: 다른 시도가 먼저 구독을 만들어 이번 결제는 돌려줬다 — 이용 기간을 주지 않았다
-    return activated === "hasActive" ? "failed" : "paid";
+    // duplicateRefunded: 다른 시도가 먼저 구독을 만들어 이번 결제는 돌려줬다(또는 수동 환불 대상) — 이용 기간을 주지 않았다
+    return activated === "duplicateRefunded" ? "failed" : "paid";
   }
   if (!isAttempt(p) || !p.subscription_id) {
     await deps.log(`billing reconcile: payment ${p.id} (${p.kind}) cannot be settled automatically, left pending`);
@@ -482,8 +482,8 @@ async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<bo
       planName: planNameFor(sub.plan_code),
       amount: sub.amount,
       currency: sub.currency,
-      // 결제는 기간 끝 하루 전부터 시도한다 — 안내한 날보다 먼저 청구되지 않게 가장 이른 시각을 적는다
-      chargeAt: iso(Date.parse(end) - CHARGE_LEAD_MS),
+      // 결제는 기간 끝 하루 전부터 시도한다 — 안내한 날보다 먼저 청구되지 않게 가장 이른 시각을 적는다(결제 확인 화면과 같은 규칙)
+      chargeAt: earliestChargeAt(end),
     },
     `subscription ${sub.id}`,
   );
