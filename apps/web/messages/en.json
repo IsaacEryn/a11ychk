@@ -2053,7 +2053,16 @@
     },
     "ctaFree": "Start for free",
     "ctaContact": "Contact us",
-    "note": "Until paid plans launch, every account runs on Free limits. Need more? Contact us and we will review and assign limits individually. Launch timing and prices will be announced on this page."
+    "note": "Until paid plans launch, every account runs on Free limits. Need more? Contact us and we will review and assign limits individually. Launch timing and prices will be announced on this page.",
+    "price": {
+      "month": "{amount}/month",
+      "year": "{amount}/year",
+      "vat": "VAT included"
+    },
+    "ctaSubscribe": {
+      "month": "Subscribe monthly",
+      "year": "Subscribe yearly"
+    }
   },
   "notices": {
     "title": "Notices",
@@ -2086,5 +2095,60 @@
     "ctaDesc": "Enter a URL and we will check this checkpoint along with the other 32. One page can be audited without signing in.",
     "ctaButton": "Run a free check",
     "relatedTitle": "Related checkpoints"
+  },
+  "billing": {
+    "checkout": {
+      "eyebrow": "Payment",
+      "title": "Review your subscription",
+      "desc": "Please review the payment details before registering a card. Once you agree and register a card, the first payment is charged today.",
+      "testMode": "Test payment — you will not actually be charged.",
+      "summaryTitle": "Payment details",
+      "plan": "Plan",
+      "amount": "Amount",
+      "amountValue": "{amount} (VAT included)",
+      "cycle": "Billing cycle",
+      "cycleValue": {
+        "month": "Monthly",
+        "year": "Yearly"
+      },
+      "firstCharge": "First payment",
+      "firstChargeValue": "Today ({date}) {amount}",
+      "nextCharge": "Next payment",
+      "renewal": "Your subscription renews automatically at the same amount until you cancel.",
+      "cancelHow": "You can cancel at any time under Billing on My page, and you keep access until the end of the period you paid for.",
+      "consent": "I have reviewed and agree to the recurring payment above",
+      "submit": "Register card and pay",
+      "pending": "Opening the payment window…",
+      "release": "Cancel previous attempt",
+      "released": "The previous payment attempt was canceled. You can pay again.",
+      "subscribedTitle": "You already have a subscription",
+      "subscribedBody": "You can cancel or resume your subscription and change your card under Billing.",
+      "manageLink": "Go to Billing",
+      "inactiveTitle": "This price is not available right now",
+      "pricingLink": "Back to pricing",
+      "returnErrors": {
+        "canceled": "The payment window was closed, so no payment was made. You can try again.",
+        "cardRejected": "This card cannot be used. Please try again with another card.",
+        "failed": "The payment could not be completed. Please try again in a moment.",
+        "expired": "The payment session has expired. Please start again.",
+        "hasActive": "You already have a subscription, so no new payment was made.",
+        "customerMismatch": "The payment details did not match, so nothing was charged. Please try again.",
+        "priceInactive": "This price is no longer available, so no payment was made.",
+        "notConfigured": "Payments are not set up yet, so you cannot pay right now."
+      },
+      "formErrors": {
+        "invalid": "The request was not valid. Please reload the page and try again.",
+        "consent": "You need to agree to the recurring payment to continue.",
+        "notAllowed": "This account cannot make payments right now.",
+        "hasActive": "You already have a subscription. Please check it under Billing.",
+        "priceInactive": "This price is not available right now.",
+        "notConfigured": "Payments are not set up yet, so you cannot pay right now.",
+        "inProgress": "Another payment attempt is in progress. If you are not paying in another window, cancel the previous attempt and try again.",
+        "failed": "The payment could not be started. Please try again in a moment.",
+        "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
+        "sdkFailed": "The payment window could not be opened. Please try again.",
+        "sdkCanceled": "You closed the payment window. You can try again."
+      }
+    }
   }
 }

@@ -14,6 +14,18 @@ export interface PaymentRow { id: string; user_id: string | null; subscription_i
 /** refunded_amount는 DB 기본값 0으로 시작한다 */
 export type NewPayment = Omit<PaymentRow, "id" | "requested_at" | "external_payment_id" | "failure_code" | "failure_message" | "receipt_url" | "card_summary" | "refunded_amount" | "approved_at">;
 export type NewSubscription = Pick<SubscriptionRow, "user_id" | "provider" | "livemode" | "plan_code" | "price_id" | "amount" | "currency" | "interval" | "current_period_start" | "current_period_end" | "billing_anchor_day">;
+/** 새 결제 시도 — status는 open, failure_code는 비어 시작한다 */
+export type NewCheckout = Pick<CheckoutRow, "user_id" | "provider" | "livemode" | "price_id" | "purpose" | "subscription_id" | "expires_at">;
+/** 정기결제 동의 기록 — 화면에 보여 준 조건의 스냅샷(accepted는 DB 기본값 true) */
+export interface NewConsent {
+  user_id: string;
+  checkout_id: string;
+  kind: "recurring_payment";
+  disclosure_version: string;
+  snapshot: Record<string, unknown>;
+}
+/** 토스 고객 키가 채워진 고객 행 */
+export type TossCustomerRow = CustomerRow & { toss_customer_key: string };
 
 /** 조건부 구독 갱신의 기대값 — 읽은 뒤 다른 요청이 바꿨으면 덮어쓰지 않는다 */
 export interface SubscriptionExpectation {
@@ -27,13 +39,28 @@ export interface SubscriptionExpectation {
 }
 
 export interface BillingStore {
-  /** open이고 만료 전이며 그 사용자 것이면 processing으로 바꿔 돌려준다(원자적 선점) */
-  claimCheckout(id: string, userId: string, nowIso: string): Promise<CheckoutRow | null>;
+  /** open이고 만료 전이며 그 사용자·그 모드의 것이면 processing으로 바꿔 돌려준다(원자적 선점) */
+  claimCheckout(id: string, userId: string, livemode: boolean, nowIso: string): Promise<CheckoutRow | null>;
   getCheckout(id: string): Promise<CheckoutRow | null>;
   /** 끝나지 않은(open·processing) 시도만 바꾼다 — 늦게 도착한 실패가 completed를 덮지 않게 */
   finishCheckout(id: string, patch: { status: "completed" | "failed"; failure_code?: string | null; subscription_id?: string | null }): Promise<void>;
+  /** 결제 시도 생성(open) */
+  insertCheckout(row: NewCheckout): Promise<CheckoutRow>;
+  /** 그 사용자·모드의 끝나지 않은(open·processing) 시도 — 만료 여부와 무관하게 */
+  listUnfinishedCheckouts(userId: string, livemode: boolean): Promise<CheckoutRow[]>;
+  /**
+   * 시도들을 expired로 닫는다 — 지금 상태가 from일 때만(그 사이 선점·완료된 시도는 덮지 않는다).
+   * failureCode가 null이면 실패 코드는 그대로 둔다
+   */
+  expireCheckouts(ids: string[], from: "open" | "processing", failureCode: string | null): Promise<void>;
+  insertConsent(row: NewConsent): Promise<void>;
   getPrice(id: string): Promise<PriceRow | null>;
   getCustomer(userId: string, livemode: boolean): Promise<CustomerRow | null>;
+  /**
+   * 토스 고객 행을 돌려준다 — 없으면 newCustomerKey로 만들고, 행은 있는데 토스 고객 키가 비었으면 채운다.
+   * (user_id, livemode) 유니크라 동시에 만들면 한쪽이 지고, 진 쪽은 다시 읽어 이긴 쪽의 행을 쓴다
+   */
+  ensureCustomer(userId: string, livemode: boolean, newCustomerKey: string): Promise<TossCustomerRow>;
   updateCustomer(id: string, patch: { toss_billing_key_enc: string | null; toss_card_summary: CardSummary | null }): Promise<void>;
   /**
    * 이 실행이 쓴 암호문일 때만 빌링키·카드 요약을 지운다(지웠으면 true). 그 사이 다른 시도가
@@ -58,6 +85,8 @@ export interface BillingStore {
   listPendingPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;
   /** 이 구독에 결과를 모르는(pending) 결제가 있는지 — 나이·개수 제한 없이 */
   hasPendingPayment(subscriptionId: string): Promise<boolean>;
+  /** 그 사용자·모드에 결과를 모르는(pending) 첫 결제가 있는지 — 결제를 확인하는 동안 새 시도를 막는다 */
+  hasPendingInitialPayment(userId: string, livemode: boolean): Promise<boolean>;
   /**
    * 같은 구독·같은 기간 시작의 failed 결제 중 실패 코드가 제외 목록(코드·접두)에 없는 것이 있는지.
    * 실패 코드가 없는 행은 세지 않는다

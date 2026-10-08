@@ -7,8 +7,14 @@ import type { NextRequest } from "next/server";
  * 프록시 matcher가 어떤 HTML 경로를 빠뜨리면 그 페이지만 CSP 없이 나가므로,
  * matcher를 손볼 때는 HTML을 반환하는 경로가 빠지지 않는지 함께 확인할 것.
  *
- * 외부 오리진은 실제 쓰는 것만 연다: Turnstile, Supabase. (폰트·스타일은 자체 호스팅)
+ * 외부 오리진은 실제 쓰는 것만 연다: Turnstile, Supabase, (결제 모드일 때) 토스페이먼츠. (폰트·스타일은 자체 호스팅)
  */
+
+// 토스 결제창 — BILLING_MODE가 test·live일 때만 연다. lib/billing/config.ts는 server-only라 프록시 경로에서
+// import하지 않고 같은 판정(모드 값)만 여기서 읽는다. 키 접두가 어긋나 서버가 off로 떨어져도 허용 목록이 조금 넓을 뿐
+// 결제는 서버에서 막힌다.
+const billingOn = ["test", "live"].includes(process.env.BILLING_MODE?.trim() ?? "");
+
 // 정책에서 nonce를 뺀 나머지는 프로세스 수명 동안 고정이다(NEXT_PUBLIC_*은 빌드 시
 // 인라인되고 NODE_ENV도 바뀌지 않는다). 모든 요청이 지나는 자리라 한 번만 조립해 둔다.
 const [CSP_HEAD, CSP_TAIL] = (() => {
@@ -20,20 +26,24 @@ const [CSP_HEAD, CSP_TAIL] = (() => {
   const gaConnect = gtmOn ? " https://www.googletagmanager.com https://*.google-analytics.com https://analytics.google.com" : "";
   const gaImg = gtmOn ? " https://www.googletagmanager.com https://*.google-analytics.com" : "";
   const gaFrame = gtmOn ? " https://www.googletagmanager.com" : "";
+  // 토스 SDK v2 — 스크립트는 js.tosspayments.com(strict-dynamic 미지원 브라우저 폴백, 지원 브라우저는 strict-dynamic으로
+  // 신뢰), 결제창 iframe·API 호출·이미지·결제창이 보내는 폼은 *.tosspayments.com
+  const tossScript = billingOn ? " https://js.tosspayments.com" : "";
+  const toss = billingOn ? " https://*.tosspayments.com" : "";
   return [
     "default-src 'self'; script-src 'self' 'nonce-",
     [
       // strict-dynamic: nonce 스크립트가 로드한 후속 스크립트(Next 청크·Turnstile api.js)까지 신뢰.
       // 'self'·host·'unsafe-inline'은 strict-dynamic 미지원 구형 브라우저용 폴백(지원 브라우저는 무시).
-      `' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://challenges.cloudflare.com`,
+      `' 'strict-dynamic'${isDev ? " 'unsafe-eval'" : ""} 'unsafe-inline' https://challenges.cloudflare.com${tossScript}`,
       "style-src 'self' 'unsafe-inline'",
       "font-src 'self'",
-      `img-src 'self' data: blob:${gaImg}`,
-      `connect-src 'self' ${supabase} https://challenges.cloudflare.com${gaConnect}`,
-      `frame-src https://challenges.cloudflare.com${gaFrame}`,
+      `img-src 'self' data: blob:${gaImg}${toss}`,
+      `connect-src 'self' ${supabase} https://challenges.cloudflare.com${gaConnect}${toss}`,
+      `frame-src https://challenges.cloudflare.com${gaFrame}${toss}`,
       "frame-ancestors 'none'",
       "base-uri 'self'",
-      "form-action 'self'",
+      `form-action 'self'${toss}`,
       "object-src 'none'",
     ].join("; "),
   ];

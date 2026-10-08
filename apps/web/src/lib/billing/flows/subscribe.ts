@@ -1,5 +1,6 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
+import { isCardChangeTarget } from "@/lib/billing/checkout";
 import { encryptBillingKey } from "@/lib/billing/crypto";
 import type { BillingEmailData, BillingEmailKind } from "@/lib/billing/emails";
 import { addInterval, kstDayOfMonth } from "@/lib/billing/period";
@@ -11,7 +12,9 @@ import {
   type TossBillingAuth,
   type TossPayment,
 } from "@/lib/billing/toss";
-import type { BillingDeps, CheckoutRow, PaymentRow, PriceRow, SubscriptionRow } from "@/lib/billing/types";
+import type { BillingDeps, CheckoutRow, CustomerRow, PaymentRow, PriceRow, SubscriptionRow } from "@/lib/billing/types";
+// renew.ts도 이 모듈을 가져온다(순환). 서로 함수 안에서만 부르고 모듈 최상위에서는 쓰지 않아 안전하다
+import { chargeSubscription } from "@/lib/billing/flows/renew";
 
 /**
  * 결제창(토스 카드 등록) 이후의 첫 정기결제 흐름.
@@ -22,6 +25,10 @@ import type { BillingDeps, CheckoutRow, PaymentRow, PriceRow, SubscriptionRow } 
  *   processing으로 두고 크론의 대사가 주문 조회로 확정한다.
  * - 이미 구독 중이면 빌링키를 발급하기 전에 멈춘다(발급하면 기존 구독의 카드가 덮인다).
  * 빌링키·authKey는 암호문 열 말고는 어디에도(로그·오류·메일) 남기지 않는다.
+ *
+ * 카드 변경(purpose card_change)은 새 빌링키를 발급해 고객 행의 카드를 바꾸고, 구독이 미납이면 바로
+ * 재결제한다(갱신 크론과 같은 chargeSubscription — 결제 행 유니크가 이중 결제를 막는다). 카드 변경의
+ * 오류에는 가격 id를 싣지 않는다 — 콜백이 결제 화면이 아니라 결제 관리로 돌려보낸다.
  */
 
 export type CheckoutOutcome =
@@ -31,6 +38,21 @@ export type CheckoutOutcome =
   | { kind: "error"; code: "notFound" | "expired" | "customerMismatch" | "hasActive" | "priceInactive" | "cardRejected" | "failed"; priceId?: string };
 
 type ErrorCode = Extract<CheckoutOutcome, { kind: "error" }>["code"];
+
+export interface CompleteCheckoutInput {
+  checkoutId: string;
+  userId: string;
+  /** 이 서버의 결제 모드가 만드는 행의 livemode — 다른 모드의 시도는 없는 것으로 본다 */
+  livemode: boolean;
+  authKey: string;
+  customerKey: string;
+  customerEmail: string | null;
+}
+
+/** 시도의 오류 결과 — 새 구독이면 그 가격의 결제 화면으로 돌아가게 가격 id를 싣는다 */
+function errorFor(checkout: Pick<CheckoutRow, "purpose" | "price_id">, code: ErrorCode): CheckoutOutcome {
+  return checkout.purpose === "subscribe" ? { kind: "error", code, priceId: checkout.price_id } : { kind: "error", code };
+}
 
 /** 사용자가 결제창을 닫거나 그만둔 경우 — 실패가 아니라 취소로 안내한다 */
 const CANCEL_CODES = new Set(["PAY_PROCESS_CANCELED", "PAY_PROCESS_ABORTED"]);
@@ -124,10 +146,7 @@ interface RunState {
   moneyInFlight: boolean;
 }
 
-export async function completeCheckout(
-  deps: BillingDeps,
-  input: { checkoutId: string; userId: string; authKey: string; customerKey: string; customerEmail: string | null },
-): Promise<CheckoutOutcome> {
+export async function completeCheckout(deps: BillingDeps, input: CompleteCheckoutInput): Promise<CheckoutOutcome> {
   const state: RunState = { checkout: null, storedKey: null, moneyInFlight: false };
   try {
     return await runCheckout(deps, input, state);
@@ -141,33 +160,28 @@ export async function completeCheckout(
       const key = state.storedKey;
       if (key) await deps.store.clearCustomerKeyIf(key.customerId, key.enc).catch(() => false);
       await deps.store.finishCheckout(state.checkout.id, { status: "failed", failure_code: "error" }).catch(() => undefined);
-      return { kind: "error", code: "failed", priceId: state.checkout.price_id };
+      return errorFor(state.checkout, "failed");
     }
     return { kind: "error", code: "failed" };
   }
 }
 
-async function runCheckout(
-  deps: BillingDeps,
-  input: { checkoutId: string; userId: string; authKey: string; customerKey: string; customerEmail: string | null },
-  state: RunState,
-): Promise<CheckoutOutcome> {
+async function runCheckout(deps: BillingDeps, input: CompleteCheckoutInput, state: RunState): Promise<CheckoutOutcome> {
   const { store } = deps;
   const nowMs = deps.now();
   const nowIso = iso(nowMs);
 
-  // 1. 원자적 선점 — 동시에 두 번 들어와도 한쪽만 결제까지 간다
-  const checkout = await store.claimCheckout(input.checkoutId, input.userId, nowIso);
+  // 1. 원자적 선점 — 동시에 두 번 들어와도 한쪽만 결제까지 간다. 다른 모드의 시도는 선점하지 않는다
+  const checkout = await store.claimCheckout(input.checkoutId, input.userId, input.livemode, nowIso);
   if (!checkout) return revisit(deps, input);
   state.checkout = checkout;
 
   const fail = async (code: ErrorCode, failureCode: string): Promise<CheckoutOutcome> => {
     await store.finishCheckout(checkout.id, { status: "failed", failure_code: failureCode });
-    return { kind: "error", code, priceId: checkout.price_id };
+    return errorFor(checkout, code);
   };
 
-  // 카드 변경 경로는 아직 없다 — 빌링키를 발급하지 않고 닫는다
-  if (checkout.purpose === "card_change") return fail("failed", "notImplemented");
+  if (checkout.purpose === "card_change") return runCardChange(deps, input, checkout, fail);
 
   // 2. 진행 중 구독 — 빌링키 발급 전에 멈춘다(발급하면 고객 행의 카드가 덮인다)
   if (await store.getLiveSubscription(input.userId, checkout.livemode)) return fail("hasActive", "hasActive");
@@ -183,15 +197,9 @@ async function runCheckout(
   }
 
   // 5. 빌링키 발급 — 돈은 아직 움직이지 않는다
-  let auth: TossBillingAuth;
-  try {
-    auth = await deps.toss.issueBillingKey(input.authKey, input.customerKey);
-  } catch (e) {
-    const code = e instanceof TossError ? e.code : "ISSUE_FAILED";
-    const cardProblem = e instanceof TossError && classifyTossError(e.code) === "card_action_required";
-    if (!cardProblem) await deps.log(`billing issueBillingKey failed for checkout ${checkout.id}: ${errorText(e)}`);
-    return fail(cardProblem ? "cardRejected" : "failed", code);
-  }
+  const issued = await issueKey(deps, input, checkout.id);
+  if (!issued.ok) return fail(issued.code, issued.failureCode);
+  const auth = issued.auth;
 
   // 6. 암호화해 저장 — 평문 빌링키는 이 함수의 지역 변수로만 남는다
   const enc = encryptBillingKey(auth.billingKey, { userId: input.userId, livemode: checkout.livemode }, deps.encKey);
@@ -270,17 +278,93 @@ async function runCheckout(
   return { kind: "subscribed", subscriptionId: activated };
 }
 
+/** 빌링키 발급 — 카드 문제면 cardRejected, 그 밖(설정·결과 불명 포함)은 failed. 돈이 움직이지 않는 단계라 결과 불명도 실패로 닫는다 */
+async function issueKey(
+  deps: BillingDeps,
+  input: CompleteCheckoutInput,
+  checkoutId: string,
+): Promise<{ ok: true; auth: TossBillingAuth } | { ok: false; code: ErrorCode; failureCode: string }> {
+  try {
+    return { ok: true, auth: await deps.toss.issueBillingKey(input.authKey, input.customerKey) };
+  } catch (e) {
+    const failureCode = e instanceof TossError ? e.code : "ISSUE_FAILED";
+    const cardProblem = e instanceof TossError && classifyTossError(e.code) === "card_action_required";
+    if (!cardProblem) await deps.log(`billing issueBillingKey failed for checkout ${checkoutId}: ${errorText(e)}`);
+    return { ok: false, code: cardProblem ? "cardRejected" : "failed", failureCode };
+  }
+}
+
+/**
+ * 카드 변경 — 대상 구독 확인 → 빌링키 발급 → 암호화 저장(기존 카드를 덮는다) → 미납이면 재결제 → 시도 completed.
+ * 새 빌링키를 저장한 뒤의 오류에서는 그 키를 지우지 않는다: 기존 카드는 이미 덮였고, 지우면 구독이 갱신할 카드를 잃는다.
+ * 저장 사이에 구독이 끝났다면(크론의 유예 만료 등) 결제하지 않고 이 실행이 쓴 키만 거둔다.
+ */
+async function runCardChange(
+  deps: BillingDeps,
+  input: CompleteCheckoutInput,
+  checkout: CheckoutRow,
+  fail: (code: ErrorCode, failureCode: string) => Promise<CheckoutOutcome>,
+): Promise<CheckoutOutcome> {
+  const { store } = deps;
+  const target = async () => {
+    const sub = checkout.subscription_id ? await store.getSubscription(checkout.subscription_id) : null;
+    return sub && isCardChangeTarget(sub, input.userId, checkout.livemode) ? sub : null;
+  };
+
+  // 1. 그 사용자의 진행 중 토스 구독(같은 모드)이어야 한다 — 남의 구독·끝난 구독이면 발급하지 않는다
+  if (!(await target())) return fail("failed", "subscriptionMismatch");
+
+  // 2. 결제창에 넘긴 고객 키와 같아야 한다
+  const customer: CustomerRow | null = await store.getCustomer(input.userId, checkout.livemode);
+  if (!customer || customer.toss_customer_key !== input.customerKey) return fail("customerMismatch", "customerMismatch");
+
+  // 3. 빌링키 발급 — 실패하면 기존 카드는 그대로다
+  const issued = await issueKey(deps, input, checkout.id);
+  if (!issued.ok) return fail(issued.code, issued.failureCode);
+
+  // 4. 암호화해 저장 — 평문 빌링키는 이 함수의 지역 변수로만 남는다
+  const enc = encryptBillingKey(issued.auth.billingKey, { userId: input.userId, livemode: checkout.livemode }, deps.encKey);
+  await store.updateCustomer(customer.id, { toss_billing_key_enc: enc, toss_card_summary: issued.auth.card });
+
+  // 5. 다시 읽는다 — 발급하는 사이 구독이 끝났으면 재결제하지 않고, 이 실행이 쓴 빌링키만 거둔다(다른 시도가 쓴 키는 남긴다)
+  const sub = await target();
+  if (!sub) {
+    await store.clearCustomerKeyIf(customer.id, enc);
+    return fail("failed", "subscriptionEnded");
+  }
+
+  // 6. 미납이면 새 카드로 바로 재결제 — skipped는 같은 시도의 결제가 이미 진행 중이라는 뜻이라 확인 중으로 안내한다.
+  // 해지를 예약한 구독은 재결제하지 않는다(크론과 같은 규칙 — 해지한 사람에게 청구하지 않는다)
+  let retry: "paid" | "failed" | "pending" | "none" = "none";
+  if (sub.status === "past_due" && !sub.cancel_at_period_end) {
+    try {
+      const result = await chargeSubscription(deps, sub, "retry");
+      retry = result === "skipped" ? "pending" : result;
+    } catch (e) {
+      // 돈이 움직이기 전의 저장소 오류 — 카드는 바뀌었고, 다음 재시도 시점에 크론이 다시 결제한다
+      await deps.log(`billing card change retry failed for subscription ${sub.id}: ${errorText(e)}`);
+      retry = "failed";
+    }
+  }
+
+  await store.finishCheckout(checkout.id, { status: "completed", subscription_id: sub.id });
+  return { kind: "cardChanged", subscriptionId: sub.id, retry };
+}
+
 /** 선점하지 못한 시도 — 새로고침·뒤로 가기·동시 요청 */
-async function revisit(deps: BillingDeps, input: { checkoutId: string; userId: string }): Promise<CheckoutOutcome> {
+async function revisit(deps: BillingDeps, input: { checkoutId: string; userId: string; livemode: boolean }): Promise<CheckoutOutcome> {
   const existing = await deps.store.getCheckout(input.checkoutId);
-  // 다른 사용자의 시도는 있다는 사실도 알리지 않는다
-  if (!existing || existing.user_id !== input.userId) return { kind: "error", code: "notFound" };
-  if (existing.status === "completed" && existing.purpose === "subscribe" && existing.subscription_id) {
-    return { kind: "subscribed", subscriptionId: existing.subscription_id };
+  // 다른 사용자·다른 모드의 시도는 있다는 사실도 알리지 않는다
+  if (!existing || existing.user_id !== input.userId || existing.livemode !== input.livemode) return { kind: "error", code: "notFound" };
+  if (existing.status === "completed" && existing.subscription_id) {
+    // 카드 변경의 재결제 결과는 다시 알 수 없다 — 카드가 바뀐 것만 알리고 구독 상태는 결제 관리 화면이 보여 준다
+    return existing.purpose === "subscribe"
+      ? { kind: "subscribed", subscriptionId: existing.subscription_id }
+      : { kind: "cardChanged", subscriptionId: existing.subscription_id, retry: "none" };
   }
   // 결제를 확인하는 중(결과 불명·동시 요청) — "만료"로 안내하면 다시 결제해 이중 청구가 날 수 있다
   if (existing.status === "processing") return { kind: "pending" };
-  return { kind: "error", code: "expired", priceId: existing.price_id };
+  return errorFor(existing, "expired");
 }
 
 /** 앞선 실행이 이 결제로 만든 구독인지 — 같은 가격으로 이 결제의 기간 시작 시각에 시작했다 */
@@ -368,24 +452,33 @@ async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout:
 /** 결제창 실패 코드는 URL에서 온다 — 토스 코드 모양이 아니면 저장하지 않는다 */
 const FAIL_CODE_RE = /^[A-Z0-9_]{1,64}$/;
 
-/** 결제창에서 실패·취소하고 돌아왔을 때. priceId를 돌려줘 결제 화면으로 되돌린다 */
+export interface FailCheckoutResult {
+  /** 그 사용자·그 모드의 시도일 때만 */
+  priceId: string | null;
+  reason: "canceled" | "failed";
+  /** 카드 변경이었으면 결제 관리로 돌아간다. 시도를 모르면 null */
+  purpose: CheckoutRow["purpose"] | null;
+}
+
+/** 결제창에서 실패·취소하고 돌아왔을 때. priceId·purpose를 돌려줘 결제 화면(또는 결제 관리)으로 되돌린다 */
 export async function failCheckout(
   deps: BillingDeps,
-  input: { checkoutId: string; userId: string; code: string },
-): Promise<{ priceId: string | null; reason: "canceled" | "failed" }> {
+  input: { checkoutId: string; userId: string; livemode: boolean; code: string },
+): Promise<FailCheckoutResult> {
   const reason = CANCEL_CODES.has(input.code) ? "canceled" : "failed";
   const code = FAIL_CODE_RE.test(input.code) ? input.code : "UNKNOWN";
   try {
     // 선점으로 open → processing을 원자적으로 잡은 뒤 닫는다 — 같은 시도의 결제 처리와 엇갈려도 덮지 않는다
-    const claimed = await deps.store.claimCheckout(input.checkoutId, input.userId, iso(deps.now()));
+    const claimed = await deps.store.claimCheckout(input.checkoutId, input.userId, input.livemode, iso(deps.now()));
     if (claimed) {
       await deps.store.finishCheckout(claimed.id, { status: "failed", failure_code: code });
-      return { priceId: claimed.price_id, reason };
+      return { priceId: claimed.price_id, reason, purpose: claimed.purpose };
     }
     const existing = await deps.store.getCheckout(input.checkoutId);
-    return { priceId: existing && existing.user_id === input.userId ? existing.price_id : null, reason };
+    const mine = existing && existing.user_id === input.userId && existing.livemode === input.livemode ? existing : null;
+    return { priceId: mine?.price_id ?? null, reason, purpose: mine?.purpose ?? null };
   } catch (e) {
     await deps.log(`billing failCheckout ${input.checkoutId} failed: ${errorText(e)}`);
-    return { priceId: null, reason };
+    return { priceId: null, reason, purpose: null };
   }
 }

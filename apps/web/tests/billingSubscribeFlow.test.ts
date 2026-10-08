@@ -4,7 +4,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { decryptBillingKey } from "../src/lib/billing/crypto";
 import { addInterval } from "../src/lib/billing/period";
 import { TossError } from "../src/lib/billing/toss";
-import type { CheckoutRow } from "../src/lib/billing/types";
+import type { CheckoutRow, SubscriptionRow } from "../src/lib/billing/types";
 import {
   activateInitialPayment,
   completeCheckout,
@@ -52,7 +52,7 @@ function setup(opts: { rows?: Partial<MemoryRows>; toss?: Partial<TossScript>; c
     { now: () => NOW },
   );
   const deps = makeDeps({ store, toss: createFakeToss(opts.toss) });
-  const input = { checkoutId: checkout.id, userId: USER, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: "user@example.com" };
+  const input = { checkoutId: checkout.id, userId: USER, livemode: false, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: "user@example.com" };
   return { deps, store, price, customer, checkout, input };
 }
 
@@ -183,7 +183,7 @@ describe("completeCheckout — 첫 정기결제", () => {
     const store = createMemoryStore({ prices: [price], customers: [customer], checkouts: [checkout], subscriptions: [existing] });
     const deps = makeDeps({ store, toss: createFakeToss(toss()) });
 
-    const out = await completeCheckout(deps, { checkoutId: checkout.id, userId: USER, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: null });
+    const out = await completeCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: false, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: null });
 
     expect(out).toEqual({ kind: "error", code: "hasActive", priceId: price.id });
     expect(deps.toss.calls.issueBillingKey).toHaveLength(0);
@@ -227,7 +227,7 @@ describe("completeCheckout — 첫 정기결제", () => {
     const store = createMemoryStore({ prices: [price], customers: [customer], checkouts: [checkout] });
     const deps = makeDeps({ store, toss: createFakeToss(toss()) });
 
-    const out = await completeCheckout(deps, { checkoutId: checkout.id, userId: USER, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: null });
+    const out = await completeCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: false, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: null });
 
     expect(out).toEqual({ kind: "error", code: "priceInactive", priceId: price.id });
     expect(tossCallCount(deps.toss)).toBe(0);
@@ -454,10 +454,10 @@ describe("completeCheckout — 첫 정기결제", () => {
     expect(tossCallCount(deps.toss)).toBe(0);
   });
 
-  it("카드 변경 시도는 아직 자리만 — failed(notImplemented), 토스 호출 없음", async () => {
-    const { deps, store, input } = setup({ toss: toss(), checkout: { purpose: "card_change" } });
-    expect(await completeCheckout(deps, input)).toMatchObject({ kind: "error", code: "failed" });
-    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "notImplemented" });
+  it("다른 모드(테스트 시도를 실결제 서버로 등)의 시도는 notFound — 선점·토스 호출 없이", async () => {
+    const { deps, store, input } = setup({ toss: toss() });
+    expect(await completeCheckout(deps, { ...input, livemode: true })).toEqual({ kind: "error", code: "notFound" });
+    expect(store.rows.checkouts[0].status).toBe("open");
     expect(tossCallCount(deps.toss)).toBe(0);
   });
 
@@ -521,6 +521,222 @@ describe("completeCheckout — 첫 정기결제", () => {
     // 먼저 선점한 쪽이 구독을 만들고, 다른 쪽은 처리 중으로 안내받는다
     expect(outs).toEqual(expect.arrayContaining([{ kind: "subscribed", subscriptionId: sub.id }, { kind: "pending" }]));
     expect(deps.mailer.sent).toHaveLength(1);
+  });
+});
+
+const NEW_BILLING_KEY = "bk_plain_secret_new_0003";
+const OLD_ENC = "v1:old-iv:old-tag:old-ct";
+const OLD_CARD = { issuerCode: "11", number: "9999****", cardType: "체크" };
+const NEW_CARD = { issuerCode: "61", number: "4321****", cardType: "신용" };
+
+/** 카드 변경 직전 상태 — 진행 중 구독·그 구독의 카드(암호문)·카드 변경 시도 */
+function setupCardChange(opts: { sub?: Partial<SubscriptionRow>; toss?: Partial<TossScript>; checkout?: Partial<CheckoutRow> } = {}) {
+  const price = priceRow();
+  const sub = subscriptionRow({ user_id: USER, price_id: price.id, ...opts.sub });
+  const customer = customerRow({ user_id: USER, toss_customer_key: CUSTOMER_KEY, toss_billing_key_enc: OLD_ENC, toss_card_summary: OLD_CARD });
+  const checkout = checkoutRow({ user_id: USER, price_id: price.id, purpose: "card_change", subscription_id: sub.id, ...opts.checkout });
+  const store = createMemoryStore({ prices: [price], customers: [customer], checkouts: [checkout], subscriptions: [sub] }, { now: () => NOW });
+  const deps = makeDeps({ store, toss: createFakeToss(opts.toss) });
+  const input = { checkoutId: checkout.id, userId: USER, livemode: false, authKey: AUTH_KEY, customerKey: CUSTOMER_KEY, customerEmail: "user@example.com" };
+  return { deps, store, price, sub, customer, checkout, input };
+}
+
+const newCard = () => billingAuth({ billingKey: NEW_BILLING_KEY, card: NEW_CARD });
+
+describe("completeCheckout — 카드 변경", () => {
+  it("진행 중(active) 구독: 새 빌링키로 바꾸고 결제는 하지 않는다 — cardChanged·retry none, 시도 completed", async () => {
+    const { deps, store, sub, input } = setupCardChange({ toss: { issueBillingKey: [newCard()] } });
+    const before = structuredClone(store.rows.subscriptions[0]);
+
+    const out = await completeCheckout(deps, input);
+
+    expect(out).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "none" });
+    expect(deps.toss.calls.issueBillingKey).toEqual([[AUTH_KEY, CUSTOMER_KEY]]);
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    const cust = store.rows.customers[0];
+    expect(cust.toss_billing_key_enc).toMatch(/^v1:/);
+    expect(cust.toss_billing_key_enc).not.toBe(OLD_ENC);
+    expect(decryptBillingKey(cust.toss_billing_key_enc!, { userId: USER, livemode: false }, deps.encKey)).toBe(NEW_BILLING_KEY);
+    expect(cust.toss_card_summary).toEqual(NEW_CARD);
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "completed", subscription_id: sub.id, failure_code: null });
+    // 구독·결제는 그대로, 메일 없음, 비밀 값 없음
+    expect(store.rows.subscriptions[0]).toEqual(before);
+    expect(store.rows.payments).toHaveLength(0);
+    expect(deps.mailer.sent).toHaveLength(0);
+    expect(JSON.stringify(store.rows)).not.toContain(NEW_BILLING_KEY);
+    expect(deps.log).not.toHaveBeenCalled();
+  });
+
+  it("미납(past_due) 구독: 새 카드로 바로 재결제 — paid면 active로 돌아오고 한 주기 전진, 영수증 1통", async () => {
+    const due = iso(NOW - 2 * DAY);
+    const { deps, store, sub, input } = setupCardChange({
+      sub: {
+        status: "past_due",
+        current_period_start: iso(NOW - 30 * DAY),
+        current_period_end: due,
+        billing_anchor_day: 29,
+        dunning_attempts: 1,
+        next_retry_at: iso(NOW + DAY),
+        grace_until: iso(NOW + 5 * DAY),
+      },
+      toss: { issueBillingKey: [newCard()], chargeBillingKey: [doneFor] },
+    });
+
+    const out = await completeCheckout(deps, input);
+
+    expect(out).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "paid" });
+    // 재결제는 새 빌링키로, 금액은 구독 스냅샷, 시도 번호는 실패 횟수 + 1
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(1);
+    expect(deps.toss.calls.chargeBillingKey[0][0]).toBe(NEW_BILLING_KEY);
+    expect(deps.toss.calls.chargeBillingKey[0][1]).toMatchObject({ customerKey: CUSTOMER_KEY, amount: sub.amount });
+    expect(store.rows.payments).toHaveLength(1);
+    expect(store.rows.payments[0]).toMatchObject({ kind: "retry", attempt: 2, status: "paid", subscription_id: sub.id, period_start: pgTime(due) });
+    expect(store.rows.subscriptions[0]).toMatchObject({
+      status: "active",
+      current_period_start: pgTime(due),
+      current_period_end: pgTime(addInterval(due, "month", 29)),
+      dunning_attempts: 0,
+      next_retry_at: null,
+      grace_until: null,
+    });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "completed", subscription_id: sub.id });
+    expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["receipt"]);
+  });
+
+  it("미납 구독 재결제가 거절되면 카드는 바뀐 채 retry failed — 미납 그대로(시도 번호만 오름)", async () => {
+    const due = iso(NOW - 2 * DAY);
+    const { deps, store, sub, input } = setupCardChange({
+      sub: { status: "past_due", current_period_start: iso(NOW - 30 * DAY), current_period_end: due, dunning_attempts: 1, grace_until: iso(NOW + 5 * DAY) },
+      toss: { issueBillingKey: [newCard()], chargeBillingKey: [new TossError("REJECT_CARD_PAYMENT", "한도 초과", 400)] },
+    });
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "failed" });
+    expect(store.rows.customers[0].toss_card_summary).toEqual(NEW_CARD);
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "past_due", dunning_attempts: 2 });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "completed" });
+  });
+
+  it("미납 구독 재결제 결과를 모르면 retry pending — 결제 행은 pending으로 남아 대사가 확정한다", async () => {
+    const due = iso(NOW - 2 * DAY);
+    const { deps, store, sub, input } = setupCardChange({
+      sub: { status: "past_due", current_period_start: iso(NOW - 30 * DAY), current_period_end: due, dunning_attempts: 1, grace_until: iso(NOW + 5 * DAY) },
+      toss: { issueBillingKey: [newCard()], chargeBillingKey: [new TossError("NETWORK", "결과 불명", 0)] },
+    });
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "pending" });
+    expect(store.rows.payments[0]).toMatchObject({ kind: "retry", status: "pending" });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "completed" });
+  });
+
+  it("해지를 예약한 미납 구독은 카드만 바꾸고 재결제하지 않는다(retry none)", async () => {
+    const { deps, store, sub, input } = setupCardChange({
+      sub: { status: "past_due", current_period_end: iso(NOW - 2 * DAY), current_period_start: iso(NOW - 30 * DAY), dunning_attempts: 1, cancel_at_period_end: true },
+      toss: { issueBillingKey: [newCard()], chargeBillingKey: [doneFor] },
+    });
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "none" });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(store.rows.customers[0].toss_card_summary).toEqual(NEW_CARD);
+  });
+
+  it.each<[string, Partial<SubscriptionRow>]>([
+    ["다른 사용자의 구독", { user_id: OTHER }],
+    ["다른 모드의 구독", { livemode: true }],
+    ["토스가 아닌 구독(기관 계약)", { provider: "manual", interval: "contract" }],
+    ["이미 끝난 구독", { status: "ended", ended_reason: "user_canceled", ended_at: iso(NOW - DAY) }],
+  ])("%s이면 failed — 빌링키를 발급하지 않고 기존 카드는 그대로", async (_label, subOver) => {
+    const { deps, store, customer, input } = setupCardChange({ sub: subOver, toss: { issueBillingKey: [newCard()] } });
+
+    const out = await completeCheckout(deps, input);
+
+    expect(out).toEqual({ kind: "error", code: "failed" });
+    expect(tossCallCount(deps.toss)).toBe(0);
+    expect(store.rows.customers[0]).toEqual(customer);
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "subscriptionMismatch" });
+  });
+
+  it("시도에 구독이 없거나 구독 행이 사라졌으면 failed", async () => {
+    const a = setupCardChange({ checkout: { subscription_id: null }, toss: { issueBillingKey: [newCard()] } });
+    expect(await completeCheckout(a.deps, a.input)).toEqual({ kind: "error", code: "failed" });
+    expect(tossCallCount(a.deps.toss)).toBe(0);
+
+    const b = setupCardChange({ toss: { issueBillingKey: [newCard()] } });
+    b.store.rows.subscriptions.length = 0;
+    expect(await completeCheckout(b.deps, b.input)).toEqual({ kind: "error", code: "failed" });
+    expect(tossCallCount(b.deps.toss)).toBe(0);
+  });
+
+  it("시작과 콜백 사이에 구독이 끝났으면(발급 중 종료) 결제하지 않고 failed — 이 실행이 쓴 빌링키를 거둔다", async () => {
+    const late: { store?: ReturnType<typeof createMemoryStore> } = {};
+    const ctx = setupCardChange({
+      toss: {
+        issueBillingKey: [
+          () => {
+            // 발급이 진행되는 사이 크론이 구독을 끝내고(유예 만료) 읽은 빌링키를 지웠다
+            Object.assign(late.store!.rows.subscriptions[0], { status: "ended", ended_reason: "payment_failed", ended_at: iso(NOW) });
+            Object.assign(late.store!.rows.customers[0], { toss_billing_key_enc: null, toss_card_summary: null });
+            return newCard();
+          },
+        ],
+        chargeBillingKey: [doneFor],
+      },
+      sub: { status: "past_due", current_period_end: iso(NOW - 2 * DAY), current_period_start: iso(NOW - 30 * DAY), dunning_attempts: 3, grace_until: iso(NOW + DAY) },
+    });
+    late.store = ctx.store;
+
+    const out = await completeCheckout(ctx.deps, ctx.input);
+
+    expect(out).toEqual({ kind: "error", code: "failed" });
+    expect(ctx.deps.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(ctx.store.rows.payments).toHaveLength(0);
+    expect(ctx.store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: null, toss_card_summary: null });
+    expect(ctx.store.rows.subscriptions[0].status).toBe("ended");
+    expect(ctx.store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "subscriptionEnded" });
+  });
+
+  it("customerKey가 다르면 customerMismatch — 토스 호출 없음, 결제 관리로 보내게 가격 id를 싣지 않는다", async () => {
+    const { deps, store, input } = setupCardChange({ toss: { issueBillingKey: [newCard()] } });
+    expect(await completeCheckout(deps, { ...input, customerKey: "someone-elses-key" })).toEqual({ kind: "error", code: "customerMismatch" });
+    expect(tossCallCount(deps.toss)).toBe(0);
+    expect(store.rows.customers[0].toss_billing_key_enc).toBe(OLD_ENC);
+  });
+
+  it.each([
+    ["INVALID_CARD_EXPIRATION", 400, "cardRejected"],
+    ["NETWORK", 0, "failed"],
+  ])("빌링키 발급 거절(%s) → %s, 기존 카드는 그대로", async (code, status, expected) => {
+    const { deps, store, input } = setupCardChange({ toss: { issueBillingKey: [new TossError(code, "발급 실패", status)] } });
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: expected });
+    expect(store.rows.customers[0]).toMatchObject({ toss_billing_key_enc: OLD_ENC, toss_card_summary: OLD_CARD });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: code });
+    expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+  });
+
+  it("끝난 카드 변경을 다시 열면(새로고침) 토스 호출 없이 cardChanged·retry none, 만료된 시도는 가격 없이 expired", async () => {
+    const { deps, sub, input } = setupCardChange({ toss: { issueBillingKey: [newCard()] } });
+    await completeCheckout(deps, input);
+    const calls = tossCallCount(deps.toss);
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "none" });
+    expect(tossCallCount(deps.toss)).toBe(calls);
+
+    const stale = setupCardChange({ checkout: { expires_at: iso(NOW - MIN) } });
+    expect(await completeCheckout(stale.deps, stale.input)).toEqual({ kind: "error", code: "expired" });
+  });
+
+  it("빌링키 저장 뒤 저장소 오류가 나도 새 카드를 지우지 않는다(지우면 구독이 갱신할 카드를 잃는다)", async () => {
+    const { deps, store, input } = setupCardChange({ toss: { issueBillingKey: [newCard()] } });
+    const realGet = store.getSubscription.bind(store);
+    let reads = 0;
+    store.getSubscription = async (id) => {
+      reads++;
+      if (reads === 2) throw new Error("billing store getSubscription: connection reset");
+      return realGet(id);
+    };
+
+    expect(await completeCheckout(deps, input)).toEqual({ kind: "error", code: "failed" });
+    expect(store.rows.customers[0].toss_card_summary).toEqual(NEW_CARD);
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "error" });
+    expect(deps.log).toHaveBeenCalledTimes(1);
   });
 });
 
@@ -608,15 +824,17 @@ describe("failCheckout — 결제창 실패·취소", () => {
   it("11. 사용자 취소 코드면 reason canceled·시도 failed, 다른 사용자의 시도는 건드리지 않는다", async () => {
     const { deps, store, price, checkout } = setup();
 
-    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: OTHER, code: "PAY_PROCESS_CANCELED" })).toEqual({
+    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: OTHER, livemode: false, code: "PAY_PROCESS_CANCELED" })).toEqual({
       priceId: null,
       reason: "canceled",
+      purpose: null,
     });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "open", failure_code: null });
 
-    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, code: "PAY_PROCESS_CANCELED" })).toEqual({
+    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: false, code: "PAY_PROCESS_CANCELED" })).toEqual({
       priceId: price.id,
       reason: "canceled",
+      purpose: "subscribe",
     });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "PAY_PROCESS_CANCELED" });
   });
@@ -626,20 +844,37 @@ describe("failCheckout — 결제창 실패·취소", () => {
     ["REJECT_CARD_COMPANY", "failed"],
   ])("%s → reason %s", async (code, reason) => {
     const { deps, store, price, checkout } = setup();
-    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, code })).toEqual({ priceId: price.id, reason });
+    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: false, code })).toEqual({ priceId: price.id, reason, purpose: "subscribe" });
     expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: code });
+  });
+
+  it("카드 변경 시도는 purpose card_change로 돌려준다(결제 관리로 돌아가게), 다른 모드의 시도는 건드리지 않는다", async () => {
+    const { deps, store, price, checkout } = setup({ checkout: { purpose: "card_change", subscription_id: randomUUID() } });
+    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: true, code: "PAY_PROCESS_CANCELED" })).toEqual({
+      priceId: null,
+      reason: "canceled",
+      purpose: null,
+    });
+    expect(store.rows.checkouts[0].status).toBe("open");
+    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: false, code: "PAY_PROCESS_CANCELED" })).toEqual({
+      priceId: price.id,
+      reason: "canceled",
+      purpose: "card_change",
+    });
+    expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "PAY_PROCESS_CANCELED" });
   });
 
   it("이미 끝난 시도(completed)는 덮지 않고, 이상한 코드 문자열은 저장하지 않는다", async () => {
     const { deps, store, price, checkout } = setup({ checkout: { status: "completed", subscription_id: randomUUID() } });
-    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, code: "PAY_PROCESS_CANCELED" })).toEqual({
+    expect(await failCheckout(deps, { checkoutId: checkout.id, userId: USER, livemode: false, code: "PAY_PROCESS_CANCELED" })).toEqual({
       priceId: price.id,
       reason: "canceled",
+      purpose: "subscribe",
     });
     expect(store.rows.checkouts[0].status).toBe("completed");
 
     const open = setup();
-    await failCheckout(open.deps, { checkoutId: open.checkout.id, userId: USER, code: "<script>alert(1)</script>" });
+    await failCheckout(open.deps, { checkoutId: open.checkout.id, userId: USER, livemode: false, code: "<script>alert(1)</script>" });
     expect(open.store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "UNKNOWN" });
   });
 });
@@ -870,15 +1105,16 @@ describe("Supabase 저장소 — 유니크 위반은 표지값, 그 밖의 오�
     expect(store.rows.subscriptions[0].status).toBe("active");
   });
 
-  it("선점은 open·만료 전·본인 조건을 한 번의 update로 건다", async () => {
+  it("선점은 open·만료 전·본인·같은 모드 조건을 한 번의 update로 건다", async () => {
     const { admin, calls } = fakeAdmin({ data: null, error: null });
-    expect(await createSupabaseBillingStore(admin).claimCheckout("ck1", USER, iso(NOW))).toBeNull();
+    expect(await createSupabaseBillingStore(admin).claimCheckout("ck1", USER, false, iso(NOW))).toBeNull();
     expect(calls).toEqual(
       expect.arrayContaining([
         ["from", ["billing_checkouts"]],
         ["update", [{ status: "processing" }]],
         ["eq", ["id", "ck1"]],
         ["eq", ["user_id", USER]],
+        ["eq", ["livemode", false]],
         ["eq", ["status", "open"]],
         ["gt", ["expires_at", iso(NOW)]],
         ["maybeSingle", []],

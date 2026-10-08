@@ -43,6 +43,10 @@ const ROUTES = [
   // 307(→ /ko/site/...)이 나오면 그 링크들이 전부 404가 된 것이다.
   ["/site/nonexistent-host.example", 302, "배지 리졸버 (프록시 미통과)"],
   ["/sample/bad.html", 200, "public 정적 파일 (프록시 미통과)"],
+
+  // 결제 모드 게이트 — 기본 빌드(BILLING_MODE 없음)에서는 결제 화면·토스 리다이렉트가 없어야 한다
+  ["/ko/billing/checkout", 404, "결제 꺼짐(BILLING_MODE 없음)이면 결제 화면 없음"],
+  ["/api/billing/toss/callback", 404, "결제 꺼짐이면 토스 콜백 없음"],
 ];
 
 /**

@@ -22,6 +22,7 @@ import type {
   PaymentRow,
   PriceRow,
   SubscriptionRow,
+  TossCustomerRow,
 } from "../src/lib/billing/types";
 
 /** 2026-01-31 01:00 KST — 앵커 31일(짧은 달 말일로 당겨지는 경우)을 기본으로 시험한다 */
@@ -36,6 +37,9 @@ export interface ConsentRow {
   checkout_id: string | null;
   subscription_id: string | null;
   kind: "recurring_payment" | "price_change" | "terms";
+  /** 결제 시작 흐름이 쓰는 열 — 테스트가 직접 넣는 행은 비워도 된다 */
+  disclosure_version?: string;
+  snapshot?: Record<string, unknown>;
 }
 
 export interface MemoryRows {
@@ -154,13 +158,36 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
   return {
     rows,
 
-    async claimCheckout(id, userId, nowIso) {
+    async claimCheckout(id, userId, livemode, nowIso) {
       const c = rows.checkouts.find(
-        (r) => r.id === id && r.user_id === userId && r.status === "open" && Date.parse(r.expires_at) > Date.parse(nowIso),
+        (r) =>
+          r.id === id && r.user_id === userId && r.livemode === livemode && r.status === "open" && Date.parse(r.expires_at) > Date.parse(nowIso),
       );
       if (!c) return null;
       c.status = "processing";
       return outCheckout(c);
+    },
+
+    async insertCheckout(row) {
+      const c: CheckoutRow = withPgTimes({ ...clone(row), id: randomUUID(), status: "open", failure_code: null }, CHECKOUT_TIMES);
+      rows.checkouts.push(c);
+      return outCheckout(c);
+    },
+
+    async listUnfinishedCheckouts(userId, livemode) {
+      return rows.checkouts.filter((c) => c.user_id === userId && c.livemode === livemode && CLAIMABLE_END.has(c.status)).map(outCheckout);
+    },
+
+    async expireCheckouts(ids, from, failureCode) {
+      for (const c of rows.checkouts) {
+        if (!ids.includes(c.id) || c.status !== from) continue;
+        c.status = "expired";
+        if (failureCode !== null) c.failure_code = failureCode;
+      }
+    },
+
+    async insertConsent(row) {
+      rows.consents.push({ ...clone(row), id: randomUUID(), subscription_id: null });
     },
 
     async getCheckout(id) {
@@ -182,6 +209,21 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
     async getCustomer(userId, livemode) {
       const c = rows.customers.find((r) => r.user_id === userId && r.livemode === livemode);
       return c ? clone(c) : null;
+    },
+
+    async ensureCustomer(userId, livemode, newCustomerKey) {
+      let c = rows.customers.find((r) => r.user_id === userId && r.livemode === livemode);
+      // toss_customer_key 유니크 — 다른 행이 같은 키를 쓰면 DB처럼 거부한다
+      const keyTaken = () => rows.customers.some((r) => r.toss_customer_key === newCustomerKey);
+      if (!c) {
+        if (keyTaken()) throw storeError("ensureCustomer", "duplicate key value violates unique constraint");
+        c = { id: randomUUID(), user_id: userId, livemode, toss_customer_key: newCustomerKey, toss_billing_key_enc: null, toss_card_summary: null };
+        rows.customers.push(c);
+      } else if (!c.toss_customer_key) {
+        if (keyTaken()) throw storeError("ensureCustomer", "duplicate key value violates unique constraint");
+        c.toss_customer_key = newCustomerKey;
+      }
+      return clone(c) as TossCustomerRow;
     },
 
     async updateCustomer(id, patch) {
@@ -309,6 +351,10 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
     async hasPendingPayment(subscriptionId) {
       // 모든 kind — 첫 결제 pending도 종료를 미룬다(Supabase 저장소와 같음)
       return rows.payments.some((p) => p.subscription_id === subscriptionId && p.status === "pending");
+    },
+
+    async hasPendingInitialPayment(userId, livemode) {
+      return rows.payments.some((p) => p.user_id === userId && p.livemode === livemode && p.kind === "initial" && p.status === "pending");
     },
 
     async hasUserFacingFailure(subscriptionId, periodStart, exclude) {

@@ -8,6 +8,7 @@ import type {
   PriceRow,
   SubscriptionExpectation,
   SubscriptionRow,
+  TossCustomerRow,
 } from "@/lib/billing/types";
 
 /**
@@ -27,6 +28,7 @@ const PAYMENT_COLS =
   "id, user_id, subscription_id, checkout_id, provider, livemode, kind, order_id, external_payment_id, amount, currency, period_start, period_end, attempt, status, failure_code, failure_message, receipt_url, card_summary, refunded_amount, requested_at, approved_at";
 
 const LIVE_STATUSES = ["active", "past_due"];
+const UNFINISHED_CHECKOUT = ["open", "processing"];
 const DAY_MS = 86_400_000;
 /** 크론 후보 창 — 연간 구독의 D-30 안내까지 들어오게 31일 */
 const CYCLE_WINDOW_MS = 31 * DAY_MS;
@@ -47,20 +49,67 @@ function defined<T extends object>(patch: T): Partial<T> {
   return Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined)) as Partial<T>;
 }
 
+async function readCustomer(admin: SupabaseClient, method: string, userId: string, livemode: boolean): Promise<CustomerRow | null> {
+  const { data, error } = await admin
+    .from("billing_customers")
+    .select(CUSTOMER_COLS)
+    .eq("user_id", userId)
+    .eq("livemode", livemode)
+    .maybeSingle();
+  if (error) throw fail(method, error);
+  return (data as CustomerRow | null) ?? null;
+}
+
 export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore {
   return {
-    async claimCheckout(id, userId, nowIso) {
+    async claimCheckout(id, userId, livemode, nowIso) {
       const { data, error } = await admin
         .from("billing_checkouts")
         .update({ status: "processing" })
         .eq("id", id)
         .eq("user_id", userId)
+        .eq("livemode", livemode)
         .eq("status", "open")
         .gt("expires_at", nowIso)
         .select(CHECKOUT_COLS)
         .maybeSingle();
       if (error) throw fail("claimCheckout", error);
       return (data as CheckoutRow | null) ?? null;
+    },
+
+    async insertCheckout(row) {
+      // status는 DB 기본값(open)
+      const { data, error } = await admin.from("billing_checkouts").insert(row).select(CHECKOUT_COLS).single();
+      if (error) throw fail("insertCheckout", error);
+      return data as CheckoutRow;
+    },
+
+    async listUnfinishedCheckouts(userId, livemode) {
+      // 차단 판정용 — 정상이면 한두 건이라 넉넉한 상한만 둔다
+      const { data, error } = await admin
+        .from("billing_checkouts")
+        .select(CHECKOUT_COLS)
+        .eq("user_id", userId)
+        .eq("livemode", livemode)
+        .in("status", UNFINISHED_CHECKOUT)
+        .limit(50);
+      if (error) throw fail("listUnfinishedCheckouts", error);
+      return (data as CheckoutRow[] | null) ?? [];
+    },
+
+    async expireCheckouts(ids, from, failureCode) {
+      if (ids.length === 0) return;
+      const { error } = await admin
+        .from("billing_checkouts")
+        .update(failureCode === null ? { status: "expired" } : { status: "expired", failure_code: failureCode })
+        .in("id", ids)
+        .eq("status", from);
+      if (error) throw fail("expireCheckouts", error);
+    },
+
+    async insertConsent(row) {
+      const { error } = await admin.from("billing_consents").insert(row);
+      if (error) throw fail("insertConsent", error);
     },
 
     async getCheckout(id) {
@@ -85,14 +134,25 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
     },
 
     async getCustomer(userId, livemode) {
-      const { data, error } = await admin
-        .from("billing_customers")
-        .select(CUSTOMER_COLS)
-        .eq("user_id", userId)
-        .eq("livemode", livemode)
-        .maybeSingle();
-      if (error) throw fail("getCustomer", error);
-      return (data as CustomerRow | null) ?? null;
+      return readCustomer(admin, "getCustomer", userId, livemode);
+    },
+
+    async ensureCustomer(userId, livemode, newCustomerKey) {
+      const existing = await readCustomer(admin, "ensureCustomer", userId, livemode);
+      if (existing?.toss_customer_key) return existing as TossCustomerRow;
+      const { error } = existing
+        ? // 행은 있는데 토스 고객 키가 비었다(다른 결제사 고객 등) — 비어 있을 때만 채운다
+          await admin
+            .from("billing_customers")
+            .update({ toss_customer_key: newCustomerKey, updated_at: new Date().toISOString() })
+            .eq("id", existing.id)
+            .is("toss_customer_key", null)
+        : await admin.from("billing_customers").insert({ user_id: userId, livemode, toss_customer_key: newCustomerKey });
+      // 유니크 위반 = 동시에 만든 다른 요청이 이겼다 — 다시 읽어 그 행을 쓴다
+      if (error && error.code !== UNIQUE_VIOLATION) throw fail("ensureCustomer", error);
+      const row = await readCustomer(admin, "ensureCustomer", userId, livemode);
+      if (!row?.toss_customer_key) throw new Error("billing store ensureCustomer: customer row has no toss customer key");
+      return row as TossCustomerRow;
     },
 
     async updateCustomer(id, patch) {
@@ -234,6 +294,19 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .eq("status", "pending")
         .limit(1);
       if (error) throw fail("hasPendingPayment", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async hasPendingInitialPayment(userId, livemode) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("livemode", livemode)
+        .eq("kind", "initial")
+        .eq("status", "pending")
+        .limit(1);
+      if (error) throw fail("hasPendingInitialPayment", error);
       return Array.isArray(data) && data.length > 0;
     },
 

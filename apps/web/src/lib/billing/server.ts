@@ -1,4 +1,5 @@
 import "server-only";
+import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { billingMode, tossKeys } from "@/lib/billing/config";
 import { loadEncKey } from "@/lib/billing/crypto";
@@ -73,7 +74,21 @@ export function createBillingMailer(
   };
 }
 
-export function createBillingDeps(): BillingDeps | null {
+/**
+ * 발송을 응답 뒤로 미루는 메일러 — 결제창에서 돌아온 사용자의 리다이렉트가 메일(수신자 조회·Resend)을 기다리지 않게.
+ * 일은 next/server의 after()로 응답을 보낸 뒤에 한다. 안쪽 메일러가 실패를 기록하고 삼키므로 실패는 그대로 app_errors에 남는다.
+ * 요청 밖에서는 쓰지 않는다 — 크론·관리자 도구는 기본 메일러로 발송을 기다린다.
+ */
+export function deferredMailer(inner: BillingMailer, schedule: (task: () => Promise<void>) => void = after): BillingMailer {
+  return {
+    async send(userId, kind, data) {
+      schedule(() => inner.send(userId, kind, data));
+    },
+  };
+}
+
+/** deferMail: 메일을 응답 뒤로 미룬다(토스 리다이렉트 라우트용) */
+export function createBillingDeps(opts: { deferMail?: boolean } = {}): BillingDeps | null {
   if (billingMode() === "off") return null;
   const keys = tossKeys();
   if (!keys) return null;
@@ -81,11 +96,12 @@ export function createBillingDeps(): BillingDeps | null {
   if (!encKey) return null;
   const admin = createAdminClient();
   const log = (message: string) => logAppError(admin, message, { path: "billing" });
+  const mailer = createBillingMailer(admin, log);
   return {
     store: createSupabaseBillingStore(admin),
     toss: createTossClient(keys.secretKey),
     encKey,
-    mailer: createBillingMailer(admin, log),
+    mailer: opts.deferMail ? deferredMailer(mailer) : mailer,
     now: () => Date.now(),
     log,
   };
