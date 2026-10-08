@@ -1062,7 +1062,11 @@
       "extLabel": "확장도구 검사",
       "extValue": "일 {limit}회",
       "pageLabel": "페이지 제한",
-      "pageValue": "검사당 {limit}페이지"
+      "pageValue": "검사당 {limit}페이지",
+      "subscriptionNext": "구독 중 · 다음 결제 {date}",
+      "subscriptionEnding": "해지 예약 · {date}까지",
+      "subscriptionPastDue": "결제 실패 · 결제 관리에서 확인해 주세요",
+      "manageBilling": "결제 관리"
     },
     "account": {
       "title": "회원 탈퇴",
@@ -2136,7 +2140,8 @@
         "customerMismatch": "결제 정보가 맞지 않아 진행하지 않았습니다. 다시 시도해 주세요.",
         "priceInactive": "이 요금은 지금 판매하지 않아 결제하지 않았습니다.",
         "notConfigured": "결제 설정이 끝나지 않아 지금은 결제할 수 없습니다.",
-        "duplicateRefunded": "이미 구독 중이라 이번 결제는 자동으로 취소돼요. 취소가 확인되지 않으면 문의해 주세요."
+        "duplicateRefunded": "이미 구독 중이라 이번 결제는 자동으로 취소돼요. 취소가 확인되지 않으면 문의해 주세요.",
+        "notFound": "결제 시도를 찾지 못했습니다. 처음부터 다시 시도해 주세요."
       },
       "formErrors": {
         "invalid": "요청이 올바르지 않습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.",
@@ -2156,6 +2161,143 @@
       "periodValue": "{start} ~ {end}",
       "nextChargeHint": "다음 결제는 이용 기간이 끝나기 하루 전에 진행되며, 결제 예정 안내 메일을 미리 보내 드립니다.",
       "nothingToRelease": "취소할 결제 시도가 없습니다. 다시 결제해 보세요."
+    },
+    "manage": {
+      "eyebrow": "마이페이지",
+      "title": "결제 관리",
+      "desc": "구독 상태와 결제 카드, 결제 내역을 확인하고 해지하거나 카드를 바꿀 수 있습니다.",
+      "newWindow": "(새 창)",
+      "tier": {
+        "title": "현재 등급",
+        "source": {
+          "free": "기본 등급",
+          "earned": "초대 보상",
+          "admin": "관리자 지정",
+          "contract": "기관 계약",
+          "contractUntil": "기관 계약 · {date}까지",
+          "subscription": "구독"
+        }
+      },
+      "contract": {
+        "title": "기관 계약",
+        "plan": "플랜",
+        "period": "계약 기간",
+        "until": "{date}까지",
+        "starts": "{date}부터 적용"
+      },
+      "subscription": {
+        "title": "구독",
+        "none": "진행 중인 구독이 없습니다.",
+        "pricingLink": "요금제 보기",
+        "testTag": "테스트",
+        "plan": "플랜",
+        "amount": "결제 금액",
+        "amountValue": "{amount} (부가세 포함) · {cycle}",
+        "status": "상태",
+        "statusActive": "이용 중 · 다음 결제일 {date}",
+        "statusScheduled": "해지 예약 · {date}에 끝납니다",
+        "statusPastDue": "결제 실패",
+        "card": "결제 카드",
+        "cardNone": "등록된 카드가 없습니다",
+        "pastDueTitle": "결제에 실패했습니다",
+        "pastDueBody": "{date}까지 결제되지 않으면 구독이 끝납니다. 결제 카드를 바꾸면 새 카드로 바로 다시 결제합니다."
+      },
+      "cardType": {
+        "credit": "신용카드",
+        "check": "체크카드",
+        "gift": "기프트카드"
+      },
+      "cardChange": {
+        "button": "카드 변경",
+        "pending": "결제창을 여는 중입니다…",
+        "release": "이전 시도 취소",
+        "released": "이전 시도를 취소했습니다. 다시 카드를 바꿀 수 있습니다.",
+        "nothingToRelease": "취소할 시도가 없습니다. 다시 시도해 보세요.",
+        "errors": {
+          "invalid": "요청이 올바르지 않습니다. 페이지를 새로 고친 뒤 다시 시도해 주세요.",
+          "notAllowed": "이 구독의 카드는 지금 바꿀 수 없습니다.",
+          "notConfigured": "결제 설정이 끝나지 않아 지금은 카드를 바꿀 수 없습니다.",
+          "inProgress": "진행 중인 결제 시도가 있습니다. 다른 창에서 진행하고 있지 않다면 이전 시도를 취소하고 다시 시도해 주세요.",
+          "inProgressChecking": "이전 결제를 확인하고 있습니다. 몇 분 뒤 다시 시도해 주세요.",
+          "failed": "카드 변경을 시작하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+          "sdkLoad": "결제창을 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.",
+          "sdkFailed": "결제창을 열지 못했습니다. 다시 시도해 주세요.",
+          "sdkCanceled": "결제창을 닫아 카드가 바뀌지 않았습니다. 다시 시도할 수 있습니다."
+        }
+      },
+      "cancel": {
+        "open": "구독 해지",
+        "confirmActive": "해지하면 {date}까지 이용할 수 있고 그 뒤로는 결제되지 않습니다.",
+        "confirmPastDue": "해지하면 지금 바로 구독이 끝납니다.",
+        "submitActive": "해지 예약",
+        "submitPastDue": "지금 해지",
+        "back": "돌아가기",
+        "resume": "해지 취소",
+        "resumeHint": "해지를 취소하면 구독이 이어지고 {date}에 다음 결제가 진행됩니다.",
+        "pending": "처리하고 있습니다…",
+        "done": {
+          "scheduled": "해지를 예약했습니다. 이용 기간이 끝나면 구독이 끝나고 더는 결제되지 않습니다.",
+          "endedNow": "구독을 해지했습니다. 더는 결제되지 않습니다.",
+          "resumed": "해지를 취소했습니다. 구독이 이어집니다."
+        },
+        "errors": {
+          "notAllowed": "지금은 구독을 바꿀 수 없습니다.",
+          "notConfigured": "결제 설정이 끝나지 않아 지금은 처리할 수 없습니다.",
+          "notFound": "바꿀 수 있는 구독을 찾지 못했습니다. 페이지를 새로 고쳐 지금 상태를 확인해 주세요.",
+          "already": "이미 해지가 예약되어 있습니다.",
+          "busy": "이전 결제 결과를 확인하고 있습니다. 몇 분 뒤 다시 시도해 주세요.",
+          "tooLate": "이용 기간이 이미 끝나 해지를 취소할 수 없습니다.",
+          "failed": "처리하지 못했습니다. 잠시 뒤 다시 시도해 주세요."
+        }
+      },
+      "payments": {
+        "title": "결제 내역",
+        "caption": "최근 결제 내역",
+        "empty": "결제 내역이 없습니다.",
+        "colDate": "날짜",
+        "colKind": "종류",
+        "colAmount": "금액",
+        "colStatus": "상태",
+        "colReceipt": "영수증",
+        "receipt": "영수증 보기",
+        "noReceipt": "없음",
+        "testTag": "테스트",
+        "kind": {
+          "initial": "첫 결제",
+          "renewal": "갱신",
+          "retry": "재시도",
+          "manual": "수동 결제"
+        },
+        "status": {
+          "pending": "확인 중",
+          "paid": "결제 완료",
+          "failed": "실패",
+          "refunded": "환불",
+          "partially_refunded": "부분 환불"
+        }
+      },
+      "results": {
+        "subscribed": "구독을 시작했습니다. 결제 영수증은 메일로 보내 드립니다.",
+        "pending": "결제 결과를 확인하고 있습니다. 몇 분 뒤 이 페이지를 새로 고쳐 확인해 주세요.",
+        "cardChanged": {
+          "none": "결제 카드를 바꿨습니다.",
+          "paid": "결제 카드를 바꾸고 밀린 결제를 마쳤습니다.",
+          "pending": "결제 카드를 바꿨습니다. 밀린 결제 결과를 확인하고 있으니 몇 분 뒤 이 페이지를 새로 고쳐 확인해 주세요.",
+          "failed": "결제 카드를 바꿨지만 새 카드로 결제하지 못했습니다. 카드를 확인하거나 다른 카드로 바꿔 주세요."
+        }
+      },
+      "returnErrors": {
+        "canceled": "결제창을 닫아 진행되지 않았습니다. 다시 시도할 수 있습니다.",
+        "cardRejected": "이 카드는 등록할 수 없습니다. 다른 카드로 다시 시도해 주세요.",
+        "failed": "처리를 완료하지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+        "expired": "시간이 지나 진행되지 않았습니다. 처음부터 다시 시도해 주세요.",
+        "hasActive": "이미 구독 중이라 새로 결제하지 않았습니다.",
+        "duplicateRefunded": "이미 구독 중이라 이번 결제는 자동으로 취소됩니다. 취소가 확인되지 않으면 문의해 주세요.",
+        "customerMismatch": "결제 정보가 맞지 않아 진행하지 않았습니다. 다시 시도해 주세요.",
+        "priceInactive": "이 요금은 지금 판매하지 않아 결제하지 않았습니다.",
+        "notConfigured": "결제 설정이 끝나지 않아 지금은 진행할 수 없습니다.",
+        "notFound": "결제 시도를 찾지 못했습니다. 다시 시도해 주세요."
+      }
     }
   }
 }

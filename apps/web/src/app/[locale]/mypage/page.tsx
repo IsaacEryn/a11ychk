@@ -4,7 +4,10 @@ import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { PLAN_RANK, TIERS, checkQuota, getEarnedPlan, type PlanId } from "@/lib/quota";
-import { loadEntitlement } from "@/lib/entitlements";
+import { isSubscriptionEntitled, loadEntitlement } from "@/lib/entitlements";
+import { entitlementLivemodes } from "@/lib/billing/config";
+import { hasBillingRecord, loadLiveSubscriptions } from "@/lib/billing/manageData";
+import { earliestChargeAt } from "@/lib/billing/period";
 import { ensureReferralCode } from "@/lib/referral/code";
 import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL } from "@/lib/referral/constants";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -62,6 +65,17 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
 
   const ent = await loadEntitlement(mpAdmin, user.id);
   const quota = await checkQuota(mpAdmin, user.id, ent.limits, ent.resets);
+
+  // ── 결제 — 등급 카드의 구독 줄과 "결제 관리" 링크(토스 구독·기관 계약 행이 있을 때).
+  //    권한 계산과 같은 livemode 범위, 사용자 세션(RLS — 자기 행). 조회 실패는 마이페이지를 막지 않는다.
+  const billingLivemodes = entitlementLivemodes();
+  const liveBilling = await loadLiveSubscriptions(supabase, user.id, billingLivemodes).catch(() => []);
+  const hasBilling = liveBilling.length > 0 || (await hasBillingRecord(supabase, user.id, billingLivemodes).catch(() => false));
+  // 표시 근거가 구독이면 그 근거가 된 진행 중 토스 구독 1건 — 권한 계산과 같은 판정으로 고른다
+  const subscriptionLine =
+    ent.source === "subscription"
+      ? (liveBilling.find((s) => s.provider === "toss" && s.plan_code === ent.tier && isSubscriptionEntitled(s)) ?? null)
+      : null;
 
   // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
   //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.
@@ -148,7 +162,28 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
                 {t("tier.contractUntil", { date: format.dateTime(new Date(ent.until), { dateStyle: "medium" }) })}
               </span>
             )}
+            {subscriptionLine && (
+              <span className="text-xs font-semibold text-[var(--color-ink-soft)]">
+                {subscriptionLine.status === "past_due"
+                  ? t("tier.subscriptionPastDue")
+                  : subscriptionLine.cancel_at_period_end
+                    ? t("tier.subscriptionEnding", {
+                        date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
+                      })
+                    : t("tier.subscriptionNext", {
+                        // 다음 결제일 = 기간 끝 하루 전(결제 확인 화면·안내 메일과 같은 날짜)
+                        date: format.dateTime(new Date(earliestChargeAt(subscriptionLine.current_period_end)), { dateStyle: "medium" }),
+                      })}
+              </span>
+            )}
           </div>
+          {hasBilling && (
+            <p className="mt-3 text-sm">
+              <Link href="/mypage/billing" className="font-semibold text-[var(--color-seal)] underline underline-offset-2">
+                {t("tier.manageBilling")}
+              </Link>
+            </p>
+          )}
           <p className="mt-4 text-sm font-semibold text-[var(--color-ink-soft)]">{t("tier.scanUsageLabel")}</p>
           <dl className="mt-2 space-y-2">
             {(["daily", "weekly", "monthly"] as const).map((key) => (

@@ -2,9 +2,10 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { notFound, redirect } from "next/navigation";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Link } from "@/i18n/navigation";
+import { FocusOnMount } from "@/components/FocusOnMount";
 import { Notice } from "@/components/Notice";
 import { getBillingFlags } from "@/lib/appSettings";
-import { checkoutTerms } from "@/lib/billing/checkout";
+import { checkoutTerms, returnErrorOf } from "@/lib/billing/checkout";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { planNameFor } from "@/lib/billing/flows/subscribe";
@@ -14,7 +15,6 @@ import { canCheckout, priceLivemode } from "@/lib/billing/visibility";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { CheckoutForm } from "./CheckoutForm";
-import { FocusOnMount } from "./FocusOnMount";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -24,20 +24,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-/** 결제창에서 돌아와 보여 줄 수 있는 오류 — 이 목록 밖의 값은 무시한다(쿼리 문자열을 화면에 그대로 싣지 않는다) */
-const RETURN_ERRORS = [
-  "canceled",
-  "cardRejected",
-  "failed",
-  "expired",
-  "hasActive",
-  "duplicateRefunded",
-  "customerMismatch",
-  "priceInactive",
-  "notConfigured",
-] as const;
-type ReturnError = (typeof RETURN_ERRORS)[number];
-
 const PRICE_COLS = "id, plan_code, provider, currency, interval, amount, livemode, active";
 
 /** 가격 행 — 0041 미적용(테이블 없음)이면 없는 가격으로 본다. 그 밖의 오류는 던진다(오류 화면) */
@@ -108,7 +94,7 @@ export default async function CheckoutPage({
 
   const t = await getTranslations("billing.checkout");
   const format = await getFormatter();
-  const returnError = typeof sp.error === "string" && (RETURN_ERRORS as readonly string[]).includes(sp.error) ? (sp.error as ReturnError) : null;
+  const returnError = returnErrorOf(sp.error);
 
   const terms = termsAsOfNow(price);
   const money = format.number(terms.amount, { style: "currency", currency: terms.currency });

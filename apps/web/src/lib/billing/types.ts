@@ -73,6 +73,8 @@ export interface BillingStore {
   getSubscription(id: string): Promise<SubscriptionRow | null>;
   /** 진행 중(active·past_due) 구독 */
   getLiveSubscription(userId: string, livemode: boolean): Promise<SubscriptionRow | null>;
+  /** 그 사용자의 진행 중(active·past_due) 구독 — 두 livemode·모든 결제사(탈퇴 정리용, 모드당 1건이라 많아야 둘) */
+  listLiveSubscriptions(userId: string): Promise<SubscriptionRow[]>;
   /** 진행 중 구독 1건 유니크 위반이면 "hasActive". 새 행은 status active */
   insertSubscription(row: NewSubscription): Promise<SubscriptionRow | "hasActive">;
   updateSubscription(id: string, patch: Partial<Omit<SubscriptionRow, "id">>): Promise<void>;

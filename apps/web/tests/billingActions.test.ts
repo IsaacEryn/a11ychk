@@ -10,18 +10,26 @@ const m = vi.hoisted(() => ({
   flags: { showPrices: false, checkoutOpen: false },
   deps: null as unknown,
   createBillingDeps: vi.fn(),
+  revalidateLocalized: vi.fn(),
 }));
 vi.mock("@/lib/actions/shared", () => ({
   requireUser: async () => ({ supabase: {}, user: m.user }),
   actionLocale: async () => m.locale,
+  revalidateLocalized: m.revalidateLocalized,
 }));
 vi.mock("next/headers", () => ({ headers: async () => ({ get: (k: string) => m.headers.get(k.toLowerCase()) ?? null }) }));
 vi.mock("@/lib/billing/viewer", () => ({ loadViewer: async () => m.viewer }));
 vi.mock("@/lib/appSettings", () => ({ getBillingFlags: async () => m.flags }));
 vi.mock("@/lib/billing/server", () => ({ createBillingDeps: m.createBillingDeps }));
 
-import { abandonCheckout, startCardChange, startCheckout } from "../src/lib/actions/billing";
-import { NOW, checkoutRow, createMemoryStore, makeDeps, priceRow, subscriptionRow } from "./billingFakes";
+import {
+  abandonCheckout,
+  cancelSubscriptionAction,
+  resumeSubscriptionAction,
+  startCardChange,
+  startCheckout,
+} from "../src/lib/actions/billing";
+import { DAY, NOW, checkoutRow, createMemoryStore, iso, makeDeps, paymentRow, priceRow, subscriptionRow } from "./billingFakes";
 
 const USER = "11111111-1111-4111-8111-111111111111";
 
@@ -47,6 +55,7 @@ beforeEach(() => {
   deps = makeDeps({ store: createMemoryStore({ prices: [price] }, { now: () => NOW }), now: () => NOW });
   m.createBillingDeps.mockReset();
   m.createBillingDeps.mockImplementation(() => deps);
+  m.revalidateLocalized.mockReset();
 });
 
 afterEach(() => {
@@ -162,5 +171,71 @@ describe("startCardChange·abandonCheckout", () => {
 
     vi.stubEnv("BILLING_MODE", "");
     expect(await abandonCheckout()).toEqual({ error: "notConfigured" });
+  });
+});
+
+describe("cancelSubscriptionAction·resumeSubscriptionAction — 해지·재개", () => {
+  it("지금 모드(test → livemode false)의 자기 구독만 — 해지 예약 → 재개, 결과마다 결제 관리·마이페이지를 다시 그린다", async () => {
+    const mine = subscriptionRow({ user_id: USER });
+    const liveRow = subscriptionRow({ user_id: USER, livemode: true });
+    deps.store.rows.subscriptions.push(mine, liveRow);
+
+    expect(await cancelSubscriptionAction()).toEqual({ ok: true, done: "scheduled" });
+    // 요청 경로라 메일은 응답 뒤로 미룬다
+    expect(m.createBillingDeps).toHaveBeenCalledWith({ deferMail: true });
+    expect(m.revalidateLocalized).toHaveBeenCalledWith("/mypage/billing", "/mypage");
+    expect(deps.store.rows.subscriptions.map((s) => s.cancel_at_period_end)).toEqual([true, false]);
+    expect(deps.mailer.sent.map((x) => x.kind)).toEqual(["cancelScheduled"]);
+
+    expect(await cancelSubscriptionAction()).toEqual({ error: "already" });
+    expect(await resumeSubscriptionAction()).toEqual({ ok: true, done: "resumed" });
+    expect(await resumeSubscriptionAction()).toEqual({ error: "notFound" });
+    expect(deps.store.rows.subscriptions[0].cancel_at_period_end).toBe(false);
+    expect(m.revalidateLocalized).toHaveBeenCalledTimes(4);
+  });
+
+  it("미납이면 바로 끝냄(endedNow), 결과를 모르는 결제가 있으면 busy, 기간이 끝난 예약은 tooLate", async () => {
+    const due = subscriptionRow({
+      user_id: USER,
+      status: "past_due",
+      current_period_start: iso(NOW - 30 * DAY),
+      current_period_end: iso(NOW - DAY),
+      grace_until: iso(NOW + 6 * DAY),
+    });
+    deps.store.rows.subscriptions.push(due);
+    deps.store.rows.payments.push(
+      paymentRow({ user_id: USER, subscription_id: due.id, kind: "retry", attempt: 2, period_start: due.current_period_end }),
+    );
+    expect(await cancelSubscriptionAction()).toEqual({ error: "busy" });
+
+    deps.store.rows.payments[0].status = "failed";
+    expect(await cancelSubscriptionAction()).toEqual({ ok: true, done: "endedNow" });
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled" });
+
+    deps.store.rows.subscriptions.push(
+      subscriptionRow({ user_id: USER, cancel_at_period_end: true, current_period_start: iso(NOW - 30 * DAY), current_period_end: iso(NOW - 1000) }),
+    );
+    expect(await resumeSubscriptionAction()).toEqual({ error: "tooLate" });
+  });
+
+  it("결제 꺼짐이면 notAllowed, 설정이 없으면 notConfigured, 저장소 오류는 failed + 기록(다시 그리지 않는다)", async () => {
+    vi.stubEnv("BILLING_MODE", "");
+    expect(await cancelSubscriptionAction()).toEqual({ error: "notAllowed" });
+    expect(await resumeSubscriptionAction()).toEqual({ error: "notAllowed" });
+    expect(m.createBillingDeps).not.toHaveBeenCalled();
+
+    vi.stubEnv("BILLING_MODE", "test");
+    m.createBillingDeps.mockImplementation(() => null);
+    expect(await cancelSubscriptionAction()).toEqual({ error: "notConfigured" });
+
+    m.createBillingDeps.mockImplementation(() => deps);
+    deps.store.getLiveSubscription = async () => {
+      throw new Error("billing store getLiveSubscription: timeout");
+    };
+    expect(await cancelSubscriptionAction()).toEqual({ error: "failed" });
+    expect(await resumeSubscriptionAction()).toEqual({ error: "failed" });
+    expect(deps.log).toHaveBeenCalledWith(expect.stringContaining("billing cancel subscription failed"));
+    expect(deps.log).toHaveBeenCalledWith(expect.stringContaining("billing resume subscription failed"));
+    expect(m.revalidateLocalized).not.toHaveBeenCalled();
   });
 });

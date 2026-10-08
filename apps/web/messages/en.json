@@ -1062,7 +1062,11 @@
       "extLabel": "Extension scans",
       "extValue": "{limit}/day",
       "pageLabel": "Pages per scan",
-      "pageValue": "up to {limit}"
+      "pageValue": "up to {limit}",
+      "subscriptionNext": "Subscribed · next payment {date}",
+      "subscriptionEnding": "Cancellation scheduled · until {date}",
+      "subscriptionPastDue": "Payment failed · check Billing",
+      "manageBilling": "Billing"
     },
     "account": {
       "title": "Delete account",
@@ -2136,7 +2140,8 @@
         "customerMismatch": "The payment details did not match, so nothing was charged. Please try again.",
         "priceInactive": "This price is no longer available, so no payment was made.",
         "notConfigured": "Payments are not set up yet, so you cannot pay right now.",
-        "duplicateRefunded": "You already have a subscription, so this payment is being canceled automatically. If the cancellation is not confirmed, please contact us."
+        "duplicateRefunded": "You already have a subscription, so this payment is being canceled automatically. If the cancellation is not confirmed, please contact us.",
+        "notFound": "We could not find that payment attempt. Please start again."
       },
       "formErrors": {
         "invalid": "The request was not valid. Please reload the page and try again.",
@@ -2156,6 +2161,143 @@
       "periodValue": "{start} – {end}",
       "nextChargeHint": "The next payment is made one day before the service period ends, and we email you a reminder beforehand.",
       "nothingToRelease": "There was no payment attempt to cancel. Please try paying again."
+    },
+    "manage": {
+      "eyebrow": "My page",
+      "title": "Billing",
+      "desc": "Check your subscription, payment card and payment history, and cancel or change your card.",
+      "newWindow": "(opens in a new window)",
+      "tier": {
+        "title": "Current plan",
+        "source": {
+          "free": "Default plan",
+          "earned": "Referral reward",
+          "admin": "Assigned by an administrator",
+          "contract": "Organization contract",
+          "contractUntil": "Organization contract · until {date}",
+          "subscription": "Subscription"
+        }
+      },
+      "contract": {
+        "title": "Organization contract",
+        "plan": "Plan",
+        "period": "Contract period",
+        "until": "Until {date}",
+        "starts": "Starts on {date}"
+      },
+      "subscription": {
+        "title": "Subscription",
+        "none": "You have no active subscription.",
+        "pricingLink": "View plans",
+        "testTag": "Test",
+        "plan": "Plan",
+        "amount": "Amount",
+        "amountValue": "{amount} (VAT included) · {cycle}",
+        "status": "Status",
+        "statusActive": "Active · next payment on {date}",
+        "statusScheduled": "Cancellation scheduled · ends on {date}",
+        "statusPastDue": "Payment failed",
+        "card": "Payment card",
+        "cardNone": "No card on file",
+        "pastDueTitle": "Your payment failed",
+        "pastDueBody": "If the payment has not gone through by {date}, your subscription will end. If you change your card, we will try the payment again right away with the new card."
+      },
+      "cardType": {
+        "credit": "Credit card",
+        "check": "Debit card",
+        "gift": "Gift card"
+      },
+      "cardChange": {
+        "button": "Change card",
+        "pending": "Opening the payment window…",
+        "release": "Cancel previous attempt",
+        "released": "The previous attempt was canceled. You can change your card again.",
+        "nothingToRelease": "There was no attempt to cancel. Please try again.",
+        "errors": {
+          "invalid": "The request was not valid. Please reload the page and try again.",
+          "notAllowed": "The card for this subscription cannot be changed right now.",
+          "notConfigured": "Payments are not set up yet, so you cannot change your card right now.",
+          "inProgress": "Another payment attempt is in progress. If you are not using another window, cancel the previous attempt and try again.",
+          "inProgressChecking": "We are still confirming a previous payment. Please try again in a few minutes.",
+          "failed": "The card change could not be started. Please try again in a moment.",
+          "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
+          "sdkFailed": "The payment window could not be opened. Please try again.",
+          "sdkCanceled": "You closed the payment window, so your card was not changed. You can try again."
+        }
+      },
+      "cancel": {
+        "open": "Cancel subscription",
+        "confirmActive": "If you cancel, you can keep using it until {date}, and you will not be charged after that.",
+        "confirmPastDue": "If you cancel, your subscription ends right away.",
+        "submitActive": "Schedule cancellation",
+        "submitPastDue": "Cancel now",
+        "back": "Go back",
+        "resume": "Undo cancellation",
+        "resumeHint": "If you undo the cancellation, your subscription continues and the next payment is made on {date}.",
+        "pending": "Processing…",
+        "done": {
+          "scheduled": "Your cancellation is scheduled. When the current period ends, your subscription ends and you will not be charged again.",
+          "endedNow": "Your subscription has been canceled. You will not be charged again.",
+          "resumed": "Your cancellation has been undone. Your subscription continues."
+        },
+        "errors": {
+          "notAllowed": "Subscriptions cannot be changed right now.",
+          "notConfigured": "Payments are not set up yet, so this cannot be done right now.",
+          "notFound": "We could not find a subscription to change. Please reload the page to see its current state.",
+          "already": "Your cancellation is already scheduled.",
+          "busy": "We are still confirming a previous payment. Please try again in a few minutes.",
+          "tooLate": "The current period has already ended, so the cancellation cannot be undone.",
+          "failed": "Something went wrong. Please try again in a moment."
+        }
+      },
+      "payments": {
+        "title": "Payment history",
+        "caption": "Recent payments",
+        "empty": "No payments yet.",
+        "colDate": "Date",
+        "colKind": "Type",
+        "colAmount": "Amount",
+        "colStatus": "Status",
+        "colReceipt": "Receipt",
+        "receipt": "View receipt",
+        "noReceipt": "None",
+        "testTag": "Test",
+        "kind": {
+          "initial": "First payment",
+          "renewal": "Renewal",
+          "retry": "Retry",
+          "manual": "Manual payment"
+        },
+        "status": {
+          "pending": "Confirming",
+          "paid": "Paid",
+          "failed": "Failed",
+          "refunded": "Refunded",
+          "partially_refunded": "Partially refunded"
+        }
+      },
+      "results": {
+        "subscribed": "Your subscription has started. We will email you the receipt.",
+        "pending": "We are confirming your payment. Please reload this page in a few minutes.",
+        "cardChanged": {
+          "none": "Your payment card has been changed.",
+          "paid": "Your payment card has been changed and the overdue payment went through.",
+          "pending": "Your payment card has been changed. We are confirming the overdue payment, so please reload this page in a few minutes.",
+          "failed": "Your payment card has been changed, but the payment with the new card did not go through. Please check the card or change to another card."
+        }
+      },
+      "returnErrors": {
+        "canceled": "The payment window was closed, so nothing changed. You can try again.",
+        "cardRejected": "This card cannot be used. Please try again with another card.",
+        "failed": "This could not be completed. Please try again in a moment.",
+        "expired": "The session expired, so nothing changed. Please start again.",
+        "hasActive": "You already have a subscription, so no new payment was made.",
+        "duplicateRefunded": "You already have a subscription, so this payment is being canceled automatically. If the cancellation is not confirmed, please contact us.",
+        "customerMismatch": "The payment details did not match, so nothing changed. Please try again.",
+        "priceInactive": "This price is no longer available, so no payment was made.",
+        "notConfigured": "Payments are not set up yet, so this cannot be done right now.",
+        "notFound": "We could not find that payment attempt. Please try again."
+      }
     }
   }
 }

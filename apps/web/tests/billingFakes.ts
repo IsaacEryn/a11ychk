@@ -282,6 +282,10 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       return s ? outSubscription(s) : null;
     },
 
+    async listLiveSubscriptions(userId) {
+      return rows.subscriptions.filter((r) => r.user_id === userId && LIVE.has(r.status)).map(outSubscription);
+    },
+
     async insertSubscription(row) {
       const s: SubscriptionRow = {
         ...clone(row),

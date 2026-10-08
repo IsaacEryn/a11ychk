@@ -1,4 +1,5 @@
 import "server-only";
+import { httpUrl } from "@/lib/billing/httpUrl";
 import { EMAIL, emailButton, emailCard, escapeHtml, sendEmail } from "@/lib/notify";
 
 /**
@@ -92,11 +93,6 @@ function makeFmt(locale: "ko" | "en"): Fmt {
       return Number.isNaN(d.getTime()) ? iso : dateFormat.format(d);
     },
   };
-}
-
-/** 메일에 싣는 모든 href는 http(s)만 쓴다 — 결제사 값뿐 아니라 호출부가 만든 주소도 한 번 더 거른다 */
-function httpUrl(u: string | null): string | null {
-  return u && /^https?:\/\//i.test(u) ? u : null;
 }
 
 const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => Draft } = {

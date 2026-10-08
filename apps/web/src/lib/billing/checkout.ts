@@ -248,3 +248,43 @@ export function failRedirectPath(
 ): string {
   return checkoutErrorPath(locale, result.purpose === "subscribe" ? result.priceId : null, result.reason);
 }
+
+// ── 돌아온 화면의 안내 ──
+
+/**
+ * 결제창에서 돌아와 결제 화면·결제 관리가 보여 줄 수 있는 오류 — 위 경로들이 싣는 코드 전부.
+ * 이 목록 밖의 값은 무시한다(쿼리 문자열을 화면에 그대로 싣지 않는다)
+ */
+export const RETURN_ERRORS = [
+  "canceled",
+  "cardRejected",
+  "failed",
+  "expired",
+  "hasActive",
+  "duplicateRefunded",
+  "customerMismatch",
+  "priceInactive",
+  "notConfigured",
+  "notFound",
+] as const;
+export type ReturnError = (typeof RETURN_ERRORS)[number];
+
+/** ?error= 값 — 목록에 있는 코드만(배열·빈 값·모르는 값은 null) */
+export function returnErrorOf(raw: unknown): ReturnError | null {
+  return typeof raw === "string" && (RETURN_ERRORS as readonly string[]).includes(raw) ? (raw as ReturnError) : null;
+}
+
+export const CARD_CHANGE_RETRIES = ["paid", "failed", "pending", "none"] as const;
+export type CardChangeRetry = (typeof CARD_CHANGE_RETRIES)[number];
+
+/** 결제 관리로 돌아온 결과(callbackRedirectPath가 싣는 값) */
+export type ManageReturn = { kind: "subscribed" } | { kind: "cardChanged"; retry: CardChangeRetry } | { kind: "pending" };
+
+/** ?result=·?retry= 값 — 콜백이 싣는 조합만. 카드 변경인데 재결제 결과가 목록 밖이면 아무것도 보이지 않는다 */
+export function manageReturnOf(result: unknown, retry: unknown): ManageReturn | null {
+  if (result === "subscribed" || result === "pending") return { kind: result };
+  if (result !== "cardChanged") return null;
+  return typeof retry === "string" && (CARD_CHANGE_RETRIES as readonly string[]).includes(retry)
+    ? { kind: "cardChanged", retry: retry as CardChangeRetry }
+    : null;
+}

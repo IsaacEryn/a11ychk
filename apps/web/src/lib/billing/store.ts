@@ -208,6 +208,16 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       return (data as SubscriptionRow | null) ?? null;
     },
 
+    async listLiveSubscriptions(userId) {
+      const { data, error } = await admin
+        .from("subscriptions")
+        .select(SUBSCRIPTION_COLS)
+        .eq("user_id", userId)
+        .in("status", LIVE_STATUSES);
+      if (error) throw fail("listLiveSubscriptions", error);
+      return (data as SubscriptionRow[] | null) ?? [];
+    },
+
     async insertSubscription(row) {
       // status는 DB 기본값이 없다 — 새 구독은 active로 시작한다
       const { data, error } = await admin

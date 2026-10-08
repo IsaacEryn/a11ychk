@@ -10,6 +10,7 @@ import {
 } from "@/lib/billing/period";
 import { FATAL_TOSS_CODES, TossError, classifyTossError, isOutcomeUnknown, type TossPayment } from "@/lib/billing/toss";
 import type { BillingDeps, PaymentRow, SubscriptionExpectation, SubscriptionRow } from "@/lib/billing/types";
+import { closeEndedSubscription } from "@/lib/billing/flows/end";
 import {
   activateInitialPayment,
   errorText,
@@ -444,24 +445,8 @@ async function endSubscription(deps: BillingDeps, sub: SubscriptionRow, action: 
     ended_at: iso(deps.now()),
   });
   if (!ended) return false;
-  if (sub.user_id) {
-    // 사용자·모드당 진행 중 구독은 하나라 지금 고객 행의 빌링키가 이 구독의 것이다.
-    // 읽은 암호문일 때만 지운다 — 그 사이 새 결제창이 쓴 빌링키는 남긴다
-    try {
-      const customer = await store.getCustomer(sub.user_id, sub.livemode);
-      if (customer?.toss_billing_key_enc) await store.clearCustomerKeyIf(customer.id, customer.toss_billing_key_enc);
-    } catch {
-      // 구독은 이미 끝났다 — 남은 빌링키는 운영자가 지운다(오류 문구에도 값을 넣지 않는다)
-      await deps.log(`billing needs review: key cleanup failed for subscription ${sub.id}`);
-    }
-  }
-  await sendBillingMail(
-    deps,
-    sub.user_id,
-    "ended",
-    { planName: planNameFor(sub.plan_code), reason: action === "end_canceled" ? "canceled" : "unpaid" },
-    `subscription ${sub.id}`,
-  );
+  // 빌링키(읽은 암호문일 때만)를 거두고 종료 메일 — 사용자의 즉시 해지(manage.ts)와 같은 정리
+  await closeEndedSubscription(deps, sub, action === "end_canceled" ? "canceled" : "unpaid");
   return true;
 }
 
