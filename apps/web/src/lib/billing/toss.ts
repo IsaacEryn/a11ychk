@@ -59,6 +59,15 @@ export function classifyTossError(code: string): TossErrorKind {
   return "retryable";
 }
 
+/**
+ * 결과 불명 — 연결이 끊겼거나(NETWORK), 토스 쪽 5xx·408이면 결제가 실제로 처리됐을 수 있다.
+ * 실패로 확정하면 돈은 나갔는데 구독이 없는 상태가 되고, 다시 결제하면 이중 청구가 된다.
+ * 호출부는 결제 행을 pending으로 두고 대사(주문 조회)로 확정한다.
+ */
+export function isOutcomeUnknown(err: unknown): boolean {
+  return err instanceof TossError && (err.code === "NETWORK" || err.status >= 500 || err.status === 408);
+}
+
 interface TossClientDeps {
   fetchImpl: typeof fetch;
   auth: string;

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { TossError, classifyTossError, createTossClient } from "../src/lib/billing/toss";
+import { TossError, classifyTossError, createTossClient, isOutcomeUnknown } from "../src/lib/billing/toss";
 
 function fakeFetch(status: number, body: unknown) {
   return vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }));
@@ -193,5 +193,25 @@ describe("classifyTossError", () => {
     ["INVALID_REQUEST", "fatal"],
   ])("%s → %s", (code, kind) => {
     expect(classifyTossError(code)).toBe(kind);
+  });
+});
+
+describe("isOutcomeUnknown — 돈이 움직였는지 알 수 없는 실패", () => {
+  it.each([
+    [new TossError("NETWORK", "toss request failed (network)", 0), true],
+    [new TossError("HTTP_502", "toss error", 502), true],
+    [new TossError("FAILED_INTERNAL_SYSTEM_PROCESSING", "내부 오류", 500), true],
+    [new TossError("HTTP_408", "toss error", 408), true],
+    [new TossError("REJECT_CARD_PAYMENT", "한도 초과", 400), false],
+    [new TossError("INVALID_CARD_EXPIRATION", "유효기간 오류", 400), false],
+    [new TossError("UNAUTHORIZED_KEY", "인증 실패", 401), false],
+    [new TossError("INVALID_RESPONSE", "billing key missing", 200), false],
+  ])("%s → %s", (err, unknown) => {
+    expect(isOutcomeUnknown(err)).toBe(unknown);
+  });
+
+  it("TossError가 아닌 값은 false(호출부가 따로 판단한다)", () => {
+    expect(isOutcomeUnknown(new Error("boom"))).toBe(false);
+    expect(isOutcomeUnknown(null)).toBe(false);
   });
 });
