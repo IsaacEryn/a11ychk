@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isBlankDocumentState, THIRD_PARTY_AD_EXCLUDE } from "../src/scanner/runAxe";
+import { isBlankDocumentState, shouldSkipChildFrame, THIRD_PARTY_AD_EXCLUDE } from "../src/scanner/runAxe";
 
 describe("isBlankDocumentState — 빈/미로드 문서 가드", () => {
   it("lang·title·body가 모두 비면 빈 문서로 본다(리다이렉트 빈 응답·about:blank)", () => {
@@ -41,5 +41,23 @@ describe("THIRD_PARTY_AD_EXCLUDE — 제3자 광고 요소 제외 선택자", ()
     const ctx = { exclude: THIRD_PARTY_AD_EXCLUDE.map((s) => [s]) };
     expect(Array.isArray(ctx.exclude)).toBe(true);
     expect(ctx.exclude.every((e) => Array.isArray(e) && typeof e[0] === "string")).toBe(true);
+  });
+});
+
+describe("shouldSkipChildFrame — 하위 프레임 검사 제외", () => {
+  it("화면에 그려지고 광고가 아닌 프레임은 검사한다", () => {
+    expect(shouldSkipChildFrame({ parentSkipped: false, excluded: false, rendered: true })).toBe(false);
+  });
+
+  it("광고 제외 선택자에 맞는 프레임은 다른 출처라도 건너뛴다", () => {
+    expect(shouldSkipChildFrame({ parentSkipped: false, excluded: true, rendered: true })).toBe(true);
+  });
+
+  it("화면에 그려지지 않는 프레임(display:none·0×0)은 건너뛴다", () => {
+    expect(shouldSkipChildFrame({ parentSkipped: false, excluded: false, rendered: false })).toBe(true);
+  });
+
+  it("바깥 프레임을 건너뛰었으면 그 안의 프레임도 건너뛴다", () => {
+    expect(shouldSkipChildFrame({ parentSkipped: true, excluded: false, rendered: true })).toBe(true);
   });
 });
