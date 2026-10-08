@@ -13,6 +13,7 @@ const RESERVED = new Set([
   "admin",
   "api",
   "auth",
+  "billing",
   "demo",
   "join",
   "ko",

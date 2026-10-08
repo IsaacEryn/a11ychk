@@ -87,4 +87,8 @@ describe("0041 결제 스키마", () => {
   it("빌링키 열은 암호문 형식만 받는다", () => {
     expect(sql).toMatch(/toss_billing_key_enc text check \(toss_billing_key_enc is null or toss_billing_key_enc like 'v1:%'\)/);
   });
+
+  it("결제 시도는 새 구독과 카드 교체를 구분한다", () => {
+    expect(sql).toMatch(/purpose text not null default 'subscribe' check \(purpose in \('subscribe', 'card_change'\)\)/);
+  });
 });

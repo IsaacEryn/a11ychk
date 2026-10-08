@@ -91,6 +91,8 @@ create table if not exists public.billing_checkouts (
   price_id uuid not null references public.billing_prices (id),
   status text not null default 'open'
     check (status in ('open', 'processing', 'completed', 'failed', 'expired')),
+  -- subscribe: 새 구독 / card_change: 기존 구독(subscription_id)의 결제 카드 교체
+  purpose text not null default 'subscribe' check (purpose in ('subscribe', 'card_change')),
   failure_code text,
   subscription_id uuid references public.subscriptions (id) on delete set null,
   created_at timestamptz not null default now(),

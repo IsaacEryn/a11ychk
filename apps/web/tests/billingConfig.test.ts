@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billingMode, entitlementLivemodes } from "../src/lib/billing/config";
+import { billingMode, billingTestUserIds, entitlementLivemodes, rowLivemode, tossKeys } from "../src/lib/billing/config";
 
 describe("billingMode", () => {
   it.each([
@@ -24,5 +24,31 @@ describe("entitlementLivemodes", () => {
     expect(entitlementLivemodes("test")).toEqual([true, false]);
     expect(entitlementLivemodes("live")).toEqual([true]);
     expect(entitlementLivemodes("off")).toEqual([true]);
+  });
+});
+
+describe("tossKeys / billingTestUserIds / rowLivemode", () => {
+  it("모드 값의 앞뒤 공백은 무시한다", () => {
+    expect(billingMode({ BILLING_MODE: " test " })).toBe("test");
+  });
+  it("모드가 켜져 있고 두 키가 모두 모드 접두면 키를 준다", () => {
+    expect(tossKeys({ BILLING_MODE: "test", TOSS_CLIENT_KEY: "test_ck_a", TOSS_SECRET_KEY: "test_sk_b" })).toEqual({
+      clientKey: "test_ck_a",
+      secretKey: "test_sk_b",
+    });
+  });
+  it("off이거나 키가 비었거나 클라이언트 키 접두가 다르면 null", () => {
+    expect(tossKeys({ TOSS_CLIENT_KEY: "test_ck_a", TOSS_SECRET_KEY: "test_sk_b" })).toBeNull();
+    expect(tossKeys({ BILLING_MODE: "test", TOSS_SECRET_KEY: "test_sk_b" })).toBeNull();
+    expect(tossKeys({ BILLING_MODE: "test", TOSS_CLIENT_KEY: "live_ck_a", TOSS_SECRET_KEY: "test_sk_b" })).toBeNull();
+  });
+  it("테스터 목록은 쉼표 구분·공백 무시", () => {
+    expect([...billingTestUserIds({ BILLING_TEST_USER_IDS: " a , b,," })]).toEqual(["a", "b"]);
+    expect(billingTestUserIds({}).size).toBe(0);
+  });
+  it("새 결제 행의 livemode", () => {
+    expect(rowLivemode("test")).toBe(false);
+    expect(rowLivemode("live")).toBe(true);
+    expect(rowLivemode("off")).toBeNull();
   });
 });
