@@ -11,39 +11,18 @@ export interface ScanLimits {
   monthly: number;
 }
 
-export interface PlanConfig extends ScanLimits {
-  /** WCAG-EM 2.0 구조 표본 페이지 수 (무작위 표본은 이의 10%가 추가됨 — Step 3.2) */
-  sampleSize: number;
-}
-
 /**
- * 요금제(그룹). 추후 유료화 시 사용자를 이 그룹에 배정하고, 그룹별 한도를
- * 여기서 일괄 관리한다. 관리자가 사용자별로 개별 한도를 지정하면 그 값이 우선한다.
- * 요금제 시행은 app_settings의 plans.active로 켜기 전까지 비활성(전원 free).
+ * 등급(요금제) 목록. 한도 수치는 아래 TIERS가 단일 소스다. 관리자가 사용자별로 개별 한도를
+ * 지정하면 그 값이 우선한다(lib/entitlements.ts가 합산).
+ * free/pro/enterprise만 요금제 페이지에 공개 — plus(우수 사용자·파트너 보상)와
+ * unlimited(운영자 전용)는 관리자 배정으로만 부여하는 내부 등급이고, plus1/plus2는
+ * 초대·활동으로 자동 달성하는 등급(profiles.earned_plan)이라 관리자 배정 대상이 아니다.
  */
-export const PLANS = {
-  // 2026-07-22 개정: 일/주/월 3중 창 + 검사당 표본 페이지 수 (소유 확인 수는 DOMAIN_VERIFY_LIMITS)
-  // free/pro/enterprise만 요금제 페이지에 공개 — plus(우수 사용자·파트너 보상)와
-  // unlimited(운영자 전용)는 관리자 배정으로만 부여하는 내부 등급.
-  free: { daily: 3, weekly: 5, monthly: 10, sampleSize: 5 },
-  // plus1/plus2 — 초대·활동으로 자동 달성하는 등급(profiles.earned_plan).
-  // 관리자 배정(plan 키) 대상이 아니므로 ASSIGNABLE_PLAN_IDS에서 제외된다.
-  plus1: { daily: 5, weekly: 6, monthly: 15, sampleSize: 5 },
-  plus2: { daily: 5, weekly: 8, monthly: 20, sampleSize: 8 },
-  // plus — 관리자 배정용 내부 등급(한도는 plus2와 동일, 하위 호환 유지)
-  plus: { daily: 5, weekly: 8, monthly: 20, sampleSize: 8 },
-  pro: { daily: 5, weekly: 10, monthly: 30, sampleSize: 10 },
-  enterprise: { daily: 20, weekly: 30, monthly: 100, sampleSize: 20 },
-  // 사실상 무제한 — 집계·표시 로직을 단순하게 유지하기 위해 큰 유한값 사용.
-  // sampleSize 30 = MAX_PAGES_PER_SCAN(아래 선언 — 선언 순서상 리터럴 사용)과 일치.
-  unlimited: { daily: 1000, weekly: 5000, monthly: 20000, sampleSize: 30 },
-} as const satisfies Record<string, PlanConfig>;
-
-export type PlanId = keyof typeof PLANS;
-export const PLAN_IDS = Object.keys(PLANS) as PlanId[];
+export const PLAN_IDS = ["free", "plus1", "plus2", "plus", "pro", "enterprise", "unlimited"] as const;
+export type PlanId = (typeof PLAN_IDS)[number];
 export const DEFAULT_PLAN: PlanId = "free";
 
-/** 초대·활동으로 달성하는 등급 (profiles.earned_plan) — plansActive와 무관하게 항상 적용 */
+/** 초대·활동으로 달성하는 등급 (profiles.earned_plan) */
 export const EARNED_PLAN_IDS = ["plus1", "plus2"] as const;
 export type EarnedPlanId = (typeof EARNED_PLAN_IDS)[number];
 
@@ -71,75 +50,48 @@ export const PLAN_RANK: Record<PlanId, number> = {
 };
 
 /**
- * 검사 옵션 프리셋 저장 개수 상한 — 무료부터 제공하되 등급별 제한(과다 생성 방지).
- * 배정 등급·달성 등급 중 높은 쪽 기준: free=3, 그 외 등급=20.
+ * 등급별 한도 — 한 등급의 모든 한도를 한 행에 둔다. 실효 한도는 lib/entitlements.ts가
+ * 근거(free·초대 등급·관리자 배정)별 행을 필드마다 최댓값으로 합쳐 계산한다.
+ * free 행이 바닥이므로 어떤 등급도 free보다 낮은 값을 가지면 안 된다(테스트로 고정).
+ * 표본은 미확인/소유 확인 도메인을 따로 둔다 — 소유 확인 도메인은 더 많이 검사할 수 있다.
  */
-export function presetLimit(override: unknown, earned: EarnedPlanId | null): number {
-  const rank = Math.max(PLAN_RANK[getPlan(override)], earned ? PLAN_RANK[earned] : 0);
-  return rank === 0 ? 3 : 20;
+export interface TierLimits extends ScanLimits {
+  /** 소유 확인 전 도메인의 검사당 구조 표본 페이지 수 */
+  sampleUnverified: number;
+  /** 소유 확인 도메인의 검사당 구조 표본 페이지 수 */
+  sampleVerified: number;
+  /** 소유 확인할 수 있는 도메인 수 */
+  verifiedDomains: number;
+  /** 크롬 확장 검사 일일 한도 */
+  extDaily: number;
+  /** 검사 옵션 프리셋 저장 개수 */
+  presets: number;
 }
 
-/** 기본 한도 = free 요금제 */
-export const DEFAULT_SCAN_LIMITS: ScanLimits = {
-  daily: PLANS.free.daily,
-  weekly: PLANS.free.weekly,
-  monthly: PLANS.free.monthly,
+export const TIER_LIMIT_KEYS = [
+  "daily",
+  "weekly",
+  "monthly",
+  "sampleUnverified",
+  "sampleVerified",
+  "verifiedDomains",
+  "extDaily",
+  "presets",
+] as const satisfies readonly (keyof TierLimits)[];
+
+export const TIERS: Record<PlanId, TierLimits> = {
+  free: { daily: 3, weekly: 5, monthly: 10, sampleUnverified: 5, sampleVerified: 10, verifiedDomains: 1, extDaily: 10, presets: 3 },
+  plus1: { daily: 5, weekly: 6, monthly: 15, sampleUnverified: 5, sampleVerified: 10, verifiedDomains: 1, extDaily: 12, presets: 20 },
+  plus2: { daily: 5, weekly: 8, monthly: 20, sampleUnverified: 8, sampleVerified: 10, verifiedDomains: 2, extDaily: 15, presets: 20 },
+  plus: { daily: 5, weekly: 8, monthly: 20, sampleUnverified: 8, sampleVerified: 10, verifiedDomains: 2, extDaily: 15, presets: 20 },
+  pro: { daily: 5, weekly: 10, monthly: 30, sampleUnverified: 10, sampleVerified: 20, verifiedDomains: 3, extDaily: 20, presets: 20 },
+  enterprise: { daily: 20, weekly: 30, monthly: 100, sampleUnverified: 20, sampleVerified: 30, verifiedDomains: 10, extDaily: 30, presets: 20 },
+  // 사실상 무제한 — 집계·표시 로직을 단순하게 유지하기 위해 큰 유한값 사용
+  unlimited: { daily: 1000, weekly: 5000, monthly: 20000, sampleUnverified: 30, sampleVerified: 30, verifiedDomains: 100, extDaily: 1000, presets: 20 },
 };
-
-/** 소유 확인된 도메인의 free 등급 보너스 표본 수 (현행 동작 유지) */
-export const VERIFIED_FREE_SAMPLE_SIZE = 10;
-
-/**
- * 등급(요금제)별 소유 확인 가능한 도메인 수 상한.
- * 실제 요금제 시행(plansActive) 전이라도 관리자가 배정한 등급(getPlan)에 따라 즉시 적용된다
- * — 스캔 횟수 한도와 달리 도메인 소유 확인 수는 등급 자체로 관리(운영 정책). 더 필요하면 관리자 문의.
- */
-export const DOMAIN_VERIFY_LIMITS: Record<PlanId, number> = {
-  free: 1,
-  plus1: 1,
-  plus2: 2,
-  plus: 2,
-  pro: 3,
-  enterprise: 10,
-  unlimited: 100,
-};
-
-/**
- * 사용자가 소유 확인할 수 있는 도메인 수.
- * 우선순위: 관리자 지정 개별 숫자(scan_limit_override.verifiedDomains)
- * > max(배정 등급 기본값, 달성 등급(earned) 기본값 — plansActive 무관 항상 적용).
- */
-export function getVerifiedDomainLimit(override: unknown, earned: EarnedPlanId | null = null): number {
-  const v = asRecord(override).verifiedDomains;
-  if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
-  const base = DOMAIN_VERIFY_LIMITS[getPlan(override)];
-  return earned ? Math.max(base, DOMAIN_VERIFY_LIMITS[earned]) : base;
-}
 
 /** 스캔 1회당 절대 최대 표본 페이지 수 (하드 캡) — Vercel 함수 실행 시간 한도 고려 */
 export const MAX_PAGES_PER_SCAN = 30;
-
-/**
- * 크롬 확장 검사 등급별 일일 한도 (웹 검사 한도와 분리, 로그인 사용자).
- * 소유 확인 수와 마찬가지로 요금제 시행(plansActive) 여부와 무관하게 배정 등급으로 즉시 적용.
- */
-export const EXT_DAILY_LIMITS: Record<PlanId, number> = {
-  free: 10,
-  plus1: 12,
-  plus2: 15,
-  plus: 15,
-  pro: 20,
-  enterprise: 30,
-  unlimited: 1000,
-};
-
-/** 확장 일일 한도 — 관리자 지정 개별값(scan_limit_override.extDaily) > max(배정, 달성 등급) */
-export function getExtDailyLimit(override: unknown, earned: EarnedPlanId | null = null): number {
-  const v = asRecord(override).extDaily;
-  if (typeof v === "number" && Number.isInteger(v) && v >= 0) return v;
-  const base = EXT_DAILY_LIMITS[getPlan(override)];
-  return earned ? Math.max(base, EXT_DAILY_LIMITS[earned]) : base;
-}
 
 export interface ExtUsageResult {
   ok: boolean;
@@ -195,29 +147,10 @@ export function getCustomPages(override: unknown): number | undefined {
   return typeof v === "number" && Number.isInteger(v) && v >= 1 ? v : undefined;
 }
 
-/**
- * 유효 표본 크기(구조 표본). 우선순위:
- * 1. 사용자별 pages override — 소유 확인 도메인은 ×2
- * 2. 요금제 활성 시 배정 요금제의 sampleSize
- * 3. free 기본 — 소유확인 10p / 그 외 5p (현행 유지)
- * 모두 MAX_PAGES_PER_SCAN(30)으로 클램프.
- */
-export function getSampleSize(opts: {
-  override: unknown;
-  verified: boolean;
-  plansActive: boolean;
-  /** 달성 등급 — plansActive 무관하게 max로 병합 (free 소유확인 10p vs plus1 5p 등은 max가 자연 해결) */
-  earned?: EarnedPlanId | null;
-}): number {
-  const pages = getCustomPages(opts.override);
-  let size: number;
-  if (pages !== undefined) size = opts.verified ? pages * 2 : pages;
-  else {
-    if (opts.plansActive) size = PLANS[getPlan(opts.override)].sampleSize;
-    else size = opts.verified ? VERIFIED_FREE_SAMPLE_SIZE : PLANS.free.sampleSize;
-    if (opts.earned) size = Math.max(size, PLANS[opts.earned].sampleSize);
-  }
-  return Math.min(size, MAX_PAGES_PER_SCAN);
+/** 관리자 지정 정수 개별값(0 이상) — 소유 확인 도메인 수·확장 일일 한도. 기한이 지나면 undefined */
+export function getCustomInt(override: unknown, key: "verifiedDomains" | "extDaily"): number | undefined {
+  const v = asRecord(override)[key];
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : undefined;
 }
 
 /** 관리자 배정의 적용 기한(scan_limit_override.until, ISO). 없으면 undefined — 관리자 UI 프리필용 */
@@ -246,35 +179,7 @@ function asRecord(override: unknown): Record<string, unknown> {
 
 export function getPlan(override: unknown): PlanId {
   const p = asRecord(override).plan;
-  return typeof p === "string" && (PLAN_IDS as string[]).includes(p) ? (p as PlanId) : DEFAULT_PLAN;
-}
-
-/**
- * 최종 한도 계산 (우선순위): 사용자별 개별 숫자 override > 요금제/달성 등급 한도 > 기본값.
- * - 배정 요금제는 plansActive=false(기본)면 무시(free) — 유료화 전 게이트
- * - 달성 등급(earned — 초대·활동 자동 승급)은 plansActive와 무관하게 항상 창별 max로 병합
- * - dailyBonus(초대받은 가입 보너스)는 daily에만 가산 — 단 daily 개별 override가 있으면
- *   관리자 명시값을 존중해 가산하지 않는다
- */
-export function resolveLimits(
-  override: unknown,
-  plansActive = false,
-  earned: EarnedPlanId | null = null,
-  dailyBonus = 0,
-): ScanLimits {
-  const o = asRecord(override);
-  const plan = plansActive ? PLANS[getPlan(override)] : PLANS.free;
-  const base: ScanLimits = { daily: plan.daily, weekly: plan.weekly, monthly: plan.monthly };
-  if (earned) {
-    const e = PLANS[earned];
-    for (const key of QUOTA_WINDOWS) base[key] = Math.max(base[key], e[key]);
-  }
-  if (dailyBonus > 0) base.daily += dailyBonus;
-  for (const key of QUOTA_WINDOWS) {
-    const v = o[key];
-    if (typeof v === "number" && Number.isFinite(v) && v >= 0) base[key] = v;
-  }
-  return base;
+  return typeof p === "string" && (PLAN_IDS as readonly string[]).includes(p) ? (p as PlanId) : DEFAULT_PLAN;
 }
 
 /**
@@ -340,16 +245,17 @@ export async function checkQuota(
     const reset = resets[key];
     // 롤링 윈도우 시작과 리셋 시각 중 더 나중(=더 짧은 기간)을 하한으로
     const lowerBound = reset && reset > windowStart ? reset : windowStart;
-    // 관리자 재검사(admin_retry, 0028)와 정기 검사(source='scheduled', 0029)는 사용자 한도에서 제외.
-    // 정기 검사는 소유 확인 도메인에만, 사용자당 활성 검사 1건 가드 때문에 계정당 하루 1건까지만
-    // 돈다(크론). 이걸 한도에 넣으면 매일 검사만으로 주간 한도가 바닥나 수동 검사까지 막혔다.
+    // 사용자가 직접 만든 검사(source='user')만 센다. 관리자 재검사(admin_retry, 0028),
+    // 정기 검사(source='scheduled', 0029), 확장 보고서(source='extension', 0040 — 확장 전용
+    // 일일 한도로 이미 차감)는 제외한다. 정기 검사를 한도에 넣으면 매일 검사만으로 주간 한도가
+    // 바닥나 수동 검사까지 막혔다.
     // 컬럼 미적용 환경(0028·0029)에서는 필터 없이 폴백해 검사 생성이 깨지지 않게 한다.
     let { count, error } = await admin
       .from("scans")
       .select("id", { count: "exact", head: true })
       .eq("user_id", userId)
       .eq("admin_retry", false)
-      .neq("source", "scheduled")
+      .eq("source", "user")
       .gte("created_at", lowerBound);
     if (error) {
       // 폴백은 정기 검사·관리자 재검사를 다시 한도에 넣는다 — 컬럼 부재(0028·0029 미적용)일 때만

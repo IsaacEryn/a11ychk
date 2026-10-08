@@ -18,6 +18,7 @@
    - `0035_rpc_grants.sql` — **SECURITY DEFINER 함수의 anon·authenticated 실행 권한 회수 — 보안상 필수**
    - `0037_domains_insert_columns.sql` — **domains INSERT를 (user_id, hostname)으로 한정 — 보안상 필수.** 미적용이면 로그인 사용자가 PostgREST로 `verified=true`인 도메인 행을 직접 넣어 소유 확인(배지·공개 등재·정기 검사·robots 예외)을 위조할 수 있다. 적용 후 파일 끝의 점검 SQL로 기존 위조 행을 확인할 것
    - `0038_scheduled_scan_candidates.sql` — 정기 검사 후보를 SQL에서 계정당 1개·기한 초과 순으로 고른다(안 하면 크론이 창 500 + JS 선택으로 폴백하고, 창이 차면 app_errors에 기록)
+   - `0040_scan_source_extension.sql` — 확장으로 만든 보고서를 웹 검사 한도에서 뺀다(미적용이면 확장 보고서가 웹 검사 횟수에서도 차감되고, 저장할 때마다 app_errors에 한 줄 남는다). 코드 배포 **전에** 적용하고, 배포 직후 파일의 UPDATE 문을 한 번 더 실행해 그 사이에 저장된 확장 보고서를 백필한다
 3. **Authentication → Providers**에서 Google, GitHub OAuth 활성화
    - Google: [Google Cloud Console](https://console.cloud.google.com)에서 OAuth 클라이언트 생성,
      승인된 리디렉션 URI에 `https://<프로젝트>.supabase.co/auth/v1/callback` 추가

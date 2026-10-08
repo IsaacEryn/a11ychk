@@ -2,8 +2,8 @@ import "server-only";
 import type { EvaluationScope } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAppError } from "@/lib/logs";
-import { QUOTA_WINDOWS, checkQuota, getEarnedPlan, getResets, getSampleSize, resolveLimits, clampRequestedPages } from "@/lib/quota";
-import { getPlansActive } from "@/lib/appSettings";
+import { QUOTA_WINDOWS, checkQuota, clampRequestedPages } from "@/lib/quota";
+import { loadEntitlement, sampleFor } from "@/lib/entitlements";
 import { foldHost } from "@/lib/host";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { reclaimStaleScans } from "./reclaimStale";
@@ -26,7 +26,7 @@ interface CreateScanOptions {
   /** true면 직접 입력 표본이 한도를 초과할 때 잘라내지 않고 오류를 반환 (신규 검사) */
   strictManualLimit?: boolean;
   /**
-   * 자동 수집 시 검사할 페이지 수(사용자 선택). 서버가 항상 사용자 한도(getSampleSize)로
+   * 자동 수집 시 검사할 페이지 수(사용자 선택). 서버가 항상 사용자 한도(sampleFor)로
    * 클램프하므로 클라이언트 값을 그대로 신뢰하지 않는다. 미지정이면 한도 최대.
    */
   requestedPages?: number;
@@ -68,31 +68,19 @@ export async function createScanForUser(
 ): Promise<CreateScanResult> {
   const admin = createAdminClient();
 
-  // 계정 상태·한도
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("blocked, scan_limit_override, earned_plan, referral_daily_bonus")
-    .eq("id", userId)
-    .single();
+  // 계정 상태
+  const { data: profile } = await admin.from("profiles").select("blocked").eq("id", userId).single();
   if (!profile || profile.blocked) {
     return { ok: false, status: 403, error: "검사를 실행할 수 없는 계정입니다.", code: "blocked" };
   }
-  // 달성 등급·피초대 보너스 — migration 0024 미적용 환경에선 컬럼 부재로 undefined → 기본 동작
-  const p = profile as { earned_plan?: unknown; referral_daily_bonus?: unknown };
-  const earned = getEarnedPlan(p.earned_plan);
-  const dailyBonus = typeof p.referral_daily_bonus === "number" ? p.referral_daily_bonus : 0;
+  // 이용 권한 — 사전 검사와 삽입 후 재검사가 같은 한도를 쓰도록 한 번만 계산
+  const ent = await loadEntitlement(admin, userId);
 
-  const plansActive = await getPlansActive(admin);
   // 관리자 재검사·정기 검사는 한도 검사를 건너뛴다(사용자 잔여 횟수 미차감 — checkQuota 카운트에서도
   // 제외됨). 정기 검사의 상한은 크론이 소유 확인 도메인만 대상으로 삼는 것으로 대신한다.
   const skipQuota = options.adminRetry || options.source === "scheduled";
   if (!skipQuota) {
-    const quota = await checkQuota(
-      admin,
-      userId,
-      resolveLimits(profile.scan_limit_override, plansActive, earned, dailyBonus),
-      getResets(profile.scan_limit_override),
-    );
+    const quota = await checkQuota(admin, userId, ent.limits, ent.resets);
     if (!quota.ok) {
       const windowLabel = { daily: "일간", weekly: "주간", monthly: "월간" }[quota.exceeded!];
       return {
@@ -140,12 +128,7 @@ export async function createScanForUser(
     (userDomains ?? []).find((x) => foldHost(x.hostname as string) === foldHost(url.hostname)) ??
     null;
 
-  const sampleSize = getSampleSize({
-    earned,
-    override: profile.scan_limit_override,
-    verified: domain?.verified ?? false,
-    plansActive,
-  });
+  const sampleSize = sampleFor(ent, domain?.verified ?? false);
   // 자동 수집 페이지 수(사용자 선택) — 항상 사용자 한도로 클램프 (클라이언트 값 불신)
   const pageLimit = clampRequestedPages(sampleSize, options.requestedPages);
 
@@ -207,12 +190,7 @@ export async function createScanForUser(
   // 한도 이중 검증 — 동시 삽입으로 한도를 넘었으면 이번 행을 회수 (TOCTOU 보정).
   // 카운트는 삽입 후 기준이므로 '초과'는 limit을 넘어선 경우다. (관리자 재검사·정기 검사는 한도 무관)
   if (!skipQuota) {
-    const recheck = await checkQuota(
-      admin,
-      userId,
-      resolveLimits(profile.scan_limit_override, plansActive, earned, dailyBonus),
-      getResets(profile.scan_limit_override),
-    );
+    const recheck = await checkQuota(admin, userId, ent.limits, ent.resets);
     for (const key of QUOTA_WINDOWS) {
       if (recheck.used[key] > recheck.limits[key]) {
         await admin.from("scans").delete().eq("id", scan.id);

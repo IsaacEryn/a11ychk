@@ -1150,6 +1150,7 @@
         "manual": "Manual",
         "auto": "Auto",
         "scheduled": "Scheduled",
+        "extension": "Extension",
         "teaser": "Teaser"
       },
       "teaserUser": "Anonymous",
@@ -1171,13 +1172,6 @@
       "searchUrl": "Search URL",
       "searchNick": "Search nickname",
       "allMembers": "All (members)"
-    },
-    "plansControl": {
-      "active": "Plans active",
-      "inactive": "Plans inactive",
-      "hint": "While inactive, all users run on the free tier's limits and sample size. Activating makes assigned plans take effect.",
-      "start": "Activate plans",
-      "stop": "Deactivate plans"
     },
     "users": {
       "title": "User management",
@@ -1213,11 +1207,6 @@
       "resetPending": "Resetting…",
       "resetDone": "{scope} quota has been reset",
       "resetFailed": "Reset failed. Please try again.",
-      "plansInactive": "Plan enforcement is off, so the plan assignments below have no effect — every user gets the free limit.",
-      "plansInactiveLink": "Turn on enforcement in operations settings",
-      "bulkPlanLabel": "Assign plan to all users",
-      "bulkApply": "Apply to all",
-      "bulkHint": "Applies the selected plan to every user. Per-user custom limits are cleared. (Group management for future monetization)",
       "searchLabel": "Search nickname",
       "searchApply": "Search",
       "noResults": "No matching users.",
@@ -1297,9 +1286,7 @@
       "empty": "Nothing to show."
     },
     "settings": {
-      "title": "Settings",
-      "bulkPagesLabel": "Bulk set page limit for all users",
-      "bulkPagesHint": "Sets the base page limit for every user (doubled for verified domains, max {max} pages). Apply with an empty value to revert to plan/default limits."
+      "title": "Settings"
     },
     "logs": {
       "title": "Logs",
@@ -1755,7 +1742,8 @@
       "daily": "{n} scans / day",
       "weekly": "{n} scans per week",
       "monthly": "{n} scans / month",
-      "pages": "Up to {n} pages per scan",
+      "pages": "{n} pages per scan",
+      "pagesVerified": "{n} pages per scan on verified sites",
       "verify": "Ownership verification for {n} site(s)"
     },
     "tiers": {

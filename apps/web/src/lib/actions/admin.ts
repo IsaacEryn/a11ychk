@@ -4,7 +4,6 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ASSIGNABLE_PLAN_IDS, MAX_PAGES_PER_SCAN } from "@/lib/quota";
-import { setPlansActive } from "@/lib/appSettings";
 import { logAdminAction, logAppError } from "@/lib/logs";
 import { requireAdmin, revalidateLocalized, type SaveState } from "./shared";
 
@@ -149,75 +148,6 @@ export async function setUserLimits(formData: FormData): Promise<void> {
     ),
   });
   revalidateLocalized("/admin/users", "/dashboard");
-}
-
-/** 요금제 시행 시작/중지 — app_settings.plans.active 토글 */
-export async function togglePlansActive(formData: FormData): Promise<void> {
-  const { user: actor } = await requireAdmin();
-  const active = formData.get("active") === "true";
-  const admin = createAdminClient();
-  await setPlansActive(admin, !active);
-  await logAdminAction(admin, actor.id, "plans.toggle", undefined, { active: !active });
-  revalidateLocalized("/admin", "/admin/settings", "/dashboard");
-}
-
-/** 요금제(그룹) 일괄 배정 — 전체 사용자를 지정 요금제로. 개별 한도 override(횟수·페이지)는 제거 */
-export async function bulkSetPlan(formData: FormData): Promise<void> {
-  const { user: actor } = await requireAdmin();
-  // 달성 등급(plus1/plus2)은 초대·활동으로만 부여 — 관리자 배정 대상에서 제외
-  const plan = z.enum(ASSIGNABLE_PLAN_IDS as [string, ...string[]]).safeParse(formData.get("plan"));
-  if (!plan.success) return;
-
-  const admin = createAdminClient();
-  const { data: users } = await admin.from("profiles").select("id, scan_limit_override");
-  for (const u of users ?? []) {
-    const current =
-      u.scan_limit_override && typeof u.scan_limit_override === "object"
-        ? (u.scan_limit_override as Record<string, unknown>)
-        : {};
-    // 개별 한도(daily/weekly/monthly/pages)는 제거하고 요금제만 지정 (그룹 일괄 정책 우선)
-    const next: Record<string, unknown> = { plan: plan.data };
-    for (const k of ["dailyResetAt", "weeklyResetAt", "monthlyResetAt"] as const) {
-      if (current[k] !== undefined) next[k] = current[k];
-    }
-    await admin.from("profiles").update({ scan_limit_override: next }).eq("id", u.id);
-  }
-  await logAdminAction(admin, actor.id, "plans.bulk_set", undefined, {
-    plan: plan.data,
-    count: users?.length ?? 0,
-  });
-  revalidateLocalized("/admin/users");
-}
-
-/** 페이지 한도 일괄 설정 — 전체 사용자의 scan_limit_override.pages를 지정/해제 (다른 키는 보존) */
-export async function bulkSetPages(formData: FormData): Promise<void> {
-  const { user: actor } = await requireAdmin();
-  const raw = formData.get("pages");
-  const str = typeof raw === "string" ? raw.trim() : "";
-  let pages: number | null = null; // null = 해제 (요금제/기본 한도로 복귀)
-  if (str !== "") {
-    const n = Number(str);
-    if (!Number.isInteger(n) || n < 1 || n > MAX_PAGES_PER_SCAN) return;
-    pages = n;
-  }
-
-  const admin = createAdminClient();
-  const { data: users } = await admin.from("profiles").select("id, scan_limit_override");
-  for (const u of users ?? []) {
-    const current =
-      u.scan_limit_override && typeof u.scan_limit_override === "object"
-        ? (u.scan_limit_override as Record<string, unknown>)
-        : {};
-    const next: Record<string, unknown> = { ...current };
-    if (pages === null) delete next.pages;
-    else next.pages = pages;
-    await admin.from("profiles").update({ scan_limit_override: next }).eq("id", u.id);
-  }
-  await logAdminAction(admin, actor.id, "pages.bulk_set", undefined, {
-    pages,
-    count: users?.length ?? 0,
-  });
-  revalidateLocalized("/admin/users");
 }
 
 export async function replyInquiry(formData: FormData): Promise<void> {

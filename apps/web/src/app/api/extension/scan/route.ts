@@ -5,8 +5,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireExtensionUser } from "@/lib/apiAuth";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
 import { apiError, resolveApiLocale } from "@/lib/apiError";
-import { consumeExtUsage, getEarnedPlan, getExtDailyLimit } from "@/lib/quota";
+import { consumeExtUsage } from "@/lib/quota";
+import { loadEntitlement } from "@/lib/entitlements";
 import { reaggregate } from "@/lib/scan/runScan";
+import { logAppError } from "@/lib/logs";
 
 // via 컬럼(migration 0009) 존재 여부 — 모듈 스코프 캐시로 요청당 프로브 쿼리 제거
 let viaColumnCache: boolean | null = null;
@@ -67,7 +69,7 @@ export async function POST(request: Request) {
   // 1) 인증 + 계정 상태 (공통 헬퍼)
   const auth = await requireExtensionUser(request);
   if (auth instanceof NextResponse) return auth;
-  const { admin, user, profile } = auth;
+  const { admin, user } = auth;
 
   // 2) 입력 검증
   let body: unknown;
@@ -89,8 +91,8 @@ export async function POST(request: Request) {
   // 3) 확장 한도 — 웹 검사 한도와 분리된 확장 전용 한도.
   //    저장이 서버 자원을 소비하는 지점이므로 여기서 원자적으로 소비한다
   //    (클라이언트가 별도 소비 호출을 생략해도 한도를 우회할 수 없음).
-  const extLimit = getExtDailyLimit(profile.scan_limit_override, getEarnedPlan(profile.earned_plan));
-  const usage = await consumeExtUsage(admin, user.id, extLimit);
+  const { limits } = await loadEntitlement(admin, user.id);
+  const usage = await consumeExtUsage(admin, user.id, limits.extDaily);
   if (usage.error) {
     return apiError(locale, "usageFailed", 500);
   }
@@ -215,20 +217,29 @@ export async function POST(request: Request) {
 
   // 4-b) 기존 보고서 없음 — 단일 페이지 보고서 생성 (확장 검사는 이미 완료 상태)
   const summary = aggregateScan([page], AXE_VERSION);
-  const { data: scan, error: scanErr } = await admin
+  const scanRow = {
+    user_id: user.id,
+    root_url: url.toString(),
+    status: "done",
+    page_limit: 1,
+    summary,
+    created_at: nowIso,
+    started_at: nowIso,
+    finished_at: nowIso,
+  };
+  // 확장 보고서 표식(0040) — 웹 검사 한도에서 제외된다
+  let { data: scan, error: scanErr } = await admin
     .from("scans")
-    .insert({
-      user_id: user.id,
-      root_url: url.toString(),
-      status: "done",
-      page_limit: 1,
-      summary,
-      created_at: nowIso,
-      started_at: nowIso,
-      finished_at: nowIso,
-    })
+    .insert({ ...scanRow, source: "extension" })
     .select("id")
     .single();
+  // 0040 미적용 환경 — source check 위반(23514)이면 표식 없이 저장하고 흔적을 남긴다
+  if (scanErr?.code === "23514") {
+    await logAppError(admin, "scans.source 'extension' rejected (0040 not applied) — saved as user", {
+      path: "api/extension/scan",
+    });
+    ({ data: scan, error: scanErr } = await admin.from("scans").insert(scanRow).select("id").single());
+  }
   if (scanErr || !scan) return apiError(locale, "saveFailed", 500);
 
   const { data: pageRow } = await admin

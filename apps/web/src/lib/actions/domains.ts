@@ -5,7 +5,7 @@ import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { guardedFetch } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getEarnedPlan, getVerifiedDomainLimit } from "@/lib/quota";
+import { loadEntitlement } from "@/lib/entitlements";
 import { reevaluateEarnedPlan } from "@/lib/referral/promote";
 import { setupCloudflareTxt } from "@/lib/cloudflare";
 import { scanUrlMatchesHost } from "@/lib/host";
@@ -255,15 +255,8 @@ async function checkVerifyCapacity(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<{ limit: number } | null> {
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("scan_limit_override, earned_plan")
-    .eq("id", userId)
-    .single();
-  const limit = getVerifiedDomainLimit(
-    profile?.scan_limit_override,
-    getEarnedPlan((profile as { earned_plan?: unknown } | null)?.earned_plan),
-  );
+  const { limits } = await loadEntitlement(supabase, userId);
+  const limit = limits.verifiedDomains;
   const { count } = await supabase
     .from("domains")
     .select("id", { count: "exact", head: true })
