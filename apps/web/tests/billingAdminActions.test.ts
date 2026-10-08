@@ -12,10 +12,16 @@ vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => m.admin }));
 vi.mock("@/lib/actions/shared", () => ({ requireAdmin: async () => ({ user: { id: "admin-1" } }) }));
 vi.mock("@/lib/logs", () => ({ logAdminAction: m.logAdminAction, logAppError: m.logAppError }));
 vi.mock("@/lib/billing/server", () => ({ createBillingDeps: m.createBillingDeps }));
-vi.mock("@/lib/billing/flows/renew", () => ({ runBillingCycle: m.runBillingCycle }));
+// 크론 판정(decideRenewalAction)은 진짜를 쓴다 — 당긴 결과가 크론에서 어떻게 읽히는지 확인하려고
+vi.mock("@/lib/billing/flows/renew", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../src/lib/billing/flows/renew")>()),
+  runBillingCycle: m.runBillingCycle,
+}));
 
 import { createPrice, deactivatePrice } from "../src/lib/actions/adminBillingPrices";
 import { pullDueDate, runBillingCycleNow } from "../src/lib/actions/adminBillingTools";
+import { decideRenewalAction } from "../src/lib/billing/flows/renew";
+import type { SubscriptionRow } from "../src/lib/billing/types";
 
 type Call = [string, ...unknown[]];
 
@@ -136,6 +142,8 @@ describe("deactivatePrice", () => {
 });
 
 describe("pullDueDate", () => {
+  const DAY = 86_400_000;
+  const iso = (t: number) => new Date(t).toISOString();
   const sub = (over: Record<string, unknown> = {}) => ({
     id: SUB_ID,
     user_id: "user-1",
@@ -144,8 +152,31 @@ describe("pullDueDate", () => {
     status: "active",
     current_period_start: "2026-11-01T00:00:00+00:00",
     current_period_end: "2026-12-01T00:00:00+00:00",
+    next_retry_at: null,
+    grace_until: null,
     ...over,
   });
+  const pastDue = (over: Record<string, unknown> = {}) =>
+    sub({
+      status: "past_due",
+      current_period_start: iso(NOW - 33 * DAY),
+      current_period_end: iso(NOW - 3 * DAY),
+      next_retry_at: iso(NOW + 2 * DAY),
+      grace_until: iso(NOW + 4 * DAY),
+      ...over,
+    });
+  /** 크론 판정에 넣을 완전한 행 — 당기기 결과(patch)를 덮어쓴다 */
+  const asCronRow = (found: Record<string, unknown>, patch: Record<string, unknown>, interval: "month" | "year" = "month") =>
+    ({
+      ...found,
+      plan_code: "pro",
+      amount: 1234,
+      currency: "KRW",
+      interval,
+      cancel_at_period_end: false,
+      reminder_sent_for: null,
+      ...patch,
+    }) as unknown as SubscriptionRow;
 
   /** 첫 from()은 조회, 둘째 from()은 쓰기 */
   function setup(found: unknown, written: { data?: unknown; error?: { code?: string; message: string } | null } = { data: [{ id: SUB_ID }] }) {
@@ -154,9 +185,11 @@ describe("pullDueDate", () => {
     m.admin.from.mockReturnValueOnce(read.builder).mockReturnValueOnce(write.builder);
     return { read, write };
   }
+  const patchOf = (calls: Call[]) => calls.find((c) => c[0] === "update")?.[1] as Record<string, unknown>;
 
-  it("UUID가 아니면 DB 없이 invalid", async () => {
+  it("UUID가 아니거나 모르는 target이면 DB 없이 invalid", async () => {
     expect(await pullDueDate({}, fd({ subscriptionId: "x" }))).toEqual({ error: "invalid" });
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID, target: "retry" }))).toEqual({ error: "invalid" });
     expect(m.admin.from).not.toHaveBeenCalled();
   });
 
@@ -173,6 +206,12 @@ describe("pullDueDate", () => {
     expect(m.logAdminAction).not.toHaveBeenCalled();
   });
 
+  it("실결제 미납 구독도 notTest — 재시도 시점을 건드리지 않는다", async () => {
+    setup(pastDue({ livemode: true }));
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ error: "notTest" });
+    expect(m.admin.from).toHaveBeenCalledTimes(1);
+  });
+
   it("toss가 아닌 구독(기관 계약 등)은 notTest", async () => {
     setup(sub({ provider: "manual" }));
     expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ error: "notTest" });
@@ -185,32 +224,82 @@ describe("pullDueDate", () => {
     expect(m.admin.from).toHaveBeenCalledTimes(1);
   });
 
-  it("기간 끝을 지금 + 1분으로, 안내 기록을 비운다 — 시작은 그대로", async () => {
-    const { write } = setup(sub());
-    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ ok: true });
-    const patch = write.calls.find((c) => c[0] === "update")?.[1] as Record<string, unknown>;
-    expect(patch.current_period_end).toBe(new Date(NOW + 60_000).toISOString());
+  it("active + charge(기본): 기간 끝을 지금 + 1분으로, 안내 기록을 비운다 — 시작은 그대로. 크론이 갱신 결제로 읽는다", async () => {
+    const found = sub();
+    const { write } = setup(found);
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ ok: true, kind: "charge" });
+    const patch = patchOf(write.calls);
+    expect(patch.current_period_end).toBe(iso(NOW + 60_000));
     expect(patch.reminder_sent_for).toBeNull();
     expect(patch).not.toHaveProperty("current_period_start");
-    // 쓸 때도 livemode=false·toss·진행 중 조건을 다시 건다
+    expect(patch).not.toHaveProperty("next_retry_at");
+    expect(decideRenewalAction(asCronRow(found, patch), NOW)).toBe("charge");
+    // 쓸 때도 livemode=false·toss·같은 상태·같은 기간 끝 조건을 다시 건다
     expect(write.calls).toContainEqual(["eq", "provider", "toss"]);
     expect(write.calls).toContainEqual(["eq", "livemode", false]);
     expect(write.calls).toContainEqual(["in", "status", ["active", "past_due"]]);
+    expect(write.calls).toContainEqual(["eq", "status", "active"]);
+    expect(write.calls).toContainEqual(["eq", "current_period_end", found.current_period_end]);
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.pull_due", "user-1", {
+      subscriptionId: SUB_ID,
+      status: "active",
+      target: "charge",
+      from: found.current_period_end,
+      to: iso(NOW + 60_000),
+    });
+  });
+
+  it.each(["month", "year"] as const)("active + remind(%s): 기간 끝을 지금 + 2일로 — 크론이 결제 예정 안내로 읽는다", async (interval) => {
+    const found = sub();
+    const { write } = setup(found);
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID, target: "remind" }))).toEqual({ ok: true, kind: "remind" });
+    const patch = patchOf(write.calls);
+    expect(patch.current_period_end).toBe(iso(NOW + 2 * DAY));
+    expect(patch.reminder_sent_for).toBeNull();
+    expect(decideRenewalAction(asCronRow(found, patch, interval), NOW)).toBe("remind");
     expect(m.logAdminAction).toHaveBeenCalledWith(
       m.admin,
       "admin-1",
       "billing.pull_due",
       "user-1",
-      expect.objectContaining({ subscriptionId: SUB_ID, to: new Date(NOW + 60_000).toISOString() }),
+      expect.objectContaining({ target: "remind", from: found.current_period_end, to: iso(NOW + 2 * DAY) }),
     );
   });
 
   it("시작이 새 기간 끝보다 늦거나 같으면 시작을 지금 − 1분으로 맞춘다(check 제약)", async () => {
-    const { write } = setup(sub({ current_period_start: new Date(NOW + 60_000).toISOString() }));
-    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ ok: true });
-    const patch = write.calls.find((c) => c[0] === "update")?.[1] as Record<string, unknown>;
-    expect(patch.current_period_start).toBe(new Date(NOW - 60_000).toISOString());
+    const { write } = setup(sub({ current_period_start: iso(NOW + 60_000) }));
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ ok: true, kind: "charge" });
+    const patch = patchOf(write.calls);
+    expect(patch.current_period_start).toBe(iso(NOW - 60_000));
     expect(Date.parse(patch.current_period_start as string)).toBeLessThan(Date.parse(patch.current_period_end as string));
+  });
+
+  it("past_due: 다음 재시도 시점만 지금으로 — 기간 끝·유예 기한·안내 기록은 쓰지 않는다. 크론이 재시도로 읽는다", async () => {
+    const found = pastDue();
+    const { write } = setup(found);
+    // target을 보내도(남은 폼 값) 미납 구독은 기간 끝을 건드리지 않는다
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID, target: "remind" }))).toEqual({ ok: true, kind: "retry" });
+    const patch = patchOf(write.calls);
+    expect(Object.keys(patch).sort()).toEqual(["next_retry_at", "updated_at"]);
+    expect(patch.next_retry_at).toBe(iso(NOW));
+    expect(decideRenewalAction(asCronRow(found, patch), NOW)).toBe("retry");
+    expect(write.calls).toContainEqual(["eq", "status", "past_due"]);
+    expect(write.calls).toContainEqual(["eq", "livemode", false]);
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.pull_due", "user-1", {
+      subscriptionId: SUB_ID,
+      status: "past_due",
+      target: "retry",
+      from: found.next_retry_at,
+      to: iso(NOW),
+    });
+  });
+
+  it("past_due인데 유예 기한이 지났으면 graceOver — 쓰지 않고 감사도 없다", async () => {
+    const { write } = setup(pastDue({ grace_until: iso(NOW - 1) }));
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ error: "graceOver" });
+    expect(write.calls).toEqual([]);
+    expect(m.admin.from).toHaveBeenCalledTimes(1);
+    expect(m.logAdminAction).not.toHaveBeenCalled();
   });
 
   it("읽은 뒤 바뀌어 쓴 행이 없으면 ended, 감사 없음", async () => {
@@ -252,7 +341,7 @@ describe("runBillingCycleNow", () => {
     m.runBillingCycle.mockResolvedValue(summary);
     expect(await runBillingCycleNow({}, fd({}))).toEqual({ ok: true, summary });
     expect(m.runBillingCycle).toHaveBeenCalledWith(deps, false);
-    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.cycle_run", undefined, { mode: "test", summary });
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.cycle_run", undefined, { mode: "test", ok: true, summary });
   });
 
   it("live 모드는 확인 체크 없이는 돌리지 않는다", async () => {
@@ -272,13 +361,23 @@ describe("runBillingCycleNow", () => {
     expect(m.runBillingCycle).toHaveBeenCalledWith(deps, true);
   });
 
-  it("흐름이 던지면 기록하고 failed, 감사는 남기지 않는다", async () => {
+  it("흐름이 던지면 errorText로 기록하고 failed, 실패도 감사에 남긴다(중간까지 결제가 나갔을 수 있다)", async () => {
     vi.stubEnv("BILLING_MODE", "test");
     vi.stubEnv("TOSS_SECRET_KEY", "");
     m.createBillingDeps.mockReturnValue(deps);
     m.runBillingCycle.mockRejectedValue(new Error("boom"));
     expect(await runBillingCycleNow({}, fd({}))).toEqual({ error: "failed" });
-    expect(m.logAppError).toHaveBeenCalledTimes(1);
-    expect(m.logAdminAction).not.toHaveBeenCalled();
+    expect(m.logAppError).toHaveBeenCalledWith(m.admin, "runBillingCycleNow failed: boom", { path: "adminBillingTools" });
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.cycle_run", undefined, { mode: "test", ok: false });
+  });
+
+  it("토스 오류는 코드와 상태만 기록한다(errorText)", async () => {
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    m.createBillingDeps.mockReturnValue(deps);
+    const { TossError } = await import("../src/lib/billing/toss");
+    m.runBillingCycle.mockRejectedValue(new TossError("UNAUTHORIZED_KEY", "secret-looking message", 401));
+    expect(await runBillingCycleNow({}, fd({}))).toEqual({ error: "failed" });
+    expect(m.logAppError).toHaveBeenCalledWith(m.admin, "runBillingCycleNow failed: UNAUTHORIZED_KEY (401)", { path: "adminBillingTools" });
   });
 });

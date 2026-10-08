@@ -81,7 +81,7 @@ export default async function AdminBillingDetailPage({
     .eq("id", id)
     .maybeSingle();
   // 0041 미적용(테이블 없음)도 없는 주소로 취급한다. 그 밖의 조회 오류는 404로 숨기지 않고 오류 화면으로 보낸다.
-  if (error && (error.code === "42P01" || error.code === "PGRST205")) notFound();
+  if (isMissingTable(error)) notFound();
   if (error) throw new Error(`admin billing detail query failed: ${error.message}`);
   if (!sub) notFound();
 

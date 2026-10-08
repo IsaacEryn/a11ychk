@@ -3,9 +3,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, logAppError } from "@/lib/logs";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
-import { parseSubscriptionId } from "@/lib/billing/contract";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { runBillingCycle } from "@/lib/billing/flows/renew";
+import { errorText } from "@/lib/billing/flows/subscribe";
+import { parsePullDue, planPullDue, type PullKind, type PullableSubscription } from "@/lib/billing/pullDue";
 import { createBillingDeps } from "@/lib/billing/server";
 import { requireAdmin, type SaveState } from "./shared";
 
@@ -41,33 +42,35 @@ export async function runBillingCycleNow(_prev: CycleState, fd: FormData): Promi
   try {
     summary = await runBillingCycle(deps, livemode);
   } catch (e) {
-    // 비밀 값은 오류 문구에 들어가지 않는다(흐름의 규칙) — 메시지만 남긴다
-    await logAppError(admin, `runBillingCycleNow failed: ${e instanceof Error ? e.message : String(e)}`, { path: PATH });
+    // 중간까지 결제가 나갔을 수 있으니 실패도 감사에 남긴다. 오류 문구는 흐름이 쓰는 errorText(비밀 값 없음)로
+    await logAppError(admin, `runBillingCycleNow failed: ${errorText(e)}`, { path: PATH });
+    await logAdminAction(admin, actor.id, "billing.cycle_run", undefined, { mode, ok: false });
     return { error: "failed" };
   }
 
-  await logAdminAction(admin, actor.id, "billing.cycle_run", undefined, { mode, summary });
+  await logAdminAction(admin, actor.id, "billing.cycle_run", undefined, { mode, ok: true, summary });
   return { ok: true, summary };
 }
 
-/** 결제일 당기기가 맞춰 둘 기준: 1분 뒤에 기한이 되도록 */
-const DUE_IN_MS = 60_000;
+/** 결제일 당기기 결과 — 실제로 당긴 종류(charge·remind·retry)를 알려 성공 문구를 맞춘다 */
+export interface PullState extends SaveState {
+  kind?: PullKind;
+}
 
 /**
- * 테스트 구독의 결제일을 당긴다 — current_period_end를 지금 + 1분으로.
- * 0041의 check(current_period_end > current_period_start) 때문에 시작이 그보다 늦으면 지금 − 1분으로 맞추고,
- * 결제 예정 안내 메일을 다시 시험할 수 있게 reminder_sent_for를 비운다.
- * livemode=false인 toss 구독의 진행 중(active·past_due) 행만 바꾼다.
+ * 테스트 구독의 결제일을 당긴다. 무엇을 바꾸는지는 lib/billing/pullDue.ts planPullDue가 정한다:
+ * 진행 중이면 기간 끝(charge = 1분 뒤, remind = 2일 뒤 — 안내 기록도 비운다), 미납이면 다음 재시도 시점만.
+ * livemode=false인 toss 구독의 진행 중(active·past_due) 행만 바꾼다 — 읽을 때와 쓸 때 모두 같은 조건을 건다.
  */
-export async function pullDueDate(_prev: SaveState, fd: FormData): Promise<SaveState> {
+export async function pullDueDate(_prev: PullState, fd: FormData): Promise<PullState> {
   const { user: actor } = await requireAdmin();
-  const parsed = parseSubscriptionId(fd);
+  const parsed = parsePullDue(fd);
   if (!parsed.ok) return { error: parsed.error };
   const admin = createAdminClient();
 
   const { data: sub, error } = await admin
     .from("subscriptions")
-    .select("id, user_id, provider, livemode, status, current_period_start, current_period_end")
+    .select("id, user_id, provider, livemode, status, current_period_start, current_period_end, next_retry_at, grace_until")
     .eq("id", parsed.value.subscriptionId)
     .maybeSingle();
   if (error) {
@@ -77,27 +80,21 @@ export async function pullDueDate(_prev: SaveState, fd: FormData): Promise<SaveS
   }
   if (!sub) return { error: "notFound" };
   if (sub.provider !== "toss" || sub.livemode !== false) return { error: "notTest" };
-  if (sub.status === "ended") return { error: "ended" };
+  if (sub.status !== "active" && sub.status !== "past_due") return { error: "ended" };
 
-  const now = Date.now();
-  const newEnd = new Date(now + DUE_IN_MS).toISOString();
-  const patch: Record<string, unknown> = {
-    current_period_end: newEnd,
-    reminder_sent_for: null,
-    updated_at: new Date(now).toISOString(),
-  };
-  if (Date.parse(sub.current_period_start as string) >= now + DUE_IN_MS) {
-    patch.current_period_start = new Date(now - DUE_IN_MS).toISOString();
-  }
+  const plan = planPullDue(sub as PullableSubscription, parsed.value.target, Date.now());
+  if (!plan.ok) return { error: plan.error };
 
   const { data: changed, error: updateError } = await admin
     .from("subscriptions")
-    .update(patch)
+    .update(plan.patch)
     .eq("id", sub.id)
-    // 쓸 때도 같은 조건을 건다 — 읽은 뒤 끝났거나 바뀐 행을 되살리거나 덮어쓰지 않게
+    // 쓸 때도 같은 조건을 건다 — 읽은 뒤 끝났거나 다른 경로(크론·카드 변경)가 바꾼 행을 되살리거나 덮어쓰지 않게
     .eq("provider", "toss")
     .eq("livemode", false)
     .in("status", ["active", "past_due"])
+    .eq("status", sub.status)
+    .eq("current_period_end", sub.current_period_end)
     .select("id");
   if (updateError) {
     if (isMissingTable(updateError)) return { error: "migrationMissing" };
@@ -108,8 +105,10 @@ export async function pullDueDate(_prev: SaveState, fd: FormData): Promise<SaveS
 
   await logAdminAction(admin, actor.id, "billing.pull_due", (sub.user_id as string | null) ?? undefined, {
     subscriptionId: sub.id,
-    from: sub.current_period_end,
-    to: newEnd,
+    status: sub.status,
+    target: plan.kind,
+    from: plan.from,
+    to: plan.to,
   });
-  return { ok: true };
+  return { ok: true, kind: plan.kind };
 }

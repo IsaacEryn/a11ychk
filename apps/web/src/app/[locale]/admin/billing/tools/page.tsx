@@ -80,13 +80,27 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
 
       <section aria-labelledby="admin-billing-tools-cycle-heading" className="mt-8 border-[1.5px] border-dashed border-[var(--color-line)] p-4">
         <h3 id="admin-billing-tools-cycle-heading" className="font-display text-lg font-bold">{t("billing.tools.cycleTitle")}</h3>
-        <p className="mt-1 text-xs text-[var(--color-ink-faint)]">{t(`billing.tools.cycleHint.${mode}`)}</p>
-        <RunCycleForm requireConfirm={mode === "live"} />
+        <p
+          id="admin-billing-tools-cycle-hint"
+          className={
+            mode === "off"
+              ? "mt-2 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
+              : "mt-1 text-xs text-[var(--color-ink-faint)]"
+          }
+        >
+          {t(`billing.tools.cycleHint.${mode}`)}
+        </p>
+        <RunCycleForm requireConfirm={mode === "live"} disabled={mode === "off"} describedBy="admin-billing-tools-cycle-hint" />
       </section>
 
       <section aria-labelledby="admin-billing-tools-subs-heading" className="mt-8">
         <h3 id="admin-billing-tools-subs-heading" className="font-display text-xl font-bold">{t("billing.tools.subsTitle")}</h3>
         <p className="mt-2 text-sm text-[var(--color-ink-soft)]">{t("billing.tools.subsIntro")}</p>
+        <ul className="mt-2 list-disc space-y-1 pl-5 text-sm text-[var(--color-ink-soft)]">
+          <li>{t("billing.tools.subsItems.charge")}</li>
+          <li>{t("billing.tools.subsItems.remind")}</li>
+          <li>{t("billing.tools.subsItems.retry")}</li>
+        </ul>
 
         {missing ? (
           <p role="note" className="mt-4 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium">
@@ -104,7 +118,7 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
                   <th scope="col" className={TH}>{t("billing.cols.plan")}</th>
                   <th scope="col" className={TH}>{t("billing.cols.status")}</th>
                   <th scope="col" className={TH}>{t("billing.tools.cols.periodEnd")}</th>
-                  <th scope="col" className={TH}><span className="sr-only">{t("billing.prices.cols.actions")}</span></th>
+                  <th scope="col" className={TH}><span className="sr-only">{t("billing.tools.cols.actions")}</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -119,7 +133,7 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
                     <td className="py-2 pr-3">{t(`billing.status.${displayStatus(r.status as string, r.current_period_end as string)}`)}</td>
                     <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{dateTime(r.current_period_end as string)}</td>
                     <td className="py-2">
-                      <PullDueForm subscriptionId={r.id as string} label={nameOf(r.user_id as string | null)} />
+                      <PullDueForm subscriptionId={r.id as string} label={nameOf(r.user_id as string | null)} pastDue={r.status === "past_due"} />
                     </td>
                   </tr>
                 ))}

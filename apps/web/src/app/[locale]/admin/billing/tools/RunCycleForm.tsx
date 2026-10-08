@@ -44,11 +44,25 @@ const SUMMARY_KEYS = [
  * 결제 크론 지금 실행 — 결과 개수를 작은 정의 목록으로 보여 준다.
  * live 모드에서는 기한이 된 실결제 구독에 실제 결제가 나가므로 확인 체크를 필수로 둔다(서버도 다시 확인한다).
  */
-export function RunCycleForm({ requireConfirm }: { requireConfirm: boolean }) {
+export function RunCycleForm({
+  requireConfirm,
+  disabled,
+  describedBy,
+}: {
+  requireConfirm: boolean;
+  /** 결제 모드가 off일 때 — 이유는 describedBy가 가리키는 안내 문단에 있다 */
+  disabled: boolean;
+  describedBy: string;
+}) {
   const t = useTranslations("admin.billing.tools");
   const [state, formAction, pending] = useAdminAction<CycleState, FormData>(runBillingCycleNow, {});
   const errors = Object.fromEntries(ERROR_CODES.map((c) => [c, t(`errors.${c}`)])) as Record<string, string>;
   const summary = state.ok ? Object.entries(state.summary ?? {}) : [];
+  const errorCount = state.summary?.errors ?? 0;
+  const haltedCount = state.summary?.halted ?? 0;
+  // 크론이 끝까지 돌았어도 오류가 났거나 설정 사고로 결제를 멈췄다면 성공 표시(✓)로 덮지 않는다
+  const hasIssues = state.ok === true && (errorCount > 0 || haltedCount > 0);
+  const candidates = state.summary?.candidates ?? 0;
 
   return (
     <form action={formAction} className="mt-3 space-y-3">
@@ -65,15 +79,16 @@ export function RunCycleForm({ requireConfirm }: { requireConfirm: boolean }) {
         </label>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" disabled={pending} className={BTN_PRIMARY}>
+        <button type="submit" disabled={pending || disabled} aria-describedby={describedBy} className={BTN_PRIMARY}>
           {pending ? t("running") : t("run")}
         </button>
-        <FormFeedback
-          state={state}
-          okLabel={t("ran", { candidates: state.summary?.candidates ?? 0 })}
-          errors={errors}
-          fallback={errors.failed}
-        />
+        {hasIssues ? (
+          <span role="alert" className="text-xs font-bold text-[var(--color-crit)]">
+            {t("ranIssues", { candidates, errors: errorCount, halted: haltedCount })}
+          </span>
+        ) : (
+          <FormFeedback state={state} okLabel={t("ran", { candidates })} errors={errors} fallback={errors.failed} />
+        )}
       </div>
       {summary.length > 0 && (
         <div>

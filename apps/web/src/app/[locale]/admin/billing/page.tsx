@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { requireAdmin } from "@/lib/adminGuard";
 import { adminBase } from "@/lib/adminSlug";
+import { isMissingTable } from "@/lib/billing/dbErrors";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminLink } from "../AdminLink";
 import { FILTER_BTN, INPUT, TABLE, TH, TR, TR_HEAD } from "../tableStyles";
@@ -46,7 +47,7 @@ export default async function AdminBillingPage({
   else if (status !== "all") query = query.eq("status", status);
   if (provider) query = query.eq("provider", provider);
   const { data, error } = await query;
-  const missing = error && (error.code === "42P01" || error.code === "PGRST205");
+  const missing = isMissingTable(error);
   // 0041 미적용(테이블 없음)만 안내로 처리한다. 그 밖의 조회 오류를 "구독 없음"으로 보여 주면 장애가 가려진다.
   if (error && !missing) throw new Error(`admin billing list query failed: ${error.message}`);
   const rows = data ?? [];

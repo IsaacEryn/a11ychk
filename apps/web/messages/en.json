@@ -1642,7 +1642,7 @@
         "plan": "Plan",
         "interval": "Interval",
         "amount": "Amount (KRW)",
-        "amountHint": "In won, including VAT; not stored in the repository. Whole numbers from {min} to {max}.",
+        "amountHint": "In won, including VAT; not stored in the repository. Whole numbers from {min, number} to {max, number}.",
         "mode": "Mode",
         "modeHint": "Test prices apply in test mode; live prices apply in off and live mode.",
         "activeLabel": "Activate when added",
@@ -1674,7 +1674,7 @@
         "stateHint": "Shows only whether the environment variables match the mode. Key values are never displayed. In off mode, keys show as not configured even if they exist.",
         "cycleTitle": "Run billing cron now",
         "cycleHint": {
-          "off": "Billing mode is off, so this can't run. Change the BILLING_MODE environment variable and redeploy.",
+          "off": "Billing mode is off, so this can't run. Check that the BILLING_MODE environment variable is test or live and that the Toss secret key prefix (test_/live_) matches that mode, then redeploy.",
           "test": "Runs the daily billing cron (10:00 Korea time) once, now. It handles test subscriptions: renewal charges, retries for past-due payments, cancellation and non-payment endings, and upcoming-charge emails.",
           "live": "Runs the daily billing cron (10:00 Korea time) once, now. Real charges go out for live subscriptions that are due."
         },
@@ -1713,24 +1713,38 @@
           "halted": "Charging halted"
         },
         "subsTitle": "Test subscriptions",
-        "subsIntro": "Pulling the due date moves the period end to one minute from now and clears the upcoming-charge notice record. Run the billing cron afterwards to trigger the renewal charge. Only test (livemode=false) card subscriptions are listed.",
+        "subsIntro": "Only test (livemode=false) card subscriptions are listed. Run the billing cron after pulling for it to take effect.",
         "subsEmpty": "No active test subscriptions.",
         "cols": {
-          "periodEnd": "Period end"
+          "periodEnd": "Period end",
+          "actions": "Actions"
         },
-        "pull": "Pull due date",
         "pulling": "Working…",
-        "pulled": "Due date pulled forward",
         "errors": {
-          "off": "Billing mode is off. Change the BILLING_MODE environment variable and redeploy.",
+          "off": "Billing mode is off. Check the BILLING_MODE environment variable and that the Toss secret key prefix (test_/live_) matches the mode, then redeploy.",
           "notConfigured": "The Toss keys or the billing-key encryption key are not configured.",
-          "confirm": "Please tick the live-charge confirmation.",
+          "confirm": "Live mode requires the confirmation checkbox. Please refresh the page.",
           "invalid": "Couldn't identify the subscription.",
           "notFound": "Subscription not found.",
           "notTest": "Only test card subscriptions can have their due date pulled forward.",
           "ended": "This subscription has ended or changed in the meantime.",
           "migrationMissing": "Apply migration 0041, then try again.",
-          "failed": "Couldn't complete that. Check the error log."
+          "failed": "Couldn't complete that. Check the error log.",
+          "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription."
+        },
+        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
+        "subsItems": {
+          "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge.",
+          "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet.",
+          "retry": "Pull retry time (past due): leaves the period end and grace deadline as they are and moves only the next retry time to now. If the grace period is over, the cron ends the subscription instead."
+        },
+        "pullCharge": "Pull due date",
+        "pullRemind": "Pull to notice time",
+        "pullRetry": "Pull retry time",
+        "pulled": {
+          "charge": "Due date pulled forward",
+          "remind": "Pulled to notice time",
+          "retry": "Retry time set to now"
         }
       },
       "payments": {

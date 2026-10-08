@@ -2,6 +2,7 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, logAppError } from "@/lib/logs";
+import { isMissingTable } from "@/lib/billing/dbErrors";
 import {
   parseContractCreate,
   parseContractEnd,
@@ -18,9 +19,6 @@ import { requireAdmin, type SaveState } from "./shared";
  */
 
 const PATH = "adminBilling";
-
-/** 0041 미적용(테이블 없음) — Postgres 42P01, PostgREST 스키마 캐시 PGRST205. 운영 오류가 아니라 적용 순서 문제라 기록 없이 안내만 한다 */
-const isMissingTable = (e?: { code?: string } | null) => e?.code === "42P01" || e?.code === "PGRST205";
 
 /** 기관 계약 등록 */
 export async function createContract(_prev: SaveState, fd: FormData): Promise<SaveState> {
