@@ -2,18 +2,36 @@ import { describe, expect, it } from "vitest";
 import { buildBillingEmail } from "../src/lib/billing/emails";
 
 const ko = { locale: "ko" as const, test: false };
+const en = { locale: "en" as const, test: false };
+const CARD = { issuerCode: "61", number: "1234****", cardType: "신용" };
 
 describe("결제 메일", () => {
   it("영수증: 금액·다음 결제일·영수증 링크·해지 경로", () => {
     const { subject, html } = buildBillingEmail(
       "receipt",
-      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", receiptUrl: "https://r.example/1", card: "신용 1234****", manageUrl: "https://a.example/ko/mypage/billing" },
+      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", nextChargeAt: "2026-11-14T01:00:00.000Z", receiptUrl: "https://r.example/1", card: CARD, manageUrl: "https://a.example/ko/mypage/billing" },
       ko,
     );
     expect(subject).toContain("Pro");
     expect(html).toContain("1,234");
     expect(html).toContain("https://r.example/1");
     expect(html).toContain("https://a.example/ko/mypage/billing");
+    // 다음 결제일은 결제 확인 화면·결제 관리·결제 예정 안내와 같은 날(기간 끝 하루 전), 이용 기간은 기간 끝까지
+    expect(html).toMatch(/다음 결제일<\/td><td[^>]*>2026년 11월 14일</);
+    expect(html).toMatch(/이용 기간<\/td><td[^>]*>2026년 11월 15일까지</);
+    expect(html).toContain("신용카드 1234****");
+  });
+
+  it("영문 영수증에는 한국어 카드 종류가 찍히지 않는다 — 결제 관리 화면과 같은 카드 표기", () => {
+    const data = { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", nextChargeAt: "2026-11-14T01:00:00.000Z", receiptUrl: null, manageUrl: "https://a" };
+    const { html } = buildBillingEmail("receipt", { ...data, card: CARD }, en);
+    expect(html).toContain("Credit card 1234****");
+    expect(html).not.toContain("신용");
+    expect(html).toMatch(/Next payment<\/td><td[^>]*>November 14, 2026</);
+    // 모르는 카드 종류는 영문에서 빼고 번호만, 한국어에서는 원값 그대로
+    const odd = { issuerCode: null, number: "5678****", cardType: "법인" };
+    expect(buildBillingEmail("receipt", { ...data, card: odd }, en).html).toMatch(/Card<\/td><td[^>]*>5678\*\*\*\*</);
+    expect(buildBillingEmail("receipt", { ...data, card: odd }, ko).html).toContain("법인 5678****");
   });
   it("테스트 모드는 제목 앞에 [TEST]", () => {
     expect(buildBillingEmail("cancelScheduled", { planName: "Pro", endsAt: "2026-11-15T01:00:00.000Z", manageUrl: "https://a" }, { locale: "en", test: true }).subject.startsWith("[TEST] ")).toBe(true);
@@ -36,7 +54,7 @@ describe("결제 메일", () => {
   it("영수증과 결제 예정 안내 본문에 해지 경로가 있다", () => {
     const receipt = buildBillingEmail(
       "receipt",
-      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", receiptUrl: null, card: null, manageUrl: "https://a.example/billing" },
+      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", nextChargeAt: "2026-11-14T01:00:00.000Z", receiptUrl: null, card: null, manageUrl: "https://a.example/billing" },
       ko,
     );
     expect(receipt.html).toContain("마이페이지 → 결제 관리에서 언제든 해지할 수 있어요.");
@@ -53,7 +71,7 @@ describe("결제 메일", () => {
   it("영수증 링크와 카드 줄은 값이 없으면 나오지 않는다", () => {
     const { html } = buildBillingEmail(
       "receipt",
-      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", receiptUrl: null, card: null, manageUrl: "https://a.example/billing" },
+      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", nextChargeAt: "2026-11-14T01:00:00.000Z", receiptUrl: null, card: null, manageUrl: "https://a.example/billing" },
       ko,
     );
     expect(html).not.toContain("영수증 보기");
@@ -62,7 +80,7 @@ describe("결제 메일", () => {
   it("javascript: 같은 http(s)가 아닌 주소는 링크로 내지 않는다", () => {
     const { html } = buildBillingEmail(
       "receipt",
-      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", receiptUrl: "javascript:alert(1)", card: null, manageUrl: "https://a.example/billing" },
+      { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: "2026-11-15T01:00:00.000Z", nextChargeAt: "2026-11-14T01:00:00.000Z", receiptUrl: "javascript:alert(1)", card: null, manageUrl: "https://a.example/billing" },
       ko,
     );
     expect(html).not.toContain("javascript:");
@@ -94,7 +112,7 @@ describe("결제 메일", () => {
     const build = () =>
       buildBillingEmail(
         "receipt",
-        { planName: "Pro", amount: 1234, currency: "NOT_A_CURRENCY", periodEnd: "2026-11-15T01:00:00.000Z", receiptUrl: null, card: null, manageUrl: "https://a" },
+        { planName: "Pro", amount: 1234, currency: "NOT_A_CURRENCY", periodEnd: "2026-11-15T01:00:00.000Z", nextChargeAt: "2026-11-14T01:00:00.000Z", receiptUrl: null, card: null, manageUrl: "https://a" },
         ko,
       );
     expect(build).not.toThrow();

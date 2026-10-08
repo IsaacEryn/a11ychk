@@ -1,5 +1,7 @@
 import "server-only";
+import { cardLabel } from "@/lib/billing/cardLabel";
 import { httpUrl } from "@/lib/billing/httpUrl";
+import type { CardSummary } from "@/lib/billing/toss";
 import { EMAIL, emailButton, emailCard, escapeHtml, sendEmail } from "@/lib/notify";
 
 /**
@@ -13,11 +15,16 @@ export interface BillingEmailData {
     planName: string;
     amount: number;
     currency: string;
-    /** 이번 결제로 이용하게 된 기간의 끝 = 다음 결제일 */
+    /** 이번 결제로 이용하게 된 기간의 끝 — "이용 기간 ~까지" 줄 */
     periodEnd: string;
+    /**
+     * 다음 결제일 — 다음 갱신 결제가 나갈 수 있는 가장 이른 시각(기간 끝 하루 전, period.ts earliestChargeAt).
+     * 결제 확인 화면·동의 스냅샷·결제 관리·결제 예정 안내 메일과 같은 날짜다
+     */
+    nextChargeAt: string;
     receiptUrl: string | null;
-    /** 이미 마스킹된 카드 요약(예: "신용 1234****") */
-    card: string | null;
+    /** 토스가 준 카드 요약(번호는 이미 마스킹) — 표기는 수신자 언어로 cardLabel이 만든다 */
+    card: CardSummary | null;
     manageUrl: string;
   };
   failed: {
@@ -57,6 +64,7 @@ export interface BillingEmailOpts {
 }
 
 interface Fmt {
+  locale: "ko" | "en";
   /** locale에 맞는 문구 고르기 */
   t: (ko: string, en: string) => string;
   money: (amount: number, currency: string) => string;
@@ -80,6 +88,7 @@ function makeFmt(locale: "ko" | "en"): Fmt {
   const tag = en ? "en-US" : "ko-KR";
   const dateFormat = new Intl.DateTimeFormat(tag, { dateStyle: "long", timeZone: "Asia/Seoul" });
   return {
+    locale,
     t: (ko, enText) => (en ? enText : ko),
     money(amount, currency) {
       try {
@@ -98,6 +107,7 @@ function makeFmt(locale: "ko" | "en"): Fmt {
 
 const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => Draft } = {
   receipt(d, f) {
+    const card = cardLabel(d.card, f.locale);
     return {
       subject: f.t(`A11y Check ${d.planName} 결제가 완료됐어요`, `Your A11y Check ${d.planName} payment is complete`),
       heading: f.t("결제가 완료됐어요", "Your payment is complete"),
@@ -110,8 +120,9 @@ const BUILDERS: { [K in BillingEmailKind]: (d: BillingEmailData[K], f: Fmt) => D
       details: [
         [f.t("요금제", "Plan"), d.planName],
         [f.t("결제 금액 (부가세 포함)", "Amount paid (VAT included)"), f.money(d.amount, d.currency)],
-        ...(d.card ? ([[f.t("결제 카드", "Card"), d.card]] as Array<[string, string]>) : []),
-        [f.t("다음 결제일", "Next payment"), f.date(d.periodEnd)],
+        ...(card ? ([[f.t("결제 카드", "Card"), card]] as Array<[string, string]>) : []),
+        [f.t("이용 기간", "Service period"), f.t(`${f.date(d.periodEnd)}까지`, `Until ${f.date(d.periodEnd)}`)],
+        [f.t("다음 결제일", "Next payment"), f.date(d.nextChargeAt)],
       ],
       link: d.receiptUrl ? { href: d.receiptUrl, label: f.t("영수증 보기", "View receipt") } : undefined,
       after: [

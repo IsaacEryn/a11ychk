@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { reportBillingReadError } from "@/lib/billing/viewer";
 import type { BillingFlags } from "@/lib/billing/visibility";
 
 /**
@@ -45,9 +46,17 @@ export async function saveAnnouncements(admin: SupabaseClient, items: Announceme
     .upsert({ key: "announcements", value: { items }, updated_at: new Date().toISOString() }, { onConflict: "key" });
 }
 
-/** 결제 공개 범위 플래그(0041이 넣은 key="billing" 행). 행이 없거나 읽지 못하면 모두 닫힘 */
+/**
+ * 결제 공개 범위 플래그(0041이 넣은 key="billing" 행). 행이 없거나 읽지 못하면 모두 닫힘.
+ * 행이 없는 것은 정상(0041 미적용·플래그 미설정)이라 기록하지 않는다. 조회 오류는 화면(요금제·결제)을 깨뜨리지 않고 닫힌 쪽으로
+ * 본다 — 오류 한 번에 가격·결제가 열리는 것보다 잠깐 닫히는 편이 안전하다. 오류는 코드만 기록한다.
+ */
 export async function getBillingFlags(db: SupabaseClient): Promise<BillingFlags> {
-  const { data } = await db.from("app_settings").select("value").eq("key", "billing").maybeSingle();
+  const { data, error } = await db.from("app_settings").select("value").eq("key", "billing").maybeSingle();
+  if (error) {
+    await reportBillingReadError("flags", error);
+    return { showPrices: false, checkoutOpen: false };
+  }
   const v = (data?.value ?? {}) as Partial<BillingFlags>;
   return { showPrices: v.showPrices === true, checkoutOpen: v.checkoutOpen === true };
 }

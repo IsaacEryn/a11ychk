@@ -48,6 +48,7 @@ const pullable = (r: SubscriptionRow): PullableSubscription => ({
   current_period_end: r.current_period_end,
   next_retry_at: r.next_retry_at,
   grace_until: r.grace_until,
+  cancel_at_period_end: r.cancel_at_period_end,
 });
 
 /** 계획이 만든 patch를 행에 적용한 결과 */
@@ -118,6 +119,21 @@ describe("planPullDue — 진행 중(active)", () => {
         expect(Date.parse(plan.patch.current_period_start as string)).toBeLessThan(Date.parse(plan.patch.current_period_end as string));
       }
     }
+  });
+
+  it("해지 예약 구독에 remind는 cancelScheduled — 크론은 해지 예약 구독에 안내하지 않는다(당겨도 none)", () => {
+    const r = row({ cancel_at_period_end: true });
+    expect(planPullDue(pullable(r), "remind", NOW)).toEqual({ ok: false, error: "cancelScheduled" });
+  });
+
+  it("해지 예약 구독에 charge는 종료 시험(end) — 기간 끝을 1분 뒤로 당기면 크론이 결제 대신 그때 끝낸다", () => {
+    const r = row({ cancel_at_period_end: true });
+    const plan = planPullDue(pullable(r), "charge", NOW);
+    expect(plan).toMatchObject({ ok: true, kind: "end", from: r.current_period_end, to: iso(NOW + CHARGE_IN_MS) });
+    if (!plan.ok) throw new Error("unreachable");
+    expect(plan.patch.current_period_end).toBe(iso(NOW + CHARGE_IN_MS));
+    expect(decideRenewalAction(applied(r, plan.patch), NOW)).toBe("none");
+    expect(decideRenewalAction(applied(r, plan.patch), NOW + CHARGE_IN_MS)).toBe("end_canceled");
   });
 
   it("시작이 새 기간 끝보다 이르면 시작은 그대로", () => {

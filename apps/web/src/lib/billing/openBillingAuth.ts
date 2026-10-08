@@ -54,7 +54,7 @@ export interface ReleaseResult {
 }
 
 /** 이전 시도 닫기 — 닫은 것이 없으면 성공으로 안내하지 않고, 처리 중인 결제가 남았으면 기다리라고 안내한다 */
-export async function releasePreviousCheckout(): Promise<ReleaseResult> {
+async function releasePreviousCheckout(): Promise<ReleaseResult> {
   const res = await abandonCheckout();
   if (res.error) return { error: res.error };
   if (res.blockedBy) return { error: "inProgress", blockedBy: res.blockedBy };

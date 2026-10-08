@@ -1,7 +1,7 @@
 import "server-only";
 import { NextResponse } from "next/server";
 import type { User } from "@supabase/supabase-js";
-import { checkoutErrorPath, checkoutLocale, requestOrigin, tossReturnParams, type CheckoutLocale } from "@/lib/billing/checkout";
+import { UUID_RE, checkoutErrorPath, checkoutLocale, requestOrigin, tossReturnParams, type CheckoutLocale } from "@/lib/billing/checkout";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { errorText } from "@/lib/billing/flows/subscribe";
 import { createBillingDeps, createSupabaseBillingStore } from "@/lib/billing/server";
@@ -20,8 +20,6 @@ import { createClient } from "@/lib/supabase/server";
  *   헤더가 규칙에 맞지 않으면 request.url의 origin.
  * 기록에는 요청 URL·쿼리를 넣지 않는다(authKey).
  */
-
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export interface TossReturnContext {
   deps: BillingDeps;

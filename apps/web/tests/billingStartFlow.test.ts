@@ -234,6 +234,27 @@ describe("startCardChangeCheckout — 카드 변경의 결제 시도", () => {
     expect(store.rows.checkouts).toHaveLength(0);
   });
 
+  it("유예가 끝난 미납 구독은 graceOver — 곧 크론이 끝내므로 카드 변경(재결제)을 시작하지 않는다", async () => {
+    const price = priceRow();
+    const over = [
+      { grace_until: iso(NOW) },
+      // 유예 기한이 비면 기간 끝 + 7일(크론과 같은 기준)
+      { grace_until: null, current_period_start: iso(NOW - 37 * DAY), current_period_end: iso(NOW - 7 * DAY) },
+    ];
+    for (const o of over) {
+      const sub = subscriptionRow({ user_id: USER, price_id: price.id, status: "past_due", dunning_attempts: 4, ...o });
+      const store = createMemoryStore({ prices: [price], subscriptions: [sub] }, { now: () => NOW });
+      const deps = makeDeps({ store });
+      expect(await startCardChangeCheckout(deps, { userId: USER, livemode: false, subscriptionId: sub.id })).toEqual({ ok: false, error: "graceOver" });
+      expect(store.rows.checkouts).toHaveLength(0);
+      expect(store.rows.customers).toHaveLength(0);
+    }
+    // 유예가 남은 미납 구독은 그대로 시작한다
+    const sub = subscriptionRow({ user_id: USER, price_id: price.id, status: "past_due", grace_until: iso(NOW + 1) });
+    const store = createMemoryStore({ prices: [price], subscriptions: [sub] }, { now: () => NOW });
+    expect((await startCardChangeCheckout(makeDeps({ store }), { userId: USER, livemode: false, subscriptionId: sub.id })).ok).toBe(true);
+  });
+
   it("없는 구독은 notAllowed, 가격 없는 구독은 failed(기록)", async () => {
     const store = createMemoryStore({ subscriptions: [subscriptionRow({ user_id: USER, price_id: null })] }, { now: () => NOW });
     const deps = makeDeps({ store });

@@ -60,6 +60,7 @@ export interface PullState extends SaveState {
 /**
  * 테스트 구독의 결제일을 당긴다. 무엇을 바꾸는지는 lib/billing/pullDue.ts planPullDue가 정한다:
  * 진행 중이면 기간 끝(charge = 1분 뒤, remind = 2일 뒤 — 안내 기록도 비운다), 미납이면 다음 재시도 시점만.
+ * 해지 예약 구독은 remind를 막고(cancelScheduled), charge는 종료 시험(end)이 된다.
  * livemode=false인 toss 구독의 진행 중(active·past_due) 행만 바꾼다 — 읽을 때와 쓸 때 모두 같은 조건을 건다.
  */
 export async function pullDueDate(_prev: PullState, fd: FormData): Promise<PullState> {
@@ -70,7 +71,7 @@ export async function pullDueDate(_prev: PullState, fd: FormData): Promise<PullS
 
   const { data: sub, error } = await admin
     .from("subscriptions")
-    .select("id, user_id, provider, livemode, status, current_period_start, current_period_end, next_retry_at, grace_until")
+    .select("id, user_id, provider, livemode, status, current_period_start, current_period_end, next_retry_at, grace_until, cancel_at_period_end")
     .eq("id", parsed.value.subscriptionId)
     .maybeSingle();
   if (error) {
@@ -95,6 +96,8 @@ export async function pullDueDate(_prev: PullState, fd: FormData): Promise<PullS
     .in("status", ["active", "past_due"])
     .eq("status", sub.status)
     .eq("current_period_end", sub.current_period_end)
+    // 해지 예약 여부도 읽은 그대로일 때만 — 종료 시험(end)과 결제 시험(charge)이 뒤바뀌지 않게
+    .eq("cancel_at_period_end", sub.cancel_at_period_end)
     .select("id");
   if (updateError) {
     if (isMissingTable(updateError)) return { error: "migrationMissing" };

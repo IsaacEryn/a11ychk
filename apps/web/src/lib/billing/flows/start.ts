@@ -10,6 +10,7 @@ import {
   type CheckoutLocale,
 } from "@/lib/billing/checkout";
 import { errorText } from "@/lib/billing/flows/subscribe";
+import { graceOver, iso } from "@/lib/billing/period";
 import type { BillingDeps, CheckoutRow } from "@/lib/billing/types";
 
 /**
@@ -22,15 +23,14 @@ import type { BillingDeps, CheckoutRow } from "@/lib/billing/types";
  * 둘 다 결제창을 여는 일은 없다.
  */
 
-export type StartError = "notAllowed" | "hasActive" | "priceInactive" | "inProgress" | "failed";
+/** graceOver: 유예가 끝난 미납 구독 — 곧 크론이 끝내므로 카드를 바꿔 재결제할 수 없다 */
+export type StartError = "notAllowed" | "hasActive" | "priceInactive" | "inProgress" | "graceOver" | "failed";
 /** inProgress면 blockedBy로 막는 까닭을 함께 준다 — open이면 사용자가 이전 시도를 닫을 수 있다 */
 export type StartOutcome =
   | { ok: true; checkoutId: string; customerKey: string }
   | { ok: false; error: StartError; blockedBy?: CheckoutBlock };
 
 type StartDeps = Pick<BillingDeps, "store" | "now" | "log">;
-
-const iso = (t: number) => new Date(t).toISOString();
 
 /** 같은 사용자·모드의 끝나지 않은 시도를 정리하고, 그래도 막는 까닭이 남으면 그 까닭(없으면 null) */
 async function blockReason(deps: StartDeps, userId: string, livemode: boolean): Promise<CheckoutBlock | null> {
@@ -100,6 +100,7 @@ export async function startSubscribeCheckout(
   }
   if (await store.getLiveSubscription(input.userId, input.livemode)) return { ok: false, error: "hasActive" };
 
+  // 스냅샷은 확인 화면에 보여 준 그대로(이 시각 기준)다. 콜백이 KST 자정을 넘기면 실제 기간이 하루 늦을 수 있는데, 이는 사용자에게 유리한 방향이다
   const now = deps.now();
   return openCheckout(
     deps,
@@ -118,6 +119,8 @@ export async function startSubscribeCheckout(
 /**
  * 카드 변경의 결제 시도 — 그 사용자의 진행 중 토스 구독(같은 모드)일 때만. 가격은 구독의 가격 행을 적는다
  * (금액은 구독 스냅샷으로 결제하고, 시도의 가격 id는 참조용이다). 새 동의는 받지 않는다 — 조건이 바뀌지 않는다.
+ * 유예가 끝난 미납 구독은 막는다(graceOver): 그 시각부터 크론이 미납 종료를 하고 재결제는 하지 않으니, 카드를 등록해도
+ * 구독을 되살릴 수 없다. 이 구독은 끝난 뒤 다시 구독한다(결제 관리 화면도 같은 안내를 보인다).
  */
 export async function startCardChangeCheckout(
   deps: StartDeps,
@@ -125,6 +128,7 @@ export async function startCardChangeCheckout(
 ): Promise<StartOutcome> {
   const sub = await deps.store.getSubscription(input.subscriptionId);
   if (!sub || !isCardChangeTarget(sub, input.userId, input.livemode)) return { ok: false, error: "notAllowed" };
+  if (sub.status === "past_due" && graceOver(sub, deps.now())) return { ok: false, error: "graceOver" };
   if (!sub.price_id) {
     await deps.log(`billing card change: subscription ${sub.id} has no price`);
     return { ok: false, error: "failed" };

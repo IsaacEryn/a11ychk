@@ -154,6 +154,7 @@ describe("pullDueDate", () => {
     current_period_end: "2026-12-01T00:00:00+00:00",
     next_retry_at: null,
     grace_until: null,
+    cancel_at_period_end: false,
     ...over,
   });
   const pastDue = (over: Record<string, unknown> = {}) =>
@@ -240,6 +241,7 @@ describe("pullDueDate", () => {
     expect(write.calls).toContainEqual(["in", "status", ["active", "past_due"]]);
     expect(write.calls).toContainEqual(["eq", "status", "active"]);
     expect(write.calls).toContainEqual(["eq", "current_period_end", found.current_period_end]);
+    expect(write.calls).toContainEqual(["eq", "cancel_at_period_end", false]);
     expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.pull_due", "user-1", {
       subscriptionId: SUB_ID,
       status: "active",
@@ -264,6 +266,22 @@ describe("pullDueDate", () => {
       "user-1",
       expect.objectContaining({ target: "remind", from: found.current_period_end, to: iso(NOW + 2 * DAY) }),
     );
+  });
+
+  it("해지 예약 구독에 안내 시점 당기기는 cancelScheduled — 쓰지 않고 감사도 없다", async () => {
+    const { write } = setup(sub({ cancel_at_period_end: true }));
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID, target: "remind" }))).toEqual({ error: "cancelScheduled" });
+    expect(write.calls).toEqual([]);
+    expect(m.logAdminAction).not.toHaveBeenCalled();
+  });
+
+  it("해지 예약 구독에 결제일 당기기는 종료 시험(end) — 예약이 그대로일 때만 쓴다", async () => {
+    const found = sub({ cancel_at_period_end: true });
+    const { write } = setup(found);
+    expect(await pullDueDate({}, fd({ subscriptionId: SUB_ID }))).toEqual({ ok: true, kind: "end" });
+    expect(patchOf(write.calls).current_period_end).toBe(iso(NOW + 60_000));
+    expect(write.calls).toContainEqual(["eq", "cancel_at_period_end", true]);
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.pull_due", "user-1", expect.objectContaining({ target: "end" }));
   });
 
   it("시작이 새 기간 끝보다 늦거나 같으면 시작을 지금 − 1분으로 맞춘다(check 제약)", async () => {

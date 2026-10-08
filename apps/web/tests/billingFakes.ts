@@ -342,7 +342,8 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
     },
 
     async listCycleCandidates(livemode, nowIso, limit) {
-      const horizon = Date.parse(nowIso) + 31 * DAY;
+      // store.ts CYCLE_WINDOW_MS와 같은 창(연간 D-30 안내까지)
+      const horizon = Date.parse(nowIso) + 33 * DAY;
       return rows.subscriptions
         .filter((s) => s.provider === "toss" && s.livemode === livemode && LIVE.has(s.status) && Date.parse(s.current_period_end) <= horizon)
         .sort((a, b) => Date.parse(a.current_period_end) - Date.parse(b.current_period_end))
@@ -381,6 +382,26 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       );
     },
   };
+}
+
+/**
+ * 계정 삭제(auth.users → profiles)가 0041에서 일으키는 일 — 고객 행·결제 시도는 cascade로 지워지고, 구독·결제·동의는
+ * user_id(와 지워진 시도를 가리키던 checkout_id)만 비워 남는다. 탈퇴 흐름 테스트가 deleteUser 대역에서 부른다.
+ */
+export function deleteUserCascade(store: MemoryStore, userId: string): void {
+  const { rows } = store;
+  const goneCheckouts = new Set(rows.checkouts.filter((c) => c.user_id === userId).map((c) => c.id));
+  rows.customers = rows.customers.filter((c) => c.user_id !== userId);
+  rows.checkouts = rows.checkouts.filter((c) => c.user_id !== userId);
+  for (const s of rows.subscriptions) if (s.user_id === userId) s.user_id = null;
+  for (const p of rows.payments) {
+    if (p.user_id === userId) p.user_id = null;
+    if (p.checkout_id && goneCheckouts.has(p.checkout_id)) p.checkout_id = null;
+  }
+  for (const c of rows.consents) {
+    if (c.user_id === userId) c.user_id = null;
+    if (c.checkout_id && goneCheckouts.has(c.checkout_id)) c.checkout_id = null;
+  }
 }
 
 // ── 가짜 토스 ──

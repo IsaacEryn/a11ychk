@@ -8,7 +8,7 @@ import { startCardChange } from "@/lib/actions/billing";
 import { useBillingAuthAction } from "@/lib/billing/openBillingAuth";
 
 /** 카드 변경이 돌려줄 수 있는 오류 — 그 밖의 값(결제 시작 전용 코드)은 failed로 안내한다 */
-const ERROR_KEYS = new Set(["invalid", "notAllowed", "notConfigured", "inProgress", "failed", "sdkLoad", "sdkFailed", "sdkCanceled"]);
+const ERROR_KEYS = new Set(["invalid", "notAllowed", "notConfigured", "inProgress", "graceOver", "failed", "sdkLoad", "sdkFailed", "sdkCanceled"]);
 
 /**
  * 결제 카드 변경 — 서버가 카드 변경 시도를 만들고(startCardChange) 돌려준 값으로 토스 결제창(카드 등록)을 연다.

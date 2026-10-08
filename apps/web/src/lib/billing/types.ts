@@ -86,7 +86,7 @@ export interface BillingStore {
   /** 기대값과 맞을 때만 바꾼다(바꿨으면 true) — 크론과 카드 변경·해지가 엇갈려도 서로 덮어쓰지 않게 */
   updateSubscriptionIf(id: string, expected: SubscriptionExpectation, patch: Partial<Omit<SubscriptionRow, "id">>): Promise<boolean>;
   linkConsents(checkoutId: string, subscriptionId: string): Promise<void>;
-  /** 크론 후보: toss, livemode, active·past_due, 기간 끝이 now+31일 이내 — 오래된 것부터 limit건 */
+  /** 크론 후보: toss, livemode, active·past_due, 기간 끝이 now+33일 이내(연간 D-30 안내까지) — 오래된 것부터 limit건 */
   listCycleCandidates(livemode: boolean, nowIso: string, limit: number): Promise<SubscriptionRow[]>;
   /** 대사 후보: toss, livemode, pending, requested_at < olderThanIso */
   listPendingPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;

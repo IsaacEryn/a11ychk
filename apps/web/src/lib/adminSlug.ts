@@ -34,20 +34,43 @@ const RESERVED = new Set([
  */
 const SLUG_RE = /^[a-z0-9][a-z0-9-]{3,63}$/;
 
+const INVALID_MESSAGE = "ADMIN_PATH_SLUG가 유효하지 않습니다. 소문자 영숫자·하이픈 4~64자(점 금지)이며 예약 경로와 겹칠 수 없습니다.";
+
+/** 잘못된 슬러그를 이 프로세스에서 이미 기록했는지 — 매 요청 기록하지 않는다 */
+let reportedInvalid = false;
+
+/**
+ * 던지지 않는 판정 — 프록시(매 요청)·헤더(매 페이지)가 쓴다. 슬러그가 잘못됐으면(형식·예약어) slug는 null, invalid는 true:
+ * 호출부는 관리자 경로를 닫는다(슬러그 경로도 /admin도 404). 그대로 던지면 관리자 경로가 아니라 사이트 전체가 500이 된다.
+ * 처음 한 번만 기록하고, 기록에는 슬러그 값을 넣지 않는다.
+ */
+export function readAdminSlug(): { slug: string | null; invalid: boolean } {
+  const slug = process.env.ADMIN_PATH_SLUG;
+  if (!slug) return { slug: null, invalid: false };
+  if (!SLUG_RE.test(slug) || RESERVED.has(slug)) {
+    if (!reportedInvalid) {
+      reportedInvalid = true;
+      console.error(`${INVALID_MESSAGE} 관리자 경로를 닫고 계속합니다.`);
+    }
+    return { slug: null, invalid: true };
+  }
+  return { slug, invalid: false };
+}
+
+/** 슬러그 — 잘못됐으면 던진다(설정 검증용). 요청 경로에서는 readAdminSlug를 쓴다 */
 export function getAdminSlug(): string | null {
   const slug = process.env.ADMIN_PATH_SLUG;
   if (!slug) return null;
-  if (!SLUG_RE.test(slug) || RESERVED.has(slug)) {
-    throw new Error(
-      "ADMIN_PATH_SLUG가 유효하지 않습니다. 소문자 영숫자·하이픈 4~64자(점 금지)이며 예약 경로와 겹칠 수 없습니다.",
-    );
-  }
+  if (!SLUG_RE.test(slug) || RESERVED.has(slug)) throw new Error(INVALID_MESSAGE);
   return slug;
 }
 
-/** next-intl Link용 로케일 무접두 관리자 기준 경로 (예: "/console-x7k2" | "/admin") */
+/**
+ * next-intl Link용 로케일 무접두 관리자 기준 경로 (예: "/console-x7k2" | "/admin").
+ * 슬러그가 잘못됐으면 "/admin" — 프록시가 그 경로를 404로 가리므로 관리자 영역은 닫힌 채 나머지 화면은 그려진다.
+ */
 export function adminBase(): string {
-  const slug = getAdminSlug();
+  const { slug } = readAdminSlug();
   return slug ? `/${slug}` : "/admin";
 }
 
@@ -81,9 +104,10 @@ export function isInternalAdminPath(pathname: string): boolean {
   return false;
 }
 
-/** 요청 외부 경로가 관리자 영역인지 (무활동 쿠키 슬라이딩 판정용 — slug 유무 모두 대응) */
+/** 요청 외부 경로가 관리자 영역인지 (무활동 쿠키 슬라이딩 판정용 — slug 유무 모두 대응, 잘못된 슬러그면 닫혀 있어 false) */
 export function isExternalAdminPath(pathname: string): boolean {
-  const slug = getAdminSlug();
+  const { slug, invalid } = readAdminSlug();
+  if (invalid) return false;
   if (!slug) return isInternalAdminPath(pathname);
   return slugToInternal(pathname, slug) !== null;
 }

@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { localeFromPathname, routing } from "./i18n/routing";
 import { applyRefreshedCookies, refreshSession } from "./lib/supabase/middleware";
 import { attachCspToRequest } from "./lib/security/csp";
-import { getAdminSlug, isExternalAdminPath, isInternalAdminPath, slugToInternal } from "./lib/adminSlug";
+import { isExternalAdminPath, isInternalAdminPath, readAdminSlug, slugToInternal } from "./lib/adminSlug";
 import { ADMIN_TS_COOKIE, adminTsCookieOptions, isIdleExpired, signAdminTs, verifyAdminTs } from "./lib/adminIdleCookie";
 
 const intlMiddleware = createIntlMiddleware(routing);
@@ -20,13 +20,14 @@ const intlMiddleware = createIntlMiddleware(routing);
  *   5. 최종 응답 선택 후 CSP·갱신 쿠키·무활동 쿠키 적용.
  */
 export async function proxy(request: NextRequest) {
-  const slug = getAdminSlug();
+  // 슬러그가 잘못됐으면(형식·예약어) 던지지 않고 관리자 경로만 닫는다 — 슬러그 경로는 없는 것으로, /admin은 아래처럼 404로
+  const { slug, invalid: slugInvalid } = readAdminSlug();
   const pathname = request.nextUrl.pathname;
 
   // ── 1. 관리자 슬러그 경로 판정 ──
-  // slug 활성 시 내부 /admin 직접 접근은 같은 로케일의 미존재 경로로 돌려, 임의의
+  // slug 활성 시(또는 잘못된 slug로 닫혔을 때) 내부 /admin 직접 접근은 같은 로케일의 미존재 경로로 돌려, 임의의
   // 오타 URL과 상태코드·본문·헤더가 완전히 같은 응답을 만든다.
-  const masked = slug && isInternalAdminPath(pathname) ? `/${localeFromPathname(pathname)}/__404__` : null;
+  const masked = (slug || slugInvalid) && isInternalAdminPath(pathname) ? `/${localeFromPathname(pathname)}/__404__` : null;
 
   // ── 2. 요청별 CSP·nonce ──
   const csp = attachCspToRequest(request);

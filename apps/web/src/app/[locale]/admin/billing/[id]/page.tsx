@@ -2,7 +2,9 @@ import { notFound } from "next/navigation";
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { requireAdmin } from "@/lib/adminGuard";
 import { adminBase } from "@/lib/adminSlug";
+import { UUID_RE } from "@/lib/billing/checkout";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { httpUrl } from "@/lib/billing/httpUrl";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminLink } from "../../AdminLink";
 import { TABLE, TH, TR, TR_HEAD } from "../../tableStyles";
@@ -10,8 +12,6 @@ import { ContractEditForm } from "../ContractEditForm";
 import { ContractEndDateForm } from "../ContractEndDateForm";
 import { ContractEndForm } from "../ContractEndForm";
 import { displayStatus } from "../subscriptionStatus";
-
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -22,17 +22,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 /** 저장 시각(ISO)을 KST 달력 날짜 YYYY-MM-DD로 — 날짜 입력창의 기본값용 */
 function toKstDate(iso: string): string {
   return new Date(Date.parse(iso) + 9 * 3600_000).toISOString().slice(0, 10);
-}
-
-/** 영수증 주소는 http(s)일 때만 링크로 쓴다 — 결제사 응답이라도 javascript: 같은 스킴은 링크로 만들지 않는다 */
-function receiptHref(raw: string | null): string | null {
-  if (!raw) return null;
-  try {
-    const u = new URL(raw);
-    return u.protocol === "https:" || u.protocol === "http:" ? u.href : null;
-  } catch {
-    return null;
-  }
 }
 
 interface PaymentRow {
@@ -68,7 +57,7 @@ export default async function AdminBillingDetailPage({
   const { locale, id } = await params;
   setRequestLocale(locale);
   await requireAdmin(locale); // 병렬 렌더 누출 방지 — page 자체 가드
-  if (!UUID.test(id)) notFound();
+  if (!UUID_RE.test(id)) notFound();
   const t = await getTranslations("admin");
   const format = await getFormatter();
 
@@ -234,7 +223,8 @@ export default async function AdminBillingDetailPage({
                   </thead>
                   <tbody>
                     {payments.map((p) => {
-                      const href = receiptHref(p.receipt_url);
+                      // 영수증 주소는 http(s)일 때만 링크로 — 결제사 응답이라도 javascript: 같은 스킴은 링크로 만들지 않는다
+                      const href = httpUrl(p.receipt_url);
                       const money = (n: number) => format.number(n, { style: "currency", currency: p.currency || "KRW" });
                       return (
                         <tr key={p.id} className={TR}>

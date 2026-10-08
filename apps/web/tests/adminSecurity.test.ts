@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   adminBase,
   adminBasePath,
   getAdminSlug,
   isExternalAdminPath,
   isInternalAdminPath,
+  readAdminSlug,
   slugToInternal,
 } from "../src/lib/adminSlug";
 import { isIdleExpired, signAdminTs, verifyAdminTs } from "../src/lib/adminIdleCookie";
@@ -35,6 +36,30 @@ describe("adminSlug — 경로 매핑", () => {
       process.env.ADMIN_PATH_SLUG = bad;
       expect(() => getAdminSlug(), bad).toThrow();
     }
+  });
+
+  it("잘못된 슬러그는 던지지 않는 판정에서 관리자 경로를 닫는다 — 사이트 전체가 500이 되지 않게(값은 기록하지 않는다)", () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    try {
+      for (const bad of ["mypage", "admin", "a.b.c", "ab"]) {
+        process.env.ADMIN_PATH_SLUG = bad;
+        expect(readAdminSlug(), bad).toEqual({ slug: null, invalid: true });
+        // 링크·리다이렉트 기준 경로는 던지지 않고 /admin — 프록시가 그 경로를 404로 가린다
+        expect(adminBase()).toBe("/admin");
+        expect(adminBasePath("ko")).toBe("/ko/admin");
+        expect(isExternalAdminPath("/ko/admin/users")).toBe(false);
+        expect(isExternalAdminPath(`/ko/${bad}`)).toBe(false);
+      }
+      // 기록은 한 번(프로세스당), 슬러그 값은 싣지 않는다
+      expect(errors).toHaveBeenCalledTimes(1);
+      expect(String(errors.mock.calls[0][0])).not.toContain("mypage");
+    } finally {
+      errors.mockRestore();
+    }
+    process.env.ADMIN_PATH_SLUG = "console-x7k2";
+    expect(readAdminSlug()).toEqual({ slug: "console-x7k2", invalid: false });
+    delete process.env.ADMIN_PATH_SLUG;
+    expect(readAdminSlug()).toEqual({ slug: null, invalid: false });
   });
 
   it("slugToInternal — 루트·하위·쿼리 없는 pathname만 치환, 비매치는 null", () => {

@@ -1,5 +1,6 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { DAY_MS } from "@/lib/billing/period";
 import type {
   BillingStore,
   CheckoutRow,
@@ -29,9 +30,11 @@ const PAYMENT_COLS =
 
 const LIVE_STATUSES = ["active", "past_due"];
 const UNFINISHED_CHECKOUT = ["open", "processing"];
-const DAY_MS = 86_400_000;
-/** 크론 후보 창 — 연간 구독의 D-30 안내까지 들어오게 31일 */
-const CYCLE_WINDOW_MS = 31 * DAY_MS;
+/**
+ * 크론 후보 창 — 연간 구독의 D-30 안내까지 들어오게 33일. 안내는 알리는 결제일(기간 끝 하루 전)의 KST 0시 30일 전부터라
+ * 기간 끝이 최대 32일 남은 구독까지 후보여야 한다(period.ts reminderFrom)
+ */
+const CYCLE_WINDOW_MS = 33 * DAY_MS;
 
 interface PgError {
   code?: string;

@@ -42,6 +42,7 @@ export type StartCheckoutError =
   | "priceInactive"
   | "notConfigured"
   | "inProgress"
+  | "graceOver"
   | "failed";
 
 export interface StartCheckoutState {

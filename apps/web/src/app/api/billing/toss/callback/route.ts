@@ -2,6 +2,9 @@ import { callbackRedirectPath, failRedirectPath } from "@/lib/billing/checkout";
 import { completeCheckout, failCheckout } from "@/lib/billing/flows/subscribe";
 import { handleTossReturn } from "@/lib/billing/tossReturn";
 
+// 한 요청에서 빌링키 발급(토스 제한 15초)과 결제(15초)를 한다 — 플랫폼 기본 제한이 더 짧아 결제 도중 끊기지 않게 명시한다
+export const maxDuration = 60;
+
 /**
  * 토스 결제창 성공 주소 — 카드 등록 뒤 토스가 `?checkout=&locale=`에 `customerKey`·`authKey`를 붙여 보낸다.
  * 게이트(모드·로그인·설정)는 handleTossReturn, 빌링키 발급·첫 결제·카드 변경은 completeCheckout이 맡는다.

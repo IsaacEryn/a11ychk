@@ -3,12 +3,11 @@ import { randomUUID } from "node:crypto";
 import { isCardChangeTarget } from "@/lib/billing/checkout";
 import { encryptBillingKey } from "@/lib/billing/crypto";
 import type { BillingEmailData, BillingEmailKind } from "@/lib/billing/emails";
-import { addInterval, kstDayOfMonth } from "@/lib/billing/period";
+import { addInterval, earliestChargeAt, graceOver, iso, kstDayOfMonth } from "@/lib/billing/period";
 import {
   TossError,
   classifyTossError,
   isOutcomeUnknown,
-  type CardSummary,
   type TossBillingAuth,
   type TossPayment,
 } from "@/lib/billing/toss";
@@ -26,7 +25,7 @@ import { chargeSubscription } from "@/lib/billing/flows/renew";
  * - 이미 구독 중이면 빌링키를 발급하기 전에 멈춘다(발급하면 기존 구독의 카드가 덮인다).
  * 빌링키·authKey는 암호문 열 말고는 어디에도(로그·오류·메일) 남기지 않는다.
  *
- * 카드 변경(purpose card_change)은 새 빌링키를 발급해 고객 행의 카드를 바꾸고, 구독이 미납이면 바로
+ * 카드 변경(purpose card_change)은 새 빌링키를 발급해 고객 행의 카드를 바꾸고, 구독이 미납이면(유예가 끝나기 전) 바로
  * 재결제한다(갱신 크론과 같은 chargeSubscription — 결제 행 유니크가 이중 결제를 막는다). 카드 변경의
  * 오류에는 가격 id를 싣지 않는다 — 콜백이 결제 화면이 아니라 결제 관리로 돌려보낸다.
  */
@@ -66,8 +65,8 @@ function errorFor(checkout: Pick<CheckoutRow, "purpose" | "price_id">, code: Err
 const CANCEL_CODES = new Set(["PAY_PROCESS_CANCELED", "PAY_PROCESS_ABORTED"]);
 const PLAN_NAMES: Record<string, string> = { pro: "Pro", enterprise: "Enterprise" };
 const DUPLICATE_CANCEL_REASON = "중복 구독 자동 취소";
-
-const iso = (t: number) => new Date(t).toISOString();
+/** 받은 결제로 줄 기간이 없을 때의 취소 사유(토스 취소 요청에 실린다) — 경위를 단정하지 않는 중립 문구 */
+export const UNGRANTED_CANCEL_REASON = "결제 기간을 제공할 수 없어 자동 취소";
 /** 기록용 오류 문자열 — 저장소·토스 오류 메시지에는 비밀 값이 들어가지 않는다(각 모듈의 규칙) */
 export const errorText = (e: unknown) =>
   (e instanceof TossError ? `${e.code} (${e.status})` : e instanceof Error ? e.message : String(e)).slice(0, 500);
@@ -83,12 +82,6 @@ export function orderNameFor(planCode: string, interval: "month" | "year"): stri
 
 export function newOrderId(): string {
   return `pay_${randomUUID()}`;
-}
-
-/** 메일에 싣는 카드 표시 — 토스가 준 마스킹 번호만 쓴다(예: "신용 1234****") */
-export function cardLabel(card: CardSummary | null): string | null {
-  if (!card) return null;
-  return [card.cardType, card.number].filter(Boolean).join(" ") || null;
 }
 
 /** 토스가 승인한 결제에서 결제 행에 옮겨 적는 값 — 갱신·대사·경합 취소가 함께 쓴다 */
@@ -127,8 +120,12 @@ export async function sendBillingMail<K extends BillingEmailKind>(
   }
 }
 
-/** 결제 완료 영수증 — 금액·통화·기간은 실제로 청구한 결제 행의 값이다 */
+/**
+ * 결제 완료 영수증 — 금액·통화·기간은 실제로 청구한 결제 행의 값이다. 다음 결제일은 다른 모든 화면·메일과 같은 규칙
+ * (기간 끝 하루 전 — earliestChargeAt). 카드 표기는 메일러가 정한 수신자 언어로 메일이 만든다.
+ */
 export async function sendReceipt(deps: BillingDeps, userId: string | null, planCode: string, payment: PaymentRow, charged: TossPayment): Promise<void> {
+  const periodEnd = payment.period_end ?? "";
   await sendBillingMail(
     deps,
     userId,
@@ -137,9 +134,10 @@ export async function sendReceipt(deps: BillingDeps, userId: string | null, plan
       planName: planNameFor(planCode),
       amount: payment.amount,
       currency: payment.currency,
-      periodEnd: payment.period_end ?? "",
+      periodEnd,
+      nextChargeAt: periodEnd ? earliestChargeAt(periodEnd) : "",
       receiptUrl: charged.receiptUrl,
-      card: cardLabel(charged.card),
+      card: charged.card,
     },
     `payment ${payment.id}`,
   );
@@ -342,12 +340,14 @@ async function runCardChange(
   }
 
   // 6. 미납이면 새 카드로 바로 재결제 — skipped는 같은 시도의 결제가 이미 진행 중이라는 뜻이라 확인 중으로 안내한다.
-  // 해지를 예약한 구독은 재결제하지 않는다(크론과 같은 규칙 — 해지한 사람에게 청구하지 않는다)
+  // 해지를 예약한 구독은 재결제하지 않는다(크론과 같은 규칙 — 해지한 사람에게 청구하지 않는다). 유예가 끝난 구독도
+  // 재결제하지 않는다: 그 시각부터 크론이 미납 종료를 하므로, 재결제와 종료가 시각으로 서로 배타가 된다(카드만 바뀐다).
+  // refunded는 결제했지만 그 사이 구독이 끝나 자동 취소한 경우다 — 밀린 결제를 마쳤다고 알리지 않는다(failed).
   let retry: "paid" | "failed" | "pending" | "none" = "none";
-  if (sub.status === "past_due" && !sub.cancel_at_period_end) {
+  if (sub.status === "past_due" && !sub.cancel_at_period_end && !graceOver(sub, deps.now())) {
     try {
       const result = await chargeSubscription(deps, sub, "retry");
-      retry = result === "skipped" ? "pending" : result;
+      retry = result === "skipped" ? "pending" : result === "refunded" ? "failed" : result;
     } catch (e) {
       // 돈이 움직이기 전의 저장소 오류 — 카드는 바뀌었고, 다음 재시도 시점에 크론이 다시 결제한다
       await deps.log(`billing card change retry failed for subscription ${sub.id}: ${errorText(e)}`);
@@ -395,6 +395,7 @@ export async function activateInitialPayment(
   charged: TossPayment,
 ): Promise<string | "duplicateRefunded" | null> {
   const { store } = deps;
+  // user_id가 빈 결제(탈퇴)는 호출부(대사)가 먼저 자동 취소한다 — 여기서는 만들 수 없다는 뜻의 null
   if (!payment.checkout_id || !payment.user_id || !payment.period_start || !payment.period_end) return null;
   const checkout = await store.getCheckout(payment.checkout_id);
   if (!checkout) return null;
@@ -436,16 +437,20 @@ export async function activateInitialPayment(
   return subscriptionId;
 }
 
-/** 결제는 됐는데 다른 시도가 먼저 구독을 만들었다 — 이번 결제를 돌려준다 */
-async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout: CheckoutRow, charged: TossPayment): Promise<"duplicateRefunded"> {
+/**
+ * 받은 결제를 토스에서 전액 취소하고 결제 행에 적는다(돌려줬으면 true) — 경합으로 생긴 중복 구독의 첫 결제(cancelDuplicate)와
+ * 줄 기간이 없는 결제(renew.ts 머리말의 불변식)가 함께 쓴다. 멱등 키가 cancel_<결제 id>라 다시 불러도 한 번만 취소된다.
+ * 취소되면 refunded·refunded_amount(결제 금액 전액), 실패하면 paid·CANCEL_FAILED로 남기고 운영자 확인을 기록한다 —
+ * 환불됐다고 적지 않고, 운영자가 결제 id로 찾아 수동 환불한다. 기록에는 id와 오류 코드만 넣는다.
+ */
+export async function cancelChargedPayment(deps: BillingDeps, payment: PaymentRow, charged: TossPayment, cancelReason: string): Promise<boolean> {
   const settled = paidFields(deps, charged);
   let refunded = false;
   try {
-    await deps.toss.cancelPayment(charged.paymentKey, { cancelReason: DUPLICATE_CANCEL_REASON }, `cancel_${payment.id}`);
+    await deps.toss.cancelPayment(charged.paymentKey, { cancelReason }, `cancel_${payment.id}`);
     refunded = true;
   } catch (e) {
-    // 환불됐다고 적지 않는다 — 운영자가 결제 id로 찾아 수동 환불한다
-    await deps.log(`billing duplicate subscription cancel failed, payment ${payment.id} needs manual refund: ${errorText(e)}`);
+    await deps.log(`billing needs review: automatic cancel failed, payment ${payment.id} needs manual refund: ${errorText(e)}`);
   }
   await deps.store.updatePayment(
     payment.id,
@@ -453,6 +458,12 @@ async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout:
       ? { ...settled, status: "refunded", refunded_amount: payment.amount }
       : { ...settled, status: "paid", failure_code: "CANCEL_FAILED" },
   );
+  return refunded;
+}
+
+/** 결제는 됐는데 다른 시도가 먼저 구독을 만들었다 — 이번 결제를 돌려준다 */
+async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout: CheckoutRow, charged: TossPayment): Promise<"duplicateRefunded"> {
+  await cancelChargedPayment(deps, payment, charged, DUPLICATE_CANCEL_REASON);
   await deps.store.finishCheckout(checkout.id, { status: "failed", failure_code: "duplicateRefunded" });
   return "duplicateRefunded";
 }

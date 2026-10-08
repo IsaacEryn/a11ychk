@@ -1,14 +1,14 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound, redirect } from "next/navigation";
-import type { SupabaseClient } from "@supabase/supabase-js";
 import { Link } from "@/i18n/navigation";
 import { FocusOnMount } from "@/components/FocusOnMount";
 import { Notice } from "@/components/Notice";
 import { getBillingFlags } from "@/lib/appSettings";
-import { checkoutTerms, returnErrorOf } from "@/lib/billing/checkout";
+import { UUID_RE, checkoutTerms, returnErrorOf } from "@/lib/billing/checkout";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { planNameFor } from "@/lib/billing/flows/subscribe";
+import { createSupabaseBillingStore } from "@/lib/billing/store";
 import type { PriceRow } from "@/lib/billing/types";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout, priceLivemode } from "@/lib/billing/visibility";
@@ -23,35 +23,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t("title"), robots: { index: false } };
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const PRICE_COLS = "id, plan_code, provider, currency, interval, amount, livemode, active";
-
-/** 가격 행 — 0041 미적용(테이블 없음)이면 없는 가격으로 본다. 그 밖의 오류는 던진다(오류 화면) */
-async function loadPrice(admin: SupabaseClient, id: string): Promise<PriceRow | null> {
-  const { data, error } = await admin.from("billing_prices").select(PRICE_COLS).eq("id", id).maybeSingle();
-  if (error) {
-    if (isMissingTable(error)) return null;
-    throw new Error(`billing checkout price lookup failed: ${error.message}`);
-  }
-  return (data as PriceRow | null) ?? null;
-}
-
 /** 지금 시각 기준의 조건 — 이 화면은 요청마다 렌더된다(로그인 쿠키). 동의 스냅샷은 제출 시각으로 다시 계산한다 */
 const termsAsOfNow = (price: PriceRow) => checkoutTerms(price, Date.now());
 
-async function hasLiveSubscription(admin: SupabaseClient, userId: string, livemode: boolean): Promise<boolean> {
-  const { data, error } = await admin
-    .from("subscriptions")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("livemode", livemode)
-    .in("status", ["active", "past_due"])
-    .limit(1);
-  if (error) {
-    if (isMissingTable(error)) return false;
-    throw new Error(`billing checkout subscription lookup failed: ${error.message}`);
+/** 저장소 읽기 — 0041 미적용(테이블 없음)이면 없는 것으로 본다. 그 밖의 오류는 던진다(오류 화면) */
+async function orMissing<T>(read: Promise<T>, missing: T): Promise<T> {
+  try {
+    return await read;
+  } catch (e) {
+    if (isMissingTable(e)) return missing;
+    throw e;
   }
-  return Array.isArray(data) && data.length > 0;
 }
 
 /**
@@ -87,10 +69,11 @@ export default async function CheckoutPage({
   const [viewer, flags] = await Promise.all([loadViewer(supabase, user.id), getBillingFlags(supabase)]);
   if (!canCheckout(mode, flags, viewer) || !priceId) notFound();
 
-  const admin = createAdminClient();
-  const price = await loadPrice(admin, priceId);
+  // 결제 흐름과 같은 저장소 메서드로 읽는다(가격 행·진행 중 구독 판정이 콜백과 어긋나지 않게)
+  const store = createSupabaseBillingStore(createAdminClient());
+  const price = await orMissing(store.getPrice(priceId), null);
   if (!price || price.provider !== "toss" || price.currency !== "KRW" || price.livemode !== priceLivemode(mode)) notFound();
-  const subscribed = await hasLiveSubscription(admin, user.id, livemode);
+  const subscribed = (await orMissing(store.getLiveSubscription(user.id, livemode), null)) !== null;
 
   const t = await getTranslations("billing.checkout");
   const format = await getFormatter();

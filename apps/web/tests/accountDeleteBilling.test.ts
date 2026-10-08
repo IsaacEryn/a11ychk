@@ -43,7 +43,7 @@ vi.mock("next/navigation", () => ({
 
 import { deleteAccount } from "../src/lib/actions/profile";
 import type { BillingStore } from "../src/lib/billing/types";
-import { NOW, createMemoryStore, customerRow, iso, DAY, paymentRow, subscriptionRow, type MemoryStore } from "./billingFakes";
+import { NOW, createMemoryStore, customerRow, deleteUserCascade, iso, DAY, paymentRow, subscriptionRow, type MemoryStore } from "./billingFakes";
 
 const USER = m.user.id;
 const OLD_KEY = "v1:old-iv:old-tag:old-ct";
@@ -66,7 +66,7 @@ const memory = (seed: Parameters<typeof createMemoryStore>[0] = {}): MemoryStore
   return store;
 };
 
-/** deleteUser가 불린 시점의 구독 상태 — 탈퇴 전에 정리됐는지 본다 */
+/** deleteUser가 불린 시점의 구독 상태 — 계정을 지우기 전에는 아무것도 끝내지 않았는지 본다 */
 let statusesAtDelete: string[] | null;
 
 beforeEach(() => {
@@ -77,15 +77,18 @@ beforeEach(() => {
   m.logAppError.mockReset();
   m.deleteUser.mockReset();
   statusesAtDelete = null;
-  m.deleteUser.mockImplementation(async () => {
-    statusesAtDelete = (m.store as MemoryStore).rows?.subscriptions.map((s) => s.status) ?? null;
+  m.deleteUser.mockImplementation(async (id: string) => {
+    const store = m.store as MemoryStore;
+    statusesAtDelete = store.rows?.subscriptions.map((s) => s.status) ?? null;
+    // 성공하면 0041의 cascade·set null — 고객 행(빌링키)은 지워지고 구독·결제는 user_id만 빈다
+    if (!m.deleteUserError && store.rows) deleteUserCascade(store, id);
     return { error: m.deleteUserError };
   });
   memory();
 });
 
 describe("deleteAccount — 결제 정리", () => {
-  it("계정을 지우기 전에 진행 중 토스 구독을 끝내고 빌링키를 지운다 — 결제 모드가 off여도", async () => {
+  it("끝낼 구독을 먼저 모으고, 계정을 지운 뒤 id로 끝낸다 — 빌링키는 고객 행과 함께 지워진다(결제 모드가 off여도)", async () => {
     const store = memory({
       subscriptions: [subscriptionRow({ user_id: USER, livemode: true }), subscriptionRow({ user_id: USER, livemode: false })],
       customers: [
@@ -96,9 +99,13 @@ describe("deleteAccount — 결제 정리", () => {
 
     await expectDeleted();
 
-    expect(statusesAtDelete).toEqual(["ended", "ended"]);
-    expect(store.rows.subscriptions.map((s) => s.ended_reason)).toEqual(["user_canceled", "user_canceled"]);
-    expect(store.rows.customers.map((c) => c.toss_billing_key_enc)).toEqual([null, null]);
+    // 계정을 지우는 순간에는 아무것도 끝내지 않았다 — 삭제가 실패하면 유료 기간을 잃지 않는다
+    expect(statusesAtDelete).toEqual(["active", "active"]);
+    expect(store.rows.subscriptions.map((s) => [s.status, s.ended_reason, s.user_id])).toEqual([
+      ["ended", "user_canceled", null],
+      ["ended", "user_canceled", null],
+    ]);
+    expect(store.rows.customers).toHaveLength(0);
     expect(m.logAppError).not.toHaveBeenCalled();
   });
 
@@ -131,18 +138,24 @@ describe("deleteAccount — 결제 정리", () => {
     expect(m.logAppError.mock.calls[0][1]).toMatch(/^billing needs review: account deleted with pending payment/);
   });
 
-  it("구독을 끝내지 못하는 저장소 오류면 기록하고 failed — 진행 중 구독을 둔 채 계정을 지우지 않는다", async () => {
-    const store = memory({ subscriptions: [subscriptionRow({ user_id: USER })] });
+  it("계정을 지운 뒤 구독을 끝내지 못하면(저장소 오류) 구독 id로 확인 필요를 남기고 탈퇴는 성공한다 — 빌링키가 없어 청구되지 않는다", async () => {
+    const sub = subscriptionRow({ user_id: USER });
+    const store = memory({ subscriptions: [sub], customers: [customerRow({ user_id: USER, livemode: false, toss_billing_key_enc: OLD_KEY })] });
     store.updateSubscriptionIf = async () => {
       throw new Error("billing store updateSubscriptionIf: timeout");
     };
 
-    expect(await run()).toEqual({ error: "failed" });
+    await expectDeleted();
 
-    expect(m.deleteUser).not.toHaveBeenCalled();
+    expect(m.deleteUser).toHaveBeenCalledTimes(1);
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", user_id: null });
+    expect(store.rows.customers).toHaveLength(0);
     expect(m.logAppError).toHaveBeenCalledTimes(1);
-    expect(m.logAppError.mock.calls[0][1]).toContain("timeout");
-    expect(m.logAppError.mock.calls[0][2]).toEqual({ path: "actions.deleteAccount" });
+    const [, message, opts] = m.logAppError.mock.calls[0];
+    expect(message).toMatch(/^billing needs review/);
+    expect(message).toContain(sub.id);
+    expect(message).not.toContain("user@example.com");
+    expect(opts).toEqual({ path: "actions.deleteAccount" });
   });
 
   it("구독 목록을 읽지 못하는 저장소 오류(테이블 없음이 아님)도 failed", async () => {
@@ -204,7 +217,7 @@ describe("deleteAccount — 결제 정리", () => {
     expect(m.deleteUser).not.toHaveBeenCalled();
   });
 
-  it("계정 삭제가 실패해도 이미 끝낸 구독은 그대로 둔다 — 사용자가 다시 시도하면 정리할 것이 없고 탈퇴가 이어진다", async () => {
+  it("계정 삭제가 실패하면 아무 구독도 끝내지 않는다 — 유료 기간과 빌링키가 그대로이고, 다시 시도하면 그때 끝낸다", async () => {
     const store = memory({
       subscriptions: [subscriptionRow({ user_id: USER })],
       customers: [customerRow({ user_id: USER, livemode: false, toss_billing_key_enc: OLD_KEY })],
@@ -212,7 +225,8 @@ describe("deleteAccount — 결제 정리", () => {
     m.deleteUserError = { message: "auth unavailable" };
 
     expect(await run()).toEqual({ error: "failed" });
-    expect(store.rows.subscriptions[0].status).toBe("ended");
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", user_id: USER, ended_at: null });
+    expect(store.rows.customers[0].toss_billing_key_enc).toBe(OLD_KEY);
     expect(m.logAppError.mock.calls.some(([, msg]) => String(msg).startsWith("account delete failed"))).toBe(true);
 
     m.deleteUserError = null;

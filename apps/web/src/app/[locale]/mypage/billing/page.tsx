@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Link } from "@/i18n/navigation";
 import { FocusOnMount } from "@/components/FocusOnMount";
 import { Notice } from "@/components/Notice";
+import { cardLabel } from "@/lib/billing/cardLabel";
 import { manageReturnOf, returnErrorOf } from "@/lib/billing/checkout";
 import { billingMode, entitlementLivemodes, rowLivemode } from "@/lib/billing/config";
 import { planNameFor } from "@/lib/billing/flows/subscribe";
@@ -15,8 +16,7 @@ import {
   loadPaymentHistory,
   type ManagedSubscription,
 } from "@/lib/billing/manageData";
-import { graceUntil, upcomingChargeAt } from "@/lib/billing/period";
-import type { CardSummary } from "@/lib/billing/toss";
+import { graceOver, graceUntil, upcomingChargeAt } from "@/lib/billing/period";
 import { loadEntitlement } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
@@ -30,15 +30,15 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t("title"), robots: { index: false } };
 }
 
-/** 토스가 주는 카드 종류(한국어 값) → 표시 문구 키 */
-const CARD_TYPES: Record<string, "credit" | "check" | "gift"> = { 신용: "credit", 체크: "check", 기프트: "gift" };
-
 /** 사용자가 결제 관리에서 다루는 토스 정기결제 행 */
 const isTossSubscription = (s: ManagedSubscription) => s.provider === "toss" && s.interval !== "contract";
 /** 기관 계약의 시작일이 지났는지 — 이 화면은 요청마다 렌더된다(로그인 쿠키) */
 const hasStarted = (s: ManagedSubscription) => Date.now() >= Date.parse(s.current_period_start);
-/** 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘 */
-const nextChargeShown = (s: ManagedSubscription) => upcomingChargeAt(s.current_period_end, Date.now());
+/**
+ * 유예가 끝난 미납 — 다음 크론이 끝낸다(크론의 미납 종료와 같은 기준). 카드 변경(재결제)은 막혀 있으니 버튼 대신 중립 안내를
+ * 보이고, 지난 날짜(유예 기한)는 보이지 않는다
+ */
+const isEnding = (s: ManagedSubscription) => s.status === "past_due" && graceOver(s, Date.now());
 
 function DetailRow({ label, children }: { label: string; children: ReactNode }) {
   return (
@@ -101,12 +101,8 @@ export default async function BillingManagePage({
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "long" });
   const shortDay = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
   const money = (amount: number, currency: string) => format.number(amount, { style: "currency", currency });
-  const cardText = (card: CardSummary | undefined) => {
-    if (!card?.number) return null;
-    const typeKey = card.cardType ? CARD_TYPES[card.cardType] : undefined;
-    const type = typeKey ? t(`cardType.${typeKey}`) : card.cardType;
-    return [type, card.number].filter(Boolean).join(" ");
-  };
+  // 카드 표기는 결제 메일과 같은 함수(cardLabel)로 — 영문 화면에 한국어 카드 종류가 섞이지 않는다
+  const cardLocale = locale === "en" ? "en" : "ko";
   // test 모드에서는 실결제 행과 테스트 행이 함께 보인다 — 테스트 행에 표시를 붙인다
   const isTestRow = (livemode: boolean) => mode === "test" && !livemode;
 
@@ -128,7 +124,8 @@ export default async function BillingManagePage({
           status: actionable.status,
           scheduled: actionable.status === "active" && actionable.cancel_at_period_end,
           endsAt: day(actionable.current_period_end),
-          nextCharge: day(nextChargeShown(actionable)),
+          // 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘
+          nextCharge: day(upcomingChargeAt(actionable.current_period_end)),
         }
       : null;
 
@@ -144,24 +141,28 @@ export default async function BillingManagePage({
 
       {mode === "test" && <Notice variant="warn" live={false} className="mt-6" title={tCheckout("testMode")} />}
 
-      {/* 결제창에서 돌아온 결과 — 오류·재결제 실패는 화면에 들어오자마자 포커스를 옮겨 먼저 읽히게 한다 */}
-      {/* 포커스로 읽히므로 live 영역을 겹치지 않는다(live={false}) */}
+      {/* 결제창에서 돌아온 결과(오류·성공·확인 중 모두) — 303으로 페이지를 새로 불러온 직후라 첫 렌더의 live 영역은 낭독되지 않는
+          경우가 많다. 화면에 들어오자마자 포커스를 옮겨 먼저 읽히게 하고, 포커스로 읽히므로 live 영역을 겹치지 않는다(live={false}) */}
       {returnError && (
         <FocusOnMount className="mt-6">
           <Notice variant="error" live={false} title={t(`returnErrors.${returnError}`)} />
         </FocusOnMount>
       )}
-      {returned?.kind === "cardChanged" && returned.retry === "failed" ? (
+      {returned && (
         <FocusOnMount className="mt-6">
-          <Notice variant="warn" live={false} title={t("results.cardChanged.failed")} />
+          <Notice
+            variant={
+              returned.kind === "cardChanged" && returned.retry === "failed"
+                ? "warn"
+                : returned.kind === "pending" || (returned.kind === "cardChanged" && returned.retry === "pending")
+                  ? "info"
+                  : "success"
+            }
+            live={false}
+            title={returned.kind === "cardChanged" ? t(`results.cardChanged.${returned.retry}`) : t(`results.${returned.kind}`)}
+          />
         </FocusOnMount>
-      ) : returned ? (
-        <Notice
-          variant={returned.kind === "pending" || (returned.kind === "cardChanged" && returned.retry === "pending") ? "info" : "success"}
-          className="mt-6"
-          title={returned.kind === "cardChanged" ? t(`results.cardChanged.${returned.retry}`) : t(`results.${returned.kind}`)}
-        />
-      ) : null}
+      )}
 
       <section aria-labelledby="billing-tier-heading" className="doc-card mt-6 p-6">
         <h2 id="billing-tier-heading" className="font-display text-xl font-bold">
@@ -212,20 +213,31 @@ export default async function BillingManagePage({
               // 결제하지 않으니 다음 결제일·카드 변경 같은 동작 안내 없이 사실만 보인다
               const canAct = s.id === actionable?.id;
               const pastDue = s.status === "past_due";
+              const ending = isEnding(s);
               const status = pastDue
                 ? t("subscription.statusPastDue")
                 : s.cancel_at_period_end
                   ? t("subscription.statusScheduled", { date: day(s.current_period_end) })
                   : canAct
-                    ? t("subscription.statusActive", { date: day(nextChargeShown(s)) })
+                    ? t("subscription.statusActive", { date: day(upcomingChargeAt(s.current_period_end)) })
                     : t("subscription.statusActiveUntil", { date: day(s.current_period_end) });
-              const card = cardText(cards.get(s.livemode));
+              const card = cardLabel(cards.get(s.livemode), cardLocale);
               return (
                 <div key={s.id} className="mt-4">
                   {pastDue && (
                     // 정적 안내 — 화면을 열 때마다 알림으로 읽히지 않게 live 영역이 아닌 강조 상자로 둔다
                     <Notice variant="warn" live={false} title={t("subscription.pastDueTitle")}>
-                      {canAct && <p>{t("subscription.pastDueBody", { date: day(s.grace_until ?? graceUntil(s.current_period_end)) })}</p>}
+                      {canAct &&
+                        (ending ? (
+                          <p>
+                            {t("subscription.endingSoon")}{" "}
+                            <Link href="/pricing" className="font-semibold text-[var(--color-seal)] underline underline-offset-2">
+                              {t("subscription.pricingLink")}
+                            </Link>
+                          </p>
+                        ) : (
+                          <p>{t("subscription.pastDueBody", { date: day(s.grace_until ?? graceUntil(s.current_period_end)) })}</p>
+                        ))}
                     </Notice>
                   )}
                   <dl className="mt-2 divide-y divide-[var(--color-line)] text-sm">
@@ -243,7 +255,7 @@ export default async function BillingManagePage({
                     <DetailRow label={t("subscription.card")}>{card ?? t("subscription.cardNone")}</DetailRow>
                   </dl>
                   {canAct ? (
-                    <CardChangeButton subscriptionId={s.id} emphasize={pastDue} />
+                    !ending && <CardChangeButton subscriptionId={s.id} emphasize={pastDue} />
                   ) : (
                     <p className="mt-3 text-sm text-[var(--color-ink-soft)]">{t("subscription.readOnly")}</p>
                   )}
@@ -293,7 +305,10 @@ export default async function BillingManagePage({
                   const receipt = httpUrl(p.receipt_url);
                   return (
                     <tr key={p.id} className="border-b border-[var(--color-line)]">
-                      <td className="whitespace-nowrap py-2.5 pr-3 tabular-nums">{shortDay(p.approved_at ?? p.requested_at)}</td>
+                      {/* 행 머리글 — "영수증 보기" 링크가 여러 개여도 어느 날짜의 결제인지 행 맥락으로 구분된다 */}
+                      <th scope="row" className="whitespace-nowrap py-2.5 pr-3 text-left font-normal tabular-nums">
+                        {shortDay(p.approved_at ?? p.requested_at)}
+                      </th>
                       <td className="py-2.5 pr-3">
                         {t(`payments.kind.${p.kind}`)}
                         {isTestRow(p.livemode) && ` · ${t("payments.testTag")}`}

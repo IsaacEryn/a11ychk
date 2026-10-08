@@ -31,6 +31,8 @@ export function checkoutLocale(raw: string | null | undefined): CheckoutLocale {
 
 const field = (fd: FormData, key: string) => String(fd.get(key) ?? "");
 const Uuid = z.string().uuid();
+/** 주소·쿼리로 받은 id(가격·결제 시도·구독)의 모양 — 대소문자 무관. 화면·라우트가 같은 검사를 쓴다 */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export type StartInput = { ok: true; value: { priceId: string } } | { ok: false; error: "invalid" | "consent" };
 

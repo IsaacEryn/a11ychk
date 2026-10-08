@@ -1705,12 +1705,14 @@
           "charge_skipped": "Renewal charges skipped",
           "charge_incident": "Renewal charges hit a setup incident",
           "charge_halted": "Renewal charges halted",
+          "charge_refunded": "Renewal charges auto-canceled (no period to grant)",
           "retry_paid": "Retries succeeded",
           "retry_failed": "Retries failed",
           "retry_pending": "Retries with unknown result",
           "retry_skipped": "Retries skipped",
           "retry_incident": "Retries hit a setup incident",
           "retry_halted": "Retries halted",
+          "retry_refunded": "Retries auto-canceled (no period to grant)",
           "halt_skipped": "Charges deferred by a halt",
           "end_canceled": "Ended after scheduled cancellation",
           "end_unpaid": "Ended for non-payment",
@@ -1736,12 +1738,13 @@
           "ended": "This subscription has ended or changed in the meantime.",
           "migrationMissing": "Apply migration 0041, then try again.",
           "failed": "Couldn't complete that. Check the error log.",
-          "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription."
+          "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription.",
+          "cancelScheduled": "Upcoming-charge notices aren't sent for a subscription with a scheduled cancellation, so it can't be pulled to notice time. Use Pull due date to test the ending, or undo the cancellation and try again."
         },
         "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
         "subsItems": {
-          "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge.",
-          "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet.",
+          "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge. For a subscription with a scheduled cancellation this tests the ending instead: run the cron after that minute and the subscription ends.",
+          "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet. Not available for subscriptions with a scheduled cancellation (the cron doesn't send them a notice).",
           "retry": "Pull retry time (past due): leaves the period end and grace deadline as they are and moves only the next retry time to now. If the grace period is over, the cron ends the subscription instead."
         },
         "pullCharge": "Pull due date",
@@ -1750,7 +1753,8 @@
         "pulled": {
           "charge": "Due date pulled forward",
           "remind": "Pulled to notice time",
-          "retry": "Retry time set to now"
+          "retry": "Retry time set to now",
+          "end": "Period end moved to one minute from now (cancellation scheduled — run the cron after that minute and the subscription ends instead of renewing)"
         }
       },
       "payments": {
@@ -2157,7 +2161,7 @@
         "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
         "sdkFailed": "The payment window could not be opened. Please try again.",
         "sdkCanceled": "You closed the payment window. You can try again.",
-        "inProgressChecking": "We are still confirming your previous payment. Please check the result under Billing in a few minutes."
+        "inProgressChecking": "We are still confirming your previous payment. Confirmation can take up to a day, so please check the result under Billing."
       },
       "period": "Service period",
       "periodValue": "{start} – {end}",
@@ -2203,13 +2207,9 @@
         "cardNone": "No card on file",
         "pastDueTitle": "Your payment failed",
         "pastDueBody": "If the payment has not gone through by {date}, your subscription will end. If you change your card, we will try the payment again right away with the new card.",
+        "endingSoon": "The grace period is over, so this subscription will end soon. To keep using the plan, subscribe again after it ends.",
         "statusActiveUntil": "Active · until {date}",
         "readOnly": "This subscription cannot be changed here right now."
-      },
-      "cardType": {
-        "credit": "Credit card",
-        "check": "Debit card",
-        "gift": "Gift card"
       },
       "cardChange": {
         "button": "Change card",
@@ -2222,7 +2222,8 @@
           "notAllowed": "The card for this subscription cannot be changed right now.",
           "notConfigured": "Payments are not set up yet, so you cannot change your card right now.",
           "inProgress": "Another payment attempt is in progress. If you are not using another window, cancel the previous attempt and try again.",
-          "inProgressChecking": "We are still confirming a previous payment. Please try again in a few minutes.",
+          "inProgressChecking": "We are still confirming a previous payment. Confirmation can take up to a day, so please try again once it is confirmed.",
+          "graceOver": "The grace period is over, so the card can't be changed. Subscribe again from the pricing page after the subscription ends.",
           "failed": "The card change could not be started. Please try again in a moment.",
           "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
           "sdkFailed": "The payment window could not be opened. Please try again.",
@@ -2283,11 +2284,11 @@
       },
       "results": {
         "subscribed": "Your subscription has started. We will email you the receipt.",
-        "pending": "We are confirming your payment. Please reload this page in a few minutes.",
+        "pending": "We are confirming your payment. Confirmation can take up to a day; once it is confirmed, the result will appear on this page.",
         "cardChanged": {
           "none": "Your payment card has been changed.",
           "paid": "Your payment card has been changed and the overdue payment went through.",
-          "pending": "Your payment card has been changed. We are confirming the overdue payment, so please reload this page in a few minutes.",
+          "pending": "Your payment card has been changed. We are confirming the overdue payment, which can take up to a day; once it is confirmed, the result will appear on this page.",
           "failed": "Your payment card has been changed, but the payment with the new card did not go through. Please check the card or change to another card."
         }
       },

@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { entitlementLivemodes } from "@/lib/billing/config";
+// 0041 미적용(구독 테이블 없음)이면 조용히 구독 없음으로 본다 — 판정은 결제 모듈과 같은 한 곳에서
+import { isMissingTable } from "@/lib/billing/dbErrors";
 import { logAppError } from "@/lib/logs";
 import {
   MAX_PAGES_PER_SCAN,
@@ -154,11 +156,6 @@ export function resolveEntitlement(
 /** 검사당 구조 표본 페이지 수 — 소유 확인 도메인은 더 크다 */
 export function sampleFor(ent: Entitlement, verified: boolean): number {
   return verified ? ent.limits.sampleVerified : ent.limits.sampleUnverified;
-}
-
-/** 0041 미적용 환경 — 구독 테이블이 없으면 조용히 구독 없음으로 본다 */
-function isMissingTable(error: { code?: string }): boolean {
-  return error.code === "42P01" || error.code === "PGRST205";
 }
 
 /**

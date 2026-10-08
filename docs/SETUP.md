@@ -52,7 +52,7 @@ SESSION_MAX_HOURS                # (선택) 전 회원 세션 절대 유지 시�
 ```
 
 결제 관련 변수(`BILLING_MODE`, `TOSS_*`, `BILLING_KEY_ENC_KEY`, `BILLING_TEST_USER_IDS`)는 기본이 꺼짐이고
-Production에는 넣지 않는다. 설정은 아래 "결제 테스트(토스)" 절을 따른다.
+라이브 전환 전까지는 Production에 넣지 않는다. 설정은 아래 "결제 테스트(토스)" 절과 "라이브 전환 체크리스트"를 따른다.
 
 ### 봇 방지 (Cloudflare Turnstile)
 
@@ -174,7 +174,7 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 
 `apps/web/vercel.json`의 `/api/cron/billing`이 매일 01:00 UTC(10:00 KST)에 호출된다. Vercel이
 `CRON_SECRET`을 Authorization 헤더로 보내므로 정기 스캔과 같은 환경변수 하나로 보호된다. Vercel Hobby
-플랜은 지정 시각을 지키지 않고 앞뒤 59분 안 어느 때든 부를 수 있다. 갱신 결제를 기간 끝 하루 전부터
+플랜은 지정 시각을 정확히 지키지 않고 지정 시각부터 59분 안 어느 때든 부를 수 있다. 갱신 결제를 기간 끝 하루 전부터
 시도하는 것은 하루 한 번 도는 크론의 지연을 흡수하기 위해서다.
 
 모드에 따라 다루는 행이 다르다. `off`는 처리 없이 `{"skipped":"off"}`만 기록하고, `test`는 테스트 결제 행
@@ -182,16 +182,24 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 
 1. **대사** — 10분 넘게 결과를 모르는(`pending`) 결제를 토스 주문 조회로 확정한다(결제됨 / 실패 / 환불됨).
    조회가 실패하거나 토스에서도 진행 중이면 `pending`으로 두고 다음 날 다시 본다.
-2. **후보 조회** — 진행 중인 토스 구독 중 기간 끝이 지금부터 31일 안인 것(이미 지난 것 포함)을 기간 끝이 이른 순서로 최대 500건 읽는다.
+2. **후보 조회** — 진행 중인 토스 구독 중 기간 끝이 지금부터 33일 안인 것(이미 지난 것 포함)을 기간 끝이 이른 순서로 최대 500건 읽는다.
+   연간 구독의 30일 전 안내가 들어오도록 정한 폭이다.
 3. **후보마다 판정·처리**
    - 해지 예약이 있으면 결제하지 않고, 기간 끝이 지나면 구독을 끝낸다.
-   - 정상 구독은 기간 끝이 가까워지면 결제 예정 안내 메일을 한 번 보내고, 기간 끝 하루 전부터 결제한다.
-     성공하면 기간을 한 주기 전진시키고 영수증을 보낸다.
-   - 미납 구독은 재시도 시각이 되면 다시 결제하고, 유예가 끝나면 끝낸다.
+   - 정상 구독은 결제 예정 안내 메일을 한 번 보내고, 기간 끝 하루 전부터 결제한다. 안내는 메일이 알리는 결제일(기간 끝
+     하루 전)의 7일 전(연간은 30일 전) 날 크론이 보낸다. 성공하면 기간을 한 주기 전진시키고 영수증을 보낸다.
+   - 미납 구독은 재시도 시각이 되면 다시 결제하고, 유예가 끝나면 끝낸다. 유예가 끝난 뒤에는 카드를 바꿔도 재결제하지 않는다
+     (결제 관리 화면은 카드 변경 버튼 대신 구독이 곧 끝난다는 안내를 보인다).
    - 구독을 끝낼 때 결과를 모르는 결제가 걸려 있으면 끝내지 않고 보류한다(그 결제가 실제로 청구됐을 수 있다).
      끝내면 빌링키를 지우고 종료 메일을 보낸다.
-4. **예산** — 240초를 넘기면 멈추고 남은 건은 다음 날로 미룬다(`deferred`). 같은 코드의 설정 사고(암호화 키
-   문제 등)가 연달아 나면 그 실행의 결제·재시도를 멈춘다(`halted`). 종료·안내는 계속한다.
+4. **예산** — 240초를 넘기면 멈추고 남은 건은 다음 날로 미룬다(`deferred`). 계정 단위 오류(키 인증 실패 등)는 한 번만
+   나도 그 실행의 결제·재시도를 멈추고, 행 단위 설정 사고(암호화 키 문제 등)는 같은 코드가 연달아 나면 멈춘다(`halted`).
+   종료·안내는 계속한다.
+
+**받은 돈과 이용 기간이 어긋나지 않게** — 승인된 결제로 줄 이용 기간이 없으면(그 사이 구독이 끝났거나 없음, 결제 뒤 사용자가
+탈퇴한 첫 결제) 토스 결제를 자동 취소하고 결제 행을 `refunded`로 적는다(`app_errors`에 `billing auto-canceled payment …`).
+취소에 실패하면 결제는 `paid`·`CANCEL_FAILED`로 남고 `billing needs review: automatic cancel failed …`가 기록된다. 구독은
+진행 중인데 결제가 다른 기간의 것이면 자동 취소하지 않고 `needs review`만 남긴다(그 기간이 다른 결제로 넘어갔는지 사람이 본다).
 
 안내 시점·재시도 간격·유예 기간은 `apps/web/src/lib/billing/period.ts`에 있다. 실행 결과는 `cron_runs`에 남는다:
 `select started_at, ok, summary from cron_runs where job='billing' order by started_at desc limit 7;`
@@ -204,8 +212,11 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 
 ### 운영 주의
 
-- **Production·Preview에는 `BILLING_MODE`를 넣지 않는다.** 로컬·프리뷰·프로덕션이 DB 하나를 같이 쓴다. 테스트 결제
-  행은 `livemode=false`로 구분되고, test 모드는 그 행도 이용 권한에 반영한다. test 모드는 로컬에만 둔다.
+- **라이브 전환 전까지는 Production·Preview에 `BILLING_MODE`를 넣지 않는다.** 로컬·프리뷰·프로덕션이 DB 하나를 같이 쓴다.
+  테스트 결제 행은 `livemode=false`로 구분되고, test 모드는 그 행도 이용 권한에 반영한다. test 모드는 로컬에만 둔다.
+  라이브로 열 때는 아래 체크리스트대로 Production에만 `live`를 넣는다.
+- **test 모드 환경이 둘 이상이면** 같은 `BILLING_KEY_ENC_KEY`와 같은 토스 테스트 상점 키를 쓴다. 테스트 행을 함께 쓰므로,
+  다르면 서로의 빌링키를 풀지 못하거나(`DECRYPT_FAILED`) 다른 상점의 결제를 조회하게 된다.
 - **돌아올 주소** — 결제창이 성공·실패 후 돌아올 주소는 요청의 `Host` 헤더로 만든다. `x-forwarded-host`가 있으면
   `Host`와 같아야 하고, 다르면 결제 시작을 만들기 전에 멈춘다(fail closed). 프로토콜은 `x-forwarded-proto`를
   따르며 https만 받는다(로컬 개발 호스트만 http). 그래서 `Host`를 다시 쓰는 프록시 뒤에서는 결제 시작이 실패하고
@@ -214,9 +225,13 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
 - **결제를 끄면(`off`)** 실결제 구독이 남아 있어도 사용자 화면에서 해지·해지 취소·카드 변경을 할 수 없고, 결제
   크론은 아무것도 하지 않는다. 다시 켜면 그동안 기간 끝이 지난 구독은 **다음 크론 실행에서 바로 결제가 나갈 수 있다.**
   끄기 전에 구독자에게 알리고, 다시 켜기 전에 구독자를 확인해 안내한다.
-- **회원 탈퇴** — 탈퇴하면 진행 중인 토스 구독(테스트·실결제 모두)이 사용자 해지로 끝나고 빌링키가 지워진다(메일 없음).
-  결제 상태는 탈퇴를 막지 않는다. 결과를 모르는 결제가 남은 채 탈퇴하면 `app_errors`에
-  `billing needs review: account deleted with pending payment…`가 남으니, 토스 상점관리자와 대사한 뒤 환불 여부를 정한다:
+- **회원 탈퇴** — 끝낼 구독을 먼저 모으고, 계정을 지운 뒤 진행 중인 토스 구독(테스트·실결제 모두)을 사용자 해지로 끝낸다
+  (메일 없음). 계정 삭제가 실패하면 구독은 그대로다. 빌링키는 고객 행과 함께 지워지므로 계정을 지운 뒤에는 청구되지 않는다.
+  구독을 끝내지 못하면 `billing needs review: subscriptions … could not be ended after account deletion`이 남는데, 그 구독은
+  빌링키가 없어 미납 → 유예 → 종료로 저절로 끝난다. 결제 상태는 탈퇴를 막지 않는다. 결과를 모르는 결제가 남은 채 탈퇴하면
+  `billing needs review: account deleted with pending payment…`가 남는다. 그 결제가 나중에 승인으로 확인되면 크론의 대사가
+  줄 기간이 없음을 보고 자동 취소한다(위 "받은 돈과 이용 기간이 어긋나지 않게"). 자동 취소 실패 기록이 있을 때만 토스
+  상점관리자에서 그 결제를 찾아 환불한다:
   `select created_at, message from app_errors where message like 'billing needs review:%' order by created_at desc;`
   구독·결제·동의 기록은 `user_id`만 비워서 남는다. 고객 행(빌링키 암호문)은 계정과 함께 지워진다.
 - **로컬 로그인** — 로그인 폼의 Turnstile 위젯이 통과하려면 `localhost`가 위젯의 허용 도메인에 있어야 한다.

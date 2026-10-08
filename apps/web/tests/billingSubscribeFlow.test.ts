@@ -143,7 +143,7 @@ describe("completeCheckout — 첫 정기결제", () => {
     ]);
     expect(deps.toss.calls.cancelPayment).toHaveLength(0);
 
-    // 영수증 메일 1통 — 카드는 표시 문자열, 비밀 값 없음
+    // 영수증 메일 1통 — 다음 결제일은 기간 끝 하루 전(결제 확인 화면과 같은 날), 카드는 마스킹 요약(표기는 메일이 수신자 언어로), 비밀 값 없음
     expect(deps.mailer.sent).toEqual([
       {
         userId: USER,
@@ -153,8 +153,9 @@ describe("completeCheckout — 첫 정기결제", () => {
           amount: 1234,
           currency: "KRW",
           periodEnd: sub.current_period_end,
+          nextChargeAt: new Date(Date.parse(sub.current_period_end) - DAY).toISOString(),
           receiptUrl: "https://dashboard.tosspayments.com/receipt/0001",
-          card: "신용 1234****",
+          card: { issuerCode: "61", number: "1234****", cardType: "신용" },
         },
       },
     ]);
@@ -628,6 +629,23 @@ describe("completeCheckout — 카드 변경", () => {
     expect(store.rows.checkouts[0]).toMatchObject({ status: "completed" });
   });
 
+  it("시작한 뒤 유예가 끝난 미납 구독은 카드만 바꾸고 재결제하지 않는다(retry none) — 크론의 미납 종료와 겹치지 않게", async () => {
+    for (const over of [
+      { grace_until: iso(NOW) },
+      { grace_until: null, current_period_start: iso(NOW - 37 * DAY), current_period_end: iso(NOW - 7 * DAY) },
+    ]) {
+      const { deps, store, sub, input } = setupCardChange({
+        sub: { status: "past_due", current_period_end: iso(NOW - 2 * DAY), current_period_start: iso(NOW - 30 * DAY), dunning_attempts: 4, ...over },
+        toss: { issueBillingKey: [newCard()], chargeBillingKey: [doneFor] },
+      });
+      expect(await completeCheckout(deps, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "none" });
+      expect(deps.toss.calls.chargeBillingKey).toHaveLength(0);
+      expect(store.rows.payments).toHaveLength(0);
+      expect(store.rows.subscriptions[0].status).toBe("past_due");
+      expect(store.rows.customers[0].toss_card_summary).toEqual(NEW_CARD);
+    }
+  });
+
   it("해지를 예약한 미납 구독은 카드만 바꾸고 재결제하지 않는다(retry none)", async () => {
     const { deps, store, sub, input } = setupCardChange({
       sub: { status: "past_due", current_period_end: iso(NOW - 2 * DAY), current_period_start: iso(NOW - 30 * DAY), dunning_attempts: 1, cancel_at_period_end: true },
@@ -776,7 +794,7 @@ describe("activateInitialPayment — 대사도 쓰는 구독 생성", () => {
       livemode: false,
       kind: "initial",
       order_id: newOrderId(),
-      amount: 1000,
+      amount: 4321,
       currency: "KRW",
       period_start: iso(NOW),
       period_end: iso(NOW + 28 * DAY),
@@ -787,9 +805,9 @@ describe("activateInitialPayment — 대사도 쓰는 구독 생성", () => {
 
     const subId = await activateInitialPayment(deps, payment, tossPayment({ orderId: "pay_someone_else", totalAmount: 9999 }));
 
-    expect(store.rows.subscriptions[0]).toMatchObject({ id: subId, amount: 1000, currency: "KRW" });
-    expect(deps.mailer.sent[0].data).toMatchObject({ amount: 1000, currency: "KRW" });
-    expect(store.rows.payments[0]).toMatchObject({ status: "paid", amount: 1000, subscription_id: subId });
+    expect(store.rows.subscriptions[0]).toMatchObject({ id: subId, amount: 4321, currency: "KRW" });
+    expect(deps.mailer.sent[0].data).toMatchObject({ amount: 4321, currency: "KRW" });
+    expect(store.rows.payments[0]).toMatchObject({ status: "paid", amount: 4321, subscription_id: subId });
     expect(deps.log).toHaveBeenCalledTimes(1);
     const logged = String(deps.log.mock.calls[0][0]);
     expect(logged).toContain(payment.id);
@@ -1153,7 +1171,7 @@ describe("메일러 — 수신자 조회·주소 조립·실패 삼킴", () => {
       return true;
     });
 
-    await mailer.send(USER, "receipt", { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: iso(NOW), receiptUrl: null, card: null });
+    await mailer.send(USER, "receipt", { planName: "Pro", amount: 1234, currency: "KRW", periodEnd: iso(NOW), nextChargeAt: iso(NOW - DAY), receiptUrl: null, card: null });
 
     expect(sent).toHaveLength(1);
     const [to, kind, data, opts] = sent[0] as [string, string, Record<string, unknown>, Record<string, unknown>];

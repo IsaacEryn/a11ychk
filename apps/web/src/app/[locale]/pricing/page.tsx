@@ -3,6 +3,7 @@ import { Link } from "@/i18n/navigation";
 import { getBillingFlags } from "@/lib/appSettings";
 import { billingMode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { SELF_SERVE_PLAN_IDS } from "@/lib/billing/price";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout, canSeePrices, priceLivemode } from "@/lib/billing/visibility";
 import { logAppError } from "@/lib/logs";
@@ -42,7 +43,7 @@ async function loadShownPrices(livemode: boolean): Promise<ShownPrice[]> {
     .eq("currency", "KRW")
     .eq("livemode", livemode)
     .eq("active", true)
-    .in("plan_code", ["pro", "enterprise"]);
+    .in("plan_code", [...SELF_SERVE_PLAN_IDS]);
   if (error) {
     if (!isMissingTable(error)) await logAppError(admin, `pricing price lookup failed: ${error.message}`, { path: "pricing" });
     return [];

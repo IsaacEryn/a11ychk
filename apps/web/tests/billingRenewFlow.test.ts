@@ -11,10 +11,12 @@ import {
   runBillingCycle,
   type RenewalAction,
 } from "../src/lib/billing/flows/renew";
+import { completeCheckout, type CheckoutOutcome } from "../src/lib/billing/flows/subscribe";
 import {
   DAY,
   MIN,
   NOW,
+  billingAuth,
   checkoutRow,
   createFakeToss,
   createMemoryStore,
@@ -48,7 +50,7 @@ const CUSTOMER_KEY = "5b0c7a7e-0f4e-4a40-9c55-8a3f4e1d2c10";
 const BILLING_KEY = "bk_plain_secret_0001";
 const CARD = { issuerCode: "61", number: "1234****", cardType: "신용" };
 const HOUR = 3_600_000;
-/** 설정 사고 뒤 재시도까지 — 다음 날 크론(Hobby ±59분)이 늘 기한이 지난 것으로 보게 24시간보다 짧다 */
+/** 설정 사고 뒤 재시도까지 — 다음 날 크론(Hobby는 지정 시각부터 59분 안)이 늘 기한이 지난 것으로 보게 24시간보다 짧다 */
 const INCIDENT_RETRY = 20 * HOUR;
 
 /** 앵커 31일: 첫 기간 1/31 01:00 KST → 2/28 01:00 KST(짧은 달 말일) */
@@ -60,6 +62,12 @@ const END2 = "2026-03-30T16:00:00.000Z";
 const END3 = "2026-04-29T16:00:00.000Z";
 const YEAR_END = addInterval(START, "year", 31);
 const YE = Date.parse(YEAR_END);
+/**
+ * 결제 예정 안내 시작 — 안내 메일이 알리는 결제일(기간 끝 하루 전)의 KST 0시에서 월간 7일·연간 30일 전.
+ * 월간: 기간 끝 2/28 01:00 KST → 결제일 2/27 → 2/20 00:00 KST. 연간: 기간 끝 2027-01-31 01:00 KST → 결제일 1/30 → 2026-12-31 00:00 KST
+ */
+const REMIND_MONTH = Date.parse("2026-02-19T15:00:00.000Z");
+const REMIND_YEAR = Date.parse("2026-12-30T15:00:00.000Z");
 
 interface SetupOpts {
   sub?: Partial<SubscriptionRow>;
@@ -129,6 +137,8 @@ const lookup =
   (orderId: string) =>
     tossPayment({ paymentKey: `pk_${orderId}`, orderId, status, ...over });
 const reject = (code: string, message = "카드 결제가 거절됐어요", status = 400) => new TossError(code, message, status);
+/** 줄 기간이 없는 결제의 자동 취소 사유(토스 취소 요청에 실린다) */
+const UNGRANTED_REASON = "결제 기간을 제공할 수 없어 자동 취소";
 
 const tossCalls = (d: FakeDeps) =>
   d.toss.calls.issueBillingKey.length +
@@ -166,11 +176,12 @@ describe("decideRenewalAction — 조합표", () => {
     ["갱신 24시간 전부터 결제", {}, E - DAY, "charge"],
     ["기간 끝이 지났어도 active면 결제", {}, E + HOUR, "charge"],
     ["결제 시점에는 안내보다 결제가 먼저", { reminder_sent_for: null }, E - HOUR, "charge"],
-    ["월간 안내 — 7일 전부터", {}, E - 7 * DAY, "remind"],
-    ["월간 안내 — 7일 전 직전은 아직", {}, E - 7 * DAY - 1, "none"],
+    ["월간 안내 — 알리는 결제일(기간 끝 하루 전)의 KST 0시 7일 전부터", {}, REMIND_MONTH, "remind"],
+    ["월간 안내 — 그 직전(−1ms)은 아직", {}, REMIND_MONTH - 1, "none"],
+    ["월간 안내 — 기간 끝 7일 전보다 이르다(결제일 기준이라 하루 이상 당겨진다)", {}, E - 7 * DAY - 1, "remind"],
     ["월간은 30일 전에 안내하지 않는다", {}, E - 30 * DAY, "none"],
-    ["연간 안내 — 30일 전부터", yearly, YE - 30 * DAY, "remind"],
-    ["연간 안내 — 30일 전 직전은 아직", yearly, YE - 30 * DAY - 1, "none"],
+    ["연간 안내 — 알리는 결제일의 KST 0시 30일 전부터", yearly, REMIND_YEAR, "remind"],
+    ["연간 안내 — 그 직전(−1ms)은 아직", yearly, REMIND_YEAR - 1, "none"],
     ["이번 기간 안내를 이미 보냈으면 다시 보내지 않는다", { reminder_sent_for: END }, E - 3 * DAY, "none"],
     ["안내 기록(+00:00)과 기간 끝(Z) 표기가 달라도 같은 시각이면 보낸 것", { reminder_sent_for: pgTime(END) }, E - 3 * DAY, "none"],
     ["기간 끝(+00:00)과 안내 기록(Z) 표기가 달라도 같은 시각이면 보낸 것", { current_period_end: pgTime(END), reminder_sent_for: END }, E - 3 * DAY, "none"],
@@ -194,7 +205,7 @@ describe("갱신 결제", () => {
   it("성공: 한 주기 전진·앵커 31일 유지(2/28 → 3/31 → 4/30), 금액은 구독 스냅샷, 영수증 메일", async () => {
     const { deps, store, clock, sub } = setup({ toss: { chargeBillingKey: [done, done] } });
     // 가격표가 바뀌어도 기존 구독은 가입 시점 금액으로 갱신한다
-    store.rows.prices[0].amount = 9900;
+    store.rows.prices[0].amount = 4321;
 
     const first = await runBillingCycle(deps, false);
 
@@ -244,8 +255,10 @@ describe("갱신 결제", () => {
           amount: 1234,
           currency: "KRW",
           periodEnd: pgTime(END2),
+          // 다음 결제일은 새 기간 끝 하루 전 — 결제 확인 화면·결제 관리·결제 예정 안내와 같은 규칙
+          nextChargeAt: iso(Date.parse(END2) - DAY),
           receiptUrl: "https://dashboard.tosspayments.com/receipt/0001",
-          card: "신용 1234****",
+          card: CARD,
         },
       },
     ]);
@@ -741,20 +754,65 @@ describe("갱신 결제", () => {
     expect(store.rows.subscriptions[0]).toMatchObject({ current_period_start: pgTime(START), current_period_end: pgTime(END) });
     expect(deps.mailer.sent).toHaveLength(0);
     expect(logged(deps)).toContain("needs review");
+    // 진행 중인 구독이라 자동 취소하지 않는다 — 그 기간이 다른 결제로 넘어갔는지 사람이 본다
+    expect(deps.toss.calls.cancelPayment).toHaveLength(0);
   });
 
-  it("결제 승인 사이에 구독이 끝났으면 되살리지 않는다 — 결제는 paid, 운영자 확인 기록", async () => {
-    const { deps, store, sub } = setup();
+  it("대사가 DONE을 확인했는데 구독 행이 없으면 자동 취소한다(refunded) — 줄 기간이 없다", async () => {
+    const { deps, store } = setup({ at: E + DAY, toss: { getPaymentByOrderId: [lookup("DONE")], cancelPayment: [tossPayment({ status: "CANCELED" })] } });
+    const orphan = paymentRow({ user_id: USER, kind: "renewal", period_start: END, period_end: END2, requested_at: iso(E - HOUR) });
+    store.rows.payments.push({ ...orphan, subscription_id: "99999999-9999-4999-8999-999999999999", period_start: pgTime(END), period_end: pgTime(END2), requested_at: pgTime(orphan.requested_at) });
+
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${orphan.order_id}` });
+    expect(deps.toss.calls.cancelPayment).toEqual([[`pk_${orphan.order_id}`, { cancelReason: UNGRANTED_REASON }, `cancel_${orphan.id}`]]);
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", current_period_end: pgTime(END) });
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("대사가 DONE을 확인했는데 구독이 이미 끝났으면(탈퇴 정리 등) 기간을 주지 않고 자동 취소한다", async () => {
+    const { deps, store, sub } = setup({ at: E + DAY, toss: { getPaymentByOrderId: [lookup("DONE")], cancelPayment: [tossPayment({ status: "CANCELED" })] } });
+    Object.assign(store.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(E), user_id: null });
+    const p = paymentRow({ user_id: null, kind: "renewal", period_start: END, period_end: END2, requested_at: iso(E - HOUR) });
+    store.rows.payments.push({ ...p, subscription_id: sub.id, period_start: pgTime(END), period_end: pgTime(END2), requested_at: pgTime(p.requested_at) });
+
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234 });
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", current_period_end: pgTime(END) });
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("결제 승인 사이에 구독이 끝났으면 되살리지 않는다 — 줄 기간이 없으니 토스 결제를 자동 취소하고 refunded로 적는다", async () => {
+    const { deps, store, sub } = setup({ toss: { cancelPayment: [tossPayment({ status: "CANCELED" })] } });
     deps.toss.script.chargeBillingKey.push((bk, req) => {
       // 결제 요청이 오가는 사이 다른 요청이 구독을 끝냈다
       Object.assign(store.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(E - HOUR) });
       return done(bk, req);
     });
-    expect(await chargeSubscription(deps, sub, "renewal")).toBe("paid");
+    expect(await chargeSubscription(deps, sub, "renewal")).toBe("refunded");
+    const pay = store.rows.payments[0];
     expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", current_period_end: pgTime(END) });
-    expect(store.rows.payments[0]).toMatchObject({ status: "paid", external_payment_id: `pk_${store.rows.payments[0].order_id}` });
-    expect(logged(deps)).toContain("needs review");
+    expect(pay).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${pay.order_id}` });
+    expect(deps.toss.calls.cancelPayment).toEqual([[`pk_${pay.order_id}`, { cancelReason: UNGRANTED_REASON }, `cancel_${pay.id}`]]);
+    expect(logged(deps)).toContain(pay.id);
     expect(logged(deps)).toContain(sub.id);
+    expect(logged(deps)).not.toContain(BILLING_KEY);
+    // 맞는 메일 종류가 없다 — 영수증도 보내지 않는다
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("자동 취소가 실패하면 결제는 paid·CANCEL_FAILED로 두고 운영자 확인(needs review)을 남긴다", async () => {
+    const { deps, store, sub } = setup({ toss: { cancelPayment: [new TossError("NETWORK", "toss request failed (network)", 0)] } });
+    deps.toss.script.chargeBillingKey.push((bk, req) => {
+      Object.assign(store.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(E - HOUR) });
+      return done(bk, req);
+    });
+    expect(await chargeSubscription(deps, sub, "renewal")).toBe("paid");
+    const pay = store.rows.payments[0];
+    expect(pay).toMatchObject({ status: "paid", failure_code: "CANCEL_FAILED", refunded_amount: 0, external_payment_id: `pk_${pay.order_id}` });
+    expect(deps.toss.calls.cancelPayment).toHaveLength(1);
+    expect(logged(deps)).toContain("needs review");
+    expect(logged(deps)).toContain(pay.id);
     expect(deps.mailer.sent).toHaveLength(0);
   });
 
@@ -885,6 +943,38 @@ describe("대사 — 첫 결제", () => {
     expect(store.rows.checkouts[0].status).toBe("failed");
     expect(logged(deps)).toContain(payment.id);
     expect(logged(deps)).toContain(checkout.id);
+  });
+
+  it("탈퇴한 사용자(user_id·시도가 비었다)의 첫 결제가 DONE이면 구독을 만들 수 없다 — 매일 다시 조회하지 않고 자동 취소한다", async () => {
+    const { deps, store, payment } = initial({
+      payment: { user_id: null, checkout_id: null },
+      toss: { getPaymentByOrderId: [lookup("DONE")], cancelPayment: [tossPayment({ status: "CANCELED" })] },
+    });
+
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 1, unresolved: 0 });
+    expect(store.rows.payments[0]).toMatchObject({ status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${payment.order_id}` });
+    expect(deps.toss.calls.cancelPayment).toEqual([[`pk_${payment.order_id}`, { cancelReason: UNGRANTED_REASON }, `cancel_${payment.id}`]]);
+    expect(store.rows.subscriptions).toHaveLength(0);
+    expect(deps.mailer.sent).toHaveLength(0);
+    expect(logged(deps)).toContain(payment.id);
+
+    // 확정했으니 다음 대사는 다시 조회하지 않는다
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0 });
+    expect(deps.toss.calls.getPaymentByOrderId).toHaveLength(1);
+  });
+
+  it("탈퇴한 사용자의 첫 결제 자동 취소가 실패하면 paid·CANCEL_FAILED와 운영자 확인을 남기고 다시 조회하지 않는다", async () => {
+    const { deps, store, payment } = initial({
+      payment: { user_id: null, checkout_id: null },
+      toss: { getPaymentByOrderId: [lookup("DONE")], cancelPayment: [new TossError("HTTP_503", "toss error", 503)] },
+    });
+
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 1, failed: 0, unresolved: 0 });
+    expect(store.rows.payments[0]).toMatchObject({ status: "paid", failure_code: "CANCEL_FAILED", refunded_amount: 0 });
+    expect(logged(deps)).toContain("needs review");
+    expect(logged(deps)).toContain(payment.id);
+    expect(store.rows.subscriptions).toHaveLength(0);
+    expect(await reconcilePending(deps, false)).toEqual({ paid: 0, failed: 0, unresolved: 0 });
   });
 
   it("시도가 failed인데 토스도 결제가 없다고 하면 결제만 failed", async () => {
@@ -1102,10 +1192,110 @@ describe("해지·종료", () => {
   });
 });
 
+describe("돈 안전 불변식 — 카드 변경 재결제와 미납 종료의 경합", () => {
+  const NEW_BILLING_KEY = "bk_plain_secret_new_0002";
+  const GRACE = E + 7 * DAY;
+
+  /**
+   * 유예가 막 끝나는 미납 구독(재시도 소진)과 그 구독의 카드 변경 시도. 크론은 유예가 끝난 시각에, 카드 변경은 그 직전
+   * 시각에 판정한다(인스턴스 시계 차이 흉내) — 둘 다 상대를 보지 못하는 순서를 저장소 훅으로 재현한다.
+   */
+  function race() {
+    const encKey = randomBytes(32);
+    const enc = encryptBillingKey(BILLING_KEY, { userId: USER, livemode: false }, encKey);
+    const price = priceRow();
+    const customer = customerRow({ user_id: USER, toss_customer_key: CUSTOMER_KEY, toss_billing_key_enc: enc, toss_card_summary: CARD });
+    const sub = subscriptionRow({
+      user_id: USER,
+      price_id: price.id,
+      status: "past_due",
+      current_period_start: START,
+      current_period_end: END,
+      billing_anchor_day: 31,
+      dunning_attempts: 4,
+      next_retry_at: null,
+      grace_until: iso(GRACE),
+    });
+    const checkout = checkoutRow({ user_id: USER, price_id: price.id, purpose: "card_change", subscription_id: sub.id, expires_at: iso(GRACE + 30 * MIN) });
+    const store = createMemoryStore({ prices: [price], customers: [customer], subscriptions: [sub], checkouts: [checkout] }, { now: () => GRACE - 1 });
+    const cron = makeDeps({ store, toss: createFakeToss(), encKey, now: () => GRACE });
+    const card = makeDeps({
+      store,
+      toss: createFakeToss({
+        issueBillingKey: [billingAuth({ billingKey: NEW_BILLING_KEY })],
+        cancelPayment: [tossPayment({ status: "CANCELED" })],
+      }),
+      encKey,
+      now: () => GRACE - 1,
+    });
+    const input = { checkoutId: checkout.id, userId: USER, livemode: false, authKey: "auth_plain_0003", customerKey: CUSTOMER_KEY, customerEmail: null };
+    return { store, cron, card, sub, input };
+  }
+
+  it("크론 pending 확인 → 카드 변경 insert·다시 읽기 → 크론 종료 → 카드 변경 결제 DONE이면 자동 취소 — 권한 없는 paid 행이 남지 않는다", async () => {
+    const { store, cron, card, sub, input } = race();
+    let reachCharge!: () => void;
+    const atCharge = new Promise<void>((r) => (reachCharge = r));
+    let releaseCharge!: () => void;
+    const chargeGate = new Promise<void>((r) => (releaseCharge = r));
+    card.toss.script.chargeBillingKey.push(async (bk, req) => {
+      // 5. 카드 변경은 이미 읽어 둔 빌링키로 결제한다 — 크론이 끝낸 뒤에 승인이 돌아온다
+      reachCharge();
+      await chargeGate;
+      return done(bk, req);
+    });
+
+    let cardRun: Promise<CheckoutOutcome> | null = null;
+    const realHasPending = store.hasPendingPayment.bind(store);
+    store.hasPendingPayment = async (id) => {
+      // 1. 크론이 pending 결제를 읽는다(아직 없음)
+      const seen = await realHasPending(id);
+      store.hasPendingPayment = realHasPending;
+      // 2·3. 그 사이 카드 변경이 재결제 행을 넣고 구독을 다시 읽는다(past_due — 통과)
+      cardRun = completeCheckout(card, input);
+      await atCharge;
+      return seen;
+    };
+
+    // 4. 크론이 구독을 끝낸다
+    const summary = await runBillingCycle(cron, false);
+    expect(summary).toMatchObject({ end_unpaid: 1, errors: 0 });
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "payment_failed" });
+
+    releaseCharge();
+    const out = await cardRun!;
+
+    // 6. 기간을 줄 수 없는 결제 — 자동 취소(refunded). 사용자에게 "밀린 결제를 마쳤다"고 알리지 않는다
+    expect(out).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "failed" });
+    expect(store.rows.payments).toHaveLength(1);
+    const pay = store.rows.payments[0];
+    expect(pay).toMatchObject({ kind: "retry", status: "refunded", refunded_amount: 1234, external_payment_id: `pk_${pay.order_id}` });
+    expect(store.rows.payments.filter((p) => p.status === "paid")).toHaveLength(0);
+    expect(card.toss.calls.cancelPayment).toEqual([[`pk_${pay.order_id}`, { cancelReason: UNGRANTED_REASON }, `cancel_${pay.id}`]]);
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", current_period_end: pgTime(END) });
+    // 메일은 크론의 종료 메일 하나 — 영수증은 없다
+    expect([...cron.mailer.sent, ...card.mailer.sent].map((m) => m.kind)).toEqual(["ended"]);
+    expect(logged(card)).toContain(pay.id);
+    expect(logged(card)).not.toContain(NEW_BILLING_KEY);
+  });
+
+  it("같은 시계에서는 유예가 끝난 뒤 카드 변경이 재결제하지 않는다 — 크론의 종료와 시각으로 배타", async () => {
+    const { store, card, sub, input } = race();
+    const late = makeDeps({ store, toss: card.toss, encKey: card.encKey, now: () => GRACE });
+    store.rows.checkouts[0].expires_at = pgTime(GRACE + 30 * MIN);
+
+    expect(await completeCheckout(late, input)).toEqual({ kind: "cardChanged", subscriptionId: sub.id, retry: "none" });
+    expect(card.toss.calls.chargeBillingKey).toHaveLength(0);
+    expect(store.rows.payments).toHaveLength(0);
+    expect(store.rows.subscriptions[0].status).toBe("past_due");
+  });
+});
+
 describe("결제 예정 안내", () => {
-  it("월간 D-7에 한 번만 보낸다 — 두 번째 실행은 none", async () => {
-    const { deps, store, clock } = setup({ at: E - 7 * DAY });
-    store.rows.prices[0].amount = 9900;
+  it("월간: 알린 결제일의 D-7(KST 0시부터) 크론에 한 번만 보낸다 — 두 번째 실행은 none", async () => {
+    // 그날 10:00 KST 크론
+    const { deps, store, clock } = setup({ at: REMIND_MONTH + 10 * HOUR });
+    store.rows.prices[0].amount = 4321;
 
     expect(await runBillingCycle(deps, false)).toMatchObject({ remind: 1 });
     // 결제는 기간 끝 하루 전부터 시도한다 — 안내한 날보다 먼저 청구되지 않게 가장 이른 시각을 적는다
@@ -1123,26 +1313,33 @@ describe("결제 예정 안내", () => {
   });
 
   it("두 크론이 겹쳐도 안내는 한 번 — 먼저 기록(선점)한 쪽만 보낸다", async () => {
-    const { deps, store } = setup({ at: E - 7 * DAY });
+    const { deps, store } = setup({ at: REMIND_MONTH });
     const [a, b] = await Promise.all([runBillingCycle(deps, false), runBillingCycle(deps, false)]);
     expect(deps.mailer.sent).toHaveLength(1);
     expect([a.remind ?? 0, b.remind ?? 0].sort()).toEqual([0, 1]);
     expect(store.rows.subscriptions[0].reminder_sent_for).toBe(pgTime(END));
   });
 
-  it("연간은 D-30에 보낸다", async () => {
-    const { deps } = setup({ sub: { interval: "year", current_period_end: YEAR_END }, at: YE - 30 * DAY });
-    expect(await runBillingCycle(deps, false)).toMatchObject({ remind: 1 });
+  it("연간은 알린 결제일의 D-30(KST 0시부터)에 보낸다 — 기간 끝이 31일 넘게 남아도 크론 후보에 든다", async () => {
+    const { deps } = setup({ sub: { interval: "year", current_period_end: YEAR_END }, at: REMIND_YEAR });
+    expect(YE - REMIND_YEAR).toBeGreaterThan(31 * DAY);
+    expect(await runBillingCycle(deps, false)).toMatchObject({ candidates: 1, remind: 1 });
     expect(deps.mailer.sent[0]).toMatchObject({ kind: "reminder", data: { chargeAt: iso(YE - DAY) } });
   });
 
+  it("연간 안내 전날은 후보에 들어도 아무것도 하지 않는다", async () => {
+    const { deps } = setup({ sub: { interval: "year", current_period_end: YEAR_END }, at: REMIND_YEAR - 1 });
+    expect(await runBillingCycle(deps, false)).toMatchObject({ candidates: 1, none: 1 });
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
   it("갱신 뒤에는 다음 기간 안내를 다시 보낸다", async () => {
-    const { deps, store, clock } = setup({ at: E - 7 * DAY, toss: { chargeBillingKey: [done] } });
+    const { deps, store, clock } = setup({ at: REMIND_MONTH, toss: { chargeBillingKey: [done] } });
     await runBillingCycle(deps, false);
     clock.t = E - HOUR;
     await runBillingCycle(deps, false);
     expect(store.rows.subscriptions[0].reminder_sent_for).toBeNull();
-    clock.t = Date.parse(END2) - 7 * DAY;
+    clock.t = Date.parse(END2) - 8 * DAY;
     expect(await runBillingCycle(deps, false)).toMatchObject({ remind: 1 });
     expect(deps.mailer.sent.map((m) => m.kind)).toEqual(["reminder", "receipt", "reminder"]);
   });
@@ -1170,7 +1367,8 @@ describe("runBillingCycle — 예산·오류 격리", () => {
   it("budgetMs·limit 옵션을 따른다", async () => {
     const { deps } = twoDue({ chargeBillingKey: [done, done] });
     expect(await runBillingCycle(deps, false, { limit: 1 })).toMatchObject({ candidates: 1, charge_paid: 1 });
-    expect(await runBillingCycle(deps, false, { budgetMs: 0 })).toMatchObject({ candidates: 1, deferred: 1 });
+    // 첫 실행이 갱신한 구독(다음 기간 끝이 약 31일 뒤)도 후보 창(33일) 안이라 후보는 둘이다
+    expect(await runBillingCycle(deps, false, { budgetMs: 0 })).toMatchObject({ candidates: 2, deferred: 2 });
   });
 
   it("한 건의 예외는 기록하고 다음 건으로 넘어간다 — 남은 결제 행은 다음 날 대사가 정리한다", async () => {

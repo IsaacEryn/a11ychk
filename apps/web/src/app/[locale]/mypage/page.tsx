@@ -24,9 +24,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return { title: t("title") };
 }
 
-/** 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘. 이 화면은 요청마다 렌더된다 */
-const nextChargeShown = (periodEnd: string) => upcomingChargeAt(periodEnd, Date.now());
-
 export default async function MyPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
@@ -81,7 +78,8 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
       : null;
   // 지금 모드가 만드는 행이 아니면(결제 꺼짐·test 모드의 실결제 행) 이 서버가 결제하지 않는다 — 다음 결제일 대신 기간 끝
   const subscriptionManaged = subscriptionLine !== null && subscriptionLine.livemode === rowLivemode();
-  const nextChargeAt = subscriptionLine ? nextChargeShown(subscriptionLine.current_period_end) : null;
+  // 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘(결제 관리 화면과 같은 함수). 이 화면은 요청마다 렌더된다
+  const nextChargeAt = subscriptionLine ? upcomingChargeAt(subscriptionLine.current_period_end) : null;
 
   // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
   //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.

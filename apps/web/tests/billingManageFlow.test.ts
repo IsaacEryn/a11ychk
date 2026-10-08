@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { encryptBillingKey } from "../src/lib/billing/crypto";
-import { cancelSubscription, endSubscriptionsForDeletion, resumeSubscription } from "../src/lib/billing/flows/manage";
+import { cancelSubscription, collectDeletionTargets, endSubscriptionsForDeletion, resumeSubscription } from "../src/lib/billing/flows/manage";
 import { decideRenewalAction, runBillingCycle } from "../src/lib/billing/flows/renew";
 import type { CustomerRow, SubscriptionRow } from "../src/lib/billing/types";
 import {
@@ -10,6 +10,7 @@ import {
   createFakeToss,
   createMemoryStore,
   customerRow,
+  deleteUserCascade,
   iso,
   makeDeps,
   paymentRow,
@@ -155,7 +156,7 @@ describe("cancelSubscription — 해지", () => {
     expect(deps.mailer.sent).toHaveLength(0);
   });
 
-  it("되돌리는 사이 그 결제가 확정돼 기간이 넘어갔으면 기록하고 다시 읽어 알린다(already) — 성공 메일 없음", async () => {
+  it("되돌리는 사이 그 결제가 확정돼 기간이 넘어갔으면 기록하고 다시 읽어, 남은 이 요청의 예약을 새 기간 끝으로 알린다(scheduled)", async () => {
     const sub = subscriptionRow({ user_id: USER, current_period_end: iso(NOW + 12 * 3_600_000) });
     const nextEnd = iso(NOW + 12 * 3_600_000 + 28 * DAY);
     const pending = paymentRow({ user_id: USER, subscription_id: sub.id, kind: "renewal", period_start: sub.current_period_end, requested_at: iso(NOW - MIN) });
@@ -169,9 +170,74 @@ describe("cancelSubscription — 해지", () => {
       return result;
     };
 
-    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("already");
+    // 예약은 이 요청이 쓴 그대로 남았다 — 예약 상태를 이미 예약됨(already)으로 숨기지 않고, 실제 끝나는 날(새 기간 끝)로 알린다
+    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("scheduled");
     expect(deps.store.rows.subscriptions[0]).toMatchObject({ cancel_at_period_end: true, current_period_end: pgTime(nextEnd) });
     expect(deps.log.mock.calls.map(([m]) => m).join("\n")).toContain(`reverting the cancellation of subscription ${sub.id} failed`);
+    expect(deps.mailer.sent).toEqual([{ userId: USER, kind: "cancelScheduled", data: { planName: "Pro", endsAt: pgTime(nextEnd) } }]);
+  });
+
+  it("예약을 쓴 뒤 pending이 없다고 본 사이 진행 중이던 결제가 확정돼 기간이 넘어갔으면 다시 읽은 새 기간 끝으로 알린다", async () => {
+    const sub = subscriptionRow({ user_id: USER, current_period_end: iso(NOW + 12 * 3_600_000) });
+    const nextEnd = iso(NOW + 12 * 3_600_000 + 28 * DAY);
+    const deps = setup({ subscriptions: [sub] });
+    const check = deps.store.hasPendingPayment.bind(deps.store);
+    deps.store.hasPendingPayment = async (id) => {
+      const result = await check(id);
+      // 예약을 쓰기 전에 보낸 갱신 결제가 그 사이 확정돼 기간을 전진시켰다(settlePaid는 예약을 건드리지 않는다)
+      Object.assign(deps.store.rows.subscriptions[0], { current_period_start: pgTime(sub.current_period_end), current_period_end: pgTime(nextEnd) });
+      return result;
+    };
+
+    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("scheduled");
+    expect(deps.mailer.sent).toEqual([{ userId: USER, kind: "cancelScheduled", data: { planName: "Pro", endsAt: pgTime(nextEnd) } }]);
+  });
+
+  it("예약을 쓴 뒤 다시 읽으니 구독이 끝났으면 notFound — 해지 예약 메일을 보내지 않는다", async () => {
+    const deps = setup({ subscriptions: [subscriptionRow({ user_id: USER })] });
+    const check = deps.store.hasPendingPayment.bind(deps.store);
+    deps.store.hasPendingPayment = async (id) => {
+      const result = await check(id);
+      Object.assign(deps.store.rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
+      return result;
+    };
+
+    expect(await cancelSubscription(deps, USER, LIVEMODE)).toBe("notFound");
+    expect(deps.mailer.sent).toHaveLength(0);
+  });
+
+  it("예약을 쓴 뒤 pending 확인이 던지면 쓴 예약을 조건부로 되돌리고 다시 던진다 — 메일 없음", async () => {
+    const deps = setup({ subscriptions: [subscriptionRow({ user_id: USER })] });
+    deps.store.hasPendingPayment = async () => {
+      throw new Error("billing store hasPendingPayment: connection reset");
+    };
+
+    await expect(cancelSubscription(deps, USER, LIVEMODE)).rejects.toThrow("connection reset");
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "active", cancel_at_period_end: false, canceled_at: null });
+    expect(deps.mailer.sent).toHaveLength(0);
+    expect(deps.log).not.toHaveBeenCalled();
+  });
+
+  it("pending 확인이 던지고 되돌리기도 실패하면 운영자 확인(needs review, 구독 id만)을 남기고 원래 오류를 던진다", async () => {
+    const sub = subscriptionRow({ user_id: USER });
+    const deps = setup({ subscriptions: [sub] });
+    deps.store.hasPendingPayment = async () => {
+      throw new Error("billing store hasPendingPayment: connection reset");
+    };
+    const update = deps.store.updateSubscriptionIf.bind(deps.store);
+    let calls = 0;
+    deps.store.updateSubscriptionIf = async (id, expected, patch) => {
+      calls++;
+      if (calls === 2) throw new Error("billing store updateSubscriptionIf: timeout");
+      return update(id, expected, patch);
+    };
+
+    await expect(cancelSubscription(deps, USER, LIVEMODE)).rejects.toThrow("connection reset");
+    const text = deps.log.mock.calls.map(([m]) => m).join("\n");
+    expect(text).toContain("needs review");
+    expect(text).toContain(sub.id);
+    // 예약은 남았다 — 해지를 원한 사용자 쪽으로 남고, 크론은 예약된 구독을 결제하지 않는다
+    expect(deps.store.rows.subscriptions[0].cancel_at_period_end).toBe(true);
     expect(deps.mailer.sent).toHaveLength(0);
   });
 
@@ -353,85 +419,84 @@ describe("resumeSubscription — 해지 취소(재개)", () => {
   });
 });
 
-describe("endSubscriptionsForDeletion — 탈퇴 전 정리", () => {
+describe("탈퇴 정리 — 모으고(collectDeletionTargets) → 계정 삭제 → id로 끝낸다(endSubscriptionsForDeletion)", () => {
   /** 기록 대역 — 흐름이 남기는 "확인 필요" 줄을 모은다 */
   const logger = () => vi.fn<(message: string) => Promise<void>>(async () => undefined);
 
-  it("두 모드의 진행 중 토스 구독을 모두 끝내고(user_canceled) 그 모드의 빌링키를 지운다 — 메일 없음, 개수를 돌려준다", async () => {
+  /** 탈퇴 한 번 — 모으고, 계정을 지우고(0041의 cascade·set null 흉내), 끝낸다 */
+  async function deleteFlow(store: ReturnType<typeof createMemoryStore>, log = logger()) {
+    const targets = await collectDeletionTargets(store, USER);
+    deleteUserCascade(store, USER);
+    return { targets, ended: await endSubscriptionsForDeletion(store, targets, NOW, log), log };
+  }
+
+  it("모을 때는 아무것도 바꾸지 않는다 — 두 모드의 진행 중 토스 구독 id만(끝난 것·다른 사람·기관 계약 제외)", async () => {
     const live = subscriptionRow({ user_id: USER, livemode: true });
     const test = pastDue({ livemode: false });
     const ended = subscriptionRow({ user_id: USER, status: "ended", ended_reason: "payment_failed", ended_at: iso(NOW - 40 * DAY) });
+    const contract = subscriptionRow({ user_id: USER, provider: "manual", livemode: true, interval: "contract", price_id: null, billing_anchor_day: null });
+    const others = subscriptionRow({ user_id: USER2 });
+    const store = createMemoryStore({ subscriptions: [live, test, ended, contract, others], customers: [keyed()] });
+    const before = structuredClone(store.rows);
+
+    const targets = await collectDeletionTargets(store, USER);
+
+    expect(targets).toEqual({ subscriptionIds: [live.id, test.id], pendingInitialModes: 0 });
+    expect(store.rows).toEqual(before);
+  });
+
+  it("계정을 지운 뒤 모아 둔 구독을 id로 끝낸다(user_canceled) — 사용자 id가 비어도 끝나고, 메일은 없고, 개수를 돌려준다", async () => {
+    const live = subscriptionRow({ user_id: USER, livemode: true });
+    const test = pastDue({ livemode: false });
     const others = subscriptionRow({ user_id: USER2 });
     const store = createMemoryStore({
-      subscriptions: [live, test, ended, others],
-      customers: [
-        keyed({ livemode: true }),
-        keyed({ livemode: false, toss_billing_key_enc: "v1:test-iv:test-tag:test-ct" }),
-        customerRow({ user_id: USER2, livemode: false, toss_billing_key_enc: OLD_KEY, toss_card_summary: CARD }),
-      ],
+      subscriptions: [live, test, others],
+      customers: [keyed({ livemode: true }), keyed({ livemode: false }), customerRow({ user_id: USER2, livemode: false, toss_billing_key_enc: OLD_KEY })],
     });
-    const log = logger();
 
-    expect(await endSubscriptionsForDeletion(store, USER, NOW, log)).toBe(2);
+    const { ended, log } = await deleteFlow(store);
 
+    expect(ended).toBe(2);
     const byId = (id: string) => store.rows.subscriptions.find((s) => s.id === id)!;
     for (const id of [live.id, test.id]) {
-      expect(byId(id)).toMatchObject({ status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
+      expect(byId(id)).toMatchObject({ user_id: null, status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
     }
-    expect(byId(ended.id)).toMatchObject({ ended_reason: "payment_failed", ended_at: pgTime(NOW - 40 * DAY) });
     expect(byId(others.id).status).toBe("active");
-    const mine = store.rows.customers.filter((c) => c.user_id === USER);
-    expect(mine.map((c) => [c.toss_billing_key_enc, c.toss_card_summary])).toEqual([
-      [null, null],
-      [null, null],
-    ]);
-    expect(store.rows.customers.find((c) => c.user_id === USER2)?.toss_billing_key_enc).toBe(OLD_KEY);
+    // 빌링키는 고객 행 cascade로 계정과 함께 지워졌다 — 다른 사람의 고객 행은 그대로
+    expect(store.rows.customers.map((c) => c.user_id)).toEqual([USER2]);
     expect(log).not.toHaveBeenCalled();
   });
 
-  it("기관 계약(manual)은 건드리지 않고, 끝낸 구독이 없는 모드의 고객 행도 그대로", async () => {
-    const contract = subscriptionRow({ user_id: USER, provider: "manual", livemode: true, interval: "contract", price_id: null, billing_anchor_day: null });
-    const test = subscriptionRow({ user_id: USER, livemode: false });
-    const store = createMemoryStore({
-      subscriptions: [contract, test],
-      customers: [keyed({ livemode: true }), keyed({ livemode: false })],
-    });
-
-    expect(await endSubscriptionsForDeletion(store, USER, NOW, logger())).toBe(1);
-    expect(store.rows.subscriptions.find((s) => s.id === contract.id)).toMatchObject({ status: "active", ended_at: null });
-    expect(store.rows.subscriptions.find((s) => s.id === test.id)?.status).toBe("ended");
-    expect(store.rows.customers.find((c) => c.livemode)?.toss_billing_key_enc).toBe(OLD_KEY);
-    expect(store.rows.customers.find((c) => !c.livemode)?.toss_billing_key_enc).toBeNull();
-  });
-
-  it("진행 중 구독이 없으면 0 — 아무것도 바꾸지 않는다. 그 사이 크론이 끝낸 구독은 세지 않는다", async () => {
-    const store = createMemoryStore({ customers: [keyed()] });
-    expect(await endSubscriptionsForDeletion(store, USER, NOW, logger())).toBe(0);
-    expect(store.rows.customers[0].toss_billing_key_enc).toBe(OLD_KEY);
+  it("진행 중 구독이 없으면 0 — 저장소를 부르지 않는다. 그 사이 크론이 끝낸 구독은 세지 않는다", async () => {
+    const empty = createMemoryStore({ customers: [keyed()] });
+    const quiet = { subscriptionIds: [], pendingInitialModes: 0 };
+    const update = vi.spyOn(empty, "updateSubscriptionIf");
+    const pending = vi.spyOn(empty, "hasPendingPayment");
+    expect(await endSubscriptionsForDeletion(empty, quiet, NOW, logger())).toBe(0);
+    expect(update).not.toHaveBeenCalled();
+    expect(pending).not.toHaveBeenCalled();
 
     const sub = pastDue();
-    const racing = createMemoryStore({ subscriptions: [sub], customers: [keyed()] });
-    const update = racing.updateSubscriptionIf.bind(racing);
-    racing.updateSubscriptionIf = async (id, expected, patch) => {
-      Object.assign(racing.rows.subscriptions[0], { status: "ended", ended_reason: "payment_failed", ended_at: pgTime(NOW - 1000) });
-      return update(id, expected, patch);
-    };
+    const racing = createMemoryStore({ subscriptions: [sub] });
+    const targets = await collectDeletionTargets(racing, USER);
+    // 모은 뒤·끝내기 전에 크론이 미납 종료를 했다
+    Object.assign(racing.rows.subscriptions[0], { status: "ended", ended_reason: "payment_failed", ended_at: pgTime(NOW - 1000) });
     const log = logger();
-    expect(await endSubscriptionsForDeletion(racing, USER, NOW, log)).toBe(0);
+    expect(await endSubscriptionsForDeletion(racing, targets, NOW, log)).toBe(0);
     expect(racing.rows.subscriptions[0].ended_reason).toBe("payment_failed");
     // 끝내지 못한(크론이 먼저 끝낸) 구독은 이 호출이 확인하지 않는다 — 크론이 자기 결제를 확정한다
     expect(log).not.toHaveBeenCalled();
   });
 
-  it("결과를 모르는(pending) 결제가 걸린 채 끝낸 구독은 탈퇴를 막지 않고 id만 기록에 남긴다 — 사용자·카드 정보는 넣지 않는다", async () => {
+  it("결과를 모르는(pending) 결제가 걸린 채 끝낸 구독은 id만 기록에 남긴다 — 사용자·카드 정보는 넣지 않는다", async () => {
     const sub = subscriptionRow({ user_id: USER });
     const calm = subscriptionRow({ user_id: USER, livemode: true });
     const inFlight = paymentRow({ user_id: USER, subscription_id: sub.id, status: "pending", kind: "renewal" });
     const store = createMemoryStore({ subscriptions: [sub, calm], payments: [inFlight], customers: [keyed()] });
-    const log = logger();
 
-    expect(await endSubscriptionsForDeletion(store, USER, NOW, log)).toBe(2);
+    const { ended, log } = await deleteFlow(store);
 
+    expect(ended).toBe(2);
     expect(store.rows.subscriptions.every((s) => s.status === "ended")).toBe(true);
     expect(log).toHaveBeenCalledTimes(1);
     const line = log.mock.calls[0][0];
@@ -442,13 +507,15 @@ describe("endSubscriptionsForDeletion — 탈퇴 전 정리", () => {
     expect(line).not.toContain(OLD_KEY);
   });
 
-  it("구독 없이 결과를 모르는 첫 결제만 남아도 두 모드 모두 확인해 기록한다", async () => {
+  it("구독 없이 결과를 모르는 첫 결제만 남아도 — 계정을 지우기 전에 두 모드를 확인해 두고(지우면 user_id가 빈다) 기록한다", async () => {
     for (const livemode of [false, true]) {
       const store = createMemoryStore({ payments: [paymentRow({ user_id: USER, livemode, kind: "initial", status: "pending", subscription_id: null })] });
-      const log = logger();
 
-      expect(await endSubscriptionsForDeletion(store, USER, NOW, log)).toBe(0);
+      const { targets, ended, log } = await deleteFlow(store);
 
+      expect(targets.pendingInitialModes).toBe(1);
+      expect(store.rows.payments[0].user_id).toBeNull();
+      expect(ended).toBe(0);
       expect(log).toHaveBeenCalledTimes(1);
       expect(log.mock.calls[0][0]).toMatch(/^billing needs review: account deleted with pending payment/);
       expect(log.mock.calls[0][0]).toContain("modes with pending initial payment: 1");
@@ -464,42 +531,63 @@ describe("endSubscriptionsForDeletion — 탈퇴 전 정리", () => {
         paymentRow({ user_id: USER, subscription_id: sub.id, status: "paid" }),
       ],
     });
-    const log = logger();
-    expect(await endSubscriptionsForDeletion(store, USER, NOW, log)).toBe(1);
+    const { ended, log } = await deleteFlow(store);
+    expect(ended).toBe(1);
     expect(log).not.toHaveBeenCalled();
   });
 
-  it("끝낸 뒤 pending 확인이 실패해도 던지지 않는다 — 구독은 이미 끝났으니 탈퇴는 계속되고, 확인하지 못했음을 기록한다", async () => {
+  it("pending 확인이 실패해도 던지지 않는다 — 계정은 이미 지워졌고, 확인하지 못했음을 기록한다", async () => {
     const sub = subscriptionRow({ user_id: USER });
     const store = createMemoryStore({ subscriptions: [sub] });
     store.hasPendingPayment = async () => {
       throw new Error("billing store hasPendingPayment: timeout");
     };
-    const log = logger();
 
-    expect(await endSubscriptionsForDeletion(store, USER, NOW, log)).toBe(1);
+    const { ended, log } = await deleteFlow(store);
 
+    expect(ended).toBe(1);
     expect(store.rows.subscriptions[0].status).toBe("ended");
     expect(log).toHaveBeenCalledTimes(1);
     expect(log.mock.calls[0][0]).toMatch(/^billing needs review: account deleted without checking pending payments/);
     expect(log.mock.calls[0][0]).toContain("timeout");
+
+    // 첫 결제 확인이 모을 때 실패해도 탈퇴를 막지 않고 같은 기록을 남긴다
+    const initialFails = createMemoryStore({});
+    initialFails.hasPendingInitialPayment = async () => {
+      throw new Error("billing store hasPendingInitialPayment: timeout");
+    };
+    const second = await deleteFlow(initialFails);
+    expect(second.targets.pendingInitialModes).toBeNull();
+    expect(second.log.mock.calls[0][0]).toMatch(/^billing needs review: account deleted without checking pending payments/);
   });
 
-  it("구독을 읽거나 끝내는 데 실패하면 던진다 — 호출부가 탈퇴를 멈춘다. 이때 빌링키는 건드리지 않는다", async () => {
+  it("구독 목록을 읽지 못하면 모으기가 던진다 — 호출부가 탈퇴를 멈춘다(끝낼 구독을 모른 채 계정을 지우지 않는다)", async () => {
     const readFails = createMemoryStore({ subscriptions: [subscriptionRow({ user_id: USER })], customers: [keyed()] });
     readFails.listLiveSubscriptions = async () => {
       throw new Error("billing store listLiveSubscriptions: timeout");
     };
-    await expect(endSubscriptionsForDeletion(readFails, USER, NOW, logger())).rejects.toThrow("listLiveSubscriptions");
+    await expect(collectDeletionTargets(readFails, USER)).rejects.toThrow("listLiveSubscriptions");
     expect(readFails.rows.subscriptions[0].status).toBe("active");
-    expect(readFails.rows.customers[0].toss_billing_key_enc).toBe(OLD_KEY);
+  });
 
-    const writeFails = createMemoryStore({ subscriptions: [subscriptionRow({ user_id: USER })], customers: [keyed()] });
-    writeFails.updateSubscriptionIf = async () => {
-      throw new Error("billing store updateSubscriptionIf: timeout");
+  it("탈퇴 뒤 끝내기가 실패해도 던지지 않는다 — 구독 id를 담은 확인 필요 기록을 남기고, 끝낸 것만 센다", async () => {
+    const a = subscriptionRow({ user_id: USER, livemode: false });
+    const b = subscriptionRow({ user_id: USER, livemode: true });
+    const store = createMemoryStore({ subscriptions: [a, b], customers: [keyed()] });
+    const update = store.updateSubscriptionIf.bind(store);
+    store.updateSubscriptionIf = async (id, expected, patch) => {
+      if (id === a.id) throw new Error("billing store updateSubscriptionIf: timeout");
+      return update(id, expected, patch);
     };
-    await expect(endSubscriptionsForDeletion(writeFails, USER, NOW, logger())).rejects.toThrow("updateSubscriptionIf");
-    expect(writeFails.rows.customers[0].toss_billing_key_enc).toBe(OLD_KEY);
+
+    const { ended, log } = await deleteFlow(store);
+
+    expect(ended).toBe(1);
+    expect(store.rows.subscriptions.find((s) => s.id === b.id)?.status).toBe("ended");
+    const text = log.mock.calls.map(([m]) => m).join("\n");
+    expect(text).toContain("billing needs review");
+    expect(text).toContain(a.id);
+    expect(text).not.toContain(USER);
   });
 });
 
