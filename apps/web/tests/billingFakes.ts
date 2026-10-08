@@ -443,6 +443,34 @@ export function subscriptionRow(over: Partial<SubscriptionRow> & Pick<Subscripti
   };
 }
 
+/** 이미 있는 결제 행(대사 대상 등) — 기본은 10분보다 오래된 pending 첫 결제 */
+export function paymentRow(over: Partial<PaymentRow> & Pick<PaymentRow, "user_id">): PaymentRow {
+  return {
+    id: randomUUID(),
+    subscription_id: null,
+    checkout_id: null,
+    provider: "toss",
+    livemode: false,
+    kind: "initial",
+    order_id: `pay_${randomUUID()}`,
+    external_payment_id: null,
+    amount: 1234,
+    currency: "KRW",
+    period_start: iso(NOW),
+    period_end: iso(NOW + 28 * DAY),
+    attempt: 1,
+    status: "pending",
+    failure_code: null,
+    failure_message: null,
+    receipt_url: null,
+    card_summary: null,
+    refunded_amount: 0,
+    requested_at: iso(NOW - 60 * MIN),
+    approved_at: null,
+    ...over,
+  };
+}
+
 export function billingAuth(over: Partial<TossBillingAuth> = {}): TossBillingAuth {
   return { billingKey: "bk_plain_secret_0001", card: { issuerCode: "61", number: "1234****", cardType: "신용" }, ...over };
 }
@@ -456,6 +484,7 @@ export function tossPayment(over: Partial<TossPayment> = {}): TossPayment {
     receiptUrl: "https://dashboard.tosspayments.com/receipt/0001",
     card: { issuerCode: "61", number: "1234****", cardType: "신용" },
     totalAmount: 1234,
+    balanceAmount: null,
     ...over,
   };
 }

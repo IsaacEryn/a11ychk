@@ -75,7 +75,7 @@ export default async function AdminDashboardPage({ params }: { params: Promise<{
   // ── 크론 실행 상태 (cron_runs, 0030) — 미적용 환경은 조회 실패를 관용해 "기록 없음" 표시 ──
   type CronRunRow = { started_at: string; finished_at: string | null; ok: boolean | null };
   const cronJobs = await Promise.all(
-    (["scheduled-scans", "repo-stats"] as const).map(async (job) => {
+    (["scheduled-scans", "repo-stats", "billing"] as const).map(async (job) => {
       const { data } = await admin
         .from("cron_runs")
         .select("started_at, finished_at, ok")

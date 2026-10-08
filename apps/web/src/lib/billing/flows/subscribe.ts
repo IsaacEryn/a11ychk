@@ -1,7 +1,7 @@
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { encryptBillingKey } from "@/lib/billing/crypto";
-import type { BillingEmailData } from "@/lib/billing/emails";
+import type { BillingEmailData, BillingEmailKind } from "@/lib/billing/emails";
 import { addInterval, kstDayOfMonth } from "@/lib/billing/period";
 import {
   TossError,
@@ -39,7 +39,8 @@ const DUPLICATE_CANCEL_REASON = "중복 구독 자동 취소";
 
 const iso = (t: number) => new Date(t).toISOString();
 /** 기록용 오류 문자열 — 저장소·토스 오류 메시지에는 비밀 값이 들어가지 않는다(각 모듈의 규칙) */
-const errorText = (e: unknown) => (e instanceof TossError ? `${e.code} (${e.status})` : e instanceof Error ? e.message : String(e)).slice(0, 500);
+export const errorText = (e: unknown) =>
+  (e instanceof TossError ? `${e.code} (${e.status})` : e instanceof Error ? e.message : String(e)).slice(0, 500);
 
 /** 메일·주문명에 쓰는 플랜 표시 이름 */
 export function planNameFor(planCode: string): string {
@@ -58,6 +59,60 @@ export function newOrderId(): string {
 export function cardLabel(card: CardSummary | null): string | null {
   if (!card) return null;
   return [card.cardType, card.number].filter(Boolean).join(" ") || null;
+}
+
+/** 토스가 승인한 결제에서 결제 행에 옮겨 적는 값 — 갱신·대사·경합 취소가 함께 쓴다 */
+export function paidFields(deps: BillingDeps, charged: TossPayment): Pick<PaymentRow, "external_payment_id" | "approved_at" | "receipt_url" | "card_summary"> {
+  return {
+    external_payment_id: charged.paymentKey,
+    approved_at: charged.approvedAt ?? iso(deps.now()),
+    receipt_url: charged.receiptUrl,
+    card_summary: charged.card,
+  };
+}
+
+/** 보낸 금액·주문번호와 응답이 다르면 기록한다 — 결제 행(실제로 요청한 값)을 기준으로 진행하고 운영자가 확인한다 */
+export async function warnIfResponseDiffers(deps: BillingDeps, payment: PaymentRow, charged: TossPayment): Promise<void> {
+  if (charged.totalAmount === payment.amount && charged.orderId === payment.order_id) return;
+  await deps.log(
+    `billing payment ${payment.id} response differs from the payment row (amount ${charged.totalAmount} vs ${payment.amount}, orderId ${charged.orderId === payment.order_id ? "same" : "different"})`,
+  );
+}
+
+/**
+ * 결제 메일 — 관리·요금제 주소는 메일러가 붙인다. 메일러는 원래 던지지 않지만, 던지더라도
+ * 결제 상태는 이미 바뀐 뒤라 결과를 바꾸지 않고 기록만 한다(ref = 기록에 남길 결제·구독 id).
+ */
+export async function sendBillingMail<K extends BillingEmailKind>(
+  deps: BillingDeps,
+  userId: string | null,
+  kind: K,
+  data: Omit<BillingEmailData[K], "manageUrl" | "pricingUrl">,
+  ref: string,
+): Promise<void> {
+  try {
+    await deps.mailer.send(userId, kind, data as Record<string, unknown>);
+  } catch (e) {
+    await deps.log(`billing ${kind} mail failed for ${ref}: ${errorText(e)}`);
+  }
+}
+
+/** 결제 완료 영수증 — 금액·통화·기간은 실제로 청구한 결제 행의 값이다 */
+export async function sendReceipt(deps: BillingDeps, userId: string | null, planCode: string, payment: PaymentRow, charged: TossPayment): Promise<void> {
+  await sendBillingMail(
+    deps,
+    userId,
+    "receipt",
+    {
+      planName: planNameFor(planCode),
+      amount: payment.amount,
+      currency: payment.currency,
+      periodEnd: payment.period_end ?? "",
+      receiptUrl: charged.receiptUrl,
+      card: cardLabel(charged.card),
+    },
+    `payment ${payment.id}`,
+  );
 }
 
 /** 실행 중 어디까지 왔는지 — 예외가 났을 때 시도를 닫을지, 결제를 대사에 맡길지 정한다 */
@@ -254,12 +309,7 @@ export async function activateInitialPayment(
   const price = await store.getPrice(checkout.price_id);
   if (!price) return null;
   const userId = payment.user_id;
-  if (charged.totalAmount !== payment.amount || charged.orderId !== payment.order_id) {
-    // 보낸 금액·주문번호와 응답이 다르다 — 결제 행(실제로 요청한 값)을 기준으로 진행하고 운영자가 확인한다
-    await deps.log(
-      `billing payment ${payment.id} response differs from the payment row (amount ${charged.totalAmount} vs ${payment.amount}, orderId ${charged.orderId === payment.order_id ? "same" : "different"})`,
-    );
-  }
+  await warnIfResponseDiffers(deps, payment, charged);
 
   // 금액 스냅샷은 실제로 청구한 결제 행의 값이다
   const inserted = await store.insertSubscription({
@@ -285,42 +335,18 @@ export async function activateInitialPayment(
     subscriptionId = inserted.id;
   }
 
-  await store.updatePayment(payment.id, {
-    status: "paid",
-    external_payment_id: charged.paymentKey,
-    approved_at: charged.approvedAt ?? iso(deps.now()),
-    receipt_url: charged.receiptUrl,
-    card_summary: charged.card,
-    subscription_id: subscriptionId,
-  });
+  await store.updatePayment(payment.id, { status: "paid", ...paidFields(deps, charged), subscription_id: subscriptionId });
   await store.linkConsents(checkout.id, subscriptionId);
   await store.finishCheckout(checkout.id, { status: "completed", subscription_id: subscriptionId });
 
-  const receipt: Omit<BillingEmailData["receipt"], "manageUrl"> = {
-    planName: planNameFor(price.plan_code),
-    amount: payment.amount,
-    currency: payment.currency,
-    periodEnd: payment.period_end,
-    receiptUrl: charged.receiptUrl,
-    card: cardLabel(charged.card),
-  };
-  try {
-    await deps.mailer.send(userId, "receipt", receipt);
-  } catch (e) {
-    // 메일러는 원래 던지지 않는다 — 그래도 구독이 만들어진 뒤라 결과를 바꾸지 않는다
-    await deps.log(`billing receipt mail failed for payment ${payment.id}: ${errorText(e)}`);
-  }
+  // 구독이 만들어진 뒤라 메일 실패는 결과를 바꾸지 않는다
+  await sendReceipt(deps, userId, price.plan_code, payment, charged);
   return subscriptionId;
 }
 
 /** 결제는 됐는데 다른 시도가 먼저 구독을 만들었다 — 이번 결제를 돌려준다 */
 async function cancelDuplicate(deps: BillingDeps, payment: PaymentRow, checkout: CheckoutRow, charged: TossPayment): Promise<"hasActive"> {
-  const settled = {
-    external_payment_id: charged.paymentKey,
-    approved_at: charged.approvedAt ?? iso(deps.now()),
-    receipt_url: charged.receiptUrl,
-    card_summary: charged.card,
-  };
+  const settled = paidFields(deps, charged);
   let refunded = false;
   try {
     await deps.toss.cancelPayment(charged.paymentKey, { cancelReason: DUPLICATE_CANCEL_REASON }, `cancel_${payment.id}`);

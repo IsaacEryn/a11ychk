@@ -26,6 +26,8 @@ export interface TossPayment {
   receiptUrl: string | null;
   card: CardSummary | null;
   totalAmount: number;
+  /** 취소하고 남은 금액(토스 balanceAmount) — 응답에 없으면 null. 대사가 환불액을 적을 때 쓴다 */
+  balanceAmount: number | null;
 }
 
 export class TossError extends Error {
@@ -114,6 +116,7 @@ function paymentOf(raw: Record<string, unknown>): TossPayment {
     receiptUrl: typeof receipt?.url === "string" ? receipt.url : null,
     card: cardOf(raw.card),
     totalAmount: typeof raw.totalAmount === "number" ? raw.totalAmount : 0,
+    balanceAmount: typeof raw.balanceAmount === "number" ? raw.balanceAmount : null,
   };
 }
 

@@ -133,7 +133,13 @@ describe("토스 클라이언트 요청 모양과 응답 요약", () => {
   it("카드가 없는 결제 응답은 card: null, 영수증이 없으면 receiptUrl: null", async () => {
     const f = fakeFetch(200, { paymentKey: "pk", orderId: "pay_1", status: "DONE", totalAmount: 10 });
     const p = await createTossClient("test_sk_x", f).getPaymentByOrderId("pay_1");
-    expect(p).toMatchObject({ card: null, receiptUrl: null, approvedAt: null, totalAmount: 10 });
+    expect(p).toMatchObject({ card: null, receiptUrl: null, approvedAt: null, totalAmount: 10, balanceAmount: null });
+  });
+
+  it("부분 취소된 결제는 남은 금액(balanceAmount)을 함께 읽는다", async () => {
+    const f = fakeFetch(200, { paymentKey: "pk", orderId: "pay_1", status: "PARTIAL_CANCELED", totalAmount: 1234, balanceAmount: 734 });
+    const p = await createTossClient("test_sk_x", f).getPaymentByOrderId("pay_1");
+    expect(p).toMatchObject({ status: "PARTIAL_CANCELED", totalAmount: 1234, balanceAmount: 734 });
   });
 
   it("주문 조회는 GET이고 주문 번호를 경로에 인코딩하며 본문이 없다", async () => {

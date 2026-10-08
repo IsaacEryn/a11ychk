@@ -1426,7 +1426,8 @@
       "title": "Scheduled jobs",
       "jobs": {
         "scheduled-scans": "Scheduled scans & cleanup (daily)",
-        "repo-stats": "Repo stats collection (daily)"
+        "repo-stats": "Repo stats collection (daily)",
+        "billing": "Billing renewals & dunning (daily)"
       },
       "ok": "OK",
       "fail": "Failed",
