@@ -115,6 +115,7 @@ describe("Polar 클라이언트 요청 모양", () => {
       expires_at: "2026-01-01T01:00:00Z",
       external_customer_id: USER_ID,
       product_id: PRODUCT_ID,
+      subscription_id: null,
       metadata: { attempt: "a1" },
     });
   });
@@ -128,6 +129,11 @@ describe("Polar 클라이언트 요청 모양", () => {
     expect(init.method).toBe("GET");
     expect(init.body).toBeUndefined();
     expect(init.headers.Authorization).toBe("Bearer polar_oat_fake_token");
+  });
+
+  it("결제창 조회 — 결제가 끝나 생긴 구독 id(subscription_id)를 읽는다", async () => {
+    const c = await createPolarClient(KEYS, fakeFetch(200, { ...checkout, status: "succeeded", subscription_id: SUB_ID })).getCheckout(CHECKOUT_ID);
+    expect(c.subscription_id).toBe(SUB_ID);
   });
 
   it("구독 조회 — 필요한 필드만 읽는다", async () => {
@@ -258,6 +264,42 @@ describe("Polar 클라이언트 요청 모양", () => {
     expect(JSON.parse(init.body)).toEqual({ order_id: ORDER_ID, reason: "other", amount: 1334, comment: "fake" });
   });
 
+  it("환불 조회 — 한 건 조회가 없어 GET /v1/refunds/?id=…&limit=1 목록에서 그 id를 고른다(metadata 포함)", async () => {
+    const item = {
+      id: REFUND_ID,
+      status: "succeeded",
+      amount: 1234,
+      tax_amount: 100,
+      currency: "usd",
+      order_id: ORDER_ID,
+      subscription_id: SUB_ID,
+      customer_id: CUSTOMER_ID,
+      metadata: { payment_id: "p1" },
+      reason: "other",
+    };
+    const f = fakeFetch(200, { items: [item], pagination: { total_count: 1, max_page: 1 } });
+    const r = await createPolarClient(KEYS, f).getRefund(REFUND_ID);
+    expect(r).toEqual({ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID, metadata: { payment_id: "p1" } });
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe(`https://sandbox-api.polar.sh/v1/refunds/?id=${REFUND_ID}&limit=1`);
+    expect(init.method).toBe("GET");
+    expect(init.body).toBeUndefined();
+  });
+
+  it("환불 조회 — 목록이 비었거나 다른 id뿐이면 404(ResourceNotFound), 결과 불명이 아니다", async () => {
+    for (const items of [[], [{ id: ORDER_ID, status: "succeeded", amount: 1, order_id: ORDER_ID, metadata: {} }]]) {
+      const err = await createPolarClient(KEYS, fakeFetch(200, { items, pagination: { total_count: 0, max_page: 0 } })).getRefund(REFUND_ID).catch((e) => e);
+      expect(err).toMatchObject({ name: "PolarError", code: "ResourceNotFound", status: 404, mutating: false });
+      expect(isPolarOutcomeUnknown(err)).toBe(false);
+    }
+  });
+
+  it("환불 조회 — 대문자 id도 같은 환불로 고르고, metadata가 없으면 빈 객체", async () => {
+    const f = fakeFetch(200, { items: [{ id: REFUND_ID, status: "pending", amount: 1, order_id: ORDER_ID, metadata: null }] });
+    const r = await createPolarClient(KEYS, f).getRefund(REFUND_ID.toUpperCase());
+    expect(r).toMatchObject({ id: REFUND_ID, metadata: {} });
+  });
+
   it("고객 포털 세션 — POST /v1/customer-sessions/, 토큰은 버린다", async () => {
     const f = fakeFetch(201, {
       id: "88888888-8888-4888-8888-888888888888",
@@ -315,6 +357,7 @@ describe("경로 id 검사 — UUID가 아니면 호출 전에 INVALID_ID", () =
       () => client.getOrder(bad),
       () => client.getSubscription(bad),
       () => client.getCheckout(bad),
+      () => client.getRefund(bad),
       () => client.updateSubscription(bad, { revoke: true }),
     ]) {
       await expect(call()).rejects.toMatchObject({ name: "PolarError", code: "INVALID_ID", status: 0 });
@@ -540,6 +583,7 @@ describe("쓰기 요청의 2xx BAD_RESPONSE는 결과 불명 — Polar가 이미
     ["getSubscription", (c) => c.getSubscription(SUB_ID)],
     ["getOrder", (c) => c.getOrder(ORDER_ID)],
     ["getCheckout", (c) => c.getCheckout(CHECKOUT_ID)],
+    ["getRefund", (c) => c.getRefund(REFUND_ID)],
   ])("읽기 요청 %s → false", async (_, run) => {
     const err = await run(createPolarClient(KEYS, fakeFetch(200, invalid))).catch((e) => e);
     expect(err).toMatchObject({ name: "PolarError", code: "BAD_RESPONSE", status: 200, mutating: false });

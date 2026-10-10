@@ -133,6 +133,8 @@ export interface PolarCheckout {
   expires_at: string;
   external_customer_id: string | null;
   product_id: string | null;
+  /** 결제가 끝나 만들어진 구독 — 그 전에는 null */
+  subscription_id: string | null;
   metadata: PolarMetadata;
 }
 
@@ -141,6 +143,11 @@ export interface PolarRefund {
   status: Open<PolarRefundStatus>;
   amount: number;
   order_id: string;
+  /**
+   * 조회(getRefund)에서만 읽는다 — 자동 환불이면 우리 결제 id(payment_id)가 있다(flows/mor.ts가 createRefund에 넣는다).
+   * createRefund 응답에서는 읽지 않는다
+   */
+  metadata?: PolarMetadata;
 }
 
 /** 세션 토큰은 따로 읽지 않는다(포털 주소에만 담겨 있다) */
@@ -186,6 +193,8 @@ export interface PolarClient {
   getSubscription(id: string): Promise<PolarSubscription>;
   updateSubscription(id: string, change: PolarSubscriptionChange): Promise<PolarSubscription>;
   getOrder(id: string): Promise<PolarOrder>;
+  /** Polar에는 환불 한 건 조회가 없어 목록(GET /v1/refunds/?id=)을 id로 거른다. 없으면 PolarError 404(ResourceNotFound) */
+  getRefund(id: string): Promise<PolarRefund>;
   createRefund(input: PolarRefundInput): Promise<PolarRefund>;
   createCustomerSession(input: PolarCustomerSessionInput): Promise<PolarCustomerSession>;
 }
@@ -268,14 +277,20 @@ const checkoutSchema: z.ZodType<PolarCheckout, z.ZodTypeDef, unknown> = z.object
   expires_at: isoDate,
   external_customer_id: nullableString,
   product_id: nullableString,
+  subscription_id: nullableString,
   metadata,
 });
 
-const refundSchema: z.ZodType<PolarRefund, z.ZodTypeDef, unknown> = z.object({
+const refundFields = {
   id: requiredId,
   status: z.string().min(1),
   amount: cents,
   order_id: requiredId,
+};
+const refundSchema: z.ZodType<PolarRefund, z.ZodTypeDef, unknown> = z.object(refundFields);
+/** 환불 목록 — 항목마다 metadata까지(자동 환불의 결제 id). pagination 같은 나머지는 버린다 */
+const refundListSchema: z.ZodType<{ items: PolarRefund[] }, z.ZodTypeDef, unknown> = z.object({
+  items: z.array(z.object({ ...refundFields, metadata })),
 });
 
 const customerSessionSchema: z.ZodType<PolarCustomerSession, z.ZodTypeDef, unknown> = z.object({
@@ -386,6 +401,14 @@ export function createPolarClient(keys: Pick<PolarKeys, "accessToken" | "apiBase
     },
     async getOrder(id) {
       return call(deps, "getOrder", { method: "GET", path: idPath("/v1/orders/", id) }, orderSchema);
+    },
+    async getRefund(id) {
+      // 목록 조회는 refunds:read 또는 refunds:write 스코프로 된다(환불을 만드는 토큰이면 따로 스코프를 더하지 않아도 된다)
+      const path = `${idPath("/v1/refunds/?id=", id)}&limit=1`;
+      const { items } = await call(deps, "getRefund", { method: "GET", path }, refundListSchema);
+      const found = items.find((r) => r.id.toLowerCase() === id.toLowerCase());
+      if (!found) throw new PolarError("ResourceNotFound", "polar getRefund failed: ResourceNotFound (404)", 404);
+      return found;
     },
     createRefund(input) {
       return call(deps, "createRefund", { method: "POST", path: "/v1/refunds/", body: input }, refundSchema);

@@ -46,6 +46,9 @@ interface PgError {
 }
 
 const UNIQUE_VIOLATION = "23505";
+/** billing_webhook_events.attempts는 smallint */
+const SMALLINT_MAX = 32767;
+const LAST_ERROR_MAX = 500;
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** PostgREST or 필터에 넣는 시각 — ISO 모양만(따옴표·쉼표·괄호가 필터 문법을 바꾸지 못하게) */
 const FILTER_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
@@ -514,6 +517,74 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
     async updateRefund(id, patch) {
       const { error } = await admin.from("billing_refunds").update(defined(patch)).eq("id", id);
       if (error) throw fail("updateRefund", error);
+    },
+
+    async findRefundByExternal(externalRefundId) {
+      const { data, error } = await admin
+        .from("billing_refunds")
+        .select(REFUND_COLS)
+        .eq("external_refund_id", externalRefundId)
+        .order("created_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw fail("findRefundByExternal", error);
+      return (data as RefundRow | null) ?? null;
+    },
+
+    async getRefund(id) {
+      const { data, error } = await admin.from("billing_refunds").select(REFUND_COLS).eq("id", id).maybeSingle();
+      if (error) throw fail("getRefund", error);
+      return (data as RefundRow | null) ?? null;
+    },
+
+    async updateRefundIf(id, expected, patch) {
+      const base = admin.from("billing_refunds").update(defined(patch)).eq("id", id).eq("status", expected.status);
+      const guarded = expected.externalRefundId === null ? base.is("external_refund_id", null) : base.eq("external_refund_id", expected.externalRefundId);
+      const { data, error } = await guarded.select("id");
+      if (error) throw fail("updateRefundIf", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    // ── 웹훅 이벤트 ──
+
+    async recordWebhookEvent(provider, eventId, type, payload) {
+      const { error } = await admin.from("billing_webhook_events").insert({ provider, event_id: eventId, event_type: type, payload });
+      if (!error) return "new";
+      if (error.code !== UNIQUE_VIOLATION) throw fail("recordWebhookEvent", error);
+
+      const { data, error: readError } = await admin
+        .from("billing_webhook_events")
+        .select("attempts, processed_at")
+        .eq("provider", provider)
+        .eq("event_id", eventId)
+        .maybeSingle();
+      if (readError) throw fail("recordWebhookEvent", readError);
+      const row = data as { attempts: number; processed_at: string | null } | null;
+      // 행은 지우지 않는다 — 충돌했는데 없으면 저장소가 이상하다(재시도에 맡긴다)
+      if (!row) throw new Error("billing store recordWebhookEvent: event row missing after conflict");
+      if (row.processed_at !== null) return "done";
+
+      const { data: bumped, error: bumpError } = await admin
+        .from("billing_webhook_events")
+        .update({ attempts: Math.min(row.attempts + 1, SMALLINT_MAX) })
+        .eq("provider", provider)
+        .eq("event_id", eventId)
+        .is("processed_at", null)
+        .select("event_id");
+      if (bumpError) throw fail("recordWebhookEvent", bumpError);
+      // 올리는 사이 다른 전달이 처리를 끝냈다
+      return Array.isArray(bumped) && bumped.length > 0 ? "retry" : "done";
+    },
+
+    async finishWebhookEvent(provider, eventId, outcome) {
+      const patch = outcome.error === undefined ? { processed_at: new Date().toISOString() } : { last_error: outcome.error.slice(0, LAST_ERROR_MAX) };
+      const { error } = await admin
+        .from("billing_webhook_events")
+        .update(patch)
+        .eq("provider", provider)
+        .eq("event_id", eventId)
+        .is("processed_at", null);
+      if (error) throw fail("finishWebhookEvent", error);
     },
   };
 }

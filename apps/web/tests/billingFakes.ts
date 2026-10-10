@@ -14,7 +14,7 @@
  */
 import { randomBytes, randomUUID } from "node:crypto";
 import { vi, type Mock } from "vitest";
-import { PolarError, type PolarClient, type PolarOrder, type PolarSubscription } from "../src/lib/billing/polar";
+import { PolarError, type PolarCheckout, type PolarClient, type PolarOrder, type PolarRefund, type PolarSubscription } from "../src/lib/billing/polar";
 import { TossError, type TossBillingAuth, type TossClient, type TossPayment } from "../src/lib/billing/toss";
 import type {
   BillingDeps,
@@ -31,6 +31,7 @@ import type {
   RefundRow,
   SubscriptionRow,
   TossCustomerRow,
+  WebhookEventPayload,
 } from "../src/lib/billing/types";
 
 /** 2026-01-31 01:00 KST — 앵커 31일(짧은 달 말일로 당겨지는 경우)을 기본으로 시험한다 */
@@ -50,6 +51,18 @@ export interface ConsentRow {
   snapshot?: Record<string, unknown>;
 }
 
+/** billing_webhook_events 행 — 시각은 PostgREST 표기 */
+export interface WebhookEventRow {
+  provider: string;
+  event_id: string;
+  event_type: string;
+  received_at: string;
+  processed_at: string | null;
+  attempts: number;
+  last_error: string | null;
+  payload: WebhookEventPayload | null;
+}
+
 /** 토스 행은 외부 열을 비워 둔다(없으면 null로 읽는다) */
 export type MemorySubscription = SubscriptionRow & Partial<MorSubscriptionFields>;
 
@@ -63,6 +76,7 @@ export interface MemoryRows {
   /** profiles 행이 있는 사용자 id — MoR 흐름의 사용자 확인·FK용 */
   profiles: string[];
   refunds: RefundRow[];
+  webhookEvents: WebhookEventRow[];
 }
 
 export type MemoryStore = BillingStore & { rows: MemoryRows };
@@ -218,6 +232,7 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
     consents: clone(seed.consents ?? []),
     profiles: clone(seed.profiles ?? []),
     refunds: clone(seed.refunds ?? []),
+    webhookEvents: clone(seed.webhookEvents ?? []),
   };
   /** FK 흉내(MoR 메서드만) — 23503 대신 저장소 오류로 */
   const fk = (method: string, ok: boolean, what: string) => {
@@ -576,6 +591,51 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       if (patch.status !== undefined && !["pending", "succeeded", "failed"].includes(patch.status)) throw storeError("updateRefund", "status check violation");
       Object.assign(r, defined(clone(patch)));
     },
+
+    async findRefundByExternal(externalRefundId) {
+      const r = rows.refunds.find((x) => x.external_refund_id === externalRefundId);
+      return r ? clone(r) : null;
+    },
+
+    async getRefund(id) {
+      const r = found(rows.refunds, id);
+      return r ? clone(r) : null;
+    },
+
+    async updateRefundIf(id, expected, patch) {
+      const r = found(rows.refunds, id);
+      if (!r || r.status !== expected.status || r.external_refund_id !== expected.externalRefundId) return false;
+      if (patch.status !== undefined && !["pending", "succeeded", "failed"].includes(patch.status)) throw storeError("updateRefundIf", "status check violation");
+      Object.assign(r, defined(clone(patch)));
+      return true;
+    },
+
+    async recordWebhookEvent(provider, eventId, type, payload) {
+      const e = rows.webhookEvents.find((x) => x.provider === provider && x.event_id === eventId);
+      if (!e) {
+        rows.webhookEvents.push({
+          provider,
+          event_id: eventId,
+          event_type: type,
+          received_at: pgTime(now()),
+          processed_at: null,
+          attempts: 1,
+          last_error: null,
+          payload: clone(payload),
+        });
+        return "new";
+      }
+      if (e.processed_at !== null) return "done";
+      e.attempts = Math.min(e.attempts + 1, 32767);
+      return "retry";
+    },
+
+    async finishWebhookEvent(provider, eventId, outcome) {
+      const e = rows.webhookEvents.find((x) => x.provider === provider && x.event_id === eventId);
+      if (!e || e.processed_at !== null) return;
+      if (outcome.error === undefined) e.processed_at = pgTime(now());
+      else e.last_error = outcome.error.slice(0, 500);
+    },
   };
 }
 
@@ -644,7 +704,15 @@ export function createFakeToss(script: Partial<TossScript> = {}): FakeToss {
 
 // ── 가짜 Polar ──
 
-type PolarMethods = "createCheckout" | "getCheckout" | "getSubscription" | "updateSubscription" | "getOrder" | "createRefund" | "createCustomerSession";
+type PolarMethods =
+  | "createCheckout"
+  | "getCheckout"
+  | "getSubscription"
+  | "updateSubscription"
+  | "getOrder"
+  | "getRefund"
+  | "createRefund"
+  | "createCustomerSession";
 type PolarResult<M extends PolarMethods> = Awaited<ReturnType<PolarClient[M]>>;
 /** 성공 값, 던질 PolarError, 또는 호출 시점에 실행할 함수(인자에 맞춘 응답·경합 흉내) */
 export type PolarStep<M extends PolarMethods> =
@@ -657,7 +725,16 @@ export type FakePolar = PolarClient & { calls: PolarCalls; script: PolarScript }
 
 /** 정해 둔 응답을 차례로 준다 — 응답이 없는 호출은 던진다(부르면 안 되는 호출을 테스트가 잡게) */
 export function createFakePolar(script: Partial<PolarScript> = {}): FakePolar {
-  const methods: PolarMethods[] = ["createCheckout", "getCheckout", "getSubscription", "updateSubscription", "getOrder", "createRefund", "createCustomerSession"];
+  const methods: PolarMethods[] = [
+    "createCheckout",
+    "getCheckout",
+    "getSubscription",
+    "updateSubscription",
+    "getOrder",
+    "getRefund",
+    "createRefund",
+    "createCustomerSession",
+  ];
   const queues = Object.fromEntries(methods.map((m) => [m, [...(script[m] ?? [])]])) as PolarScript;
   const calls = Object.fromEntries(methods.map((m) => [m, []])) as unknown as PolarCalls;
 
@@ -681,6 +758,7 @@ export function createFakePolar(script: Partial<PolarScript> = {}): FakePolar {
     getSubscription: (...args) => run("getSubscription", args),
     updateSubscription: (...args) => run("updateSubscription", args),
     getOrder: (...args) => run("getOrder", args),
+    getRefund: (...args) => run("getRefund", args),
     createRefund: (...args) => run("createRefund", args),
     createCustomerSession: (...args) => run("createCustomerSession", args),
   };
@@ -753,6 +831,26 @@ export function polarOrder(over: Partial<PolarOrder> = {}): PolarOrder {
     metadata: {},
     ...over,
   };
+}
+
+/** Polar 결제창(정본) — 기본은 열린 결제창, 우리 시도·사용자 id는 비어 있다 */
+export function polarCheckout(over: Partial<PolarCheckout> = {}): PolarCheckout {
+  return {
+    id: randomUUID(),
+    status: "open",
+    url: "https://sandbox.polar.sh/checkout/fake",
+    expires_at: "2026-01-20T17:00:00.000000Z",
+    external_customer_id: null,
+    product_id: null,
+    subscription_id: null,
+    metadata: {},
+    ...over,
+  };
+}
+
+/** Polar 환불(정본) — 기본은 succeeded, 금액은 가짜 값(cent) */
+export function polarRefund(over: Partial<PolarRefund> = {}): PolarRefund {
+  return { id: randomUUID(), status: "succeeded", amount: 1234, order_id: randomUUID(), metadata: {}, ...over };
 }
 
 // ── 가짜 메일러 ──

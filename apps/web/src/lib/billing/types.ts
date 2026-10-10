@@ -41,6 +41,16 @@ export interface NewConsent {
   disclosure_version: string;
   snapshot: Record<string, unknown>;
 }
+/** 웹훅을 보내는 결제사(billing_webhook_events.provider) */
+export type WebhookProvider = "polar";
+/** billing_webhook_events.payload — 본문 전문에는 개인정보(이메일·주소)가 있어 종류와 대상 id만 남긴다 */
+export interface WebhookEventPayload {
+  type: string;
+  data_id: string | null;
+}
+/** new: 처음 받음 / retry: 처리 전 행이 있었다(attempts를 올렸다) / done: 이미 처리했다 */
+export type WebhookEventRecord = "new" | "retry" | "done";
+
 /** 토스 고객 키가 채워진 고객 행 */
 export type TossCustomerRow = CustomerRow & { toss_customer_key: string };
 
@@ -160,6 +170,32 @@ export interface BillingStore {
   /** 기본 키 위반(같은 id가 이미 있음)이면 "duplicate" — 자동 환불의 선점이 진 쪽 */
   insertRefund(row: NewRefund): Promise<RefundRow | "duplicate">;
   updateRefund(id: string, patch: Partial<Pick<RefundRow, "status" | "external_refund_id">>): Promise<void>;
+  /** 결제사 환불 id로 찾은 환불 기록 — 같은 id가 여럿이면(만들지 않지만) 먼저 만든 것 */
+  findRefundByExternal(externalRefundId: string): Promise<RefundRow | null>;
+  getRefund(id: string): Promise<RefundRow | null>;
+  /**
+   * 상태와 결제사 환불 id가 읽은 값 그대로일 때만 바꾼다(바꿨으면 true) — 환불 웹훅이 엇갈려 와도 앞선 결과를 덮지 않게.
+   * externalRefundId가 null이면 "아직 비어 있음"이 조건이다
+   */
+  updateRefundIf(
+    id: string,
+    expected: { status: RefundRow["status"]; externalRefundId: string | null },
+    patch: Partial<Pick<RefundRow, "status" | "external_refund_id">>,
+  ): Promise<boolean>;
+
+  // ── 웹훅 이벤트(billing_webhook_events) — flows/morWebhook.ts ──
+
+  /**
+   * 받은 이벤트를 적는다 — (provider, event_id) 기본 키가 재전송을 가른다. 처음이면 "new", 처리 전 행이 있으면 attempts를 하나
+   * 올리고 "retry", 이미 처리했으면 "done". attempts는 읽고 쓰는 두 단계라 같은 이벤트가 동시에 오면 하나가 덜 셀 수 있다(횟수 기록일 뿐이다).
+   * payload는 {type, data_id}만 — 본문을 넣지 않는다
+   */
+  recordWebhookEvent(provider: WebhookProvider, eventId: string, type: string, payload: WebhookEventPayload): Promise<WebhookEventRecord>;
+  /**
+   * 처리 결과 — error가 없으면 processed_at, 있으면 last_error만 적는다(처리 전 행만 바꾼다 — 먼저 끝난 재전송의 완료를 덮지 않게).
+   * error는 짧은 코드·문구다(비밀·본문 없음, 저장소가 500자에서 자른다)
+   */
+  finishWebhookEvent(provider: WebhookProvider, eventId: string, outcome: { error?: string }): Promise<void>;
 }
 
 export type BillingEmailKind = "receipt" | "failed" | "reminder" | "cancelScheduled" | "ended";
