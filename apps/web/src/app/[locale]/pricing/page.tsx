@@ -4,7 +4,7 @@ import { getBillingFlags } from "@/lib/appSettings";
 import { billingMode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { shouldLog } from "@/lib/billing/logThrottle";
-import { SELF_SERVE_PLAN_IDS } from "@/lib/billing/price";
+import { SELF_SERVE_PLAN_IDS, amountInMajorUnits, pricingChannel } from "@/lib/billing/price";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout, canSeePrices, priceLivemode } from "@/lib/billing/visibility";
 import { logAppError } from "@/lib/logs";
@@ -27,25 +27,29 @@ interface ShownPrice {
   id: string;
   plan_code: string;
   interval: "month" | "year";
+  /** KRW는 원, USD는 cent */
   amount: number;
-  currency: "KRW";
+  currency: "KRW" | "USD";
 }
 
 /**
- * 진열할 가격 — 토스·원화·지금 모드의 활성 가격(billing_prices는 service role 전용이라 관리자 클라이언트로 읽는다).
+ * 진열할 가격 — 로케일의 결제 경로(pricingChannel: ko는 토스·원화, en은 판매 대행 Polar·USD)·지금 모드의 활성 가격
+ * (billing_prices는 service role 전용이라 관리자 클라이언트로 읽는다). Polar 가격은 상품 id가 있어야 결제창을 열 수 있어 그런 행만 진열한다.
  * 0041 미적용(테이블 없음)이면 조용히 가격 없음, 그 밖의 오류는 기록하고 가격 없음 — 요금제 페이지는 늘 열린다.
  * 렌더마다 읽으므로 오류가 이어지는 동안 기록은 프로세스당 1분에 한 번(logThrottle).
  */
-async function loadShownPrices(livemode: boolean): Promise<ShownPrice[]> {
+async function loadShownPrices(livemode: boolean, channel: ReturnType<typeof pricingChannel>): Promise<ShownPrice[]> {
   const admin = createAdminClient();
-  const { data, error } = await admin
+  let query = admin
     .from("billing_prices")
     .select("id, plan_code, interval, amount, currency")
-    .eq("provider", "toss")
-    .eq("currency", "KRW")
+    .eq("provider", channel.provider)
+    .eq("currency", channel.currency)
     .eq("livemode", livemode)
     .eq("active", true)
     .in("plan_code", [...SELF_SERVE_PLAN_IDS]);
+  if (channel.provider === "mor") query = query.not("external_price_id", "is", null);
+  const { data, error } = await query;
   if (error) {
     if (!isMissingTable(error) && shouldLog("pricing price lookup failed")) {
       await logAppError(admin, `pricing price lookup failed: ${error.message}`, { path: "pricing" });
@@ -57,8 +61,9 @@ async function loadShownPrices(livemode: boolean): Promise<ShownPrice[]> {
 
 /**
  * 요금제 안내 — 한도 수치는 lib/quota.ts TIERS 단일 소스에서 렌더해 코드와 안내가 어긋나지 않게 한다.
- * 유료 등급은 결제 공개 범위(lib/billing/visibility.ts)가 허락하고 그 등급의 활성 가격이 있을 때만 가격(부가세 포함)을
- * 보이고, 결제까지 열렸으면 주기별 구독 링크를 단다(비로그인이면 로그인을 거쳐 결제 확인 화면으로). 그 밖에는
+ * 유료 등급은 결제 공개 범위(lib/billing/visibility.ts)가 허락하고 그 등급의 활성 가격이 있을 때만 가격을 보이고
+ * (원화는 부가세 포함, USD는 "+ 적용되는 세금"), 결제까지 열렸으면 주기별 구독 링크를 단다(비로그인이면 로그인을 거쳐 결제 확인 화면으로).
+ * 한국어 화면은 토스 가격, 영어 화면은 판매 대행 Polar 가격으로 잇는다(공개 범위 규칙은 같다). 그 밖에는
  * "준비 중"과 도입 문의로 투명하게 예고만 한다(결제가 열리지 않은 상태에서 판매 문구 금지).
  */
 export default async function PricingPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -75,7 +80,8 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
   const [viewer, flags] = await Promise.all([loadViewer(supabase, user?.id ?? null), getBillingFlags(supabase)]);
   const showPrices = canSeePrices(mode, flags, viewer);
   const checkoutOpen = canCheckout(mode, flags, viewer);
-  const prices = showPrices ? await loadShownPrices(priceLivemode(mode)) : [];
+  const channel = pricingChannel(locale);
+  const prices = showPrices ? await loadShownPrices(priceLivemode(mode), channel) : [];
 
   /** 결제 확인 화면 — 비로그인이면 로그인 뒤 그 화면으로 돌아온다 */
   const subscribeHref = (priceId: string) => {
@@ -127,9 +133,11 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
                 {tierPrices.map((p) => (
                   <li key={p.id}>
                     <span className="font-display text-2xl font-bold">
-                      {t(`price.${p.interval}`, { amount: format.number(p.amount, { style: "currency", currency: p.currency }) })}
+                      {t(`price.${p.interval}`, {
+                        amount: format.number(amountInMajorUnits(p.amount, p.currency), { style: "currency", currency: p.currency }),
+                      })}
                     </span>{" "}
-                    <span className="text-xs text-[var(--color-ink-soft)]">{t("price.vat")}</span>
+                    <span className="text-xs text-[var(--color-ink-soft)]">{t(p.currency === "USD" ? "price.taxExtra" : "price.vat")}</span>
                   </li>
                 ))}
               </ul>
@@ -178,7 +186,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
 
       {/* 결제가 열린 유료 플랜이 있으면 "시행 전" 안내 대신 구독 안내 */}
       <p className="mt-8 max-w-2xl text-sm leading-relaxed text-[var(--color-ink-faint)]">
-        {tiers.some((tier) => tier.purchasable) ? t("noteSubscribable") : t("note")}
+        {tiers.some((tier) => tier.purchasable) ? t(channel.provider === "mor" ? "noteSubscribableMor" : "noteSubscribable") : t("note")}
       </p>
     </div>
   );

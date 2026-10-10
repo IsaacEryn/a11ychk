@@ -52,6 +52,7 @@ function fd(entries: Record<string, string>): FormData {
 }
 
 const PRICE_ID = "11111111-2222-4333-8444-555555555555";
+const PRODUCT = "44444444-4444-4444-8444-444444444444";
 const SUB_ID = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
 const NOW = Date.parse("2026-12-01T00:00:00Z");
 
@@ -85,15 +86,73 @@ describe("createPrice", () => {
     expect(m.admin.from).toHaveBeenCalledWith("billing_prices");
     expect(t.calls[0]).toEqual([
       "insert",
-      { plan_code: "pro", provider: "toss", currency: "KRW", interval: "month", amount: 1234, livemode: false, active: true },
+      { plan_code: "pro", provider: "toss", currency: "KRW", interval: "month", amount: 1234, external_price_id: null, livemode: false, active: true },
     ]);
     expect(m.logAdminAction).toHaveBeenCalledWith(
       m.admin,
       "admin-1",
       "billing.price_create",
       undefined,
-      expect.objectContaining({ priceId: PRICE_ID, plan: "pro", amount: 1234, livemode: false }),
+      expect.objectContaining({ priceId: PRICE_ID, plan: "pro", provider: "toss", currency: "KRW", amount: 1234, externalPriceId: null, livemode: false }),
     );
+  });
+
+  describe("판매 대행(Polar) 가격", () => {
+    const morForm = () =>
+      fd({ provider: "mor", planCode: "pro", interval: "year", amount: "12.34", externalPriceId: PRODUCT.toUpperCase(), livemode: "live", active: "on" });
+
+    it("mor·USD·cent·Polar 상품 id(소문자)로 넣고 감사에 금액·외부 id를 남긴다", async () => {
+      const t = fakeTable({ data: { id: PRICE_ID } });
+      m.admin.from.mockReturnValue(t.builder);
+      expect(await createPrice({}, morForm())).toEqual({ ok: true });
+      expect(t.calls[0]).toEqual([
+        "insert",
+        { plan_code: "pro", provider: "mor", currency: "USD", interval: "year", amount: 1234, external_price_id: PRODUCT, livemode: true, active: true },
+      ]);
+      const detail = m.logAdminAction.mock.calls[0][4] as Record<string, unknown>;
+      expect(detail).toEqual({
+        priceId: PRICE_ID,
+        plan: "pro",
+        provider: "mor",
+        currency: "USD",
+        interval: "year",
+        amount: 1234,
+        externalPriceId: PRODUCT,
+        livemode: true,
+        priceActive: true,
+      });
+    });
+
+    it("Polar 상품 id가 없으면 DB 없이 invalid", async () => {
+      const f = morForm();
+      f.delete("externalPriceId");
+      expect(await createPrice({}, f)).toEqual({ error: "invalid" });
+      expect(m.admin.from).not.toHaveBeenCalled();
+    });
+
+    it("23505면 다시 읽어 가른다 — 그 상품 id가 이미 다른 가격에 묶였으면 externalExists, 아니면 activeExists", async () => {
+      const dup = fakeTable({ data: null, error: { code: "23505", message: "dup" } });
+      const bound = fakeTable({ data: [{ id: "other" }] });
+      m.admin.from.mockReturnValueOnce(dup.builder).mockReturnValueOnce(bound.builder);
+      expect(await createPrice({}, morForm())).toEqual({ error: "externalExists" });
+      expect(bound.calls).toEqual([
+        ["select", "id"],
+        ["eq", "provider", "mor"],
+        ["eq", "external_price_id", PRODUCT],
+        ["limit", 1],
+      ]);
+
+      m.admin.from
+        .mockReturnValueOnce(fakeTable({ data: null, error: { code: "23505", message: "dup" } }).builder)
+        .mockReturnValueOnce(fakeTable({ data: [] }).builder);
+      expect(await createPrice({}, morForm())).toEqual({ error: "activeExists" });
+      // 다시 읽기가 실패해도 활성 가격 충돌로 안내한다(기록 없이)
+      m.admin.from
+        .mockReturnValueOnce(fakeTable({ data: null, error: { code: "23505", message: "dup" } }).builder)
+        .mockReturnValueOnce(fakeTable({ data: null, error: { code: "XX000", message: "boom" } }).builder);
+      expect(await createPrice({}, morForm())).toEqual({ error: "activeExists" });
+      expect(m.logAdminAction).not.toHaveBeenCalled();
+    });
   });
 
   it("같은 플랜·주기·모드의 활성 가격이 있으면(23505) activeExists, 감사 없음", async () => {
@@ -119,14 +178,20 @@ describe("createPrice", () => {
 describe("deactivatePrice", () => {
   it("active=false로만 바꾸고 이미 켜진 행에만 건다", async () => {
     const t = fakeTable({
-      data: [{ id: PRICE_ID, plan_code: "pro", interval: "month", amount: 1234, livemode: false }],
+      data: [{ id: PRICE_ID, plan_code: "pro", provider: "mor", currency: "USD", interval: "month", amount: 1234, external_price_id: PRODUCT, livemode: false }],
     });
     m.admin.from.mockReturnValue(t.builder);
     expect(await deactivatePrice({}, fd({ priceId: PRICE_ID }))).toEqual({ ok: true });
     expect(t.calls).toContainEqual(["update", { active: false }]);
     expect(t.calls).toContainEqual(["eq", "id", PRICE_ID]);
     expect(t.calls).toContainEqual(["eq", "active", true]);
-    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.price_deactivate", undefined, expect.objectContaining({ priceId: PRICE_ID }));
+    expect(m.logAdminAction).toHaveBeenCalledWith(
+      m.admin,
+      "admin-1",
+      "billing.price_deactivate",
+      undefined,
+      expect.objectContaining({ priceId: PRICE_ID, provider: "mor", currency: "USD", amount: 1234, externalPriceId: PRODUCT, priceActive: false }),
+    );
   });
 
   it("바뀐 행이 없으면(없거나 이미 비활성) notFound, 감사 없음", async () => {

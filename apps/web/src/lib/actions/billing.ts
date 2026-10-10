@@ -12,16 +12,18 @@ import {
 } from "@/lib/billing/checkout";
 import { billingMode, rowLivemode, tossKeys } from "@/lib/billing/config";
 import { cancelSubscription, resumeSubscription } from "@/lib/billing/flows/manage";
+import { startMorCheckout } from "@/lib/billing/flows/morStart";
 import { abandonOpenCheckouts, startCardChangeCheckout, startSubscribeCheckout, type StartOutcome } from "@/lib/billing/flows/start";
 import { errorText } from "@/lib/billing/flows/subscribe";
-import { createBillingDeps } from "@/lib/billing/server";
+import { createBillingDeps, createMorDeps } from "@/lib/billing/server";
 import type { BillingDeps } from "@/lib/billing/types";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout } from "@/lib/billing/visibility";
 import { actionLocale, requireUser, revalidateLocalized, type SaveState } from "./shared";
 
 /**
- * 사용자 결제 액션 — 결제 시도를 만들고 토스 결제창(SDK)에 넘길 값을 돌려준다. 결제창은 브라우저가 연다.
+ * 사용자 결제 액션 — 결제 시도를 만들고 토스 결제창(SDK)에 넘길 값, 또는 판매 대행(Polar) 결제창 주소를 돌려준다.
+ * 결제창은 브라우저가 연다(Polar 주소는 브라우저가 호스트 허용 목록으로 검사한 뒤 이동한다 — 서버 redirect로 외부에 보내지 않는다).
  * 클라이언트 키는 이 응답으로만 브라우저에 간다(NEXT_PUBLIC_ 환경변수를 두지 않는다). 시크릿 키·빌링키는 나가지 않는다.
  * 돌아올 주소는 요청 헤더로 만든다 — 폼이 보내는 값은 가격 id·구독 id·동의 체크뿐이고 금액은 서버가 가격 행에서 읽는다.
  */
@@ -125,6 +127,56 @@ export async function startCardChange(_prev: StartCheckoutState, fd: FormData): 
   return toState(ready.deps, ready.clientKey, user.email ?? null, () =>
     startCardChangeCheckout(ready.deps, { userId: user.id, livemode: ready.livemode, subscriptionId: input.value.subscriptionId }),
   );
+}
+
+export type StartMorCheckoutError = Exclude<StartCheckoutError, "graceOver">;
+
+export interface StartMorCheckoutState {
+  ok?: true;
+  /** Polar 결제창 주소 — 브라우저가 polar.sh 허용 목록(polarRedirect.ts)으로 다시 검사한 뒤 이동한다 */
+  url?: string;
+  error?: StartMorCheckoutError;
+  /** error가 inProgress일 때 막는 까닭 — processing이면 이전 결제를 확인하는 중, open이면 다른 창의 시작과 겹쳤다 */
+  blockedBy?: CheckoutBlock;
+}
+
+/**
+ * 해외(판매 대행 Polar) 구독 결제 시작 — 입력(가격 id·동의) → 결제 모드(off면 notAllowed) → Polar 의존성(없으면 notConfigured,
+ * 토스 키와 무관) → 공개 범위(canCheckout) → 요청 origin → 흐름(flows/morStart.ts) → 결제창 주소.
+ */
+export async function startMorCheckoutAction(_prev: StartMorCheckoutState, fd: FormData): Promise<StartMorCheckoutState> {
+  const { supabase, user } = await requireUser();
+  const input = parseStartCheckout(fd);
+  if (!input.ok) return { error: input.error };
+  const mode = billingMode();
+  const livemode = rowLivemode(mode);
+  if (livemode === null) return { error: "notAllowed" };
+  const deps = createMorDeps();
+  if (!deps) return { error: "notConfigured" };
+  const [viewer, flags] = await Promise.all([loadViewer(supabase, user.id), getBillingFlags(supabase)]);
+  if (!canCheckout(mode, flags, viewer)) return { error: "notAllowed" };
+
+  const origin = requestOrigin(await headers());
+  if (!origin) {
+    await deps.log("billing mor checkout refused: request origin is not a valid http(s) host");
+    return { error: "failed" };
+  }
+  const locale = checkoutLocale(await actionLocale());
+  try {
+    const outcome = await startMorCheckout(deps, {
+      userId: user.id,
+      email: user.email ?? null,
+      livemode,
+      priceId: input.value.priceId,
+      locale,
+      origin,
+    });
+    if (!outcome.ok) return outcome.blockedBy ? { error: outcome.error, blockedBy: outcome.blockedBy } : { error: outcome.error };
+    return { ok: true, url: outcome.url };
+  } catch (e) {
+    await deps.log(`billing start mor checkout failed for user ${user.id}: ${errorText(e)}`);
+    return { error: "failed" };
+  }
 }
 
 export interface AbandonCheckoutState {

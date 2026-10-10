@@ -843,6 +843,9 @@ export function polarCheckout(over: Partial<PolarCheckout> = {}): PolarCheckout 
     external_customer_id: null,
     product_id: null,
     subscription_id: null,
+    amount: null,
+    currency: null,
+    locale: null,
     metadata: {},
     ...over,
   };

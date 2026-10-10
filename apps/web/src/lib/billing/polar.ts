@@ -135,6 +135,14 @@ export interface PolarCheckout {
   product_id: string | null;
   /** 결제가 끝나 만들어진 구독 — 그 전에는 null */
   subscription_id: string | null;
+  /**
+   * 할인·세금 전 금액(cent)과 통화 — 결제 시작이 확인 화면에 보인 가격 행과 맞는지 본다(관리자가 넣은 금액과 Polar 상품 가격이
+   * 어긋나면 결제창을 열지 않는다). 응답에 없으면 null
+   */
+  amount: number | null;
+  currency: string | null;
+  /** 결제창 로케일 — 복귀 라우트가 metadata.locale이 없을 때 쓴다. 응답에 없으면 null */
+  locale: string | null;
   metadata: PolarMetadata;
 }
 
@@ -278,6 +286,9 @@ const checkoutSchema: z.ZodType<PolarCheckout, z.ZodTypeDef, unknown> = z.object
   external_customer_id: nullableString,
   product_id: nullableString,
   subscription_id: nullableString,
+  amount: nullableCents,
+  currency: nullableString,
+  locale: nullableString,
   metadata,
 });
 

@@ -50,6 +50,7 @@ const ROUTES = [
   ["/api/billing/toss/fail", 404, "결제 꺼짐이면 토스 실패 주소 없음"],
   ["/api/billing/webhooks/polar", 404, "결제 꺼짐이면 Polar 웹훅 없음(GET)"],
   ["/api/billing/webhooks/polar", 404, "결제 꺼짐이면 Polar 웹훅 없음(POST)", "POST"],
+  ["/api/billing/polar/return", 404, "결제 꺼짐이면 Polar 결제창 복귀 주소 없음"],
   // 결제 관리는 마이페이지 아래라 마이페이지와 같다 — mypage/loading.tsx의 Suspense 경계 때문에 셸이 200으로 먼저 나가고
   // 비로그인 리다이렉트는 본문(meta refresh)으로 간다. 리다이렉트 대상은 아래 BODY_CHECKS가 본다
   ["/ko/mypage", 200, "마이페이지 (비로그인 → 본문 리다이렉트)"],

@@ -1616,7 +1616,7 @@
       },
       "prices": {
         "title": "Price list",
-        "intro": "Selling prices for card subscriptions (Toss). Price rows are never edited or deleted. To change an amount, deactivate the old price and add a new one. There is only one active price per plan, interval and mode.",
+        "intro": "Selling prices for subscriptions. Korean (ko) pricing shows Toss prices in KRW, and international (en) pricing shows Polar (merchant of record) prices in USD. Price rows are never edited or deleted. To change an amount, deactivate the old price and add a new one. There is only one active price per plan, provider, interval and mode.",
         "deactivateNote": "A deactivated price can no longer start new payments. Existing subscribers keep renewing at the amount they subscribed with.",
         "empty": "No prices yet.",
         "cols": {
@@ -1626,7 +1626,10 @@
           "mode": "Mode",
           "status": "Status",
           "createdAt": "Created",
-          "actions": "Actions"
+          "actions": "Actions",
+          "provider": "Provider",
+          "currency": "Currency",
+          "externalId": "Polar product ID"
         },
         "intervals": {
           "month": "Monthly",
@@ -1644,7 +1647,7 @@
         "deactivating": "Working…",
         "deactivated": "Deactivated",
         "addTitle": "Add a price",
-        "addIntro": "Prices are entered only on this screen and never stored in the repository. The provider is fixed to Toss and the currency to KRW.",
+        "addIntro": "Prices are entered only on this screen and never stored in the repository. The provider sets the currency: KRW for Toss, USD for Polar.",
         "plan": "Plan",
         "interval": "Interval",
         "amount": "Amount (KRW)",
@@ -1661,8 +1664,25 @@
           "activeExists": "There is already an active price for this plan, interval and mode. Deactivate it first.",
           "notFound": "Price not found or already inactive.",
           "migrationMissing": "Apply migration 0041, then try again.",
-          "failed": "Couldn't complete that. Please try again shortly."
-        }
+          "failed": "Couldn't complete that. Please try again shortly.",
+          "externalExists": "This Polar product ID is already linked to another price. Create a new product in Polar and enter its ID."
+        },
+        "provider": "Provider",
+        "providers": {
+          "toss": "Toss (KRW, Korea)",
+          "mor": "Polar (USD, international merchant of record)"
+        },
+        "providerNames": {
+          "toss": "Toss",
+          "mor": "Polar",
+          "manual": "Manual"
+        },
+        "providerHint": "Toss prices appear on the Korean pricing page, Polar prices on the English one.",
+        "amountUsd": "Amount (USD, in dollars)",
+        "amountUsdHint": "Enter the amount in dollars before tax, with up to two decimal places. It is saved in cents and not stored in the repository. From {min, number} to {max, number} dollars, and it must match the Polar product price or checkout will not open.",
+        "externalPriceId": "Polar product ID",
+        "externalPriceIdHint": "The product ID (UUID) shown in the Polar dashboard. A product ID can be linked to only one price.",
+        "noExternalId": "None"
       },
       "tools": {
         "title": "Test tools",
@@ -2070,13 +2090,15 @@
     "price": {
       "month": "{amount}/month",
       "year": "{amount}/year",
-      "vat": "VAT included"
+      "vat": "VAT included",
+      "taxExtra": "+ applicable taxes"
     },
     "ctaSubscribe": {
       "month": "Subscribe monthly",
       "year": "Subscribe yearly"
     },
-    "noteSubscribable": "Prices include VAT. Subscriptions renew automatically at the same amount until you cancel. For organization-wide plans or higher limits, please contact us."
+    "noteSubscribable": "Prices include VAT. Subscriptions renew automatically at the same amount until you cancel. For organization-wide plans or higher limits, please contact us.",
+    "noteSubscribableMor": "Prices exclude taxes, which are added at checkout. Payments are processed by Polar, our merchant of record, and subscriptions renew automatically at the same amount until you cancel. For organization-wide plans or higher limits, please contact us."
   },
   "notices": {
     "title": "Notices",
@@ -2169,7 +2191,25 @@
       "period": "Service period",
       "periodValue": "{start} – {end}",
       "nextChargeHint": "The next payment may be charged as early as one day before the service period ends, and we email you a reminder beforehand.",
-      "nothingToRelease": "There was no payment attempt to cancel. Please try paying again."
+      "nothingToRelease": "There was no payment attempt to cancel. Please try paying again.",
+      "mor": {
+        "desc": "Review the details below, then continue to the secure Polar checkout. The first payment is charged today when you complete checkout.",
+        "amountValue": "{amount} + applicable taxes",
+        "firstChargeValue": "Today, when you complete checkout",
+        "renewal": {
+          "month": "After that, it renews automatically every month at the same amount until you cancel.",
+          "year": "After that, it renews automatically every year at the same amount until you cancel."
+        },
+        "renewalDate": "Polar sets the renewal date from the moment you complete payment. You can see it on your receipt and in the customer portal.",
+        "taxNote": "Applicable taxes are calculated for your country and added at checkout.",
+        "cancelHow": "You can cancel at any time by opening the Polar customer portal from Billing on My page, and you keep access until the end of the period you paid for.",
+        "seller": "Payments are processed by Polar, our merchant of record. Polar sends your receipt and payment emails.",
+        "consent": "I have reviewed the recurring payment above and agree that Polar processes the payment",
+        "submit": "Continue to secure checkout",
+        "pending": "Preparing secure checkout…",
+        "leaving": "Taking you to Polar checkout…",
+        "inProgressOpen": "This overlapped with a payment started in another window. Please try again in a moment."
+      }
     },
     "manage": {
       "eyebrow": "My page",

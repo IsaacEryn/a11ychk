@@ -1,6 +1,14 @@
 import "server-only";
-import { PolarError, type PolarCheckout, type PolarRefund } from "@/lib/billing/polar";
-import { markMorCheckout, morAttemptId, morAutoRefundId, recordMorOrder, syncMorSubscription } from "@/lib/billing/flows/mor";
+import { PolarError, type PolarRefund } from "@/lib/billing/polar";
+import {
+  MOR_CHECKOUT_FAILED,
+  markMorCheckout,
+  morAttemptId,
+  morAutoRefundId,
+  morCheckoutOwner,
+  recordMorOrder,
+  syncMorSubscription,
+} from "@/lib/billing/flows/mor";
 import type { MorDeps, RefundRow, WebhookEventRecord } from "@/lib/billing/types";
 
 /**
@@ -37,8 +45,6 @@ export type MorWebhookResult = "processed" | "duplicate";
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TYPE_MAX = 100;
 const ERROR_MAX = 300;
-/** 실패한 결제창의 시도 실패 코드 */
-const CHECKOUT_FAILED = "polarCheckoutFailed";
 
 const lowerUuid = (v: unknown): string | null => (typeof v === "string" && UUID_RE.test(v) ? v.toLowerCase() : null);
 
@@ -248,7 +254,7 @@ async function applyCheckout(ctx: Ctx, checkoutId: string): Promise<void> {
   if (!closing) return;
   const attemptId = morAttemptId(checkout.metadata);
   if (!attemptId) return;
-  const owner = checkoutOwner(checkout);
+  const owner = morCheckoutOwner(checkout);
   if (!owner) {
     await deps.log(`billing polar checkout ${checkout.id} has no usable user id; attempt ${attemptId} left as is`);
     return;
@@ -256,18 +262,6 @@ async function applyCheckout(ctx: Ctx, checkoutId: string): Promise<void> {
   await markMorCheckout(deps, attemptId, closing, {
     livemode: ctx.livemode,
     userId: owner,
-    failureCode: closing === "failed" ? CHECKOUT_FAILED : undefined,
+    failureCode: closing === "failed" ? MOR_CHECKOUT_FAILED : undefined,
   });
-}
-
-/**
- * 결제창의 a11ychk 사용자 — external_customer_id, 없으면 metadata.user_id(구독의 resolveOwner와 같은 규칙).
- * 값이 있는데 UUID가 아니거나 둘이 다르면 믿지 않는다(null)
- */
-function checkoutOwner(checkout: PolarCheckout): string | null {
-  const read = (v: unknown): string | null | "bad" => (v === undefined || v === null ? null : (lowerUuid(v) ?? "bad"));
-  const ext = read(checkout.external_customer_id);
-  const meta = read(checkout.metadata.user_id);
-  if (ext === "bad" || meta === "bad" || (ext && meta && ext !== meta)) return null;
-  return ext ?? meta;
 }

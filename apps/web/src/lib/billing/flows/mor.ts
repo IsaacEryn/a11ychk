@@ -1,7 +1,15 @@
 import "server-only";
 import { createHash } from "node:crypto";
 import { graceUntil, iso } from "@/lib/billing/period";
-import { PolarError, isPolarOutcomeUnknown, type PolarMetadata, type PolarOrder, type PolarRefund, type PolarSubscription } from "@/lib/billing/polar";
+import {
+  PolarError,
+  isPolarOutcomeUnknown,
+  type PolarCheckout,
+  type PolarMetadata,
+  type PolarOrder,
+  type PolarRefund,
+  type PolarSubscription,
+} from "@/lib/billing/polar";
 import type {
   MorDeps,
   MorSubscriptionPatch,
@@ -149,9 +157,24 @@ export function morAutoRefundId(paymentId: string): string {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
-/** Polar metadata의 우리 결제 시도 id(billing_checkouts) — 결제 시작(Task 4)이 checkout_id로 넣는다 */
+/** Polar metadata의 우리 결제 시도 id(billing_checkouts) — 결제 시작(flows/morStart.ts)이 checkout_id로 넣는다 */
 export function morAttemptId(metadata: PolarMetadata): string | null {
   return lowerUuid(metadata.checkout_id);
+}
+
+/** Polar 결제창이 실패로 끝난 우리 결제 시도의 실패 코드 — 결제 시작·웹훅·결제창 복귀가 같은 값을 쓴다 */
+export const MOR_CHECKOUT_FAILED = "polarCheckoutFailed";
+
+/**
+ * 결제창의 a11ychk 사용자 — external_customer_id, 없으면 metadata.user_id(구독의 resolveOwner와 같은 규칙, 소문자).
+ * 값이 있는데 UUID가 아니거나 둘이 다르면 믿지 않는다(null). 웹훅과 결제창 복귀 라우트가 함께 쓴다.
+ */
+export function morCheckoutOwner(checkout: Pick<PolarCheckout, "external_customer_id" | "metadata">): string | null {
+  const read = (v: unknown): string | null | "bad" => (v === undefined || v === null ? null : (lowerUuid(v) ?? "bad"));
+  const ext = read(checkout.external_customer_id);
+  const meta = read(checkout.metadata.user_id);
+  if (ext === "bad" || meta === "bad" || (ext && meta && ext !== meta)) return null;
+  return ext ?? meta;
 }
 
 /**

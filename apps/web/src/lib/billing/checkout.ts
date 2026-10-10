@@ -19,6 +19,8 @@ export const CHECKOUT_TTL_MS = 30 * MIN_MS;
 export const PROCESSING_STALE_MS = 30 * MIN_MS;
 /** 결제 확인 화면 문구의 판 — 문구를 바꾸면 올린다(동의 기록이 어떤 문구를 봤는지 남긴다) */
 export const DISCLOSURE_VERSION = "recurring-2026-10";
+/** 판매 대행(Polar) 결제 확인 화면 문구의 판 — 토스 화면과 문구가 달라 따로 올린다 */
+export const MOR_DISCLOSURE_VERSION = "mor-recurring-2026-10";
 
 export const CHECKOUT_LOCALES = ["ko", "en"] as const;
 export type CheckoutLocale = (typeof CHECKOUT_LOCALES)[number];
@@ -106,6 +108,17 @@ export function tossReturnParams(search: string): URLSearchParams {
   };
   visit(search.replace(/^\?/, "").replace(/\?/g, "&"), 0);
   return out;
+}
+
+/**
+ * Polar 결제창의 성공·돌아가기 주소 — 성공 주소의 `{CHECKOUT_ID}`는 Polar가 결제창 id로 채우므로 인코딩하지 않고 그대로 둔다.
+ * 돌아가기(결제창의 뒤로 버튼)는 같은 가격의 결제 확인 화면이다. 개인정보·우리 시도 id는 싣지 않는다(metadata로 간다)
+ */
+export function morCheckoutUrls(origin: string, priceId: string, locale: CheckoutLocale): { successUrl: string; returnUrl: string } {
+  return {
+    successUrl: `${origin}/api/billing/polar/return?checkout_id={CHECKOUT_ID}`,
+    returnUrl: `${origin}/${locale}/billing/checkout?price=${encodeURIComponent(priceId)}`,
+  };
 }
 
 // ── 동시 시도 차단 ──
@@ -199,6 +212,30 @@ export function consentSnapshot(
     first_charge_at: terms.firstChargeAt,
     period_end: terms.periodEnd,
     next_charge_at: terms.nextChargeAt,
+    locale,
+  };
+}
+
+/**
+ * 판매 대행(Polar) 결제의 동의 스냅샷 — 확인 화면에 보인 조건 그대로. 금액은 세금 전 cent이고 세금은 Polar가 결제창에서 더한다.
+ * 첫 결제는 결제창을 마칠 때(오늘)이고, 그 뒤 해지할 때까지 주기마다 자동 갱신된다. 다음 결제일은 Polar가 구독을 만들 때 정하므로
+ * (기간 계산·시간대가 우리와 다르다) 화면과 스냅샷에 날짜를 적지 않는다. 해지는 Polar 고객 포털(결제 관리에서 연다)로 한다.
+ */
+export function morConsentSnapshot(
+  price: Pick<PriceRow, "plan_code" | "amount" | "currency" | "interval">,
+  now: number,
+  locale: CheckoutLocale,
+): Record<string, unknown> {
+  return {
+    plan_code: price.plan_code,
+    amount: price.amount,
+    currency: price.currency,
+    interval: price.interval,
+    tax: "added_at_checkout",
+    first_charge_at: new Date(now).toISOString(),
+    auto_renew: true,
+    cancel_method: "polar_customer_portal",
+    merchant_of_record: "polar",
     locale,
   };
 }

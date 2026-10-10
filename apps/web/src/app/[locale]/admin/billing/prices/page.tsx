@@ -1,6 +1,7 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { requireAdmin } from "@/lib/adminGuard";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { amountInMajorUnits } from "@/lib/billing/price";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { TABLE, TH, TR, TR_HEAD } from "../../tableStyles";
 import { BillingSubnav } from "../BillingSubnav";
@@ -17,7 +18,8 @@ const BADGE = "rounded-full px-2 py-0.5 text-xs font-bold";
 
 /**
  * 가격표 — billing_prices를 보여 주고 추가·비활성화한다. 행은 지우거나 고치지 않는다(불변).
- * 금액을 바꾸려면 이전 가격을 비활성화하고 새 가격을 추가한다.
+ * 금액을 바꾸려면 이전 가격을 비활성화하고 새 가격을 추가한다. 결제사(토스·Polar)·통화·Polar 상품 id를 함께 보인다
+ * (USD 금액은 cent로 저장되어 달러로 보인다).
  * 0041 미적용이면 안내만 보여 준다.
  */
 export default async function AdminBillingPricesPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -30,7 +32,7 @@ export default async function AdminBillingPricesPage({ params }: { params: Promi
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("billing_prices")
-    .select("id, plan_code, interval, amount, currency, livemode, active, created_at")
+    .select("id, plan_code, provider, interval, amount, currency, external_price_id, livemode, active, created_at")
     .order("active", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(200);
@@ -40,11 +42,15 @@ export default async function AdminBillingPricesPage({ params }: { params: Promi
   const rows = data ?? [];
 
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
-  const money = (amount: number, currency: string) => format.number(amount, { style: "currency", currency });
+  const money = (amount: number, currency: string) =>
+    format.number(amountInMajorUnits(amount, currency === "USD" ? "USD" : "KRW"), { style: "currency", currency });
+  const providerName = (provider: string) =>
+    provider === "toss" || provider === "mor" || provider === "manual" ? t(`billing.prices.providerNames.${provider}`) : provider;
   /** 같은 문구의 버튼을 구분하는 화면 낭독기용 설명 */
   const summaryOf = (r: (typeof rows)[number]) =>
     [
       t(`users.plans.${r.plan_code}`),
+      providerName(r.provider as string),
       t(`billing.prices.intervals.${r.interval}`),
       t(r.livemode ? "billing.prices.modes.live" : "billing.prices.modes.test"),
       money(r.amount as number, r.currency as string),
@@ -74,8 +80,11 @@ export default async function AdminBillingPricesPage({ params }: { params: Promi
                 <thead>
                   <tr className={TR_HEAD}>
                     <th scope="col" className={TH}>{t("billing.prices.cols.plan")}</th>
+                    <th scope="col" className={TH}>{t("billing.prices.cols.provider")}</th>
                     <th scope="col" className={TH}>{t("billing.prices.cols.interval")}</th>
+                    <th scope="col" className={TH}>{t("billing.prices.cols.currency")}</th>
                     <th scope="col" className={TH}>{t("billing.prices.cols.amount")}</th>
+                    <th scope="col" className={TH}>{t("billing.prices.cols.externalId")}</th>
                     <th scope="col" className={TH}>{t("billing.prices.cols.mode")}</th>
                     <th scope="col" className={TH}>{t("billing.prices.cols.status")}</th>
                     <th scope="col" className={TH}>{t("billing.prices.cols.createdAt")}</th>
@@ -86,8 +95,13 @@ export default async function AdminBillingPricesPage({ params }: { params: Promi
                   {rows.map((r) => (
                     <tr key={r.id as string} className={TR}>
                       <th scope="row" className="py-2 pr-3 text-left font-semibold">{t(`users.plans.${r.plan_code}`)}</th>
+                      <td className="py-2 pr-3">{providerName(r.provider as string)}</td>
                       <td className="py-2 pr-3">{t(`billing.prices.intervals.${r.interval}`)}</td>
+                      <td className="py-2 pr-3">{r.currency as string}</td>
                       <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{money(r.amount as number, r.currency as string)}</td>
+                      <td className="py-2 pr-3 font-mono text-xs">
+                        {(r.external_price_id as string | null) ?? <span className="font-sans text-[var(--color-ink-faint)]">{t("billing.prices.noExternalId")}</span>}
+                      </td>
                       <td className="py-2 pr-3">
                         {r.livemode ? (
                           <span className={`${BADGE} border border-[var(--color-seal)] text-[var(--color-seal)]`}>{t("billing.prices.modes.live")}</span>

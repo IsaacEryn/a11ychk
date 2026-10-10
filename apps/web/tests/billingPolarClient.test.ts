@@ -116,7 +116,21 @@ describe("Polar 클라이언트 요청 모양", () => {
       external_customer_id: USER_ID,
       product_id: PRODUCT_ID,
       subscription_id: null,
+      amount: null,
+      currency: null,
+      locale: null,
       metadata: { attempt: "a1" },
+    });
+  });
+
+  it("결제창 — 금액(세금 전 cent)·통화·로케일을 읽는다(없으면 null)", async () => {
+    const c = await createPolarClient(KEYS, fakeFetch(200, { ...checkout, amount: 1234, currency: "usd", locale: "en", total_amount: 1334 })).getCheckout(
+      CHECKOUT_ID,
+    );
+    expect(c).toMatchObject({ amount: 1234, currency: "usd", locale: "en" });
+    expect(c).not.toHaveProperty("total_amount");
+    await expect(createPolarClient(KEYS, fakeFetch(200, { ...checkout, amount: -1 })).getCheckout(CHECKOUT_ID)).rejects.toMatchObject({
+      code: "BAD_RESPONSE",
     });
   });
 
