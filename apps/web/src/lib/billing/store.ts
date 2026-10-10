@@ -5,8 +5,10 @@ import type {
   BillingStore,
   CheckoutRow,
   CustomerRow,
+  MorSubscriptionRow,
   PaymentRow,
   PriceRow,
+  RefundRow,
   SubscriptionExpectation,
   SubscriptionRow,
   TossCustomerRow,
@@ -20,11 +22,13 @@ import type {
  * 0041은 RLS 위의 service role 전용 쓰기라, 이 모듈은 권한 검증을 마친 서버 경로에서만 쓴다.
  */
 
-const PRICE_COLS = "id, plan_code, provider, currency, interval, amount, livemode, active";
+const PRICE_COLS = "id, plan_code, provider, currency, interval, amount, livemode, active, external_price_id";
 const CUSTOMER_COLS = "id, user_id, livemode, toss_customer_key, toss_billing_key_enc, toss_card_summary";
 const CHECKOUT_COLS = "id, user_id, provider, livemode, price_id, purpose, status, failure_code, subscription_id, expires_at";
 const SUBSCRIPTION_COLS =
   "id, user_id, provider, livemode, plan_code, status, ended_reason, price_id, amount, currency, interval, current_period_start, current_period_end, billing_anchor_day, cancel_at_period_end, canceled_at, ended_at, dunning_attempts, next_retry_at, grace_until, reminder_sent_for";
+const MOR_SUBSCRIPTION_COLS = `${SUBSCRIPTION_COLS}, mor_provider, external_id, external_customer_id, external_updated_at`;
+const REFUND_COLS = "id, payment_id, amount, reason, external_refund_id, status, requested_by";
 const PAYMENT_COLS =
   "id, user_id, subscription_id, checkout_id, provider, livemode, kind, order_id, external_payment_id, amount, currency, period_start, period_end, attempt, status, failure_code, failure_message, receipt_url, card_summary, refunded_amount, requested_at, approved_at";
 
@@ -42,6 +46,9 @@ interface PgError {
 }
 
 const UNIQUE_VIOLATION = "23505";
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** PostgREST or 필터에 넣는 시각 — ISO 모양만(따옴표·쉼표·괄호가 필터 문법을 바꾸지 못하게) */
+const FILTER_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 
 /**
  * 던지는 오류에는 PostgREST 코드를 code로 단다(메시지에는 넣지 않는다) — 호출부가 dbErrors의 isMissingTable로
@@ -370,6 +377,138 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .maybeSingle();
       if (error) throw fail("findPaidRenewal", error);
       return (data as PaymentRow | null) ?? null;
+    },
+
+    // ── 판매 대행(MoR) ──
+
+    async findPriceByExternal(provider, externalPriceId, livemode) {
+      // unique (provider, external_price_id)라 많아야 한 행 — 비활성 행도 기존 구독 매핑에 쓴다
+      const { data, error } = await admin
+        .from("billing_prices")
+        .select(PRICE_COLS)
+        .eq("provider", provider)
+        .eq("external_price_id", externalPriceId)
+        .eq("livemode", livemode)
+        .maybeSingle();
+      if (error) throw fail("findPriceByExternal", error);
+      return (data as PriceRow | null) ?? null;
+    },
+
+    async profileExists(userId) {
+      // uuid 열이라 모양이 다른 값은 PostgREST가 22P02로 거부한다 — 묻기 전에 거른다
+      if (!UUID_RE.test(userId)) return false;
+      const { data, error } = await admin.from("profiles").select("id").eq("id", userId).maybeSingle();
+      if (error) throw fail("profileExists", error);
+      return data !== null && data !== undefined;
+    },
+
+    async getSubscriptionByExternal(provider, externalId, livemode) {
+      const { data, error } = await admin
+        .from("subscriptions")
+        .select(MOR_SUBSCRIPTION_COLS)
+        .eq("provider", provider)
+        .eq("external_id", externalId)
+        .eq("livemode", livemode)
+        .maybeSingle();
+      if (error) throw fail("getSubscriptionByExternal", error);
+      return (data as MorSubscriptionRow | null) ?? null;
+    },
+
+    async insertMorSubscription(row) {
+      const { data, error } = await admin.from("subscriptions").insert(row).select(MOR_SUBSCRIPTION_COLS).single();
+      if (error) {
+        if (error.code === UNIQUE_VIOLATION) return "conflict";
+        throw fail("insertMorSubscription", error);
+      }
+      return data as MorSubscriptionRow;
+    },
+
+    async updateMorSubscriptionIf(id, expected, patch) {
+      if (!FILTER_TIME_RE.test(expected.notAfter)) throw new Error("billing store updateMorSubscriptionIf: notAfter must be an ISO time");
+      // NULL은 lte로 걸리지 않아 따로 둔다. 시각에는 PostgREST 예약 문자(:, .)가 있어 큰따옴표로 감싼다.
+      // timestamptz 비교라 마이크로초까지 맞다 — 같은 시각(재전송)도 다시 적는다
+      const { data, error } = await admin
+        .from("subscriptions")
+        .update({ ...defined(patch), updated_at: new Date().toISOString() })
+        .eq("id", id)
+        .eq("status", expected.status)
+        .or(`external_updated_at.is.null,external_updated_at.lte."${expected.notAfter}"`)
+        .select("id");
+      if (error) {
+        if (error.code === UNIQUE_VIOLATION) return "conflict";
+        throw fail("updateMorSubscriptionIf", error);
+      }
+      return Array.isArray(data) && data.length > 0 ? "updated" : "skipped";
+    },
+
+    async getPaymentByExternal(provider, externalPaymentId, livemode) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .select(PAYMENT_COLS)
+        .eq("provider", provider)
+        .eq("external_payment_id", externalPaymentId)
+        .eq("livemode", livemode)
+        .maybeSingle();
+      if (error) throw fail("getPaymentByExternal", error);
+      return (data as PaymentRow | null) ?? null;
+    },
+
+    async insertExternalPayment(row) {
+      const { data, error } = await admin.from("billing_payments").insert(row).select(PAYMENT_COLS).single();
+      if (error) {
+        if (error.code === UNIQUE_VIOLATION) return "duplicate";
+        throw fail("insertExternalPayment", error);
+      }
+      return data as PaymentRow;
+    },
+
+    async updatePaymentIf(id, expected, patch) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .update(defined(patch))
+        .eq("id", id)
+        .eq("status", expected.status)
+        .eq("refunded_amount", expected.refundedAmount)
+        .select("id");
+      if (error) throw fail("updatePaymentIf", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async findInitialPaymentByCheckout(checkoutId, provider, livemode) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .select(PAYMENT_COLS)
+        .eq("checkout_id", checkoutId)
+        .eq("provider", provider)
+        .eq("livemode", livemode)
+        .eq("kind", "initial")
+        .order("requested_at", { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (error) throw fail("findInitialPaymentByCheckout", error);
+      return (data as PaymentRow | null) ?? null;
+    },
+
+    async hasRefundFor(paymentId) {
+      const { data, error } = await admin
+        .from("billing_refunds")
+        .select("id")
+        .eq("payment_id", paymentId)
+        .in("status", ["pending", "succeeded"])
+        .limit(1);
+      if (error) throw fail("hasRefundFor", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async insertRefund(row) {
+      const { data, error } = await admin.from("billing_refunds").insert(row).select(REFUND_COLS).single();
+      if (error) throw fail("insertRefund", error);
+      return data as RefundRow;
+    },
+
+    async updateRefund(id, patch) {
+      const { error } = await admin.from("billing_refunds").update(defined(patch)).eq("id", id);
+      if (error) throw fail("updateRefund", error);
     },
   };
 }

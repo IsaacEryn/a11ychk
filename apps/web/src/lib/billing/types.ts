@@ -1,3 +1,4 @@
+import type { PolarClient } from "./polar";
 import type { CardSummary, TossClient } from "./toss";
 
 /**
@@ -5,14 +6,28 @@ import type { CardSummary, TossClient } from "./toss";
  * 실제 구현은 store.ts(Supabase)·toss.ts·server.ts(메일러 조립), 테스트는 메모리 구현이다.
  */
 
-export interface PriceRow { id: string; plan_code: string; provider: "toss" | "mor" | "manual"; currency: "KRW" | "USD"; interval: "month" | "year"; amount: number; livemode: boolean; active: boolean }
+export interface PriceRow { id: string; plan_code: string; provider: "toss" | "mor" | "manual"; currency: "KRW" | "USD"; interval: "month" | "year"; amount: number; livemode: boolean; active: boolean; external_price_id: string | null }
 export interface CustomerRow { id: string; user_id: string; livemode: boolean; toss_customer_key: string | null; toss_billing_key_enc: string | null; toss_card_summary: CardSummary | null }
 export interface CheckoutRow { id: string; user_id: string; provider: "toss" | "mor"; livemode: boolean; price_id: string; purpose: "subscribe" | "card_change"; status: "open" | "processing" | "completed" | "failed" | "expired"; failure_code: string | null; subscription_id: string | null; expires_at: string }
 export interface SubscriptionRow { id: string; user_id: string | null; provider: "toss" | "mor" | "manual"; livemode: boolean; plan_code: string; status: "active" | "past_due" | "ended"; ended_reason: string | null; price_id: string | null; amount: number; currency: "KRW" | "USD"; interval: "month" | "year" | "contract"; current_period_start: string; current_period_end: string; billing_anchor_day: number | null; cancel_at_period_end: boolean; canceled_at: string | null; ended_at: string | null; dunning_attempts: number; next_retry_at: string | null; grace_until: string | null; reminder_sent_for: string | null }
 export interface PaymentRow { id: string; user_id: string | null; subscription_id: string | null; checkout_id: string | null; provider: "toss" | "mor" | "manual"; livemode: boolean; kind: "initial" | "renewal" | "retry" | "manual"; order_id: string; external_payment_id: string | null; amount: number; currency: "KRW" | "USD"; period_start: string | null; period_end: string | null; attempt: number; status: "pending" | "paid" | "failed" | "refunded" | "partially_refunded"; failure_code: string | null; failure_message: string | null; receipt_url: string | null; card_summary: CardSummary | null; refunded_amount: number; requested_at: string; approved_at: string | null }
 
+/** 판매 대행(MoR) 구독의 외부 열 — 토스 흐름은 읽지 않는다 */
+export interface MorSubscriptionFields { mor_provider: "paddle" | "polar" | null; external_id: string | null; external_customer_id: string | null; external_updated_at: string | null }
+export type MorSubscriptionRow = SubscriptionRow & MorSubscriptionFields;
+/** 새 MoR 구독 — 상태는 결제사 값으로 정한다(토스의 insertSubscription과 달리 active로 고정하지 않는다) */
+export type NewMorSubscription = Pick<
+  SubscriptionRow,
+  "user_id" | "livemode" | "plan_code" | "price_id" | "amount" | "currency" | "interval" | "current_period_start" | "current_period_end" | "status" | "cancel_at_period_end" | "canceled_at" | "grace_until"
+> & { provider: "mor"; mor_provider: "polar"; billing_anchor_day: null; external_id: string; external_customer_id: string | null; external_updated_at: string };
+export type MorSubscriptionPatch = Partial<Omit<MorSubscriptionRow, "id">>;
+export interface RefundRow { id: string; payment_id: string; amount: number; reason: string; external_refund_id: string | null; status: "pending" | "succeeded" | "failed"; requested_by: string | null }
+export type NewRefund = Omit<RefundRow, "id">;
+
 /** refunded_amount는 DB 기본값 0으로 시작한다 */
 export type NewPayment = Omit<PaymentRow, "id" | "requested_at" | "external_payment_id" | "failure_code" | "failure_message" | "receipt_url" | "card_summary" | "refunded_amount" | "approved_at">;
+/** 결제사가 정한 결제(MoR 주문) — 결제사 id·환불액·승인 시각을 처음부터 채운다 */
+export type NewExternalPayment = NewPayment & { external_payment_id: string; refunded_amount: number; approved_at: string | null };
 export type NewSubscription = Pick<SubscriptionRow, "user_id" | "provider" | "livemode" | "plan_code" | "price_id" | "amount" | "currency" | "interval" | "current_period_start" | "current_period_end" | "billing_anchor_day">;
 /** 새 결제 시도 — status는 open, failure_code는 비어 시작한다 */
 export type NewCheckout = Pick<CheckoutRow, "user_id" | "provider" | "livemode" | "price_id" | "purpose" | "subscription_id" | "expires_at">;
@@ -104,12 +119,56 @@ export interface BillingStore {
    * 탈퇴 정리가 모은 뒤 끼어든 갱신을 찾을 때 쓴다
    */
   findPaidRenewal(subscriptionId: string, periodStart: string): Promise<PaymentRow | null>;
+
+  // ── 판매 대행(MoR) — flows/mor.ts ──
+
+  /** 그 결제사 가격 id(Polar product id)에 묶인 가격 행 — 비활성 행도 돌려준다(기존 구독 매핑) */
+  findPriceByExternal(provider: PriceRow["provider"], externalPriceId: string, livemode: boolean): Promise<PriceRow | null>;
+  /** profiles 행이 있는지 — UUID 모양이 아니면 조회 없이 false */
+  profileExists(userId: string): Promise<boolean>;
+  /** (provider, external_id) 유니크 — 그 모드의 행만 */
+  getSubscriptionByExternal(provider: SubscriptionRow["provider"], externalId: string, livemode: boolean): Promise<MorSubscriptionRow | null>;
+  /**
+   * 유니크 위반이면 "conflict" — 같은 외부 id가 먼저 들어갔거나(동시 동기화) 그 사용자에게 진행 중 구독이 이미 있다.
+   * 어느 쪽인지는 호출부가 다시 읽어 가른다(제약 이름에 기대지 않는다)
+   */
+  insertMorSubscription(row: NewMorSubscription): Promise<MorSubscriptionRow | "conflict">;
+  /**
+   * 조건부 갱신 — 상태가 expected.status이고 external_updated_at이 비었거나 expected.notAfter 이하일 때만(같으면 재전송이라 다시 적는다).
+   * 바꿨으면 "updated", 조건이 안 맞으면 "skipped", 진행 중 1건 유니크 위반(되살리기)이면 "conflict".
+   * notAfter는 마이크로초까지의 ISO 시각이어야 한다(PostgREST 필터에 들어간다)
+   */
+  updateMorSubscriptionIf(id: string, expected: { status: SubscriptionRow["status"]; notAfter: string }, patch: MorSubscriptionPatch): Promise<"updated" | "skipped" | "conflict">;
+  /** (provider, external_payment_id) 유니크 — 그 모드의 행만 */
+  getPaymentByExternal(provider: PaymentRow["provider"], externalPaymentId: string, livemode: boolean): Promise<PaymentRow | null>;
+  /** 유니크 위반(같은 주문·주문번호, 같은 구독·기간·시도의 갱신)이면 "duplicate" */
+  insertExternalPayment(row: NewExternalPayment): Promise<PaymentRow | "duplicate">;
+  /** 상태·환불액이 읽은 값 그대로일 때만 바꾼다(바꿨으면 true) — 늦게 읽은 주문이 앞선 환불 기록을 되돌리지 않게 */
+  updatePaymentIf(id: string, expected: { status: PaymentRow["status"]; refundedAmount: number }, patch: Partial<Omit<PaymentRow, "id">>): Promise<boolean>;
+  /** 그 결제 시도(billing_checkouts id)에 묶인 첫 결제 — 여럿이면 가장 먼저 요청한 것 */
+  findInitialPaymentByCheckout(checkoutId: string, provider: PaymentRow["provider"], livemode: boolean): Promise<PaymentRow | null>;
+  /** 이 결제에 진행 중(pending)이거나 끝난(succeeded) 환불 기록이 있는지 — 같은 주문을 두 번 환불하지 않게 */
+  hasRefundFor(paymentId: string): Promise<boolean>;
+  insertRefund(row: NewRefund): Promise<RefundRow>;
+  updateRefund(id: string, patch: Partial<Pick<RefundRow, "status" | "external_refund_id">>): Promise<void>;
 }
 
 export type BillingEmailKind = "receipt" | "failed" | "reminder" | "cancelScheduled" | "ended";
 export interface BillingMailer {
   /** 수신자 조회·발송 모두 best-effort — 실패해도 결제 흐름을 멈추지 않는다 */
   send(userId: string | null, kind: BillingEmailKind, data: Record<string, unknown>): Promise<void>;
+}
+
+/**
+ * 판매 대행(Polar) 흐름의 의존성 — 토스 키·암호화 키·메일러가 없다(MoR 영수증·실패 안내는 Polar가 보낸다).
+ * 토스 없이 Polar만 설정한 배포에서도 동작한다.
+ */
+export interface MorDeps {
+  store: BillingStore;
+  polar: PolarClient;
+  now: () => number;
+  /** 비밀 값·이메일을 넣지 않는다(id만) — app_errors에 남는다 */
+  log: (message: string) => Promise<void>;
 }
 
 export interface BillingDeps {

@@ -32,8 +32,9 @@ export class PolarError extends Error {
  */
 export function isPolarOutcomeUnknown(err: unknown): boolean {
   if (!(err instanceof PolarError)) return false;
-  if (err.code === "BAD_RESPONSE") return err.mutating;
-  return err.code === "NETWORK" || err.status >= 500 || err.status === 408;
+  // 상태를 먼저 본다 — 5xx·408이면 코드가 무엇이든 결과 불명이다
+  if (err.code === "NETWORK" || err.status >= 500 || err.status === 408) return true;
+  return err.code === "BAD_RESPONSE" && err.mutating;
 }
 
 /** 알려진 값 + 처음 보는 문자열 — Polar가 값을 늘려도 BAD_RESPONSE로 막히지 않고, 매핑은 호출부가 판단한다 */
@@ -106,8 +107,11 @@ export interface PolarOrder {
   net_amount: number | null;
   tax_amount: number | null;
   total_amount: number;
+  /** 세금을 뺀 금액 기준이다(Polar 환불 금액도 세금 제외 — 세금은 Polar가 비율대로 함께 돌려준다) */
   refunded_amount: number;
   refunded_tax_amount: number | null;
+  /** 아직 환불할 수 있는 금액(세금 제외, 고객 잔액·이전 환불 반영). 응답에 없으면 null */
+  refundable_amount: number | null;
   currency: string;
   billing_reason: Open<PolarBillingReason>;
   subscription_id: string | null;
@@ -241,6 +245,7 @@ const orderSchema: z.ZodType<PolarOrder, z.ZodTypeDef, unknown> = z.object({
   total_amount: cents,
   refunded_amount: cents,
   refunded_tax_amount: nullableCents,
+  refundable_amount: nullableCents,
   currency: z.string().min(1),
   billing_reason: z.string().min(1),
   subscription_id: nullableString,
@@ -280,6 +285,8 @@ const customerSessionSchema: z.ZodType<PolarCustomerSession, z.ZodTypeDef, unkno
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 오류 코드로 받아들일 모양 — 그 밖의 문자열은 본문 내용일 수 있어 HTTP_<상태>로 바꾼다 */
 const CODE_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,79}$/;
+/** 이 모듈이 스스로 붙이는 코드 — 서버 본문이 같은 값을 보내도 HTTP_<상태>로 바꾼다(결과 불명 판정이 흔들리지 않게) */
+const RESERVED_CODES = new Set(["NETWORK", "BAD_RESPONSE", "INVALID_ID"]);
 
 /** 경로에 넣는 id는 UUID만 — 사용자 입력(return 주소의 checkout_id 등)이 경로를 바꾸지 못하게 */
 function idPath(prefix: string, id: string): string {
@@ -295,7 +302,7 @@ function errorCode(body: unknown, status: number): string {
   if (isPlainObject(body)) {
     for (const key of ["error", "type"] as const) {
       const v = body[key];
-      if (typeof v === "string" && CODE_RE.test(v)) return v;
+      if (typeof v === "string" && CODE_RE.test(v)) return RESERVED_CODES.has(v) ? `HTTP_${status}` : v;
     }
   }
   return `HTTP_${status}`;

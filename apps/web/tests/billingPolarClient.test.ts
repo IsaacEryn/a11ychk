@@ -229,6 +229,7 @@ describe("Polar 클라이언트 요청 모양", () => {
       total_amount: 1334,
       refunded_amount: 0,
       refunded_tax_amount: 0,
+      refundable_amount: null,
       currency: "usd",
       billing_reason: "subscription_create",
       subscription_id: SUB_ID,
@@ -236,6 +237,14 @@ describe("Polar 클라이언트 요청 모양", () => {
       product_id: PRODUCT_ID,
       checkout_id: CHECKOUT_ID,
       metadata: { user_id: USER_ID },
+    });
+  });
+
+  it("주문의 환불 가능 금액(refundable_amount, 세금 제외 cent)을 읽는다", async () => {
+    const o = await createPolarClient(KEYS, fakeFetch(200, { ...order, refundable_amount: 1234 })).getOrder(ORDER_ID);
+    expect(o.refundable_amount).toBe(1234);
+    await expect(createPolarClient(KEYS, fakeFetch(200, { ...order, refundable_amount: -1 })).getOrder(ORDER_ID)).rejects.toMatchObject({
+      code: "BAD_RESPONSE",
     });
   });
 
@@ -352,6 +361,17 @@ describe("오류 분류", () => {
     await expect(createPolarClient(KEYS, fakeFetch(400, { error: 42 })).getOrder(ORDER_ID)).rejects.toMatchObject({ code: "HTTP_400" });
   });
 
+  it.each(["NETWORK", "BAD_RESPONSE", "INVALID_ID"])("서버 본문의 코드가 내부 코드(%s)와 같으면 HTTP_<상태>로 바꾼다", async (reserved) => {
+    await expect(createPolarClient(KEYS, fakeFetch(503, { error: reserved })).getOrder(ORDER_ID)).rejects.toMatchObject({
+      code: "HTTP_503",
+      status: 503,
+    });
+    await expect(createPolarClient(KEYS, fakeFetch(400, { type: reserved })).getOrder(ORDER_ID)).rejects.toMatchObject({ code: "HTTP_400" });
+    // 5xx는 본문 코드와 관계없이 결과 불명이다(읽기 요청이어도)
+    const err = await createPolarClient(KEYS, fakeFetch(500, { error: reserved })).getOrder(ORDER_ID).catch((e) => e);
+    expect(isPolarOutcomeUnknown(err)).toBe(true);
+  });
+
   it("오류 본문을 읽지 못하거나 JSON null이면 HTTP_<상태>", async () => {
     const html = vi.fn().mockResolvedValue(new Response("<html>bad gateway</html>", { status: 502 }));
     await expect(createPolarClient(KEYS, html).getOrder(ORDER_ID)).rejects.toMatchObject({ code: "HTTP_502", status: 502 });
@@ -452,6 +472,15 @@ describe("isPolarOutcomeUnknown — Polar가 처리했는지 알 수 없는 실�
     ["BAD_RESPONSE", 200, false],
   ] as const)("%s (%i) → %s", (code, status, unknown) => {
     expect(isPolarOutcomeUnknown(new PolarError(code, "x", status))).toBe(unknown);
+  });
+
+  it("상태가 먼저 — 5xx·408은 코드가 무엇이든 결과 불명, BAD_RESPONSE는 2xx일 때 쓰기 요청만", () => {
+    expect(isPolarOutcomeUnknown(new PolarError("BAD_RESPONSE", "x", 500, false))).toBe(true);
+    expect(isPolarOutcomeUnknown(new PolarError("BAD_RESPONSE", "x", 408, false))).toBe(true);
+    expect(isPolarOutcomeUnknown(new PolarError("INVALID_ID", "x", 502))).toBe(true);
+    expect(isPolarOutcomeUnknown(new PolarError("BAD_RESPONSE", "x", 200, false))).toBe(false);
+    expect(isPolarOutcomeUnknown(new PolarError("BAD_RESPONSE", "x", 201, true))).toBe(true);
+    expect(isPolarOutcomeUnknown(new PolarError("NETWORK", "x", 0, false))).toBe(true);
   });
 
   it("PolarError가 아닌 값은 false", () => {
