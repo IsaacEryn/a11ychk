@@ -545,11 +545,88 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       return Array.isArray(data) && data.length > 0;
     },
 
+    async listLiveMorSubscriptions(userId) {
+      const { data, error } = await admin
+        .from("subscriptions")
+        .select(MOR_SUBSCRIPTION_COLS)
+        .eq("user_id", userId)
+        .eq("provider", "mor")
+        .in("status", LIVE_STATUSES);
+      if (error) throw fail("listLiveMorSubscriptions", error);
+      return (data as MorSubscriptionRow[] | null) ?? [];
+    },
+
+    async hasProviderSubscription(userId, provider, livemode) {
+      const { data, error } = await admin
+        .from("subscriptions")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("provider", provider)
+        .eq("livemode", livemode)
+        .limit(1);
+      if (error) throw fail("hasProviderSubscription", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async listMorReconcileCandidates(livemode, beforeIso, limit) {
+      if (!FILTER_TIME_RE.test(beforeIso)) throw new Error("billing store listMorReconcileCandidates: beforeIso must be an ISO time");
+      // 기간 끝이 지났거나(웹훅을 놓쳤을 수 있다) 미납인 것 — 시각은 PostgREST 예약 문자(:, .)가 있어 큰따옴표로 감싼다
+      const { data, error } = await admin
+        .from("subscriptions")
+        .select(MOR_SUBSCRIPTION_COLS)
+        .eq("provider", "mor")
+        .eq("livemode", livemode)
+        .in("status", LIVE_STATUSES)
+        .not("external_id", "is", null)
+        .or(`current_period_end.lt."${beforeIso}",status.eq.past_due`)
+        .order("current_period_end", { ascending: true })
+        .limit(limit);
+      if (error) throw fail("listMorReconcileCandidates", error);
+      return (data as MorSubscriptionRow[] | null) ?? [];
+    },
+
+    async expireOpenCheckouts(provider, livemode, nowIso) {
+      const { data, error } = await admin
+        .from("billing_checkouts")
+        .update({ status: "expired" })
+        .eq("provider", provider)
+        .eq("livemode", livemode)
+        .eq("status", "open")
+        .lt("expires_at", nowIso)
+        .select("id");
+      if (error) throw fail("expireOpenCheckouts", error);
+      return Array.isArray(data) ? data.length : 0;
+    },
+
+    async listStaleRefunds(provider, livemode, olderThanIso, limit) {
+      // 환불 기록에는 결제사·모드가 없어 결제 행으로 거른다(inner — 그 결제사·모드의 결제에 걸린 기록만)
+      const { data, error } = await admin
+        .from("billing_refunds")
+        .select(`${REFUND_COLS}, billing_payments!inner(provider, livemode)`)
+        .eq("status", "pending")
+        .is("external_refund_id", null)
+        .lt("created_at", olderThanIso)
+        .eq("billing_payments.provider", provider)
+        .eq("billing_payments.livemode", livemode)
+        .order("created_at", { ascending: true })
+        .limit(limit);
+      if (error) throw fail("listStaleRefunds", error);
+      return ((data as RefundRow[] | null) ?? []).map((r) => ({
+        id: r.id,
+        payment_id: r.payment_id,
+        amount: r.amount,
+        reason: r.reason,
+        external_refund_id: r.external_refund_id,
+        status: r.status,
+        requested_by: r.requested_by,
+      }));
+    },
+
     // ── 웹훅 이벤트 ──
 
     async recordWebhookEvent(provider, eventId, type, payload) {
       const { error } = await admin.from("billing_webhook_events").insert({ provider, event_id: eventId, event_type: type, payload });
-      if (!error) return "new";
+      if (!error) return { state: "new", attempts: 1 };
       if (error.code !== UNIQUE_VIOLATION) throw fail("recordWebhookEvent", error);
 
       const { data, error: readError } = await admin
@@ -562,18 +639,19 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       const row = data as { attempts: number; processed_at: string | null } | null;
       // 행은 지우지 않는다 — 충돌했는데 없으면 저장소가 이상하다(재시도에 맡긴다)
       if (!row) throw new Error("billing store recordWebhookEvent: event row missing after conflict");
-      if (row.processed_at !== null) return "done";
+      if (row.processed_at !== null) return { state: "done", attempts: row.attempts };
 
+      const attempts = Math.min(row.attempts + 1, SMALLINT_MAX);
       const { data: bumped, error: bumpError } = await admin
         .from("billing_webhook_events")
-        .update({ attempts: Math.min(row.attempts + 1, SMALLINT_MAX) })
+        .update({ attempts })
         .eq("provider", provider)
         .eq("event_id", eventId)
         .is("processed_at", null)
         .select("event_id");
       if (bumpError) throw fail("recordWebhookEvent", bumpError);
       // 올리는 사이 다른 전달이 처리를 끝냈다
-      return Array.isArray(bumped) && bumped.length > 0 ? "retry" : "done";
+      return { state: Array.isArray(bumped) && bumped.length > 0 ? "retry" : "done", attempts };
     },
 
     async finishWebhookEvent(provider, eventId, outcome) {

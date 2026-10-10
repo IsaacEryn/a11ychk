@@ -1,8 +1,18 @@
 import "server-only";
 import { closeEndedSubscription } from "@/lib/billing/flows/end";
+import { canonicalTime, storedIsNewer } from "@/lib/billing/flows/mor";
 import { planNameFor, sendBillingMail } from "@/lib/billing/flows/subscribe";
 import { iso } from "@/lib/billing/period";
-import type { BillingDeps, BillingStore, SubscriptionExpectation, SubscriptionRow } from "@/lib/billing/types";
+import { PolarError, isPolarOutcomeUnknown, type PolarSubscription } from "@/lib/billing/polar";
+import type {
+  BillingDeps,
+  BillingStore,
+  MorDeps,
+  MorSubscriptionPatch,
+  MorSubscriptionRow,
+  SubscriptionExpectation,
+  SubscriptionRow,
+} from "@/lib/billing/types";
 
 /**
  * 결제 관리 화면의 흐름 — 사용자의 해지·해지 취소(재개)와 탈퇴 전 정리.
@@ -276,4 +286,113 @@ async function logPendingPaymentsForDeletion(
   await log(
     `billing needs review: account deleted with pending payment (subscriptions: ${subscriptionIds.join(",") || "none"}; modes with pending initial payment: ${pendingInitialModes})`,
   );
+}
+
+// ── 탈퇴 전 판매 대행(Polar) 구독 해지 ──
+
+type MorRevoke = { ok: true; sub: PolarSubscription | null } | { ok: false; why: string };
+
+/**
+ * Polar 구독 즉시 해지 — 해지됐으면 그 뒤 정본(이미 해지돼 있었으면 null), 못 했으면 까닭. 403 AlreadyCanceledSubscription은 성공.
+ * 결과 불명이거나 응답이 canceled가 아니면 한 번만 다시 읽어 canceled일 때만 성공으로 본다(반복하지 않는다).
+ */
+async function revokeAtPolarForDeletion(mor: MorDeps, externalId: string): Promise<MorRevoke> {
+  try {
+    const sub = await mor.polar.updateSubscription(externalId, { revoke: true });
+    if (sub.status === "canceled") return { ok: true, sub };
+  } catch (e) {
+    if (e instanceof PolarError && e.code === "AlreadyCanceledSubscription") return { ok: true, sub: null };
+    if (!isPolarOutcomeUnknown(e)) {
+      const code = e instanceof PolarError ? `${e.code} (${e.status})` : "unexpected error";
+      return { ok: false, why: `revoke failed: ${code}` };
+    }
+  }
+  try {
+    const again = await mor.polar.getSubscription(externalId);
+    if (again.status === "canceled") return { ok: true, sub: again };
+  } catch {
+    // 아래 까닭 하나로 충분하다
+  }
+  return { ok: false, why: "revoke outcome unknown" };
+}
+
+/**
+ * 해지한 구독의 우리 행을 ended(user_canceled)로 — 조건부 갱신(읽은 상태·저장된 Polar 시각 이하)이라 그 사이 웹훅이 먼저 끝냈으면
+ * 덮지 않는다. 시각은 해지 응답의 modified_at(없으면 지금)이고, 저장된 시각이 더 늦으면 다시 읽어 그 시각을 조건으로 한 번 더 쓴다.
+ * 끝냈거나 이미 끝나 있었으면 true. 저장소 오류는 던진다.
+ */
+async function endMorRowForDeletion(store: BillingStore, row: MorSubscriptionRow, revoked: PolarSubscription | null, now: number): Promise<boolean> {
+  const nowIso = iso(now);
+  const source = canonicalTime(revoked?.modified_at ?? revoked?.created_at) ?? canonicalTime(nowIso)!;
+  const endedAt = canonicalTime(revoked?.ended_at) ?? nowIso;
+  const patchAt = (at: string): MorSubscriptionPatch => ({
+    status: "ended",
+    ended_reason: "user_canceled",
+    ended_at: endedAt,
+    canceled_at: canonicalTime(revoked?.canceled_at) ?? row.canceled_at ?? endedAt,
+    external_updated_at: at,
+  });
+  if ((await store.updateMorSubscriptionIf(row.id, { status: row.status, notAfter: source }, patchAt(source))) === "updated") return true;
+  const current = row.external_id ? await store.getSubscriptionByExternal("mor", row.external_id, row.livemode) : null;
+  if (!current || (current.status !== "active" && current.status !== "past_due")) return true;
+  const notAfter = storedIsNewer(current.external_updated_at, source) ? (canonicalTime(current.external_updated_at) ?? source) : source;
+  return (await store.updateMorSubscriptionIf(current.id, { status: current.status, notAfter }, patchAt(notAfter))) === "updated";
+}
+
+/**
+ * 탈퇴 전 — 그 사용자의 진행 중 MoR 구독(두 livemode)을 Polar에서 즉시 해지(revoke)하고 우리 행을 ended(user_canceled)로 끝낸다.
+ * 계정을 지운 뒤에도 Polar가 계속 청구하지 않게, 해지를 확인하지 못하면 "blocked"를 돌려 탈퇴를 막는다(토스와 다르다 — 토스는 빌링키가
+ * 계정과 함께 지워져 청구가 멈추지만 Polar 구독은 Polar에 남는다).
+ * - 이 배포의 Polar 의존성(mor)이 없거나(off·키 없음) 다른 모드의 구독이 하나라도 있으면 아무것도 해지하지 않고 막는다 —
+ *   의존성은 이 배포의 모드(livemode) 것뿐이라 다른 모드의 구독은 여기서 해지할 수 없다.
+ * - 해지가 확정 실패하거나 다시 읽어도 결과를 모르면 그 자리에서 막는다(앞서 해지한 구독은 끝난 그대로 둔다).
+ * - 해지한 뒤 우리 행을 끝내지 못하면(저장소 오류·엇갈림) 막지 않는다 — Polar는 더 청구하지 않고, 남은 행은 크론의 MoR 대사가
+ *   Polar 정본(canceled)으로 끝낸다.
+ * 기록은 한 줄(구독·행·사용자 id만). 구독 목록을 읽는 저장소 오류는 던진다(호출부가 테이블 없음과 가른다).
+ */
+export async function revokeMorForDeletion(
+  store: BillingStore,
+  mor: MorDeps | null,
+  livemode: boolean | null,
+  userId: string,
+  log: (message: string) => Promise<void>,
+): Promise<"ok" | "blocked"> {
+  const rows = await store.listLiveMorSubscriptions(userId);
+  if (rows.length === 0) return "ok";
+  const externals = rows.map((r) => r.external_id ?? "(none)").join(",");
+  const rowIds = rows.map((r) => r.id).join(",");
+  const cannot = !mor
+    ? "Polar is not configured"
+    : rows.some((r) => r.livemode !== livemode)
+      ? "livemode differs from this deployment"
+      : rows.some((r) => !r.external_id)
+        ? "a row has no Polar subscription id"
+        : null;
+  if (!mor || cannot) {
+    await log(`billing account deletion blocked for user ${userId}: mor subscriptions ${externals} (rows ${rowIds}) cannot be canceled at Polar here (${cannot})`);
+    return "blocked";
+  }
+
+  const revoked: string[] = [];
+  const unended: string[] = [];
+  for (const row of rows) {
+    const externalId = row.external_id!;
+    const outcome = await revokeAtPolarForDeletion(mor, externalId);
+    if (!outcome.ok) {
+      const earlier = revoked.length > 0 ? `; already revoked: ${revoked.join(",")}` : "";
+      await log(`billing account deletion blocked for user ${userId}: mor subscription ${externalId} (row ${row.id}) could not be canceled at Polar (${outcome.why})${earlier}`);
+      return "blocked";
+    }
+    revoked.push(externalId);
+    let ended = false;
+    try {
+      ended = await endMorRowForDeletion(store, row, outcome.sub, mor.now());
+    } catch {
+      ended = false;
+    }
+    if (!ended) unended.push(row.id);
+  }
+  const rest = unended.length > 0 ? `; rows ${unended.join(",")} could not be ended — the billing cron reconciles them` : "";
+  await log(`billing account deletion: mor subscriptions ${revoked.join(",")} revoked at Polar (rows ${rowIds})${rest}`);
+  return "ok";
 }

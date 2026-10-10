@@ -2,6 +2,7 @@ import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { NOT_USER_FACING } from "@/lib/billing/flows/renew";
+import { upcomingChargeAt } from "@/lib/billing/period";
 import type { CardSummary } from "@/lib/billing/toss";
 import type { PaymentRow, SubscriptionRow } from "@/lib/billing/types";
 
@@ -29,14 +30,14 @@ export type ManagedSubscription = Pick<
 
 const SUBSCRIPTION_COLS =
   "id, provider, livemode, plan_code, status, amount, currency, interval, current_period_start, current_period_end, cancel_at_period_end, grace_until";
-/** 결제 관리에서 다루는 결제사 — 토스 정기결제와 기관 수동 계약 */
-const PROVIDERS = ["toss", "manual"];
+/** 결제 관리에서 다루는 결제사 — 토스 정기결제, 해외 결제(판매 대행 Polar), 기관 수동 계약 */
+const PROVIDERS = ["toss", "mor", "manual"];
 
 function fail(what: string, error: { message: string }): Error {
   return new Error(`billing manage ${what} lookup failed: ${error.message}`);
 }
 
-/** 진행 중(active·past_due) 토스 구독·기관 계약 — 권한 계산과 같은 livemode 범위 안의 행만 */
+/** 진행 중(active·past_due) 토스·해외 결제 구독과 기관 계약 — 권한 계산과 같은 livemode 범위 안의 행만 */
 export async function loadLiveSubscriptions(db: SupabaseClient, userId: string, livemodes: boolean[]): Promise<ManagedSubscription[]> {
   const { data, error } = await db
     .from("subscriptions")
@@ -53,7 +54,7 @@ export async function loadLiveSubscriptions(db: SupabaseClient, userId: string, 
   return (data as ManagedSubscription[] | null) ?? [];
 }
 
-/** 토스 구독·기관 계약 행이 하나라도 있는지(끝난 것 포함) — 결제 관리로 가는 길을 보여 줄지 정한다 */
+/** 토스·해외 결제 구독·기관 계약 행이 하나라도 있는지(끝난 것 포함) — 결제 관리로 가는 길을 보여 줄지 정한다 */
 export async function hasBillingRecord(db: SupabaseClient, userId: string, livemodes: boolean[]): Promise<boolean> {
   const { data, error } = await db
     .from("subscriptions")
@@ -69,13 +70,17 @@ export async function hasBillingRecord(db: SupabaseClient, userId: string, livem
   return Array.isArray(data) && data.length > 0;
 }
 
+/**
+ * 결제 내역 한 줄. amount는 그 행의 통화 단위(KRW는 원, USD는 cent — 화면은 amountInMajorUnits로 바꿔 서식을 입힌다).
+ * MoR 행의 amount·refunded_amount는 세금 포함이고 billing_refunds.amount는 세금 제외라 서로 빼지 않는다 — 내역은 결제 금액과 상태만 보인다.
+ */
 export type PaymentHistoryRow = Pick<
   PaymentRow,
-  "id" | "livemode" | "kind" | "amount" | "currency" | "status" | "failure_code" | "receipt_url" | "requested_at" | "approved_at"
+  "id" | "livemode" | "provider" | "kind" | "amount" | "currency" | "status" | "failure_code" | "receipt_url" | "requested_at" | "approved_at"
 >;
 
 /** failure_code는 표기를 가르는 데만 쓴다(paymentStatusKey) — 화면에 코드를 싣지 않는다 */
-const PAYMENT_COLS = "id, livemode, kind, amount, currency, status, failure_code, receipt_url, requested_at, approved_at";
+const PAYMENT_COLS = "id, livemode, provider, kind, amount, currency, status, failure_code, receipt_url, requested_at, approved_at";
 
 /** 결제 내역 상태 칸의 표기 — 결제 행의 상태와, 사용자 탓이 아닌 실패의 notProcessed(청구 없음) */
 export const PAYMENT_STATUS_KEYS = ["pending", "paid", "failed", "refunded", "partially_refunded", "notProcessed"] as const;
@@ -91,6 +96,15 @@ export function paymentStatusKey(p: Pick<PaymentRow, "status" | "failure_code">)
   const operational =
     (NOT_USER_FACING.codes as readonly string[]).includes(code) || NOT_USER_FACING.prefixes.some((prefix) => code.startsWith(prefix));
   return operational ? "notProcessed" : "failed";
+}
+
+/**
+ * 화면에 보이는 다음 결제일 — 토스는 기간 끝 하루 전부터 청구하고(upcomingChargeAt), 해외 결제(Polar)는 기간 끝에 Polar가 청구한다.
+ * 이미 지났으면(마지막 날·갱신 반영 대기) 지금. now를 비우면 지금 시각(요청마다 렌더되는 화면용).
+ */
+export function nextChargeAt(sub: Pick<SubscriptionRow, "provider" | "current_period_end">, now: number = Date.now()): string {
+  if (sub.provider === "mor") return new Date(Math.max(now, Date.parse(sub.current_period_end))).toISOString();
+  return upcomingChargeAt(sub.current_period_end, now);
 }
 
 /** 본인 결제 내역 — 최근 것부터 limit건 */

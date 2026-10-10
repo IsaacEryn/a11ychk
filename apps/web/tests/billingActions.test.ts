@@ -26,11 +26,13 @@ vi.mock("@/lib/billing/server", () => ({ createBillingDeps: m.createBillingDeps,
 import {
   abandonCheckout,
   cancelSubscriptionAction,
+  openMorPortal,
   resumeSubscriptionAction,
   startCardChange,
   startCheckout,
   startMorCheckoutAction,
 } from "../src/lib/actions/billing";
+import { PolarError } from "../src/lib/billing/polar";
 import {
   DAY,
   NOW,
@@ -347,5 +349,102 @@ describe("startMorCheckoutAction — 해외(Polar) 결제 시작 액션", () => 
   it("처리 중인 결제가 있으면 inProgress와 막는 까닭", async () => {
     mor.store.rows.payments.push(paymentRow({ user_id: USER, status: "pending" }));
     expect(await startMorCheckoutAction({}, fd({ priceId: morPrice.id, consent: "on" }))).toEqual({ error: "inProgress", blockedBy: "processing" });
+  });
+});
+
+describe("openMorPortal — 결제 관리의 Polar 고객 포털", () => {
+  const PORTAL = "https://sandbox.polar.sh/a11ychk/portal?customer_session_token=polar_cst_fake";
+  let mor: FakeMorDeps;
+  const morSub = (over: Parameters<typeof subscriptionRow>[0] = { user_id: USER }) =>
+    subscriptionRow({ provider: "mor", currency: "USD", billing_anchor_day: null, ...over });
+
+  function setupPortal(subs = [morSub()], session: Parameters<typeof createFakePolar>[0] = { createCustomerSession: [{ customer_portal_url: PORTAL, expires_at: null }] }) {
+    mor = makeMorDeps({ store: createMemoryStore({ subscriptions: subs }, { now: () => NOW }), polar: createFakePolar(session) });
+    m.createMorDeps.mockImplementation(() => mor);
+  }
+
+  it("정상: external_customer_id = 사용자 id, return_url = 요청 origin의 결제 관리(액션 로케일) — 포털 주소만 돌려준다", async () => {
+    setupPortal();
+    expect(await openMorPortal()).toEqual({ ok: true, url: PORTAL });
+    expect(mor.polar.calls.createCustomerSession).toEqual([[{ external_customer_id: USER, return_url: "http://localhost:3100/en/mypage/billing" }]]);
+    expect(m.createBillingDeps).not.toHaveBeenCalled();
+
+    m.locale = "ko";
+    setupPortal();
+    await openMorPortal();
+    expect(mor.polar.calls.createCustomerSession[0][0].return_url).toBe("http://localhost:3100/ko/mypage/billing");
+  });
+
+  it("끝난 MoR 구독이어도(영수증·내역) 포털을 연다 — 이 모드의 행이면", async () => {
+    setupPortal([morSub({ user_id: USER, status: "ended", ended_reason: "user_canceled" })]);
+    expect(await openMorPortal()).toEqual({ ok: true, url: PORTAL });
+  });
+
+  it("이 모드의 MoR 구독 행이 없으면 notFound — Polar를 부르지 않는다(토스 구독·다른 모드·남의 구독은 세지 않는다)", async () => {
+    setupPortal([
+      subscriptionRow({ user_id: USER }),
+      morSub({ user_id: USER, livemode: true }),
+      morSub({ user_id: "22222222-2222-4222-8222-222222222222" }),
+    ]);
+    expect(await openMorPortal()).toEqual({ error: "notFound" });
+    expect(mor.polar.calls.createCustomerSession).toEqual([]);
+  });
+
+  it("결제 모드 off·Polar 의존성 없음은 notConfigured(토스 키와 무관)", async () => {
+    setupPortal();
+    vi.stubEnv("BILLING_MODE", "");
+    expect(await openMorPortal()).toEqual({ error: "notConfigured" });
+    expect(m.createMorDeps).not.toHaveBeenCalled();
+
+    vi.stubEnv("BILLING_MODE", "test");
+    m.createMorDeps.mockImplementation(() => null);
+    expect(await openMorPortal()).toEqual({ error: "notConfigured" });
+
+    vi.stubEnv("TOSS_CLIENT_KEY", "");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    m.createMorDeps.mockImplementation(() => mor);
+    expect(await openMorPortal()).toEqual({ ok: true, url: PORTAL });
+  });
+
+  it("Polar가 고객을 모르면(404) notFound, 그 밖의 실패는 failed + 기록 한 줄(코드만)", async () => {
+    setupPortal([morSub()], { createCustomerSession: [new PolarError("ResourceNotFound", "polar createCustomerSession failed: ResourceNotFound (404)", 404, true)] });
+    expect(await openMorPortal()).toEqual({ error: "notFound" });
+
+    for (const failure of [
+      new PolarError("HTTP_401", "polar createCustomerSession failed: HTTP_401 (401)", 401, true),
+      new PolarError("NETWORK", "polar createCustomerSession failed (network)", 0, true),
+    ]) {
+      setupPortal([morSub()], { createCustomerSession: [failure] });
+      expect(await openMorPortal()).toEqual({ error: "failed" });
+      expect(mor.log.mock.calls.map((c) => c[0])).toEqual([`billing mor portal failed for user ${USER}: ${failure.code} (${failure.status})`]);
+    }
+  });
+
+  it("요청 origin이 규칙에 맞지 않으면 failed + 기록 — Polar를 부르지 않는다", async () => {
+    setupPortal();
+    m.headers = new Map([
+      ["host", "www.a11ychk.com"],
+      ["x-forwarded-host", "evil.example"],
+    ]);
+    expect(await openMorPortal()).toEqual({ error: "failed" });
+    expect(mor.polar.calls.createCustomerSession).toEqual([]);
+    expect(mor.log).toHaveBeenCalledTimes(1);
+  });
+
+  it("Polar가 polar.sh 밖 주소를 주면 내보내지 않고 failed(기록에 주소 없음)", async () => {
+    setupPortal([morSub()], { createCustomerSession: [{ customer_portal_url: "https://evil.example/portal", expires_at: null }] });
+    const out = await openMorPortal();
+    expect(out).toEqual({ error: "failed" });
+    expect(JSON.stringify(out)).not.toContain("evil.example");
+    expect(mor.log.mock.calls.map((c) => c[0]).join("\n")).not.toContain("evil.example");
+  });
+
+  it("저장소 오류는 failed + 기록", async () => {
+    setupPortal();
+    mor.store.hasProviderSubscription = async () => {
+      throw new Error("billing store hasProviderSubscription: timeout");
+    };
+    expect(await openMorPortal()).toEqual({ error: "failed" });
+    expect(mor.log.mock.calls.map((c) => c[0])).toEqual([`billing mor portal failed for user ${USER}: billing store hasProviderSubscription: timeout`]);
   });
 });

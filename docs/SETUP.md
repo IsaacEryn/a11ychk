@@ -51,8 +51,8 @@ ADMIN_IDLE_MINUTES               # (선택) 관리자 무활동 자동 로그아
 SESSION_MAX_HOURS                # (선택) 전 회원 세션 절대 유지 시간 (기본 24)
 ```
 
-결제 관련 변수(`BILLING_MODE`, `TOSS_*`, `BILLING_KEY_ENC_KEY`, `BILLING_TEST_USER_IDS`)는 기본이 꺼짐이고
-라이브 전환 전까지는 Production에 넣지 않는다. 설정은 아래 "결제 테스트(토스)" 절과 "라이브 전환 체크리스트"를 따른다.
+결제 관련 변수(`BILLING_MODE`, `TOSS_*`, `BILLING_KEY_ENC_KEY`, `BILLING_TEST_USER_IDS`, `POLAR_*`)는 기본이 꺼짐이고
+라이브 전환 전까지는 Production에 넣지 않는다. 설정은 아래 "결제 테스트(토스)"·"해외 결제 테스트(Polar)" 절과 각 절의 "라이브 전환 체크리스트"를 따른다.
 
 ### 봇 방지 (Cloudflare Turnstile)
 
@@ -233,7 +233,8 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
   갱신 결제가 승인돼 기간이 넘어갔다는 뜻으로, 구독은 그래도 끝냈지만 그 결제는 자동 취소하지 않았으니 처리(환불 여부)를 운영자가 정한다.
   같은 줄 끝이 `(payment lookup failed)`이면 결제 조회가 실패한 것이니 그 구독 id로 `billing_payments`를 직접 조회해 확인한다.
   구독을 끝내지 못하면 `billing needs review: subscriptions … could not be ended after account deletion`이 남는데, 그 구독은
-  빌링키가 없어 미납 → 유예 → 종료로 저절로 끝난다. 결제 상태는 탈퇴를 막지 않는다. 결과를 모르는 결제가 남은 채 탈퇴하면
+  빌링키가 없어 미납 → 유예 → 종료로 저절로 끝난다. 토스 결제 상태는 탈퇴를 막지 않는다(해외 결제 구독은 예외 — 아래
+  "해외 결제 테스트(Polar)"의 회원 탈퇴). 결과를 모르는 결제가 남은 채 탈퇴하면
   `billing needs review: account deleted with pending payment…`가 남는다. 그 결제가 나중에 승인으로 확인되면 크론의 대사가
   줄 기간이 없음을 보고 자동 취소한다(위 "받은 돈과 이용 기간이 어긋나지 않게"). 이 경우에는 자동 취소 실패 기록이 있을 때만 토스
   상점관리자에서 그 결제를 찾아 환불한다. 탈퇴 정리가 결제 확정과 거의 같은 순간에 겹치면 pending 기록만 남고 그 결제가 `paid`로
@@ -263,6 +264,132 @@ A11YCHK_SITE_ORIGIN=https://www.a11ychk.com npm run build -w @a11ychk/extension
    set value = '{"showPrices": true, "checkoutOpen": true}'::jsonb
    where key = 'billing';
    ```
+
+## 해외 결제 테스트(Polar)
+
+영어 화면(`/en`)의 구독은 판매 대행사(Merchant of Record) Polar가 USD로 판다. 판매자·세금 처리·영수증·결제 실패 안내는 Polar 몫이고,
+a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트를 쓴다: `test`는 Polar sandbox(`https://sandbox-api.polar.sh`),
+`live`는 운영 API(`https://api.polar.sh`)를 부른다. Polar 키가 없으면 해외 결제 시작·고객 포털·웹훅·크론의 MoR 대사가 Polar를
+부르기 전에 멈춘다. 토스 키와는 서로 상관없다(Polar만 설정해도 해외 결제는 동작한다).
+
+### 준비
+
+1. **sandbox 조직** — sandbox.polar.sh에 가입하고 조직을 만든다. sandbox는 운영과 완전히 따로라 토큰·상품·웹훅을 모두 따로 만든다.
+2. **Organization Access Token** — 조직 설정의 개발자(Developers) 메뉴에서 만든다(`polar_oat_…`). 스코프는 아래 일곱 개다.
+
+   ```
+   checkouts:write
+   subscriptions:read
+   subscriptions:write
+   orders:read
+   refunds:read
+   refunds:write
+   customer_sessions:write
+   ```
+
+   결제창 만들기, 구독 조회·즉시 해지(중복 구독·탈퇴), 주문 조회, 자동 환불과 환불 조회, 결제 관리의 고객 포털 열기에 쓴다.
+3. **상품** — 정기 구독(recurring) 상품을 월간·연간 하나씩 만든다. 통화는 USD, 무료 체험은 두지 않는다(결제창도 체험·할인 코드를 끈다).
+   만든 뒤 상품 id(UUID)를 적어 둔다. 금액은 이 문서나 저장소에 적지 않는다.
+4. **웹훅** — 조직 설정의 Webhooks에서 끝점을 추가한다.
+   - 주소: `https://<정식 호스트>/api/billing/webhooks/polar`. 정식 호스트는 리다이렉트 없이 바로 응답하는 주소다. Polar는 3xx를
+     실패로 세고, 연달아 10번 실패하면 끝점을 끈다(예: apex 주소가 www로 보내면 모든 웹훅이 실패한다).
+   - 형식: **Standard Webhooks**(Raw 아님). 서명이 맞지 않으면 401이고 DB를 건드리지 않는다.
+   - 이벤트: `subscription.*`, `order.*`, `refund.*`, `checkout.updated`, `checkout.expired`.
+   - 시크릿(`whsec_…`)을 아래 환경변수에 넣는다.
+5. **환경변수** — `apps/web/.env.local`에만 넣는다.
+
+   ```
+   BILLING_MODE=test
+   POLAR_ACCESS_TOKEN=polar_oat_...
+   POLAR_WEBHOOK_SECRET=whsec_...
+   BILLING_TEST_USER_IDS=            # 결제해 볼 일반 계정 UUID(쉼표 구분). 관리자는 자동 허용
+   ```
+
+   - Polar 토큰에는 `test_`/`live_` 같은 접두가 없어 모드가 API를 고른다. sandbox 토큰은 운영 API에서, 운영 토큰은 sandbox에서
+     인증되지 않는다(401 — 돈은 움직이지 않는다).
+   - 둘 중 하나라도 없으면 Polar 결제는 꺼진다. 관리자 → 결제·계약 → 테스트 도구의 "Polar 키"가 "설정됨"인지 본다(값은 보이지 않는다).
+   - test 모드 환경이 둘 이상이면 같은 sandbox 조직의 토큰을 쓴다. 테스트 행(`livemode=false`)을 함께 쓰므로, 다른 조직의 토큰이면
+     서로의 구독을 Polar에서 찾지 못한다(크론 대사는 이런 경우 구독을 끝내지 않고 확인 필요만 남긴다 — 아래).
+6. **로컬에서 웹훅 받기** — Polar는 공개 https 주소로만 보낸다. 터널로 로컬 개발 서버를 연다.
+
+   ```bash
+   cloudflared tunnel --url http://localhost:3100
+   ```
+
+   나온 https 주소에 `/api/billing/webhooks/polar`를 붙여 sandbox 웹훅 끝점으로 등록한다. 터널 주소가 바뀌면 다시 등록한다.
+   웹훅이 없어도 결제창 복귀와 크론 대사가 정본을 읽어 맞추지만, 포털 해지·환불은 웹훅으로 바로 반영된다.
+7. **프리뷰 배포에서 시험할 때** — Vercel Deployment Protection이 켜져 있으면 Polar의 요청이 보호 화면에 막혀 웹훅이 모두 실패한다.
+   웹훅 경로가 보호를 우회하게 한다(Vercel의 Protection Bypass for Automation 비밀 값을 웹훅 주소에 붙이거나 그 프리뷰의 보호를
+   끈다). 비밀 값은 이 문서에 적지 않는다. 프리뷰도 DB를 같이 쓰니 위 "운영 주의"의 test 모드 규칙을 따른다.
+8. **가격 행** — 관리자 → 결제·계약 → 가격에서 결제사를 **해외 결제(Polar)**로 고르고 플랜·주기·금액(달러, 세금 제외)·Polar 상품 id를
+   넣는다. 모드는 **테스트**, 활성으로 저장한다. 금액은 Polar 상품 가격과 같아야 한다 — 다르면 결제 시작이 결제창을 열지 않고
+   `billing needs review:` 한 줄을 남긴다(사용자가 동의하지 않은 금액으로 결제되지 않게). 같은 플랜·결제사·주기·모드에서 활성 행은 하나뿐이다.
+
+### 로컬에서 끝까지 돌려 보기
+
+토스 절과 같이 `npm run dev`로 띄운 로컬 서버에서, 관리자나 `BILLING_TEST_USER_IDS` 계정으로 한다.
+
+1. `/en/pricing`에서 가격(USD, 세금 별도)을 확인하고 구독을 누른다.
+2. 결제 확인 화면(`/en/billing/checkout`)에서 플랜·금액·자동 갱신·해지 방법·판매 대행 고지를 확인하고 동의한 뒤 Polar 결제창으로 간다.
+3. Polar sandbox 결제창에서 테스트 카드로 결제한다. 테스트 카드 번호는 Polar 문서의 sandbox 안내를 본다(여기에는 적지 않는다).
+4. `/en/mypage/billing?result=subscribed`로 돌아온다. 마이페이지에 Pro 한도가 보인다. 영수증은 Polar가 메일로 보낸다.
+5. 결제 관리에 플랜·금액(USD, 세금 별도)·상태·다음 결제일(기간 끝)이 보이고, 해지·카드 변경 버튼 대신 **Manage billing (Polar)**가 있다.
+   누르면 Polar 고객 포털로 간다(주소는 polar.sh 허용 목록을 통과해야 이동한다).
+6. 포털에서 해지 예약 → 결제 관리가 "해지 예약"으로 바뀌는지, 해지 취소 → 원래대로 돌아오는지 본다. sandbox 대시보드에서 구독을
+   즉시 해지(revoke)하면 구독이 끝나고 권한이 무료로 돌아간다.
+7. Polar 대시보드에서 같은 웹훅을 다시 보내도(redeliver) 결과가 같아야 한다.
+8. 관리자 → 결제·계약 → 테스트 도구의 **MoR 지금 대사**로 크론의 MoR 단계만 돌려 볼 수 있다(결제를 일으키지 않는다).
+
+### 웹훅과 크론 대사
+
+- **웹훅** — 서명을 확인한 뒤 이벤트 id로 한 번만 처리한다(재전송 멱등). 본문의 상태는 믿지 않고 구독·주문·환불·결제창을 Polar
+  API로 다시 읽어 반영한다. 처리 중 실패는 500으로 답해 Polar가 다시 보낸다. 다시 받아도 같은 결과가 날 실패(응답 모양이 다름,
+  DB 제약 위반)가 다섯 번째 전달에서도 나면 처리된 것으로 끝내고(200) `billing needs review:` 한 줄을 남긴다 — 고칠 수 없는
+  이벤트 하나 때문에 Polar가 끝점을 끄지 않게 하려는 것이고, 빠진 반영은 크론 대사가 메운다.
+- **크론 대사** — 결제 크론(위 "결제 크론")이 토스 단계 뒤에 같은 예산으로 MoR 단계를 돈다. Polar 키가 없으면 이 단계만 건너뛴다.
+  1. 만료 시각이 지난 open 해외 결제 시도를 닫는다.
+  2. Polar 환불 id 없이 30분 넘게 `pending`으로 남은 자동 환불 기록마다 확인 필요 한 줄을 남긴다.
+  3. 기간 끝이 6시간 넘게 지났거나 미납인 진행 중 해외 결제 구독을 오래된 순서로 50건까지 Polar에서 다시 읽어 맞춘다. Polar에 없는
+     구독(404)은 끝내고 확인 필요를 남긴다. 다만 둘 이상이 404이고 하나도 읽히지 않으면 토큰의 조직이 다른 것으로 보고 끝내지 않는다.
+     토큰·권한 거부(401·403)면 그 실행의 대사를 멈춘다.
+  결과는 `cron_runs` 요약의 `mor_*` 키(`mor_synced`·`mor_failed`·`mor_review`·`mor_stale_refunds` 등)로 남고, 관리자 테스트 도구는
+  실패·확인 필요·중단을 문제로 보인다.
+- **회원 탈퇴** — 진행 중 해외 결제 구독이 있으면 계정을 지우기 **전에** Polar에서 즉시 해지(revoke)하고 행을 사용자 해지로 끝낸다.
+  Polar 구독은 빌링키와 달리 계정과 함께 사라지지 않아 지운 뒤에도 청구될 수 있기 때문이다. 이 배포에 Polar 키가 없거나 이 배포와
+  다른 모드의 구독이 있거나 해지를 확인하지 못하면 탈퇴를 막고, 사용자에게 결제 관리(포털)에서 해지한 뒤 다시 시도하라고 안내한다.
+  기록은 `billing account deletion …` 한 줄(구독·행·사용자 id)이다.
+
+### `billing needs review:` 줄(해외 결제)
+
+`select created_at, message from app_errors where message like 'billing needs review:%' order by created_at desc;`로 본다. 기록에는 id만 있다.
+
+- `mor subscription … has an unknown status` · `… unsupported billing interval` · `… is not billed in USD` · `no mor price for product …` —
+  Polar 상품 설정이나 가격 행(Polar 상품 id·모드)이 맞지 않는다. 행은 바꾸지 않았다. 고친 뒤 크론 대사나 웹훅 재전송으로 다시 맞춘다.
+- `mor subscription … was revoked (…) …` · `refund … did not go through` · `refund of order … has an unknown outcome …` ·
+  `automatic refund … was failed at Polar …` — 이미 다른 구독이 있거나 탈퇴한 사용자의 결제라 자동으로 해지·환불하다 멈춘 것이다.
+  `billing_refunds`에서 그 결제의 기록을 확인한 뒤, 고객이 돈을 돌려받지 못했으면 Polar 대시보드에서 환불한다(두 번 환불하지 않게
+  기록부터 본다).
+- `automatic refund … for payment … has been pending without a Polar id` — 자동 환불을 선점한 뒤 함수가 멈췄다. Polar 대시보드에서 그
+  주문이 환불됐는지 보고, 됐으면 그대로 두고(다음 환불 웹훅이 기록을 잇는다) 안 됐으면 환불한다. 기록이 남아 있는 동안 매일 다시 알린다.
+- `mor subscription … was paused at Polar; row … ended` — 우리 화면에는 일시정지가 없다. 같은 구독이 Polar에서 다시 active가 되면 되살아난다.
+- `mor subscription … (row …) was not found at Polar; row ended` — Polar에 그 구독이 없다. 토큰의 조직·모드가 맞는지 본다.
+- `… mor subscriptions were not found at Polar and none could be read in this run …` — 토큰이 다른 조직(또는 다른 sandbox)의 것일 수 있다.
+  행은 그대로 두었다. `POLAR_ACCESS_TOKEN`이 이 모드의 조직 것인지 확인한다.
+- `polar webhook … failed … times with a deterministic error …; marked processed …` — 그 이벤트는 반영하지 못했다. `last_error`
+  (`billing_webhook_events`)로 원인을 고치면 다음 크론 대사가 구독을 정본으로 맞춘다.
+
+### 라이브 전환 체크리스트(Polar)
+
+토스 체크리스트와 따로, 아래를 모두 마친 뒤에만 해외 결제를 연다.
+
+1. Polar 운영 조직의 판매자 심사(seller verification)를 마친다.
+2. 지급 계정(payout account)을 연결한다.
+3. 운영 조직에서 위 스코프의 토큰을 새로 만든다(sandbox 토큰은 쓰지 않는다).
+4. 운영 조직에 웹훅을 다시 등록한다(정식 호스트, 같은 형식·이벤트). 새 시크릿을 쓴다.
+5. 운영 조직에 월간·연간 상품을 다시 만들고, 관리자 가격 행을 모드 **실결제**로 그 상품 id와 함께 추가한다(sandbox 상품 id는 쓰지 않는다).
+6. Vercel **Production**에만 `POLAR_ACCESS_TOKEN`·`POLAR_WEBHOOK_SECRET`(과 `BILLING_MODE=live`)를 넣고 재배포한다.
+7. 공개하기 전에 관리자 계정으로 실제 결제 → 결제 관리의 포털에서 해지 → Polar 대시보드에서 환불을 한 번 해 보고, 웹훅 기록과
+   결제 관리 화면을 확인한다. 공개 범위 플래그는 토스와 같다(위 체크리스트 6번).
 
 ## 3. Vercel 배포
 

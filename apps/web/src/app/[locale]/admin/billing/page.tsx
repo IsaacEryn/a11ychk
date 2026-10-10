@@ -19,6 +19,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 /**
  * 결제·계약 목록 — 구독(카드·해외)과 기관 계약을 한 표로. 기본은 진행 중(active·past_due).
+ * 해외 결제(MoR) 행은 결제사(Polar)와 Polar 구독 id를 함께 보인다 — 해지·환불은 Polar 대시보드에서 그 id로 찾는다.
  * subscriptions는 service role로 읽는다. 0041 미적용이면 안내만 보여 준다.
  */
 export default async function AdminBillingPage({
@@ -41,7 +42,7 @@ export default async function AdminBillingPage({
   let query = admin
     .from("subscriptions")
     .select(
-      "id, user_id, provider, plan_code, status, livemode, current_period_start, current_period_end, grace_until, cancel_at_period_end, billing_contracts(org_name)",
+      "id, user_id, provider, mor_provider, external_id, plan_code, status, livemode, current_period_start, current_period_end, grace_until, cancel_at_period_end, billing_contracts(org_name)",
     )
     .order("created_at", { ascending: false })
     .limit(200);
@@ -128,7 +129,16 @@ export default async function AdminBillingPage({
                         )}
                       </th>
                       <td className="py-2 pr-3">{t(`users.plans.${r.plan_code}`)}</td>
-                      <td className="py-2 pr-3">{t(`billing.provider.${r.provider}`)}</td>
+                      <td className="py-2 pr-3">
+                        {t(`billing.provider.${r.provider}`)}
+                        {r.mor_provider === "polar" && " · Polar"}
+                        {r.provider === "mor" && (
+                          <span className="block break-all font-mono text-xs text-[var(--color-ink-soft)]">
+                            <span className="sr-only">{t("billing.detail.externalId")} </span>
+                            {(r.external_id as string | null) ?? "—"}
+                          </span>
+                        )}
+                      </td>
                       <td className="py-2 pr-3">{t(`billing.status.${statusKey(r)}`)}</td>
                       <td className="whitespace-nowrap py-2 pr-3 tabular-nums">
                         {day(r.current_period_start as string)} ~ {day(r.current_period_end as string)}

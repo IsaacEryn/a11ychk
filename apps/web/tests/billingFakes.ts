@@ -65,6 +65,8 @@ export interface WebhookEventRow {
 
 /** 토스 행은 외부 열을 비워 둔다(없으면 null로 읽는다) */
 export type MemorySubscription = SubscriptionRow & Partial<MorSubscriptionFields>;
+/** billing_refunds 행 — created_at은 저장소 안에서만 쓴다(오래된 pending 감시). 비우면 아주 오래된 것으로 본다. 반환값에는 싣지 않는다 */
+export type MemoryRefund = RefundRow & { created_at?: string };
 
 export interface MemoryRows {
   prices: PriceRow[];
@@ -75,7 +77,7 @@ export interface MemoryRows {
   consents: ConsentRow[];
   /** profiles 행이 있는 사용자 id — MoR 흐름의 사용자 확인·FK용 */
   profiles: string[];
-  refunds: RefundRow[];
+  refunds: MemoryRefund[];
   webhookEvents: WebhookEventRow[];
 }
 
@@ -149,6 +151,12 @@ const outMorSubscription = (s: MemorySubscription): MorSubscriptionRow =>
     SUBSCRIPTION_TIMES,
   );
 const outPayment = (p: PaymentRow) => withPgTimes(clone(p), PAYMENT_TIMES);
+/** 환불 기록 반환 — RefundRow 열만(created_at은 Supabase 저장소도 고르지 않는다) */
+const outRefund = (r: MemoryRefund): RefundRow => {
+  const out: MemoryRefund = clone(r);
+  delete out.created_at;
+  return out;
+};
 /** timestamptz 비교 — 저장 형식(+00:00·Z)이 달라도 같은 시각이면 같다 */
 const sameInstant = (a: string | null, b: string | null) => a !== null && b !== null && Date.parse(a) === Date.parse(b);
 /** PostgREST는 undefined 키를 보내지 않는다 — 메모리에서도 덮어쓰지 않는다 */
@@ -578,11 +586,11 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       if (!(row.amount > 0)) throw storeError("insertRefund", "amount check violation");
       if (!["pending", "succeeded", "failed"].includes(row.status)) throw storeError("insertRefund", "status check violation");
       fk("insertRefund", rows.payments.some((p) => p.id === row.payment_id), "payment_id");
-      const r: RefundRow = { ...clone(row), id: row.id ?? randomUUID() };
+      const r: MemoryRefund = { ...clone(row), id: row.id ?? randomUUID(), created_at: pgTime(now()) };
       // 기본 키 — 자동 환불의 결정적 id가 동시 요청 중 하나만 통과시킨다
       if (rows.refunds.some((o) => o.id === r.id)) return "duplicate";
       rows.refunds.push(r);
-      return clone(r);
+      return outRefund(r);
     },
 
     async updateRefund(id, patch) {
@@ -594,12 +602,12 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
 
     async findRefundByExternal(externalRefundId) {
       const r = rows.refunds.find((x) => x.external_refund_id === externalRefundId);
-      return r ? clone(r) : null;
+      return r ? outRefund(r) : null;
     },
 
     async getRefund(id) {
       const r = found(rows.refunds, id);
-      return r ? clone(r) : null;
+      return r ? outRefund(r) : null;
     },
 
     async updateRefundIf(id, expected, patch) {
@@ -608,6 +616,56 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       if (patch.status !== undefined && !["pending", "succeeded", "failed"].includes(patch.status)) throw storeError("updateRefundIf", "status check violation");
       Object.assign(r, defined(clone(patch)));
       return true;
+    },
+
+    async listLiveMorSubscriptions(userId) {
+      return rows.subscriptions.filter((r) => r.user_id === userId && r.provider === "mor" && LIVE.has(r.status)).map(outMorSubscription);
+    },
+
+    async hasProviderSubscription(userId, provider, livemode) {
+      return rows.subscriptions.some((r) => r.user_id === userId && r.provider === provider && r.livemode === livemode);
+    },
+
+    async listMorReconcileCandidates(livemode, beforeIso, limit) {
+      const before = micros(beforeIso);
+      if (Number.isNaN(before)) throw storeError("listMorReconcileCandidates", "beforeIso must be an ISO time");
+      return rows.subscriptions
+        .filter(
+          (s) =>
+            s.provider === "mor" &&
+            s.livemode === livemode &&
+            LIVE.has(s.status) &&
+            s.external_id != null &&
+            (micros(pgTime(s.current_period_end)) < before || s.status === "past_due"),
+        )
+        .sort((a, b) => Date.parse(a.current_period_end) - Date.parse(b.current_period_end))
+        .slice(0, limit)
+        .map(outMorSubscription);
+    },
+
+    async expireOpenCheckouts(provider, livemode, nowIso) {
+      const at = Date.parse(nowIso);
+      let n = 0;
+      for (const c of rows.checkouts) {
+        if (c.provider === provider && c.livemode === livemode && c.status === "open" && Date.parse(c.expires_at) < at) {
+          c.status = "expired";
+          n++;
+        }
+      }
+      return n;
+    },
+
+    async listStaleRefunds(provider, livemode, olderThanIso, limit) {
+      const before = Date.parse(olderThanIso);
+      const createdAt = (r: MemoryRefund) => (r.created_at ? Date.parse(r.created_at) : 0);
+      return rows.refunds
+        .filter((r) => {
+          const payment = rows.payments.find((p) => p.id === r.payment_id);
+          return payment?.provider === provider && payment.livemode === livemode && r.status === "pending" && r.external_refund_id === null && createdAt(r) < before;
+        })
+        .sort((a, b) => createdAt(a) - createdAt(b))
+        .slice(0, limit)
+        .map(outRefund);
     },
 
     async recordWebhookEvent(provider, eventId, type, payload) {
@@ -623,11 +681,11 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
           last_error: null,
           payload: clone(payload),
         });
-        return "new";
+        return { state: "new", attempts: 1 };
       }
-      if (e.processed_at !== null) return "done";
+      if (e.processed_at !== null) return { state: "done", attempts: e.attempts };
       e.attempts = Math.min(e.attempts + 1, 32767);
-      return "retry";
+      return { state: "retry", attempts: e.attempts };
     },
 
     async finishWebhookEvent(provider, eventId, outcome) {

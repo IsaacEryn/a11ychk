@@ -118,9 +118,9 @@ function micros(s: string): number {
 
 /**
  * 저장·비교에 쓰는 시각 — UTC, 소수 6자리 Z. ISO가 아닌 문자열은 null(필터에 들어가는 값이라 모양을 고정한다).
- * Date.parse만 통과한 느슨한 표기(괄호 주석 등)는 여기서 걸러진다.
+ * Date.parse만 통과한 느슨한 표기(괄호 주석 등)는 여기서 걸러진다. 탈퇴 정리(flows/manage.ts)도 같은 시각으로 쓴다.
  */
-function canonicalTime(s: string | null | undefined): string | null {
+export function canonicalTime(s: string | null | undefined): string | null {
   if (typeof s !== "string") return null;
   const us = micros(s);
   if (Number.isNaN(us)) return null;
@@ -128,8 +128,8 @@ function canonicalTime(s: string | null | undefined): string | null {
   return `${head}.${String(us % 1e6).padStart(6, "0")}Z`;
 }
 
-/** 저장된 시각이 들어온 시각보다 새로우면 true(같으면 재전송이라 false) */
-function storedIsNewer(stored: string | null, incoming: string): boolean {
+/** 저장된 시각이 들어온 시각보다 새로우면 true(같으면 재전송이라 false) — 마이크로초까지 */
+export function storedIsNewer(stored: string | null, incoming: string): boolean {
   return stored !== null && micros(stored) > micros(incoming);
 }
 

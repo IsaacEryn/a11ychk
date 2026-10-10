@@ -1,7 +1,7 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { requireAdmin } from "@/lib/adminGuard";
 import { adminBase } from "@/lib/adminSlug";
-import { billingMode, tossKeys } from "@/lib/billing/config";
+import { billingMode, polarKeys, tossKeys } from "@/lib/billing/config";
 import { loadEncKey } from "@/lib/billing/crypto";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -11,6 +11,7 @@ import { BillingSubnav } from "../BillingSubnav";
 import { displayStatus } from "../subscriptionStatus";
 import { PullDueForm } from "./PullDueForm";
 import { RunCycleForm } from "./RunCycleForm";
+import { RunMorCycleForm } from "./RunMorCycleForm";
 
 // "결제 크론 지금 실행"이 이 페이지의 서버 액션으로 돈다 — 결제 크론 라우트와 같은 최대 실행 시간을 준다
 export const maxDuration = 300;
@@ -22,7 +23,7 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 }
 
 /**
- * 결제 테스트 도구 — 현재 모드와 설정 여부(예·아니요만, 키 값은 출력하지 않는다), 결제 크론 지금 실행,
+ * 결제 테스트 도구 — 현재 모드와 설정 여부(예·아니요만, 키 값은 출력하지 않는다), 결제 크론 지금 실행, MoR(Polar) 대사만 지금 실행,
  * 테스트 구독(livemode=false·toss·진행 중)의 결제일 당기기. 0041 미적용이면 구독 표 대신 안내만 보여 준다.
  */
 export default async function AdminBillingToolsPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -35,6 +36,7 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
   const mode = billingMode();
   const hasTossKeys = tossKeys() !== null;
   const hasEncKey = loadEncKey() !== null;
+  const hasPolarKeys = polarKeys() !== null;
   const yesNo = (v: boolean) => t(v ? "billing.tools.yes" : "billing.tools.no");
 
   const admin = createAdminClient();
@@ -74,6 +76,8 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
           <dd>{yesNo(hasTossKeys)}</dd>
           <dt className="font-semibold">{t("billing.tools.encKey")}</dt>
           <dd>{yesNo(hasEncKey)}</dd>
+          <dt className="font-semibold">{t("billing.tools.polarKeys")}</dt>
+          <dd>{yesNo(hasPolarKeys)}</dd>
         </dl>
         <p className="mt-2 text-xs text-[var(--color-ink-faint)]">{t("billing.tools.stateHint")}</p>
       </section>
@@ -91,6 +95,21 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
           {t(`billing.tools.cycleHint.${mode}`)}
         </p>
         <RunCycleForm requireConfirm={mode === "live"} disabled={mode === "off"} describedBy="admin-billing-tools-cycle-hint" />
+      </section>
+
+      <section aria-labelledby="admin-billing-tools-mor-heading" className="mt-8 border-[1.5px] border-dashed border-[var(--color-line)] p-4">
+        <h3 id="admin-billing-tools-mor-heading" className="font-display text-lg font-bold">{t("billing.tools.morTitle")}</h3>
+        <p
+          id="admin-billing-tools-mor-hint"
+          className={
+            mode === "off" || !hasPolarKeys
+              ? "mt-2 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
+              : "mt-1 text-xs text-[var(--color-ink-faint)]"
+          }
+        >
+          {mode === "off" ? t("billing.tools.morHint.off") : hasPolarKeys ? t("billing.tools.morHint.on") : t("billing.tools.morHint.noKeys")}
+        </p>
+        <RunMorCycleForm disabled={mode === "off" || !hasPolarKeys} describedBy="admin-billing-tools-mor-hint" />
       </section>
 
       <section aria-labelledby="admin-billing-tools-subs-heading" className="mt-8">

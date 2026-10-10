@@ -14,15 +14,18 @@ import {
   loadCardSummaries,
   loadLiveSubscriptions,
   loadPaymentHistory,
+  nextChargeAt,
   paymentStatusKey,
   type ManagedSubscription,
 } from "@/lib/billing/manageData";
 import { graceOver, graceUntil, upcomingChargeAt } from "@/lib/billing/period";
+import { amountInMajorUnits } from "@/lib/billing/price";
 import { loadEntitlement } from "@/lib/entitlements";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 import { CancelSection, type CancelTarget } from "./CancelSection";
 import { CardChangeButton } from "./CardChangeButton";
+import { MorPortalButton } from "./MorPortalButton";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -33,6 +36,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 /** 사용자가 결제 관리에서 다루는 토스 정기결제 행 */
 const isTossSubscription = (s: ManagedSubscription) => s.provider === "toss" && s.interval !== "contract";
+/** 해외 결제(판매 대행 Polar) 구독 행 — 해지·결제 수단은 Polar 고객 포털이 맡아 토스 버튼을 붙이지 않는다 */
+const isMorSubscription = (s: ManagedSubscription) => s.provider === "mor";
 /** 기관 계약의 시작일이 지났는지 — 이 화면은 요청마다 렌더된다(로그인 쿠키) */
 const hasStarted = (s: ManagedSubscription) => Date.now() >= Date.parse(s.current_period_start);
 /**
@@ -52,7 +57,9 @@ function DetailRow({ label, children }: { label: string; children: ReactNode }) 
 
 /**
  * 결제 관리 — 현재 등급과 근거, 진행 중 구독(플랜·금액·상태·결제 카드)과 해지·해지 취소·카드 변경, 기관 계약(끝나는 날만),
- * 결제 내역. 토스 결제창에서 돌아온 결과(?result=)·오류(?error=)는 맨 위에 보인다(목록 밖의 값은 무시).
+ * 결제 내역. 토스·Polar 결제창에서 돌아온 결과(?result=)·오류(?error=)는 맨 위에 보인다(목록 밖의 값은 무시).
+ * 해외 결제(Polar) 구독은 플랜·금액(USD, 세금 별도)·상태·다음 결제일(= 기간 끝)만 보이고, 해지·카드 변경 버튼 대신
+ * "결제 관리(Polar)" 버튼으로 Polar 고객 포털을 연다(MorPortalButton). 금액은 행의 통화 단위(USD는 cent)를 바꿔 서식을 입힌다.
  *
  * 로그인 필수. 결제 모드가 꺼져 있으면 결제 행을 만들 수 없어 버튼은 없고, 구독·계약 행이 하나도 없으면 404다
  * (기관 계약 사용자는 꺼져 있어도 본다). 구독 행은 권한 계산과 같은 livemode 범위에서 읽고, 버튼은 지금 모드가 만드는
@@ -84,6 +91,8 @@ export default async function BillingManagePage({
   if (actionLivemode === null && live.length === 0 && !(await hasBillingRecord(supabase, user.id, livemodes))) notFound();
 
   const tossRows = live.filter(isTossSubscription);
+  // 구독 칸에 보이는 행 — 토스와 해외 결제를 기간 끝 순서 그대로
+  const subscriptionRows = live.filter((s) => isTossSubscription(s) || isMorSubscription(s));
   const contracts = live.filter((s) => s.provider === "manual");
   const actionable = actionLivemode === null ? null : (tossRows.find((s) => s.livemode === actionLivemode) ?? null);
 
@@ -101,7 +110,8 @@ export default async function BillingManagePage({
   const format = await getFormatter();
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "long" });
   const shortDay = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
-  const money = (amount: number, currency: string) => format.number(amount, { style: "currency", currency });
+  // 행의 통화 단위(KRW는 원, USD는 cent)를 화면 단위로 바꿔 서식을 입힌다
+  const money = (amount: number, currency: "KRW" | "USD") => format.number(amountInMajorUnits(amount, currency), { style: "currency", currency });
   // 카드 표기는 결제 메일과 같은 함수(cardLabel)로 — 영문 화면에 한국어 카드 종류가 섞이지 않는다
   const cardLocale = locale === "en" ? "en" : "ko";
   // test 모드에서는 실결제 행과 테스트 행이 함께 보인다 — 테스트 행에 표시를 붙인다
@@ -196,12 +206,12 @@ export default async function BillingManagePage({
         );
       })}
 
-      {(actionLivemode !== null || tossRows.length > 0) && (
+      {(actionLivemode !== null || subscriptionRows.length > 0) && (
         <section aria-labelledby="billing-subscription-heading" className="doc-card mt-6 p-6">
           <h2 id="billing-subscription-heading" className="font-display text-xl font-bold">
             {t("subscription.title")}
           </h2>
-          {tossRows.length === 0 ? (
+          {subscriptionRows.length === 0 ? (
             <p className="mt-3 text-sm text-[var(--color-ink-soft)]">
               {t("subscription.none")}{" "}
               <Link href="/pricing" className="font-semibold text-[var(--color-seal)] underline underline-offset-2">
@@ -209,7 +219,54 @@ export default async function BillingManagePage({
               </Link>
             </p>
           ) : (
-            tossRows.map((s) => {
+            subscriptionRows.map((s) => {
+              if (isMorSubscription(s)) {
+                // 지금 모드가 만드는 행에만 포털 버튼이 있다(이 배포의 Polar 토큰은 그 모드의 것뿐이다)
+                const canOpen = actionLivemode !== null && s.livemode === actionLivemode;
+                const pastDue = s.status === "past_due";
+                const hintId = `billing-mor-hint-${s.id}`;
+                const status = pastDue
+                  ? t("subscription.statusPastDue")
+                  : s.cancel_at_period_end
+                    ? t("subscription.statusScheduled", { date: day(s.current_period_end) })
+                    : canOpen
+                      ? t("subscription.statusActive", { date: day(nextChargeAt(s)) })
+                      : t("subscription.statusActiveUntil", { date: day(s.current_period_end) });
+                return (
+                  <div key={s.id} className="mt-4">
+                    {pastDue && (
+                      // 정적 안내 — Polar가 결제를 다시 시도하고, 카드는 포털에서 바꾼다(live 영역 아님)
+                      <Notice variant="warn" live={false} title={t("subscription.pastDueTitle")}>
+                        {canOpen && <p>{t("subscription.pastDueBodyMor")}</p>}
+                      </Notice>
+                    )}
+                    <dl className="mt-2 divide-y divide-[var(--color-line)] text-sm">
+                      <DetailRow label={t("subscription.plan")}>
+                        {planNameFor(s.plan_code)}
+                        {isTestRow(s.livemode) && ` · ${t("subscription.testTag")}`}
+                      </DetailRow>
+                      <DetailRow label={t("subscription.amount")}>
+                        {t("subscription.amountValueMor", {
+                          amount: money(s.amount, s.currency),
+                          cycle: tCheckout(`cycleValue.${s.interval === "year" ? "year" : "month"}`),
+                        })}
+                      </DetailRow>
+                      <DetailRow label={t("subscription.status")}>{status}</DetailRow>
+                      <DetailRow label={t("subscription.paymentMethod")}>{t("subscription.paymentMethodMor")}</DetailRow>
+                    </dl>
+                    {canOpen ? (
+                      <>
+                        <p id={hintId} className="mt-3 text-sm text-[var(--color-ink-soft)]">
+                          {t("portal.hint")}
+                        </p>
+                        <MorPortalButton describedBy={hintId} emphasize={pastDue} />
+                      </>
+                    ) : (
+                      <p className="mt-3 text-sm text-[var(--color-ink-soft)]">{t("subscription.readOnly")}</p>
+                    )}
+                  </div>
+                );
+              }
               // 지금 모드가 만드는 행에만 버튼이 있다. 나머지(결제 꺼짐·test 모드의 실결제 행)는 크론도 이 서버에서
               // 결제하지 않으니 다음 결제일·카드 변경 같은 동작 안내 없이 사실만 보인다
               const canAct = s.id === actionable?.id;
@@ -302,7 +359,7 @@ export default async function BillingManagePage({
               </thead>
               <tbody>
                 {payments.map((p) => {
-                  // 결제사가 준 주소 — http(s)만 링크로 싣는다(서버에서 열지 않는다)
+                  // 결제사가 준 주소 — http(s)만 링크로 싣는다(서버에서 열지 않는다). 해외 결제(Polar) 영수증은 Polar가 메일·고객 포털로 준다
                   const receipt = httpUrl(p.receipt_url);
                   return (
                     <tr key={p.id} className="border-b border-[var(--color-line)]">
@@ -328,6 +385,8 @@ export default async function BillingManagePage({
                             {t("payments.receipt")}
                             <span className="sr-only"> {t("newWindow")}</span>
                           </a>
+                        ) : p.provider === "mor" ? (
+                          <span className="text-[var(--color-ink-soft)]">{t("payments.receiptPolar")}</span>
                         ) : (
                           <>
                             <span aria-hidden="true">—</span>

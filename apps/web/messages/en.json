@@ -1085,7 +1085,8 @@
         "mismatch": "The confirmation text does not match.",
         "admin": "Admin accounts cannot be deleted. Remove admin rights first, then try again.",
         "active": "An audit is in progress. Try again after it finishes.",
-        "failed": "Could not delete the account. Try again later or contact us."
+        "failed": "Could not delete the account. Try again later or contact us.",
+        "billingCancelFailed": "We could not cancel your international (Polar) subscription, so your account was not deleted. Please cancel the subscription in Billing, then try again or contact us."
       }
     }
   },
@@ -1346,7 +1347,8 @@
         "billing_price_create": "Price added",
         "billing_price_deactivate": "Price deactivated",
         "billing_cycle_run": "Billing cron run manually",
-        "billing_pull_due": "Test due date pulled forward"
+        "billing_pull_due": "Test due date pulled forward",
+        "billing_mor_reconcile_run": "MoR reconcile run manually"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",
@@ -1552,12 +1554,17 @@
         "user": "User",
         "plan": "Plan",
         "provider": "Payment method",
+        "externalId": "Polar subscription id",
+        "externalCustomerId": "Polar customer id",
+        "externalUpdatedAt": "Last Polar change applied",
         "status": "Status",
         "period": "Period",
         "amount": "Contract amount",
+        "amountMor": "Subscription amount (taxes excluded)",
         "endedReason": "End reason",
         "createdAt": "Created",
-        "nonManual": "Managing card and international subscriptions (canceling and so on) is on the way. For now you can only view their payments."
+        "nonManual": "Managing card and international subscriptions (canceling and so on) is on the way. For now you can only view their payments.",
+        "morNote": "Cancel or refund international (Polar) subscriptions in the Polar dashboard. Webhooks and the billing cron reconcile bring the result to this page. Admin refunds are coming later."
       },
       "endedReason": {
         "user_canceled": "Canceled by user",
@@ -1695,6 +1702,7 @@
         },
         "tossKeys": "Toss keys",
         "encKey": "Billing-key encryption key",
+        "polarKeys": "Polar keys",
         "yes": "Configured",
         "no": "Not configured",
         "stateHint": "Shows only whether the environment variables match the mode. Key values are never displayed. In off mode, keys show as not configured even if they exist.",
@@ -1703,6 +1711,20 @@
           "off": "Billing mode is off, so this can't run. Check that the BILLING_MODE environment variable is test or live and that the Toss secret key prefix (test_/live_) matches that mode, then redeploy.",
           "test": "Runs the daily billing cron (10:00 Korea time) once, now. It handles test subscriptions: renewal charges, retries for past-due payments, cancellation and non-payment endings, and upcoming-charge emails.",
           "live": "Runs the daily billing cron (10:00 Korea time) once, now. Real charges go out for live subscriptions that are due."
+        },
+        "morTitle": "Reconcile MoR (Polar) now",
+        "morHint": {
+          "off": "Billing mode is off, so this cannot run.",
+          "noKeys": "Polar keys (POLAR_ACCESS_TOKEN and POLAR_WEBHOOK_SECRET) are not set, so this cannot run.",
+          "on": "Runs only the international (Polar) step of the billing cron now. It re-reads subscriptions whose period has ended or that are past due, closes expired checkout attempts and reports automatic refunds left pending without a Polar id. It does not charge anyone."
+        },
+        "morRun": "Reconcile MoR now",
+        "morRan": "MoR reconcile finished ({candidates} subscriptions checked)",
+        "morRanIssues": "MoR reconcile finished with issues ({candidates} subscriptions checked, {errors} failures{review, plural, =0 {} other {, # need review}}{halted, plural, =0 {} other {, halted by a Polar token or permission problem}}). Please check the error log.",
+        "morErrors": {
+          "off": "Billing mode is off.",
+          "notConfigured": "Polar keys are not set.",
+          "failed": "This could not be completed. Please check the error log."
         },
         "run": "Run billing cron now",
         "running": "Running…",
@@ -1741,7 +1763,18 @@
           "end_unpaid": "Ended for non-payment",
           "held": "Ending held (unresolved payment)",
           "changed": "Skipped (changed meanwhile)",
-          "halted": "Charging halted"
+          "halted": "Charging halted",
+          "mor_candidates": "MoR subscriptions to reconcile",
+          "mor_synced": "MoR subscriptions matched to Polar",
+          "mor_refunded": "MoR subscriptions revoked and refunded automatically (no period to grant)",
+          "mor_review": "MoR needs operator review",
+          "mor_failed": "MoR reconcile failures",
+          "mor_ended": "MoR subscriptions ended (not found at Polar)",
+          "mor_changed": "MoR skipped (changed before ending)",
+          "mor_deferred": "MoR deferred (out of time)",
+          "mor_expired": "Expired MoR checkout attempts closed",
+          "mor_stale_refunds": "Automatic refunds pending without a Polar id",
+          "mor_halted": "MoR reconcile halted (Polar token or permission)"
         },
         "subsTitle": "Test subscriptions",
         "subsIntro": "Only test (livemode=false) card subscriptions are listed. Run the billing cron after pulling for it to take effect.",
@@ -1764,7 +1797,7 @@
           "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription.",
           "cancelScheduled": "Upcoming-charge notices aren't sent for a subscription with a scheduled cancellation, so it can't be pulled to notice time. Use Pull due date to test the ending, or undo the cancellation and try again."
         },
-        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{review, plural, =0 {} other {, payments needing review: #}}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
+        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{review, plural, =0 {} other {, items needing review: #}}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
         "subsItems": {
           "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge. For a subscription with a scheduled cancellation this tests the ending instead: run the cron after that minute and the subscription ends.",
           "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet. Not available for subscriptions with a scheduled cancellation (the cron doesn't send them a notice).",
@@ -1805,9 +1838,11 @@
         },
         "refunded": "refunded {amount}",
         "receipt": "Receipt",
+        "orderId": "Polar order id",
         "newWindow": "(opens in a new window)",
         "noReceipt": "No receipt",
-        "refundNote": "Refunds are handled in the Toss merchant dashboard (an admin refund feature is on the way)."
+        "refundNote": "Refunds are handled in the Toss merchant dashboard (an admin refund feature is on the way).",
+        "refundNoteMor": "Refunds are handled in the Polar dashboard (admin refunds are coming later). Refunded amounts include tax."
       }
     },
     "pager": {
@@ -2242,14 +2277,18 @@
         "plan": "Plan",
         "amount": "Amount",
         "amountValue": "{amount} (VAT included) · {cycle}",
+        "amountValueMor": "{amount} + applicable taxes · {cycle}",
         "status": "Status",
         "statusActive": "Active · next payment on {date}",
         "statusScheduled": "Cancellation scheduled · ends on {date}",
         "statusPastDue": "Payment failed",
         "card": "Payment card",
         "cardNone": "No card on file",
+        "paymentMethod": "Payment method",
+        "paymentMethodMor": "View and change it in the Polar customer portal",
         "pastDueTitle": "Your payment failed",
         "pastDueBody": "If the payment has not gone through by {date}, your subscription will end. If you change your card, we will try the payment again right away with the new card.",
+        "pastDueBodyMor": "Polar will retry the payment. To update your card, use Manage billing (Polar) below.",
         "endingSoon": "The grace period is over, so this subscription will end soon. To keep using the plan, subscribe again after it ends.",
         "statusActiveUntil": "Active · until {date}",
         "readOnly": "This subscription cannot be changed here right now."
@@ -2271,6 +2310,17 @@
           "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
           "sdkFailed": "The payment window could not be opened. Please try again.",
           "sdkCanceled": "You closed the payment window, so your card was not changed. You can try again."
+        }
+      },
+      "portal": {
+        "button": "Manage billing (Polar)",
+        "hint": "Polar, our merchant of record, processes this subscription. You can cancel it, undo a cancellation, change your payment method and get receipts in the Polar customer portal.",
+        "pending": "Preparing the Polar customer portal…",
+        "leaving": "Taking you to the Polar customer portal…",
+        "errors": {
+          "notConfigured": "Payments are not set up yet, so the Polar customer portal cannot be opened right now.",
+          "notFound": "We could not find your subscription at Polar. Please reload the page and try again, or contact us.",
+          "failed": "The Polar customer portal could not be opened. Please try again in a moment."
         }
       },
       "cancel": {
@@ -2310,6 +2360,7 @@
         "colReceipt": "Receipt",
         "receipt": "View receipt",
         "noReceipt": "None",
+        "receiptPolar": "Polar customer portal",
         "testTag": "Test",
         "kind": {
           "initial": "First payment",

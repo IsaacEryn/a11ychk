@@ -8,9 +8,12 @@ import { isImpersonatingNickname } from "@/lib/nickname";
 import { sendAdminInquiryAlert } from "@/lib/notify";
 import { logAppError } from "@/lib/logs";
 import { accountDeleteConfirmPhrase, confirmMatches } from "@/lib/accountDelete";
+import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
-import { collectDeletionTargets, endSubscriptionsForDeletion, type DeletionTargets } from "@/lib/billing/flows/manage";
+import { collectDeletionTargets, endSubscriptionsForDeletion, revokeMorForDeletion, type DeletionTargets } from "@/lib/billing/flows/manage";
+import { createMorDeps } from "@/lib/billing/server";
 import { createSupabaseBillingStore } from "@/lib/billing/store";
+import type { MorDeps } from "@/lib/billing/types";
 import { actionLocale, requireUser, revalidateAll, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 인증 ───────────────
@@ -84,10 +87,15 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
  * 모르는 결제는 기록만 남기고, 승인으로 확인되면 대사가 자동 취소한다. 결제 모드가 off여도 라이브 구독은 남아 있을 수 있어
  * 모드와 상관없이 정리한다.
  *
+ * 해외 결제(판매 대행 Polar) 구독은 예외다 — 계정을 지우기 **전에** Polar에서 즉시 해지(revoke)하고 우리 행을 끝낸다
+ * (flows/manage.ts revokeMorForDeletion). Polar 구독은 빌링키처럼 계정과 함께 사라지지 않아, 지운 뒤에도 Polar가 계속 청구할 수 있기
+ * 때문이다. 해지를 확인하지 못하면(Polar 미설정·이 배포와 다른 모드의 구독·해지 실패·결과 불명) 탈퇴를 막는다(billingCancelFailed —
+ * 결제 관리의 Polar 고객 포털에서 해지한 뒤 다시 시도하라고 안내한다). 토스 구독은 위 순서 그대로다.
+ *
  * 거절 조건: 확인 문구 불일치 · 관리자 계정(콘솔 잠김 방지 — 권한을 넘긴 뒤 탈퇴) ·
  * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다) ·
- * 끝낼 구독을 읽지 못한 저장소 오류(무엇을 끝내야 하는지 모른 채 계정을 지우지 않는다) · 계정 삭제 실패.
- * error: "mismatch" | "admin" | "active" | "failed"
+ * 끝낼 구독을 읽지 못한 저장소 오류(무엇을 끝내야 하는지 모른 채 계정을 지우지 않는다) · 해외 결제 구독을 해지하지 못함 · 계정 삭제 실패.
+ * error: "mismatch" | "admin" | "active" | "failed" | "billingCancelFailed"
  */
 export async function deleteAccount(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
@@ -125,7 +133,27 @@ export async function deleteAccount(_prev: SaveState, formData: FormData): Promi
     }
   }
 
-  // 2. 계정 삭제 — 실패하면 아무 구독도 끝내지 않은 채 돌아간다
+  // 1-1. 해외 결제(Polar) 구독은 지우기 전에 Polar에서 해지한다 — 확인하지 못하면 탈퇴를 막는다. 테이블 없음은 해지할 것이 없는 것이다
+  let mor: MorDeps | null = null;
+  try {
+    mor = createMorDeps();
+  } catch {
+    mor = null; // 의존성을 만들 수 없으면 Polar 미설정과 같다 — MoR 구독이 있으면 아래에서 막힌다
+  }
+  try {
+    if ((await revokeMorForDeletion(billingStore, mor, rowLivemode(billingMode()), user.id, billingLog)) === "blocked") {
+      return { error: "billingCancelFailed" };
+    }
+  } catch (e) {
+    if (!isMissingTable(e)) {
+      await logAppError(admin, `account delete: reading mor subscriptions failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`, {
+        path: "actions.deleteAccount",
+      });
+      return { error: "failed" };
+    }
+  }
+
+  // 2. 계정 삭제 — 실패하면 아무 구독도 끝내지 않은 채 돌아간다(앞서 Polar에서 해지한 구독은 끝난 그대로다)
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
     await logAppError(admin, `account delete failed: ${error.message.slice(0, 300)}`, { path: "actions.deleteAccount" });

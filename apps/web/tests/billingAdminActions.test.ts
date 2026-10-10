@@ -6,20 +6,24 @@ const m = vi.hoisted(() => ({
   logAdminAction: vi.fn(),
   logAppError: vi.fn(),
   createBillingDeps: vi.fn(),
+  createMorDeps: vi.fn(),
   runBillingCycle: vi.fn(),
+  runMorCycle: vi.fn(),
 }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => m.admin }));
 vi.mock("@/lib/actions/shared", () => ({ requireAdmin: async () => ({ user: { id: "admin-1" } }) }));
 vi.mock("@/lib/logs", () => ({ logAdminAction: m.logAdminAction, logAppError: m.logAppError }));
-vi.mock("@/lib/billing/server", () => ({ createBillingDeps: m.createBillingDeps }));
+vi.mock("@/lib/billing/server", () => ({ createBillingDeps: m.createBillingDeps, createMorDeps: m.createMorDeps }));
+vi.mock("@/lib/billing/flows/morCycle", () => ({ runMorCycle: m.runMorCycle }));
 // 크론 판정(decideRenewalAction)은 진짜를 쓴다 — 당긴 결과가 크론에서 어떻게 읽히는지 확인하려고
 vi.mock("@/lib/billing/flows/renew", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../src/lib/billing/flows/renew")>()),
   runBillingCycle: m.runBillingCycle,
 }));
 
+import { endContract } from "../src/lib/actions/adminBilling";
 import { createPrice, deactivatePrice } from "../src/lib/actions/adminBillingPrices";
-import { pullDueDate, runBillingCycleNow } from "../src/lib/actions/adminBillingTools";
+import { pullDueDate, runBillingCycleNow, runMorReconcileNow } from "../src/lib/actions/adminBillingTools";
 import { decideRenewalAction } from "../src/lib/billing/flows/renew";
 import type { SubscriptionRow } from "../src/lib/billing/types";
 
@@ -63,7 +67,10 @@ beforeEach(() => {
   m.logAdminAction.mockReset();
   m.logAppError.mockReset();
   m.createBillingDeps.mockReset();
+  m.createMorDeps.mockReset();
+  m.createMorDeps.mockReturnValue(null);
   m.runBillingCycle.mockReset();
+  m.runMorCycle.mockReset();
 });
 
 afterEach(() => {
@@ -423,8 +430,19 @@ describe("runBillingCycleNow", () => {
     m.createBillingDeps.mockReturnValue(deps);
     m.runBillingCycle.mockResolvedValue(summary);
     expect(await runBillingCycleNow({}, fd({}))).toEqual({ ok: true, summary });
-    expect(m.runBillingCycle).toHaveBeenCalledWith(deps, false);
+    expect(m.runBillingCycle).toHaveBeenCalledWith(deps, false, { mor: null });
     expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.cycle_run", undefined, { mode: "test", ok: true, summary });
+  });
+
+  it("결제 크론 라우트와 같게 Polar 의존성이 있으면 MoR 단계도 함께 돌린다", async () => {
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    const mor = { marker: "mor" };
+    m.createBillingDeps.mockReturnValue(deps);
+    m.createMorDeps.mockReturnValue(mor);
+    m.runBillingCycle.mockResolvedValue(summary);
+    expect(await runBillingCycleNow({}, fd({}))).toEqual({ ok: true, summary });
+    expect(m.runBillingCycle).toHaveBeenCalledWith(deps, false, { mor });
   });
 
   it("live 모드는 확인 체크 없이는 돌리지 않는다", async () => {
@@ -441,7 +459,7 @@ describe("runBillingCycleNow", () => {
     m.createBillingDeps.mockReturnValue(deps);
     m.runBillingCycle.mockResolvedValue(summary);
     expect(await runBillingCycleNow({}, fd({ confirm: "on" }))).toEqual({ ok: true, summary });
-    expect(m.runBillingCycle).toHaveBeenCalledWith(deps, true);
+    expect(m.runBillingCycle).toHaveBeenCalledWith(deps, true, { mor: null });
   });
 
   it("흐름이 던지면 errorText로 기록하고 failed, 실패도 감사에 남긴다(중간까지 결제가 나갔을 수 있다)", async () => {
@@ -462,5 +480,62 @@ describe("runBillingCycleNow", () => {
     m.runBillingCycle.mockRejectedValue(new TossError("UNAUTHORIZED_KEY", "secret-looking message", 401));
     expect(await runBillingCycleNow({}, fd({}))).toEqual({ error: "failed" });
     expect(m.logAppError).toHaveBeenCalledWith(m.admin, "runBillingCycleNow failed: UNAUTHORIZED_KEY (401)", { path: "adminBillingTools" });
+  });
+});
+
+describe("runMorReconcileNow — MoR 대사만 지금 실행", () => {
+  const mor = { marker: "mor" };
+  const summary = { mor_candidates: 1, mor_synced: 1, mor_failed: 0, mor_review: 0, mor_stale_refunds: 0 };
+
+  it("모드가 off면 off, Polar 의존성이 없으면 notConfigured(토스 키와 무관)", async () => {
+    vi.stubEnv("BILLING_MODE", "");
+    expect(await runMorReconcileNow()).toEqual({ error: "off" });
+    expect(m.createMorDeps).not.toHaveBeenCalled();
+
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    m.createMorDeps.mockReturnValue(null);
+    expect(await runMorReconcileNow()).toEqual({ error: "notConfigured" });
+    expect(m.runMorCycle).not.toHaveBeenCalled();
+    expect(m.createBillingDeps).not.toHaveBeenCalled();
+  });
+
+  it("그 모드의 MoR 단계만 돌리고(토스 결제 없음) 개수를 돌려주며 감사에 남긴다", async () => {
+    for (const [mode, livemode] of [["test", false], ["live", true]] as const) {
+      m.runMorCycle.mockReset();
+      m.logAdminAction.mockReset();
+      vi.stubEnv("BILLING_MODE", mode);
+      vi.stubEnv("TOSS_SECRET_KEY", "");
+      m.createMorDeps.mockReturnValue(mor);
+      m.runMorCycle.mockResolvedValue(summary);
+      expect(await runMorReconcileNow()).toEqual({ ok: true, summary });
+      expect(m.runMorCycle).toHaveBeenCalledWith(mor, livemode);
+      expect(m.runBillingCycle).not.toHaveBeenCalled();
+      expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.mor_reconcile_run", undefined, { mode, ok: true, summary });
+    }
+  });
+
+  it("흐름이 던지면 기록하고 failed, 실패도 감사에 남긴다", async () => {
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    m.createMorDeps.mockReturnValue(mor);
+    m.runMorCycle.mockRejectedValue(new Error("boom"));
+    expect(await runMorReconcileNow()).toEqual({ error: "failed" });
+    expect(m.logAppError).toHaveBeenCalledWith(m.admin, "runMorReconcileNow failed: boom", { path: "adminBillingTools" });
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.mor_reconcile_run", undefined, { mode: "test", ok: false });
+  });
+});
+
+describe("endContract — 관리자 즉시 종료는 기관 계약만", () => {
+  it("해외 결제(MoR)·토스 구독은 notManual — Polar 구독이 남은 채 우리 행만 끝내지 않는다", async () => {
+    for (const provider of ["mor", "toss"]) {
+      const sub = { id: SUB_ID, user_id: null, provider, status: "active", current_period_start: "2026-11-01T00:00:00+00:00", current_period_end: "2026-12-31T00:00:00+00:00" };
+      const lookup = fakeTable({ data: sub }, { data: sub });
+      m.admin.from.mockReset();
+      m.admin.from.mockReturnValue(lookup.builder);
+      expect(await endContract({}, fd({ subscriptionId: SUB_ID, confirm: "on" })), provider).toEqual({ error: "notManual" });
+      expect(lookup.calls.some(([name]) => name === "update"), provider).toBe(false);
+      expect(m.logAdminAction, provider).not.toHaveBeenCalled();
+    }
   });
 });

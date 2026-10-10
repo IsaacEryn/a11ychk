@@ -63,7 +63,7 @@ export function DeleteAccountSection({ phrase }: { phrase: string }) {
           </button>
           {state.error && (
             <p id={msgId} role="alert" className="mt-2 text-sm font-medium text-[var(--color-crit)]">
-              {t(`error.${state.error}` as "error.mismatch" | "error.admin" | "error.active" | "error.failed")}
+              {t(`error.${state.error}` as "error.mismatch" | "error.admin" | "error.active" | "error.failed" | "error.billingCancelFailed")}
             </p>
           )}
         </form>

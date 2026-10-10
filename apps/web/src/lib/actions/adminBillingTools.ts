@@ -4,10 +4,11 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, logAppError } from "@/lib/logs";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { runMorCycle } from "@/lib/billing/flows/morCycle";
 import { runBillingCycle } from "@/lib/billing/flows/renew";
 import { errorText } from "@/lib/billing/flows/subscribe";
 import { parsePullDue, planPullDue, type PullKind, type PullableSubscription } from "@/lib/billing/pullDue";
-import { createBillingDeps } from "@/lib/billing/server";
+import { createBillingDeps, createMorDeps } from "@/lib/billing/server";
 import { requireAdmin, type SaveState } from "./shared";
 
 /**
@@ -24,7 +25,7 @@ export interface CycleState extends SaveState {
 }
 
 /**
- * 결제 크론 지금 실행 — 결제 크론(/api/cron/billing)과 같은 함수·같은 모드를 쓴다.
+ * 결제 크론 지금 실행 — 결제 크론(/api/cron/billing)과 같은 함수·같은 모드를 쓴다(Polar 키가 있으면 MoR 대사 단계도 함께).
  * 모드가 off면 아무것도 하지 않고(off), 키·암호화 키가 없으면 결제사 호출 전에 멈춘다(notConfigured).
  * live 모드는 기한이 된 실결제 구독에 실제 결제가 나가므로 확인 체크를 요구한다.
  */
@@ -40,7 +41,7 @@ export async function runBillingCycleNow(_prev: CycleState, fd: FormData): Promi
   const admin = createAdminClient();
   let summary: Record<string, number>;
   try {
-    summary = await runBillingCycle(deps, livemode);
+    summary = await runBillingCycle(deps, livemode, { mor: createMorDeps() });
   } catch (e) {
     // 중간까지 결제가 나갔을 수 있으니 실패도 감사에 남긴다. 오류 문구는 흐름이 쓰는 errorText(비밀 값 없음)로
     await logAppError(admin, `runBillingCycleNow failed: ${errorText(e)}`, { path: PATH });
@@ -49,6 +50,32 @@ export async function runBillingCycleNow(_prev: CycleState, fd: FormData): Promi
   }
 
   await logAdminAction(admin, actor.id, "billing.cycle_run", undefined, { mode, ok: true, summary });
+  return { ok: true, summary };
+}
+
+/**
+ * MoR 지금 대사 — 결제 크론의 판매 대행(Polar) 단계만 지금 돌린다(flows/morCycle.ts: 만료된 결제 시도 닫기, Polar id 없이 남은 자동
+ * 환불 알림, 놓친 웹훅 메우기). 토스 결제는 하지 않고 결제를 일으키지 않아 live에서도 확인 체크를 받지 않는다.
+ * 모드가 off면 off, Polar 키가 없으면 notConfigured(토스 키와 무관). 폼 입력은 받지 않는다(useActionState가 넘기는 값은 쓰지 않는다).
+ */
+export async function runMorReconcileNow(): Promise<CycleState> {
+  const { user: actor } = await requireAdmin();
+  const mode = billingMode();
+  const livemode = rowLivemode(mode);
+  if (livemode === null) return { error: "off" };
+  const deps = createMorDeps();
+  if (!deps) return { error: "notConfigured" };
+
+  const admin = createAdminClient();
+  let summary: Record<string, number>;
+  try {
+    summary = await runMorCycle(deps, livemode);
+  } catch (e) {
+    await logAppError(admin, `runMorReconcileNow failed: ${errorText(e)}`, { path: PATH });
+    await logAdminAction(admin, actor.id, "billing.mor_reconcile_run", undefined, { mode, ok: false });
+    return { error: "failed" };
+  }
+  await logAdminAction(admin, actor.id, "billing.mor_reconcile_run", undefined, { mode, ok: true, summary });
   return { ok: true, summary };
 }
 

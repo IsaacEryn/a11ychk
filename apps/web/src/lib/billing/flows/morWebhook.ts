@@ -1,5 +1,5 @@
 import "server-only";
-import { PolarError, type PolarRefund } from "@/lib/billing/polar";
+import { PolarError, isPolarOutcomeUnknown, type PolarRefund } from "@/lib/billing/polar";
 import {
   MOR_CHECKOUT_FAILED,
   markMorCheckout,
@@ -26,6 +26,10 @@ import type { MorDeps, RefundRow, WebhookEventRecord } from "@/lib/billing/types
  * 3) 끝까지 가면 processed_at. 동기화의 review·ungranted·stale·skipped도 처리된 것이다(필요한 기록은 흐름이 남겼다).
  *    Polar가 그 객체를 모르면(404) 다시 받아도 같으므로 기록 한 줄 뒤 처리된 것으로 끝낸다. 그 밖의 실패(결과 불명·저장소 오류·
  *    권한)는 last_error를 먼저 적고 던진다 — 라우트가 500으로 답해 Polar가 다시 보낸다. 흐름이 멱등이라 다시 처리해도 안전하다.
+ * 4) 다시 받아도 같은 결과가 나올 실패(결정적 실패 — Polar 읽기 응답 모양 BAD_RESPONSE, 저장소 CHECK·FK 위반, INVALID_ID)가
+ *    GIVE_UP_ATTEMPTS번째 전달에서도 나면 last_error를 남기고 처리된 것으로 끝낸다(200 + needs review 한 줄). Polar는 연속 10번
+ *    실패한 끝점을 끄므로 고칠 수 없는 이벤트 하나가 모든 웹훅을 멈추게 두지 않는다. 빠진 반영은 매일 결제 크론의 MoR 대사가
+ *    정본을 다시 읽어 메운다(flows/morCycle.ts). 결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)은 몇 번째든 끝내지 않는다.
  * 기록은 id만 남긴다(본문·헤더·비밀 없음).
  */
 
@@ -39,12 +43,19 @@ export interface MorWebhookEvent {
   livemode: boolean;
 }
 
-/** processed: 처리를 마쳤다(할 일이 없었던 것 포함) / duplicate: 이미 처리한 이벤트의 재전송 */
-export type MorWebhookResult = "processed" | "duplicate";
+/**
+ * processed: 처리를 마쳤다(할 일이 없었던 것 포함) / duplicate: 이미 처리한 이벤트의 재전송 /
+ * abandoned: 결정적 실패가 반복돼 반영하지 못한 채 처리된 것으로 끝냈다(needs review 기록 — 크론 대사가 메운다)
+ */
+export type MorWebhookResult = "processed" | "duplicate" | "abandoned";
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TYPE_MAX = 100;
 const ERROR_MAX = 300;
+/** 결정적 실패를 처리된 것으로 끝내는 전달 횟수 — Polar가 끝점을 끄는 연속 실패(10번)보다 넉넉히 앞에서 */
+export const GIVE_UP_ATTEMPTS = 5;
+/** Postgres CHECK 위반·FK 위반 — 같은 입력이면 다시 써도 같다 */
+const DETERMINISTIC_DB_CODES = new Set(["23514", "23503"]);
 
 const lowerUuid = (v: unknown): string | null => (typeof v === "string" && UUID_RE.test(v) ? v.toLowerCase() : null);
 
@@ -67,6 +78,20 @@ export function parsePolarWebhookBody(body: string): { type: string; dataId: str
   return { type, dataId: isPlainObject(data) ? lowerUuid(data.id) : null };
 }
 
+/**
+ * 다시 받아도 같은 결과가 나올 실패인지 — Polar 읽기 응답 모양(BAD_RESPONSE, 읽기만), 경로에 넣을 수 없는 id(INVALID_ID),
+ * 저장소의 CHECK·FK 위반(store.ts가 PostgREST 코드를 code로 단다). 결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)은 아니다 —
+ * Polar가 처리했을 수 있고 다시 읽으면 달라질 수 있다.
+ */
+export function isDeterministicWebhookFailure(e: unknown): boolean {
+  if (e instanceof PolarError) {
+    if (isPolarOutcomeUnknown(e)) return false;
+    return (e.code === "BAD_RESPONSE" && !e.mutating) || e.code === "INVALID_ID";
+  }
+  const code = e && typeof e === "object" ? (e as { code?: unknown }).code : undefined;
+  return typeof code === "string" && DETERMINISTIC_DB_CODES.has(code);
+}
+
 /** last_error·기록에 남기는 실패 문구 — PolarError·저장소 오류의 메시지는 코드·상태·메서드만 담는다(본문·비밀 없음) */
 function failureText(e: unknown): string {
   return (e instanceof Error ? e.message : "unknown error").slice(0, ERROR_MAX);
@@ -81,7 +106,7 @@ export async function handleMorWebhook(deps: MorDeps, event: MorWebhookEvent): P
     await deps.log(`${label} could not be recorded: ${failureText(e)}`);
     throw e;
   }
-  if (recorded === "done") return "duplicate";
+  if (recorded.state === "done") return "duplicate";
 
   try {
     await dispatch(deps, event);
@@ -92,11 +117,27 @@ export async function handleMorWebhook(deps: MorDeps, event: MorWebhookEvent): P
     } catch {
       // 실패 기록이 안 돼도 원래 오류로 재시도를 받는다 — 아래 기록 한 줄이 남는다
     }
+    if (recorded.attempts >= GIVE_UP_ATTEMPTS && isDeterministicWebhookFailure(e) && (await markGivenUp(deps, event.id))) {
+      await deps.log(
+        `billing needs review: polar webhook ${event.id} (${event.type}) failed ${recorded.attempts} times with a deterministic error (${text}); marked processed without applying it — the daily billing cron reconciles mor subscriptions`,
+      );
+      return "abandoned";
+    }
     await deps.log(`${label} failed: ${text}`);
     throw e;
   }
   await deps.store.finishWebhookEvent("polar", event.id, {});
   return "processed";
+}
+
+/** 결정적 실패를 처리된 것으로 적는다 — 적지 못하면 false(원래 오류로 재시도를 받아 다음 전달에서 다시 끝낸다) */
+async function markGivenUp(deps: MorDeps, eventId: string): Promise<boolean> {
+  try {
+    await deps.store.finishWebhookEvent("polar", eventId, {});
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 type Family = "subscription" | "order" | "refund" | "checkout";

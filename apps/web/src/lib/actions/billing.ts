@@ -15,6 +15,8 @@ import { cancelSubscription, resumeSubscription } from "@/lib/billing/flows/mana
 import { startMorCheckout } from "@/lib/billing/flows/morStart";
 import { abandonOpenCheckouts, startCardChangeCheckout, startSubscribeCheckout, type StartOutcome } from "@/lib/billing/flows/start";
 import { errorText } from "@/lib/billing/flows/subscribe";
+import { PolarError } from "@/lib/billing/polar";
+import { isPolarHostedUrl } from "@/lib/billing/polarRedirect";
 import { createBillingDeps, createMorDeps } from "@/lib/billing/server";
 import type { BillingDeps } from "@/lib/billing/types";
 import { loadViewer } from "@/lib/billing/viewer";
@@ -246,4 +248,52 @@ export async function resumeSubscriptionAction(): Promise<ManageSubscriptionStat
   const out = await runManage("resume", resumeSubscription);
   if ("error" in out) return { error: out.error };
   return out.result === "resumed" ? { ok: true, done: "resumed" } : { error: out.result };
+}
+
+export type OpenMorPortalError = "notConfigured" | "notFound" | "failed";
+
+export interface OpenMorPortalState {
+  ok?: true;
+  /** Polar 고객 포털 주소 — 브라우저가 polar.sh 허용 목록(polarRedirect.ts)으로 다시 검사한 뒤 이동한다 */
+  url?: string;
+  error?: OpenMorPortalError;
+}
+
+/**
+ * 결제 관리의 "결제 관리(Polar)" — 해외 결제 구독의 해지·해지 취소·결제 수단 변경·영수증은 Polar 고객 포털이 맡는다.
+ * 로그인 사용자 → 결제 모드·Polar 의존성(없으면 notConfigured, 토스 키와 무관) → 이 모드의 MoR 구독 행이 있는지(없으면 notFound,
+ * 끝난 구독도 내역을 볼 수 있게 센다) → 요청 origin → Polar 고객 세션(external_customer_id = 사용자 id, 돌아올 곳 = 결제 관리).
+ * 포털 주소는 응답으로만 돌려준다(서버 redirect로 외부에 보내지 않는다 — CSP form-action을 넓히지 않는다). 입력은 받지 않는다.
+ * Polar가 그 고객을 모르면(404) notFound, 그 밖의 실패는 기록 한 줄(id·코드만) 뒤 failed.
+ */
+export async function openMorPortal(): Promise<OpenMorPortalState> {
+  const { user } = await requireUser();
+  const livemode = rowLivemode(billingMode());
+  if (livemode === null) return { error: "notConfigured" };
+  const deps = createMorDeps();
+  if (!deps) return { error: "notConfigured" };
+  const fail = async (why: string): Promise<OpenMorPortalState> => {
+    await deps.log(`billing mor portal failed for user ${user.id}: ${why}`);
+    return { error: "failed" };
+  };
+  try {
+    if (!(await deps.store.hasProviderSubscription(user.id, "mor", livemode))) return { error: "notFound" };
+  } catch (e) {
+    return fail(errorText(e));
+  }
+  const origin = requestOrigin(await headers());
+  if (!origin) return fail("request origin is not a valid http(s) host");
+  const locale = checkoutLocale(await actionLocale());
+
+  let url: string;
+  try {
+    const session = await deps.polar.createCustomerSession({ external_customer_id: user.id, return_url: `${origin}/${locale}/mypage/billing` });
+    url = session.customer_portal_url;
+  } catch (e) {
+    if (e instanceof PolarError && e.status === 404) return { error: "notFound" };
+    return fail(e instanceof PolarError ? `${e.code} (${e.status})` : errorText(e));
+  }
+  // 주소는 기록하지 않는다(세션 토큰이 들어 있다)
+  if (!isPolarHostedUrl(url)) return fail("portal url is not a polar.sh address");
+  return { ok: true, url };
 }

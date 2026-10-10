@@ -5,6 +5,7 @@ import { adminBase } from "@/lib/adminSlug";
 import { UUID_RE } from "@/lib/billing/checkout";
 import { isMissingTable } from "@/lib/billing/dbErrors";
 import { httpUrl } from "@/lib/billing/httpUrl";
+import { amountInMajorUnits } from "@/lib/billing/price";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AdminLink } from "../../AdminLink";
 import { TABLE, TH, TR, TR_HEAD } from "../../tableStyles";
@@ -27,6 +28,7 @@ function toKstDate(iso: string): string {
 interface PaymentRow {
   id: string;
   kind: string;
+  external_payment_id: string | null;
   status: string;
   amount: number;
   currency: string;
@@ -47,7 +49,10 @@ interface ContractRow {
 
 /**
  * 구독 상세 — 요약 정보와, 기관 계약(manual)이면 상세 수정·종료일 변경·즉시 종료 폼.
- * 카드·해외 결제 구독은 결제 내역 표를 읽기 전용으로 보여 준다(환불은 토스 상점관리자에서).
+ * 카드·해외 결제 구독은 결제 내역 표를 읽기 전용으로 보여 준다(환불은 토스 상점관리자에서, 해외 결제는 Polar 대시보드에서).
+ * 해외 결제(MoR) 구독은 Polar 구독·고객 id와 마지막으로 반영한 Polar 변경 시각을 보인다. 즉시 종료 같은 관리자 동작은 두지 않는다 —
+ * 우리 행만 끝내면 Polar는 계속 청구하고, 끝낸 사유(admin)가 일시정지 표지를 겸해 다음 동기화가 되살린다. 해지·환불은 Polar
+ * 대시보드에서 하고, 그 결과는 웹훅·크론 대사가 반영한다. 금액은 행의 통화 단위(USD는 cent)를 바꿔 보인다.
  */
 export default async function AdminBillingDetailPage({
   params,
@@ -65,7 +70,7 @@ export default async function AdminBillingDetailPage({
   const { data: sub, error } = await admin
     .from("subscriptions")
     .select(
-      "id, user_id, provider, plan_code, status, ended_reason, livemode, amount, currency, current_period_start, current_period_end, grace_until, cancel_at_period_end, created_at, billing_contracts(org_name, contract_ref, memo, paid_confirmed_at, tax_invoice_issued_at)",
+      "id, user_id, provider, mor_provider, external_id, external_customer_id, external_updated_at, plan_code, status, ended_reason, livemode, amount, currency, current_period_start, current_period_end, grace_until, cancel_at_period_end, created_at, billing_contracts(org_name, contract_ref, memo, paid_confirmed_at, tax_invoice_issued_at)",
     )
     .eq("id", id)
     .maybeSingle();
@@ -93,14 +98,20 @@ export default async function AdminBillingDetailPage({
   const statusKey = displayStatus(sub);
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
   const isManual = sub.provider === "manual";
+  const isMor = sub.provider === "mor";
   const endedReason = sub.ended_reason as string | null;
+  /** 행의 통화 단위(KRW는 원, USD는 cent)를 화면 단위로 바꿔 서식을 입힌다 */
+  const moneyOf = (n: number, currency: string | null) => {
+    const unit = currency === "USD" ? "USD" : "KRW";
+    return format.number(amountInMajorUnits(n, unit), { style: "currency", currency: unit });
+  };
 
   // 결제 내역 — 카드·해외 구독만(기관 계약은 결제가 화면 밖에서 일어난다). 0041 미적용은 위에서 이미 404로 갔다
   let payments: PaymentRow[] = [];
   if (!isManual) {
     const { data, error: paymentsError } = await admin
       .from("billing_payments")
-      .select("id, kind, status, amount, currency, refunded_amount, failure_code, receipt_url, requested_at, approved_at")
+      .select("id, kind, external_payment_id, status, amount, currency, refunded_amount, failure_code, receipt_url, requested_at, approved_at")
       .eq("subscription_id", id)
       .order("requested_at", { ascending: false })
       .limit(100);
@@ -143,7 +154,22 @@ export default async function AdminBillingDetailPage({
         <dt className="font-semibold">{t("billing.detail.plan")}</dt>
         <dd>{t(`users.plans.${sub.plan_code}`)}</dd>
         <dt className="font-semibold">{t("billing.detail.provider")}</dt>
-        <dd>{t(`billing.provider.${sub.provider}`)}</dd>
+        <dd>
+          {t(`billing.provider.${sub.provider}`)}
+          {sub.mor_provider === "polar" && " · Polar"}
+        </dd>
+        {isMor && (
+          <>
+            <dt className="font-semibold">{t("billing.detail.externalId")}</dt>
+            <dd className="break-all font-mono text-xs">{(sub.external_id as string | null) ?? "—"}</dd>
+            <dt className="font-semibold">{t("billing.detail.externalCustomerId")}</dt>
+            <dd className="break-all font-mono text-xs">{(sub.external_customer_id as string | null) ?? "—"}</dd>
+            <dt className="font-semibold">{t("billing.detail.externalUpdatedAt")}</dt>
+            <dd className="tabular-nums">
+              {sub.external_updated_at ? dateTime(sub.external_updated_at as string) : "—"}
+            </dd>
+          </>
+        )}
         <dt className="font-semibold">{t("billing.detail.status")}</dt>
         <dd>{t(`billing.status.${statusKey}`)}</dd>
         <dt className="font-semibold">{t("billing.detail.period")}</dt>
@@ -152,10 +178,8 @@ export default async function AdminBillingDetailPage({
         </dd>
         {sub.amount != null && (
           <>
-            <dt className="font-semibold">{t("billing.detail.amount")}</dt>
-            <dd className="tabular-nums">
-              {format.number(sub.amount as number, { style: "currency", currency: (sub.currency as string) || "KRW" })}
-            </dd>
+            <dt className="font-semibold">{isMor ? t("billing.detail.amountMor") : t("billing.detail.amount")}</dt>
+            <dd className="tabular-nums">{moneyOf(sub.amount as number, sub.currency as string | null)}</dd>
           </>
         )}
         {endedReason && (
@@ -197,7 +221,7 @@ export default async function AdminBillingDetailPage({
       ) : (
         <>
           <p className="mt-6 border-[1.5px] border-dashed border-[var(--color-line)] p-4 text-sm text-[var(--color-ink-soft)]">
-            {t("billing.detail.nonManual")}
+            {isMor ? t("billing.detail.morNote") : t("billing.detail.nonManual")}
           </p>
 
           <section aria-labelledby="admin-billing-payments-heading" className="mt-6">
@@ -225,13 +249,21 @@ export default async function AdminBillingDetailPage({
                     {payments.map((p) => {
                       // 영수증 주소는 http(s)일 때만 링크로 — 결제사 응답이라도 javascript: 같은 스킴은 링크로 만들지 않는다
                       const href = httpUrl(p.receipt_url);
-                      const money = (n: number) => format.number(n, { style: "currency", currency: p.currency || "KRW" });
+                      const money = (n: number) => moneyOf(n, p.currency);
                       return (
                         <tr key={p.id} className={TR}>
                           <th scope="row" className="whitespace-nowrap py-2 pr-3 text-left font-normal tabular-nums">
                             {dateTime(p.approved_at ?? p.requested_at)}
                           </th>
-                          <td className="py-2 pr-3">{t(`billing.payments.kind.${p.kind}`)}</td>
+                          <td className="py-2 pr-3">
+                            {t(`billing.payments.kind.${p.kind}`)}
+                            {isMor && p.external_payment_id && (
+                              <span className="block break-all font-mono text-xs text-[var(--color-ink-soft)]">
+                                <span className="sr-only">{t("billing.payments.orderId")} </span>
+                                {p.external_payment_id}
+                              </span>
+                            )}
+                          </td>
                           <td className="whitespace-nowrap py-2 pr-3 tabular-nums">{money(p.amount)}</td>
                           <td className="py-2 pr-3">
                             {t(`billing.payments.status.${p.status}`)}
@@ -264,7 +296,7 @@ export default async function AdminBillingDetailPage({
                 </table>
               </div>
             )}
-            <p className="mt-3 text-xs text-[var(--color-ink-faint)]">{t("billing.payments.refundNote")}</p>
+            <p className="mt-3 text-xs text-[var(--color-ink-faint)]">{isMor ? t("billing.payments.refundNoteMor") : t("billing.payments.refundNote")}</p>
           </section>
         </>
       )}

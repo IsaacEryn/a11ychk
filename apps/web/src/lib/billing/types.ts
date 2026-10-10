@@ -48,8 +48,14 @@ export interface WebhookEventPayload {
   type: string;
   data_id: string | null;
 }
-/** new: 처음 받음 / retry: 처리 전 행이 있었다(attempts를 올렸다) / done: 이미 처리했다 */
-export type WebhookEventRecord = "new" | "retry" | "done";
+/**
+ * state — new: 처음 받음 / retry: 처리 전 행이 있었다(attempts를 올렸다) / done: 이미 처리했다.
+ * attempts는 이번 전달까지 받은 횟수(new면 1) — 같은 결정적 실패가 반복되면 처리됨으로 끝내는 기준이다(flows/morWebhook.ts)
+ */
+export interface WebhookEventRecord {
+  state: "new" | "retry" | "done";
+  attempts: number;
+}
 
 /** 토스 고객 키가 채워진 고객 행 */
 export type TossCustomerRow = CustomerRow & { toss_customer_key: string };
@@ -182,12 +188,29 @@ export interface BillingStore {
     expected: { status: RefundRow["status"]; externalRefundId: string | null },
     patch: Partial<Pick<RefundRow, "status" | "external_refund_id">>,
   ): Promise<boolean>;
+  /** 그 사용자의 진행 중(active·past_due) MoR 구독 — 두 livemode(탈퇴 전 Polar 해지용, 모드당 1건이라 많아야 둘) */
+  listLiveMorSubscriptions(userId: string): Promise<MorSubscriptionRow[]>;
+  /** 그 사용자에게 이 결제사·모드의 구독 행이 있는지(끝난 것 포함) — 고객 포털을 열기 전에 본다 */
+  hasProviderSubscription(userId: string, provider: SubscriptionRow["provider"], livemode: boolean): Promise<boolean>;
+  /**
+   * 크론 대사 후보: mor, livemode, 진행 중(active·past_due)이고 외부 id가 있으며 기간 끝이 beforeIso보다 이르거나 미납인 것 —
+   * 기간 끝이 이른 순서로 limit건. beforeIso는 ISO 시각이어야 한다(PostgREST 필터에 들어간다)
+   */
+  listMorReconcileCandidates(livemode: boolean, beforeIso: string, limit: number): Promise<MorSubscriptionRow[]>;
+  /** 만료 시각(expires_at)이 nowIso보다 이른 open 시도를 expired로 닫는다(실패 코드는 그대로) — 닫은 개수 */
+  expireOpenCheckouts(provider: CheckoutRow["provider"], livemode: boolean, nowIso: string): Promise<number>;
+  /**
+   * 결제사 환불 id 없이 pending으로 남은 환불 기록 — 그 결제사·모드의 결제에 걸린 것 중 created_at이 olderThanIso보다 이른 것,
+   * 오래된 순서로 limit건(자동 환불 선점 뒤 함수가 멈춘 경우를 크론이 찾는다)
+   */
+  listStaleRefunds(provider: PaymentRow["provider"], livemode: boolean, olderThanIso: string, limit: number): Promise<RefundRow[]>;
 
   // ── 웹훅 이벤트(billing_webhook_events) — flows/morWebhook.ts ──
 
   /**
-   * 받은 이벤트를 적는다 — (provider, event_id) 기본 키가 재전송을 가른다. 처음이면 "new", 처리 전 행이 있으면 attempts를 하나
-   * 올리고 "retry", 이미 처리했으면 "done". attempts는 읽고 쓰는 두 단계라 같은 이벤트가 동시에 오면 하나가 덜 셀 수 있다(횟수 기록일 뿐이다).
+   * 받은 이벤트를 적는다 — (provider, event_id) 기본 키가 재전송을 가른다. 처음이면 "new"(attempts 1), 처리 전 행이 있으면 attempts를
+   * 하나 올리고 "retry"(올린 값), 이미 처리했으면 "done". attempts는 읽고 쓰는 두 단계라 같은 이벤트가 동시에 오면 하나가 덜 셀 수 있다
+   * (횟수 기록 — 결정적 실패를 끝내는 기준이 한 번 늦어질 뿐이다).
    * payload는 {type, data_id}만 — 본문을 넣지 않는다
    */
   recordWebhookEvent(provider: WebhookProvider, eventId: string, type: string, payload: WebhookEventPayload): Promise<WebhookEventRecord>;

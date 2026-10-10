@@ -4,7 +4,7 @@ import { PolarError, type PolarCheckout, type PolarOrder, type PolarSubscription
 import { createSupabaseBillingStore } from "../src/lib/billing/store";
 import type { CheckoutRow, PaymentRow, RefundRow } from "../src/lib/billing/types";
 import { morAutoRefundId } from "../src/lib/billing/flows/mor";
-import { handleMorWebhook, parsePolarWebhookBody, type MorWebhookEvent } from "../src/lib/billing/flows/morWebhook";
+import { handleMorWebhook, isDeterministicWebhookFailure, parsePolarWebhookBody, type MorWebhookEvent } from "../src/lib/billing/flows/morWebhook";
 import {
   NOW,
   checkoutRow,
@@ -227,6 +227,112 @@ describe("handleMorWebhook — billing_webhook_events 기록", () => {
       if (outcome.error === undefined) throw new Error("billing store finishWebhookEvent: down");
     };
     await expect(handleMorWebhook(deps, event("subscription.created"))).rejects.toThrow("down");
+  });
+});
+
+// ── 결정적 실패의 상한 ──
+
+describe("handleMorWebhook — 같은 결정적 실패가 반복되면 처리됨으로 끝낸다(끝점 비활성 방지)", () => {
+  const badRead = () => new PolarError("BAD_RESPONSE", "polar getSubscription response invalid: status", 200, false);
+  const capped = (deps: FakeMorDeps) => reviews(deps).filter((m) => m.includes("deterministic"));
+
+  it("읽기 BAD_RESPONSE가 네 번까지는 500(재시도), 다섯 번째 전달에서 processed + needs review 한 줄로 200 — last_error는 남는다", async () => {
+    const { deps, rows } = world({}, { getSubscription: [badRead(), badRead(), badRead(), badRead(), badRead()] });
+
+    for (let i = 1; i <= 4; i++) {
+      await expect(handleMorWebhook(deps, event("subscription.updated"))).rejects.toThrow("response invalid");
+      expect(eventRow(rows)).toMatchObject({ attempts: i, processed_at: null });
+    }
+    expect(capped(deps)).toEqual([]);
+
+    expect(await handleMorWebhook(deps, event("subscription.updated"))).toBe("abandoned");
+    const row = eventRow(rows)!;
+    expect(row.attempts).toBe(5);
+    expect(row.processed_at).not.toBeNull();
+    expect(row.last_error).toBe("polar getSubscription response invalid: status");
+    expect(capped(deps)).toEqual([
+      `billing needs review: polar webhook ${EVENT_ID} (subscription.updated) failed 5 times with a deterministic error (polar getSubscription response invalid: status); marked processed without applying it — the daily billing cron reconciles mor subscriptions`,
+    ]);
+    // 끝낸 뒤의 재전송은 duplicate — Polar를 다시 읽지 않는다
+    expect(await handleMorWebhook(deps, event("subscription.updated"))).toBe("duplicate");
+    expect(deps.polar.calls.getSubscription).toHaveLength(5);
+    expectIdsOnly(deps);
+  });
+
+  it("저장소 CHECK(23514)·FK(23503) 위반도 결정적이다 — 상한에서 끝낸다", async () => {
+    for (const code of ["23514", "23503"]) {
+      const { deps, store, rows } = world(
+        { webhookEvents: [{ provider: "polar", event_id: EVENT_ID, event_type: "subscription.updated", received_at: pgTime(NOW), processed_at: null, attempts: 4, last_error: null, payload: null }] },
+        { getSubscription: [sub()] },
+      );
+      store.getSubscriptionByExternal = async () => {
+        throw Object.assign(new Error("billing store getSubscriptionByExternal: violates constraint"), { code });
+      };
+      expect(await handleMorWebhook(deps, event("subscription.updated")), code).toBe("abandoned");
+      expect(eventRow(rows)!.processed_at, code).not.toBeNull();
+      expect(capped(deps), code).toHaveLength(1);
+    }
+  });
+
+  it("결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)과 코드 없는 저장소 오류는 몇 번째든 끝내지 않는다 — 500으로 계속 재시도", async () => {
+    const unknowns = [
+      new PolarError("NETWORK", "polar getSubscription failed (network)", 0),
+      new PolarError("HTTP_503", "polar getSubscription failed: HTTP_503 (503)", 503),
+      new PolarError("HTTP_408", "polar getSubscription failed: HTTP_408 (408)", 408),
+      new PolarError("BAD_RESPONSE", "polar updateSubscription response invalid: id", 200, true),
+      new Error("billing store getSubscriptionByExternal: timeout"),
+    ];
+    for (const failure of unknowns) {
+      const { deps, rows } = world(
+        { webhookEvents: [{ provider: "polar", event_id: EVENT_ID, event_type: "subscription.updated", received_at: pgTime(NOW), processed_at: null, attempts: 9, last_error: null, payload: null }] },
+        { getSubscription: [failure instanceof PolarError ? failure : sub()] },
+      );
+      if (!(failure instanceof PolarError)) {
+        deps.store.getSubscriptionByExternal = async () => {
+          throw failure;
+        };
+      }
+      await expect(handleMorWebhook(deps, event("subscription.updated")), failure.message).rejects.toThrow();
+      expect(eventRow(rows)!.processed_at, failure.message).toBeNull();
+      expect(capped(deps), failure.message).toEqual([]);
+    }
+  });
+
+  it("결정적 실패 판정 — 읽기 BAD_RESPONSE·INVALID_ID·23514·23503만", () => {
+    expect(isDeterministicWebhookFailure(new PolarError("BAD_RESPONSE", "x", 200, false))).toBe(true);
+    expect(isDeterministicWebhookFailure(new PolarError("INVALID_ID", "x", 0))).toBe(true);
+    expect(isDeterministicWebhookFailure(Object.assign(new Error("x"), { code: "23514" }))).toBe(true);
+    expect(isDeterministicWebhookFailure(Object.assign(new Error("x"), { code: "23503" }))).toBe(true);
+    for (const e of [
+      new PolarError("BAD_RESPONSE", "x", 200, true),
+      new PolarError("BAD_RESPONSE", "x", 502, false),
+      new PolarError("NETWORK", "x", 0),
+      new PolarError("HTTP_403", "x", 403),
+      new PolarError("ResourceNotFound", "x", 404),
+      Object.assign(new Error("x"), { code: "23505" }),
+      Object.assign(new Error("x"), { code: "42P01" }),
+      new Error("x"),
+      "x",
+      null,
+    ]) {
+      expect(isDeterministicWebhookFailure(e), String(e instanceof Error ? (e as { code?: string }).code ?? e.message : e)).toBe(false);
+    }
+  });
+
+  it("처리됨으로 적지 못하면(저장소 오류) 원래 오류로 던진다 — Polar가 다시 보내고 그때 다시 끝낸다", async () => {
+    const { deps, store, rows } = world(
+      { webhookEvents: [{ provider: "polar", event_id: EVENT_ID, event_type: "order.paid", received_at: pgTime(NOW), processed_at: null, attempts: 4, last_error: null, payload: null }] },
+      { getOrder: [new PolarError("BAD_RESPONSE", "polar getOrder response invalid: total_amount", 200, false)] },
+    );
+    const finish = store.finishWebhookEvent.bind(store);
+    store.finishWebhookEvent = async (provider, eventId, outcome) => {
+      if (outcome.error === undefined) throw new Error("billing store finishWebhookEvent: timeout");
+      return finish(provider, eventId, outcome);
+    };
+
+    await expect(handleMorWebhook(deps, event("order.paid", ORDER_ID))).rejects.toThrow("response invalid");
+    expect(eventRow(rows)).toMatchObject({ processed_at: null, last_error: "polar getOrder response invalid: total_amount" });
+    expect(capped(deps)).toEqual([]);
   });
 });
 
@@ -788,7 +894,7 @@ describe("Supabase 저장소 — 웹훅 이벤트·환불 기록 메서드", () 
 
   it("recordWebhookEvent: 새 행이면 new — provider·event_id·event_type·payload만 넣는다", async () => {
     const s = fakeAdmin([{ data: null, error: null }]);
-    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toBe("new");
+    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toEqual({ state: "new", attempts: 1 });
     expect(s.calls).toContainEqual(["from", ["billing_webhook_events"]]);
     expect(s.calls).toContainEqual(["insert", [{ provider: "polar", event_id: EVENT_ID, event_type: "order.paid", payload }]]);
   });
@@ -798,7 +904,7 @@ describe("Supabase 저장소 — 웹훅 이벤트·환불 기록 메서드", () 
       { data: null, error: { code: "23505", message: "duplicate key" } },
       { data: { attempts: 1, processed_at: "2026-01-30T16:00:00+00:00" }, error: null },
     ]);
-    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toBe("done");
+    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toEqual({ state: "done", attempts: 1 });
     expect(s.calls.some(([m]) => m === "update")).toBe(false);
   });
 
@@ -808,7 +914,7 @@ describe("Supabase 저장소 — 웹훅 이벤트·환불 기록 메서드", () 
       { data: { attempts: 3, processed_at: null }, error: null },
       { data: [{ event_id: EVENT_ID }], error: null },
     ]);
-    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toBe("retry");
+    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toEqual({ state: "retry", attempts: 4 });
     expect(s.calls).toContainEqual(["update", [{ attempts: 4 }]]);
     expect(s.calls).toContainEqual(["is", ["processed_at", null]]);
     expect(s.calls.filter(([m, a]) => m === "eq" && a[0] === "provider" && a[1] === "polar").length).toBeGreaterThanOrEqual(2);
@@ -820,7 +926,7 @@ describe("Supabase 저장소 — 웹훅 이벤트·환불 기록 메서드", () 
       { data: { attempts: 32767, processed_at: null }, error: null },
       { data: [], error: null },
     ]);
-    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toBe("done");
+    expect(await createSupabaseBillingStore(s.admin).recordWebhookEvent("polar", EVENT_ID, "order.paid", payload)).toEqual({ state: "done", attempts: 32767 });
     expect(s.calls).toContainEqual(["update", [{ attempts: 32767 }]]);
   });
 
