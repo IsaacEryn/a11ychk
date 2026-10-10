@@ -39,6 +39,29 @@ export function tossKeys(env: Record<string, string | undefined> = process.env):
   return { clientKey, secretKey };
 }
 
+/**
+ * Polar(MoR) 키 — 모드가 켜져 있고 토큰(polar_…)과 웹훅 시크릿(whsec_… 또는 v1,whsec_…)이 모두 있을 때만.
+ * Polar 토큰에는 test_/live_ 같은 접두가 없어 모드가 API를 고른다(test → sandbox, live → 운영).
+ * sandbox 토큰은 운영 API에서, 운영 토큰은 sandbox에서 인증되지 않아 모드와 토큰이 어긋나면 돈이 움직이지 않고 401로 끝난다.
+ */
+export interface PolarKeys {
+  accessToken: string;
+  webhookSecret: string;
+  /** 끝에 / 없음 */
+  apiBase: string;
+}
+
+const POLAR_API_BASE = { test: "https://sandbox-api.polar.sh", live: "https://api.polar.sh" } as const;
+
+export function polarKeys(env: Record<string, string | undefined> = process.env): PolarKeys | null {
+  const mode = billingMode(env);
+  if (mode === "off") return null;
+  const accessToken = env.POLAR_ACCESS_TOKEN?.trim() ?? "";
+  const webhookSecret = env.POLAR_WEBHOOK_SECRET?.trim() ?? "";
+  if (!/^polar_./.test(accessToken) || !/^(v1,)?whsec_./.test(webhookSecret)) return null;
+  return { accessToken, webhookSecret, apiBase: POLAR_API_BASE[mode] };
+}
+
 /** test 모드에서 결제할 수 있는 일반 계정(UUID, 쉼표 구분) — 관리자 계정은 보통 unlimited라 권한 변화가 가려진다 */
 export function billingTestUserIds(env: Record<string, string | undefined> = process.env): Set<string> {
   return new Set((env.BILLING_TEST_USER_IDS ?? "").split(",").map((s) => s.trim()).filter(Boolean));
