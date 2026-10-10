@@ -1,5 +1,7 @@
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it, vi } from "vitest";
-import { PolarError, createPolarClient, isPolarOutcomeUnknown } from "../src/lib/billing/polar";
+import { PolarError, createPolarClient, isPolarOutcomeUnknown, type PolarClient } from "../src/lib/billing/polar";
 
 // 가짜 값만 쓴다 — 실제 토큰·금액이 아니다
 const KEYS = { accessToken: "polar_oat_fake_token", apiBase: "https://sandbox-api.polar.sh" };
@@ -149,11 +151,13 @@ describe("Polar 클라이언트 요청 모양", () => {
       started_at: "2026-01-01T00:00:00Z",
       ends_at: null,
       ended_at: null,
-      customer: { id: CUSTOMER_ID, external_id: USER_ID, email: "fake@example.test" },
+      customer: { id: CUSTOMER_ID, external_id: USER_ID },
       product_id: PRODUCT_ID,
       checkout_id: CHECKOUT_ID,
       metadata: { user_id: USER_ID },
     });
+    // 고객 이메일은 쓰지 않으므로 읽지도 않는다
+    expect(s.customer).not.toHaveProperty("email");
   });
 
   it("구독의 nullable 필드는 빠져 있어도 null로, 주기 횟수는 1로, metadata는 {}로", async () => {
@@ -178,7 +182,7 @@ describe("Polar 클라이언트 요청 모양", () => {
       started_at: null,
       ends_at: null,
       ended_at: null,
-      customer: { id: CUSTOMER_ID, external_id: null, email: null },
+      customer: { id: CUSTOMER_ID, external_id: null },
       checkout_id: null,
       metadata: {},
     });
@@ -275,6 +279,12 @@ describe("Polar 클라이언트 요청 모양", () => {
     const [, init] = f.mock.calls[0]!;
     expect(init.cache).toBe("no-store");
     expect(init.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("리다이렉트를 따라가지 않는다(redirect: error) — 토큰이 다른 주소로 가지 않게", async () => {
+    const f = fakeFetch(200, order);
+    await createPolarClient(KEYS, f).getOrder(ORDER_ID);
+    expect(f.mock.calls[0]![1].redirect).toBe("error");
   });
 
   it("fetch는 클라이언트 객체에 묶이지 않은 채 호출된다", async () => {
@@ -415,7 +425,7 @@ describe("오류 메시지에 비밀·본문을 넣지 않는다", () => {
   });
 
   it("BAD_RESPONSE 메시지에는 필드 이름만 있고 값은 없다", async () => {
-    const f = fakeFetch(200, { ...subscription, amount: "fake@example.test", customer: { id: CUSTOMER_ID, email: 7 } });
+    const f = fakeFetch(200, { ...subscription, amount: "fake@example.test", customer: { id: CUSTOMER_ID, external_id: 7 } });
     const err = await createPolarClient(KEYS, f).getSubscription(SUB_ID).catch((e) => e);
     expect(err).toMatchObject({ code: "BAD_RESPONSE" });
     expect(String(err.message)).toContain("amount");
@@ -447,5 +457,68 @@ describe("isPolarOutcomeUnknown — Polar가 처리했는지 알 수 없는 실�
   it("PolarError가 아닌 값은 false", () => {
     expect(isPolarOutcomeUnknown(new Error("boom"))).toBe(false);
     expect(isPolarOutcomeUnknown(undefined)).toBe(false);
+  });
+});
+
+describe("리다이렉트 — 실제 fetch로 확인", () => {
+  it("3xx를 받으면 따라가지 않고 NETWORK(결과 불명)로, 다른 주소에는 아무 요청도 가지 않는다", async () => {
+    const seen: { url: string | undefined; auth: string | undefined }[] = [];
+    const server = http.createServer((req, res) => {
+      seen.push({ url: req.url, auth: req.headers.authorization });
+      if (req.url?.startsWith("/v1/")) {
+        res.writeHead(307, { Location: "/elsewhere" }).end();
+      } else {
+        res.writeHead(200, { "content-type": "application/json" }).end(JSON.stringify(order));
+      }
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    try {
+      const { port } = server.address() as AddressInfo;
+      const client = createPolarClient({ accessToken: "polar_oat_fake_token", apiBase: `http://127.0.0.1:${port}` });
+      const err = await client.getOrder(ORDER_ID).catch((e) => e);
+      expect(err).toMatchObject({ name: "PolarError", code: "NETWORK", status: 0 });
+      expect(isPolarOutcomeUnknown(err)).toBe(true);
+      expect(seen).toEqual([{ url: `/v1/orders/${ORDER_ID}`, auth: "Bearer polar_oat_fake_token" }]);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
+  });
+
+  it("fetchImpl이 3xx 응답을 그대로 돌려주면 보통 오류(HTTP_<상태>)로", async () => {
+    const f = vi.fn().mockImplementation(async () => new Response(null, { status: 307, headers: { location: "https://elsewhere.example.test/" } }));
+    const err = await createPolarClient(KEYS, f).getOrder(ORDER_ID).catch((e) => e);
+    expect(err).toMatchObject({ code: "HTTP_307", status: 307 });
+  });
+});
+
+describe("쓰기 요청의 2xx BAD_RESPONSE는 결과 불명 — Polar가 이미 처리했을 수 있다", () => {
+  const invalid = { unexpected: true };
+  it.each<[string, (c: PolarClient) => Promise<unknown>]>([
+    [
+      "createCheckout",
+      (c) => c.createCheckout({ products: [PRODUCT_ID], external_customer_id: USER_ID, success_url: "https://example.test/ok" }),
+    ],
+    ["updateSubscription", (c) => c.updateSubscription(SUB_ID, { revoke: true })],
+    ["createRefund", (c) => c.createRefund({ order_id: ORDER_ID, reason: "other", amount: 1 })],
+    ["createCustomerSession", (c) => c.createCustomerSession({ external_customer_id: USER_ID })],
+  ])("%s → true", async (_, run) => {
+    const err = await run(createPolarClient(KEYS, fakeFetch(200, invalid))).catch((e) => e);
+    expect(err).toMatchObject({ name: "PolarError", code: "BAD_RESPONSE", status: 200, mutating: true });
+    expect(isPolarOutcomeUnknown(err)).toBe(true);
+  });
+
+  it.each<[string, (c: PolarClient) => Promise<unknown>]>([
+    ["getSubscription", (c) => c.getSubscription(SUB_ID)],
+    ["getOrder", (c) => c.getOrder(ORDER_ID)],
+    ["getCheckout", (c) => c.getCheckout(CHECKOUT_ID)],
+  ])("읽기 요청 %s → false", async (_, run) => {
+    const err = await run(createPolarClient(KEYS, fakeFetch(200, invalid))).catch((e) => e);
+    expect(err).toMatchObject({ name: "PolarError", code: "BAD_RESPONSE", status: 200, mutating: false });
+    expect(isPolarOutcomeUnknown(err)).toBe(false);
+  });
+
+  it("직접 만든 PolarError의 mutating 기본값은 false", () => {
+    expect(new PolarError("BAD_RESPONSE", "x", 200).mutating).toBe(false);
+    expect(isPolarOutcomeUnknown(new PolarError("BAD_RESPONSE", "x", 200, true))).toBe(true);
   });
 });

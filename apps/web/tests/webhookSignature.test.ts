@@ -66,6 +66,27 @@ describe("verifyStandardWebhook", () => {
     expect(verifyStandardWebhook(input({ keys: [] }))).toBe("bad_signature");
   });
 
+  it("길이 0인 키로는 절대 검증되지 않는다 — 시크릿 없이 누구나 만들 수 있는 서명이라서", () => {
+    const empty = Buffer.alloc(0);
+    const forged = `v1,${sign(empty)}`;
+    expect(verifyStandardWebhook(input({ keys: [empty], signatureHeader: forged }))).toBe("bad_signature");
+    expect(verifyStandardWebhook(input({ keys: [empty, RAW_KEY], signatureHeader: forged }))).toBe("bad_signature");
+    // 다른 키는 그대로 쓴다
+    expect(verifyStandardWebhook(input({ keys: [empty, RAW_KEY] }))).toBe("ok");
+  });
+
+  it("Standard Webhooks 명세의 공식 테스트 벡터", () => {
+    const vector = {
+      id: "msg_p5jXN8AQM9LWM0D4loKWxJek",
+      timestamp: "1614265330",
+      signatureHeader: "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=",
+      body: '{"test": 2432232314}',
+      keys: standardWebhookKeys("whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"),
+    };
+    expect(verifyStandardWebhook(vector)).toBe("ok");
+    expect(verifyStandardWebhook({ ...vector, body: '{"test": 2432232315}' })).toBe("bad_signature");
+  });
+
   it("두 키 중 아무 키로 만든 서명이든 받는다(Polar 옛 시크릿)", () => {
     const legacy = Buffer.from(SECRET, "utf8");
     expect(verifyStandardWebhook(input({ signatureHeader: `v1,${sign(legacy)}` }))).toBe("ok");
@@ -103,6 +124,10 @@ describe("verifyStandardWebhook", () => {
     it("너무 오래됐거나 미래면 stale", () => {
       expect(verifyStandardWebhook(input({ toleranceSec: 300, now: at(1700000301) }))).toBe("stale");
       expect(verifyStandardWebhook(input({ toleranceSec: 300, now: at(1699999699) }))).toBe("stale");
+    });
+
+    it.each([Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY])("허용 범위가 유한한 수가 아니면(%s) stale", (tol) => {
+      expect(verifyStandardWebhook(input({ toleranceSec: tol, now: at(1700000000) }))).toBe("stale");
     });
 
     it("서명이 틀리면 시간과 관계없이 bad_signature — stale은 진짜인데 늦은 요청만", () => {
@@ -143,10 +168,15 @@ describe("standardWebhookKeys", () => {
     expect(keys[0]!.equals(RAW_KEY)).toBe(true);
   });
 
-  it("base64 부분이 비어 있으면 옛 키만", () => {
-    const keys = standardWebhookKeys("whsec_");
+  it.each(["", "v1,", "whsec_", "v1,whsec_"])("접두를 떼고 남는 게 없는 시크릿 %j는 키가 없다(옛 키도 없음)", (secret) => {
+    expect(standardWebhookKeys(secret)).toEqual([]);
+    expect(standardWebhookKeys(secret, { polarLegacy: false })).toEqual([]);
+  });
+
+  it("남은 부분이 base64로 아무 바이트도 내지 않으면 옛 키만", () => {
+    const keys = standardWebhookKeys("whsec_!!!!");
     expect(keys).toHaveLength(1);
-    expect(keys[0]!.equals(Buffer.from("whsec_", "utf8"))).toBe(true);
+    expect(keys[0]!.equals(Buffer.from("whsec_!!!!", "utf8"))).toBe(true);
   });
 
   it("polarLegacy: false면 Standard 키만(옛 키 없음)", () => {

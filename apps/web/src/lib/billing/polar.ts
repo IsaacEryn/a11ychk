@@ -14,6 +14,8 @@ export class PolarError extends Error {
     public readonly code: string,
     message: string,
     public readonly status: number,
+    /** 보낸 요청이 쓰기(POST·PATCH)였는지 — 요청을 보내기 전에 난 오류(INVALID_ID)는 false */
+    public readonly mutating: boolean = false,
   ) {
     super(message);
     this.name = "PolarError";
@@ -21,11 +23,17 @@ export class PolarError extends Error {
 }
 
 /**
- * 결과 불명 — 연결이 끊겼거나(NETWORK), Polar 쪽 5xx·408이면 요청이 실제로 처리됐을 수 있다.
+ * 결과 불명 — Polar가 요청을 실제로 처리했을 수 있는 실패.
+ * - NETWORK: 연결 실패·시간 초과·리다이렉트, 또는 2xx인데 본문을 읽지 못함
+ * - Polar 쪽 5xx·408
+ * - 쓰기 요청(결제창·구독 변경·환불·포털 세션)이 2xx를 받았는데 응답 모양이 틀림(BAD_RESPONSE) — 2xx면 Polar는 이미 처리했다
  * 호출부는 실패로 확정하지 않고 조회로 다시 확인한다(같은 주문을 두 번 환불하지 않도록).
+ * 읽기 요청의 BAD_RESPONSE는 아무것도 바뀌지 않았으니 결과 불명이 아니다.
  */
 export function isPolarOutcomeUnknown(err: unknown): boolean {
-  return err instanceof PolarError && (err.code === "NETWORK" || err.status >= 500 || err.status === 408);
+  if (!(err instanceof PolarError)) return false;
+  if (err.code === "BAD_RESPONSE") return err.mutating;
+  return err.code === "NETWORK" || err.status >= 500 || err.status === 408;
 }
 
 /** 알려진 값 + 처음 보는 문자열 — Polar가 값을 늘려도 BAD_RESPONSE로 막히지 않고, 매핑은 호출부가 판단한다 */
@@ -80,7 +88,8 @@ export interface PolarSubscription {
   started_at: string | null;
   ends_at: string | null;
   ended_at: string | null;
-  customer: { id: string; external_id: string | null; email: string | null };
+  /** 이메일·이름은 읽지 않는다(쓰지 않는 개인정보) */
+  customer: { id: string; external_id: string | null };
   product_id: string;
   checkout_id: string | null;
   metadata: PolarMetadata;
@@ -213,7 +222,7 @@ const subscriptionSchema: z.ZodType<PolarSubscription, z.ZodTypeDef, unknown> = 
   started_at: nullableDate,
   ends_at: nullableDate,
   ended_at: nullableDate,
-  customer: z.object({ id: requiredId, external_id: nullableString, email: nullableString }),
+  customer: z.object({ id: requiredId, external_id: nullableString }),
   product_id: requiredId,
   checkout_id: nullableString,
   metadata,
@@ -305,12 +314,15 @@ async function call<T>(
   schema: z.ZodType<T, z.ZodTypeDef, unknown>,
 ): Promise<T> {
   let res: Response;
+  const mutating = init.method !== "GET";
   // 지역 변수로 호출 — deps 객체가 this로 묶이면 일부 런타임의 fetch가 Illegal invocation을 낸다
   const doFetch = deps.fetchImpl;
   try {
     res = await doFetch(`${deps.base}${init.path}`, {
       method: init.method,
       cache: "no-store",
+      // 리다이렉트를 따라가지 않는다 — Bearer 토큰이 다른 주소로 가지 않게. 실제 fetch는 3xx에서 예외를 던져 NETWORK가 된다
+      redirect: "error",
       headers: {
         Authorization: deps.auth,
         Accept: "application/json",
@@ -320,26 +332,26 @@ async function call<T>(
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
   } catch {
-    // 시간 초과·연결 실패 — Polar가 처리했는지 알 수 없다. 원래 오류 문구는 싣지 않는다
-    throw new PolarError("NETWORK", `polar ${op} failed (network)`, 0);
+    // 시간 초과·연결 실패·리다이렉트 — Polar가 처리했는지 알 수 없다. 원래 오류 문구는 싣지 않는다
+    throw new PolarError("NETWORK", `polar ${op} failed (network)`, 0, mutating);
   }
   if (!res.ok) {
     const parsedError: unknown = await res.json().catch(() => null);
     const code = errorCode(parsedError, res.status);
-    throw new PolarError(code, `polar ${op} failed: ${code} (${res.status})`, res.status);
+    throw new PolarError(code, `polar ${op} failed: ${code} (${res.status})`, res.status, mutating);
   }
   // 본문을 읽다 시간 초과·끊김이 나도 Polar는 이미 처리했을 수 있다 — 결과 불명으로
   let parsed: unknown;
   try {
     parsed = await res.json();
   } catch {
-    throw new PolarError("NETWORK", `polar ${op} response unreadable`, 0);
+    throw new PolarError("NETWORK", `polar ${op} response unreadable`, 0, mutating);
   }
   const result = schema.safeParse(parsed);
   if (!result.success) {
     // 필드 경로만 — zod 메시지에는 받은 값이 들어갈 수 있다
     const fields = [...new Set(result.error.issues.map((i) => i.path.join(".") || "(root)"))].slice(0, 10).join(", ");
-    throw new PolarError("BAD_RESPONSE", `polar ${op} response invalid: ${fields}`, res.status);
+    throw new PolarError("BAD_RESPONSE", `polar ${op} response invalid: ${fields}`, res.status, mutating);
   }
   return result.data;
 }
