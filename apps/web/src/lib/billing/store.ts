@@ -1,6 +1,8 @@
 import "server-only";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { UUID_RE } from "@/lib/billing/checkout";
 import { DAY_MS } from "@/lib/billing/period";
+import { LIVE_STATUSES, MOR_NON_FIRST_ORDER_PREFIX, MOR_PENDING_BLOCKS_MS } from "@/lib/billing/types";
 import type {
   BillingStore,
   CheckoutRow,
@@ -32,7 +34,6 @@ const REFUND_COLS = "id, payment_id, amount, reason, external_refund_id, status,
 const PAYMENT_COLS =
   "id, user_id, subscription_id, checkout_id, provider, livemode, kind, order_id, external_payment_id, amount, currency, period_start, period_end, attempt, status, failure_code, failure_message, receipt_url, card_summary, refunded_amount, requested_at, approved_at";
 
-const LIVE_STATUSES = ["active", "past_due"];
 const UNFINISHED_CHECKOUT = ["open", "processing"];
 /**
  * 크론 후보 창 — 연간 구독의 D-30 안내까지 들어오게 33일. 안내는 알리는 결제일(기간 끝 하루 전)의 KST 0시 30일 전부터라
@@ -49,7 +50,6 @@ const UNIQUE_VIOLATION = "23505";
 /** billing_webhook_events.attempts는 smallint */
 const SMALLINT_MAX = 32767;
 const LAST_ERROR_MAX = 500;
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** PostgREST or 필터에 넣는 시각 — ISO 모양만(따옴표·쉼표·괄호가 필터 문법을 바꾸지 못하게) */
 const FILTER_TIME_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,9})?(Z|[+-]\d{2}:\d{2})$/;
 
@@ -324,6 +324,21 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       return (data as PaymentRow[] | null) ?? [];
     },
 
+    async listPendingMorPayments(livemode, olderThanIso, limit) {
+      const { data, error } = await admin
+        .from("billing_payments")
+        .select(PAYMENT_COLS)
+        .eq("provider", "mor")
+        .eq("livemode", livemode)
+        .eq("status", "pending")
+        .not("external_payment_id", "is", null)
+        .lt("requested_at", olderThanIso)
+        .order("requested_at", { ascending: true })
+        .limit(limit);
+      if (error) throw fail("listPendingMorPayments", error);
+      return (data as PaymentRow[] | null) ?? [];
+    },
+
     async hasPendingPayment(subscriptionId) {
       // 모든 kind를 본다 — 그 구독에 걸린 첫 결제가 pending이어도 결제가 됐을 수 있어 종료를 미룬다
       const { data, error } = await admin
@@ -337,7 +352,11 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
     },
 
     async hasPendingInitialPayment(userId, livemode) {
-      // provider로 거르지 않는다 — 진행 중 구독 1건 규칙이 결제사를 합쳐서라 MoR 첫 결제 pending도 토스 결제 시작을 막는다
+      // 결제사를 합쳐서 본다 — 진행 중 구독 1건 규칙이 결제사를 합쳐서라 MoR 첫 결제 pending도 토스 결제 시작을 막는다.
+      // 다만 MoR 행은 24시간 안의 것만(그 뒤는 크론의 MoR 결제 대사가 확정한다), 첫 결제가 아닌 주문(mor_upd_)은 빼고 센다.
+      // LIKE의 *는 PostgREST의 %; 접두의 _(한 글자)는 그대로 둔다 — 다른 MoR 주문번호 mor_<UUID>의 5~7번째 글자는 16진수라
+      // u·p와 맞지 않아 섞이지 않는다
+      const since = new Date(Date.now() - MOR_PENDING_BLOCKS_MS).toISOString();
       const { data, error } = await admin
         .from("billing_payments")
         .select("id")
@@ -345,6 +364,7 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .eq("livemode", livemode)
         .eq("kind", "initial")
         .eq("status", "pending")
+        .or(`provider.neq.mor,and(requested_at.gte."${since}",order_id.not.like.${MOR_NON_FIRST_ORDER_PREFIX}*)`)
         .limit(1);
       if (error) throw fail("hasPendingInitialPayment", error);
       return Array.isArray(data) && data.length > 0;
@@ -578,6 +598,39 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
         .eq("livemode", livemode)
         .limit(1);
       if (error) throw fail("hasProviderSubscription", error);
+      return Array.isArray(data) && data.length > 0;
+    },
+
+    async hasMorActivity(userId, livemode) {
+      // 끝난 것까지 — 구독 행, 결제 행, 결제 시도(결제창을 열면 Polar 고객이 생길 수 있다) 차례로 한 행만 묻는다
+      for (const table of ["subscriptions", "billing_payments", "billing_checkouts"]) {
+        const { data, error } = await admin.from(table).select("id").eq("user_id", userId).eq("provider", "mor").eq("livemode", livemode).limit(1);
+        if (error) throw fail("hasMorActivity", error);
+        if (Array.isArray(data) && data.length > 0) return true;
+      }
+      return false;
+    },
+
+    async extendCheckout(id, expiresAt) {
+      if (!FILTER_TIME_RE.test(expiresAt)) throw new Error("billing store extendCheckout: expiresAt must be an ISO time");
+      const { error } = await admin
+        .from("billing_checkouts")
+        .update({ expires_at: expiresAt })
+        .eq("id", id)
+        .eq("status", "open")
+        .lt("expires_at", expiresAt);
+      if (error) throw fail("extendCheckout", error);
+    },
+
+    async releaseRefundClaim(id) {
+      const { data, error } = await admin
+        .from("billing_refunds")
+        .delete()
+        .eq("id", id)
+        .eq("status", "pending")
+        .is("external_refund_id", null)
+        .select("id");
+      if (error) throw fail("releaseRefundClaim", error);
       return Array.isArray(data) && data.length > 0;
     },
 

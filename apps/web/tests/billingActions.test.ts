@@ -12,6 +12,8 @@ const m = vi.hoisted(() => ({
   createBillingDeps: vi.fn(),
   createMorDeps: vi.fn(),
   revalidateLocalized: vi.fn(),
+  /** 사용자당 Polar 호출 한도 — 기본은 허용(한도 시험만 바꾼다) */
+  allowPolarCall: vi.fn(),
 }));
 vi.mock("@/lib/actions/shared", () => ({
   requireUser: async () => ({ supabase: {}, user: m.user }),
@@ -22,9 +24,11 @@ vi.mock("next/headers", () => ({ headers: async () => ({ get: (k: string) => m.h
 vi.mock("@/lib/billing/viewer", () => ({ loadViewer: async () => m.viewer }));
 vi.mock("@/lib/appSettings", () => ({ getBillingFlags: async () => m.flags }));
 vi.mock("@/lib/billing/server", () => ({ createBillingDeps: m.createBillingDeps, createMorDeps: m.createMorDeps }));
+vi.mock("@/lib/billing/polarThrottle", () => ({ allowPolarCall: m.allowPolarCall }));
 
 import {
   abandonCheckout,
+  abandonMorCheckout,
   cancelSubscriptionAction,
   openMorPortal,
   resumeSubscriptionAction,
@@ -74,6 +78,8 @@ beforeEach(() => {
   m.createBillingDeps.mockImplementation(() => deps);
   m.createMorDeps.mockReset();
   m.revalidateLocalized.mockReset();
+  m.allowPolarCall.mockReset();
+  m.allowPolarCall.mockResolvedValue(true);
 });
 
 afterEach(() => {
@@ -350,6 +356,50 @@ describe("startMorCheckoutAction — 해외(Polar) 결제 시작 액션", () => 
     mor.store.rows.payments.push(paymentRow({ user_id: USER, status: "pending" }));
     expect(await startMorCheckoutAction({}, fd({ priceId: morPrice.id, consent: "on" }))).toEqual({ error: "inProgress", blockedBy: "processing" });
   });
+
+  it("사용자당 Polar 호출 한도를 넘으면 rateLimited — 시도·Polar 호출 없음", async () => {
+    m.allowPolarCall.mockResolvedValue(false);
+    expect(await startMorCheckoutAction({}, fd({ priceId: morPrice.id, consent: "on" }))).toEqual({ error: "rateLimited" });
+    expect(m.allowPolarCall).toHaveBeenCalledWith(USER);
+    expect(mor.store.rows.checkouts).toHaveLength(0);
+    expect(mor.polar.calls.createCheckout).toHaveLength(0);
+  });
+});
+
+describe("abandonMorCheckout — 해외 결제 확인 화면의 이전 시도 취소", () => {
+  let mor: FakeMorDeps;
+  beforeEach(() => {
+    mor = makeMorDeps({ store: createMemoryStore({ prices: [price] }, { now: () => NOW }), now: () => NOW });
+    m.createMorDeps.mockImplementation(() => mor);
+  });
+
+  it("이 사용자·지금 모드의 open 시도를 닫고(abandoned) 닫은 수를 준다 — 토스 키 없이 Polar 의존성만으로", async () => {
+    vi.stubEnv("TOSS_CLIENT_KEY", "");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    const mine = checkoutRow({ user_id: USER, price_id: price.id, provider: "mor", expires_at: iso(NOW + 50 * 60_000) });
+    const others = checkoutRow({ user_id: "22222222-2222-4222-8222-222222222222", price_id: price.id, provider: "mor" });
+    const live = checkoutRow({ user_id: USER, price_id: price.id, provider: "mor", livemode: true });
+    mor.store.rows.checkouts.push(mine, others, live);
+
+    expect(await abandonMorCheckout()).toEqual({ closed: 1, blockedBy: null });
+    expect(mor.store.rows.checkouts.map((c) => [c.status, c.failure_code])).toEqual([
+      ["expired", "abandoned"],
+      ["open", null],
+      ["open", null],
+    ]);
+    expect(m.createBillingDeps).not.toHaveBeenCalled();
+  });
+
+  it("처리 중인 결제가 남았으면 그 까닭을 준다, 결제 꺼짐·Polar 의존성 없음은 notConfigured", async () => {
+    mor.store.rows.payments.push(paymentRow({ user_id: USER, status: "pending" }));
+    expect(await abandonMorCheckout()).toEqual({ closed: 0, blockedBy: "processing" });
+
+    vi.stubEnv("BILLING_MODE", "");
+    expect(await abandonMorCheckout()).toEqual({ error: "notConfigured" });
+    vi.stubEnv("BILLING_MODE", "test");
+    m.createMorDeps.mockImplementation(() => null);
+    expect(await abandonMorCheckout()).toEqual({ error: "notConfigured" });
+  });
 });
 
 describe("openMorPortal — 결제 관리의 Polar 고객 포털", () => {
@@ -437,6 +487,13 @@ describe("openMorPortal — 결제 관리의 Polar 고객 포털", () => {
     expect(out).toEqual({ error: "failed" });
     expect(JSON.stringify(out)).not.toContain("evil.example");
     expect(mor.log.mock.calls.map((c) => c[0]).join("\n")).not.toContain("evil.example");
+  });
+
+  it("사용자당 Polar 호출 한도를 넘으면 rateLimited — Polar를 부르지 않는다", async () => {
+    setupPortal();
+    m.allowPolarCall.mockResolvedValue(false);
+    expect(await openMorPortal()).toEqual({ error: "rateLimited" });
+    expect(mor.polar.calls.createCustomerSession).toEqual([]);
   });
 
   it("저장소 오류는 failed + 기록", async () => {

@@ -1,17 +1,18 @@
 import "server-only";
 import { closeEndedSubscription } from "@/lib/billing/flows/end";
-import { canonicalTime, storedIsNewer } from "@/lib/billing/flows/mor";
+import { endMorRow, revokeAtPolar } from "@/lib/billing/flows/mor";
 import { planNameFor, sendBillingMail } from "@/lib/billing/flows/subscribe";
 import { iso } from "@/lib/billing/period";
-import { PolarError, isPolarOutcomeUnknown, type PolarSubscription } from "@/lib/billing/polar";
-import type {
-  BillingDeps,
-  BillingStore,
-  MorDeps,
-  MorSubscriptionPatch,
-  MorSubscriptionRow,
-  SubscriptionExpectation,
-  SubscriptionRow,
+import { PolarError, isPolarOutcomeUnknown, isPolarRateLimited, polarCode, type PolarSubscription } from "@/lib/billing/polar";
+import {
+  LIVE_STATUSES,
+  isLiveStatus,
+  type BillingDeps,
+  type BillingStore,
+  type MorDeps,
+  type MorSubscriptionRow,
+  type SubscriptionExpectation,
+  type SubscriptionRow,
 } from "@/lib/billing/types";
 
 /**
@@ -188,7 +189,7 @@ export async function collectDeletionTargets(store: BillingStore, userId: string
   return { subscriptions, pendingInitialModes };
 }
 
-const LIVE: SubscriptionExpectation["statuses"] = ["active", "past_due"];
+const LIVE: SubscriptionExpectation["statuses"] = [...LIVE_STATUSES];
 
 /**
  * 모아 둔 구독 하나를 끝낸다 — ended: 모은 그 기간에서 끝냄 / renewed: 그 사이 기간이 넘어갔지만 아직 진행 중이라 그래도 끝냄 /
@@ -288,39 +289,24 @@ async function logPendingPaymentsForDeletion(
   );
 }
 
-// ── 탈퇴 전 판매 대행(Polar) 구독 해지 ──
+// ── 탈퇴 전 판매 대행(Polar) 정리 ──
 
 type MorRevoke = { ok: true; sub: PolarSubscription | null } | { ok: false; why: string };
 type PausedCheck = { ok: true; gone: true } | MorRevoke;
 
-const polarCode = (e: unknown) => (e instanceof PolarError ? `${e.code} (${e.status})` : "unexpected error");
-
 /**
- * Polar 구독 즉시 해지 — 해지됐으면 그 뒤 정본, 못 했으면 까닭. 결과 불명이거나 응답이 canceled가 아니면 한 번만 다시 읽어 canceled일
- * 때만 성공으로 본다(반복하지 않는다). 403 AlreadyCanceledSubscription(이미 해지됐거나 기간 끝 해지가 예약돼 더 청구되지 않는다)도
- * 성공이고, 행을 끝낼 정본 시각을 얻으려고 한 번 다시 읽는다(읽지 못하면 정본 없이 — 지금 시각으로 끝낸다).
+ * Polar 구독 즉시 해지 — 돈 안전 불변식과 같은 판정(flows/mor.ts revokeAtPolar: 200이어도 status 확인, 아니면 한 번 다시 읽기,
+ * AlreadyCanceled면 다시 읽은 정본). 탈퇴는 한도 초과(429)도 해지를 확인하지 못한 것으로 보고 막는다(사용자가 다시 시도한다).
  */
-async function revokeAtPolarForDeletion(mor: MorDeps, externalId: string): Promise<MorRevoke> {
+async function revokeForDeletion(mor: MorDeps, externalId: string): Promise<MorRevoke> {
   try {
-    const sub = await mor.polar.updateSubscription(externalId, { revoke: true });
-    if (sub.status === "canceled") return { ok: true, sub };
+    const outcome = await revokeAtPolar(mor.polar, externalId);
+    if (outcome.ok) return outcome;
+    return { ok: false, why: outcome.unknown ? "revoke outcome unknown" : `revoke failed: ${outcome.code}` };
   } catch (e) {
-    if (e instanceof PolarError && e.code === "AlreadyCanceledSubscription") {
-      try {
-        return { ok: true, sub: await mor.polar.getSubscription(externalId) };
-      } catch {
-        return { ok: true, sub: null };
-      }
-    }
-    if (!isPolarOutcomeUnknown(e)) return { ok: false, why: `revoke failed: ${polarCode(e)}` };
+    if (isPolarRateLimited(e)) return { ok: false, why: `revoke failed: ${polarCode(e)}` };
+    throw e;
   }
-  try {
-    const again = await mor.polar.getSubscription(externalId);
-    if (again.status === "canceled") return { ok: true, sub: again };
-  } catch {
-    // 아래 까닭 하나로 충분하다
-  }
-  return { ok: false, why: "revoke outcome unknown" };
 }
 
 /**
@@ -333,7 +319,7 @@ async function revokePausedForDeletion(mor: MorDeps, externalId: string): Promis
     try {
       const sub = await mor.polar.getSubscription(externalId);
       if (sub.status === "canceled") return { ok: true, gone: true };
-      return revokeAtPolarForDeletion(mor, externalId);
+      return await revokeForDeletion(mor, externalId);
     } catch (e) {
       if (e instanceof PolarError && e.status === 404) return { ok: true, gone: true };
       failure = e;
@@ -347,51 +333,56 @@ async function revokePausedForDeletion(mor: MorDeps, externalId: string): Promis
 }
 
 /**
- * 해지한 구독의 우리 행을 ended(user_canceled)로 — 조건부 갱신(읽은 상태·저장된 Polar 시각 이하)이라 그 사이 웹훅이 먼저 끝냈으면
- * 덮지 않는다. 시각은 해지 정본의 modified_at(없으면 지금)이고, 저장된 시각이 더 늦으면 다시 읽어 그 시각을 조건으로 한 번 더 쓴다.
- * 끝냈거나 이미 끝나 있었으면 true. 저장소 오류는 던진다.
+ * Polar 고객 삭제(외부 id = 사용자 id, 익명화) — Polar가 진행 중 구독을 즉시 해지하고 혜택을 회수한다. 우리 행이 없는 구독(review로
+ * 끝나 행을 만들지 못한 구독 등)도 이것으로 멈추고, 같은 이메일로 다시 가입한 새 계정이 옛 고객에 붙지 않게 한다.
+ * 204면 끝, 404(고객 없음)도 성공. 결과 불명·429면 한 번만 다시 시도하고(다시 해서 404면 앞의 요청이 지운 것이다), 그래도 모르거나
+ * 확정 실패면 까닭을 돌려준다. deleted: 이번에 지웠다(처음부터 없었으면 false).
  */
-async function endMorRowForDeletion(store: BillingStore, row: MorSubscriptionRow, revoked: PolarSubscription | null, now: number): Promise<boolean> {
-  const nowIso = iso(now);
-  const source = canonicalTime(revoked?.modified_at ?? revoked?.created_at) ?? canonicalTime(nowIso)!;
-  const endedAt = canonicalTime(revoked?.ended_at) ?? nowIso;
-  const patchAt = (at: string): MorSubscriptionPatch => ({
-    status: "ended",
-    ended_reason: "user_canceled",
-    ended_at: endedAt,
-    canceled_at: canonicalTime(revoked?.canceled_at) ?? row.canceled_at ?? endedAt,
-    external_updated_at: at,
-  });
-  if ((await store.updateMorSubscriptionIf(row.id, { status: row.status, notAfter: source }, patchAt(source))) === "updated") return true;
-  const current = row.external_id ? await store.getSubscriptionByExternal("mor", row.external_id, row.livemode) : null;
-  if (!current || (current.status !== "active" && current.status !== "past_due")) return true;
-  const notAfter = storedIsNewer(current.external_updated_at, source) ? (canonicalTime(current.external_updated_at) ?? source) : source;
-  return (await store.updateMorSubscriptionIf(current.id, { status: current.status, notAfter }, patchAt(notAfter))) === "updated";
+async function deleteCustomerForDeletion(mor: MorDeps, userId: string): Promise<{ ok: true; deleted: boolean } | { ok: false; why: string }> {
+  let failure: unknown = null;
+  for (let pass = 0; pass < 2; pass++) {
+    try {
+      await mor.polar.deleteCustomerByExternalId(userId, { anonymize: true });
+      return { ok: true, deleted: true };
+    } catch (e) {
+      if (e instanceof PolarError && e.status === 404) return { ok: true, deleted: pass > 0 };
+      failure = e;
+      if (!isPolarOutcomeUnknown(e) && !isPolarRateLimited(e)) break;
+    }
+  }
+  if (isPolarOutcomeUnknown(failure)) return { ok: false, why: "customer deletion outcome unknown" };
+  return { ok: false, why: `customer deletion failed: ${polarCode(failure)}` };
 }
 
-const LIVE_STATUS = new Set<SubscriptionRow["status"]>(["active", "past_due"]);
 const idsOf = (rows: MorSubscriptionRow[]) => ({
   externals: rows.map((r) => r.external_id ?? "(none)").join(","),
   rowIds: rows.map((r) => r.id).join(","),
 });
 
+/** 탈퇴 전 판매 대행 정리 결과 — ok면 계정을 지워도 된다(afterDelete: 계정 삭제가 성공한 뒤에만 남길 기록 줄), 아니면 막는다 */
+export type MorDeletionOutcome = { ok: true; afterDelete: string[] } | { ok: false };
+
 /**
- * 탈퇴 전 — 그 사용자의 MoR 구독을 Polar에서 즉시 해지(revoke)한다. 계정을 지운 뒤에도 Polar가 계속 청구하지 않게, 해지를 확인하지
- * 못하면 "blocked"를 돌려 탈퇴를 막는다(토스와 다르다 — 토스는 빌링키가 계정과 함께 지워져 청구가 멈추지만 Polar 구독은 Polar에 남는다).
+ * 탈퇴 전 — 그 사용자의 MoR 구독을 Polar에서 즉시 해지(revoke)하고 Polar 고객을 지운다. 계정을 지운 뒤에도 Polar가 계속 청구하지
+ * 않게, 확인하지 못하면 막는다(ok false — 토스와 다르다: 토스는 빌링키가 계정과 함께 지워져 청구가 멈추지만 Polar 구독은 Polar에 남는다).
  * 대상(두 livemode):
- * - 진행 중(active·past_due) 행 — 해지하고 우리 행을 ended(user_canceled)로 끝낸다.
+ * - 진행 중(active·past_due) 행 — 해지하고 우리 행을 ended(user_canceled)로 끝낸다(endMorRow — 돈 안전 불변식과 같은 종료).
  * - 일시정지로 끝난 행(ended·admin·외부 id 있음) — Polar에서 재개되면 다시 청구된다. 먼저 읽어 canceled·404면 건너뛰고, 아니면 해지한다.
  *   우리 행은 이미 끝났으니 바꾸지 않는다.
+ * - 해지를 마친 뒤 Polar 고객 — 이 배포의 Polar 의존성이 있고 그 사용자에게 이 모드의 MoR 흔적(구독·결제·결제 시도 행, 끝난 것 포함)이
+ *   하나라도 있으면 지운다(deleteCustomerForDeletion — Polar 고객은 결제창을 연 순간 생길 수 있다). 결과 불명이면 한 번 다시, 그래도
+ *   모르거나 확정 실패(404 제외)면 막는다. 이 배포가 닿지 못하는 모드의 고객(다른 모드의 흔적)은 지우지 않는다 — 진행 중 구독이 있으면
+ *   아래 규칙이 막고, 끝난 흔적만 있으면 청구가 없다.
  * 모드: 이 배포의 Polar 의존성은 이 배포 모드의 것뿐이다.
  * - sandbox 행(livemode=false)이 test가 아닌 배포(live·off)에서 나오면 막지 않는다 — sandbox는 실제 돈을 청구하지 않고 이 배포는 sandbox에
- *   닿지 못한다. 해지를 마친 뒤 needs review 한 줄을 남긴다(나중에 sandbox 동기화가 탈퇴한 사용자로 보고 해지·환불한다).
+ *   닿지 못한다. 계정을 지운 뒤 needs review 한 줄을 남긴다(나중에 sandbox 동기화가 탈퇴한 사용자로 보고 해지·환불한다).
  * - 그 밖에 모드가 다른 행(test 배포의 live 행·off 배포의 live 행), Polar 의존성 없음, 외부 id 없는 진행 중 행이 하나라도 있으면
  *   아무것도 해지하지 않고 막는다.
- * - 해지·읽기가 확정 실패하거나 다시 읽어도 결과를 모르면 그 자리에서 막는다(앞서 해지한 구독은 끝난 그대로 두고 기록에 남긴다).
+ * - 해지·읽기·고객 삭제가 확정 실패하거나 다시 해도 결과를 모르면 그 자리에서 막는다(앞서 해지한 구독은 끝난 그대로 두고 기록에 남긴다).
  * - 해지한 뒤 우리 행을 끝내지 못하면(저장소 오류·엇갈림) 막지 않는다 — Polar는 더 청구하지 않고, 해지 웹훅이 보통 그 행을 끝낸다
  *   (크론 대사는 기간 끝 + 6시간이 지나야 그 행을 본다).
- * 기록은 해지 결과 한 줄(+ sandbox 행이 있으면 needs review 한 줄, 구독·행·사용자 id만). 구독 목록을 읽는 저장소 오류는 던진다
- * (호출부가 테이블 없음과 가른다).
+ * 기록: 막을 때는 그 자리에서 한 줄. 해지 결과·고객 삭제·sandbox needs review 줄은 afterDelete로 돌려준다 — 호출부가 계정 삭제가
+ * 성공한 뒤에만 남긴다(구독·행·사용자 id만). 구독 목록·흔적을 읽는 저장소 오류는 던진다(호출부가 테이블 없음과 가른다).
  */
 export async function revokeMorForDeletion(
   store: BillingStore,
@@ -399,9 +390,8 @@ export async function revokeMorForDeletion(
   livemode: boolean | null,
   userId: string,
   log: (message: string) => Promise<void>,
-): Promise<"ok" | "blocked"> {
+): Promise<MorDeletionOutcome> {
   const all = [...(await store.listLiveMorSubscriptions(userId)), ...(await store.listPausedMorSubscriptions(userId))];
-  if (all.length === 0) return "ok";
   const unreachableSandbox = (r: MorSubscriptionRow) => r.livemode === false && livemode !== false;
   const sandbox = all.filter(unreachableSandbox);
   const targets = all.filter((r) => !unreachableSandbox(r));
@@ -419,42 +409,56 @@ export async function revokeMorForDeletion(
   if (cannot) {
     const { externals, rowIds } = idsOf(targets);
     await log(`billing account deletion blocked for user ${userId}: mor subscriptions ${externals} (rows ${rowIds}) cannot be canceled at Polar here (${cannot})`);
-    return "blocked";
+    return { ok: false };
   }
 
   const revoked: MorSubscriptionRow[] = [];
   const unended: string[] = [];
+  const earlier = () => (revoked.length > 0 ? `; already revoked: ${idsOf(revoked).externals}` : "");
   for (const row of targets) {
     const externalId = row.external_id!;
-    const live = LIVE_STATUS.has(row.status);
-    const outcome = live ? await revokeAtPolarForDeletion(mor!, externalId) : await revokePausedForDeletion(mor!, externalId);
+    const live = isLiveStatus(row.status);
+    const outcome = live ? await revokeForDeletion(mor!, externalId) : await revokePausedForDeletion(mor!, externalId);
     if (!outcome.ok) {
-      const earlier = revoked.length > 0 ? `; already revoked: ${idsOf(revoked).externals}` : "";
-      await log(`billing account deletion blocked for user ${userId}: mor subscription ${externalId} (row ${row.id}) could not be canceled at Polar (${outcome.why})${earlier}`);
-      return "blocked";
+      await log(`billing account deletion blocked for user ${userId}: mor subscription ${externalId} (row ${row.id}) could not be canceled at Polar (${outcome.why})${earlier()}`);
+      return { ok: false };
     }
     if ("gone" in outcome) continue;
     revoked.push(row);
     if (!live) continue; // 일시정지로 끝난 행은 이미 끝났다
     let ended = false;
     try {
-      ended = await endMorRowForDeletion(store, row, outcome.sub, mor!.now());
+      ended = await endMorRow(mor!, row, "user_canceled", outcome.sub);
     } catch {
       ended = false;
     }
     if (!ended) unended.push(row.id);
   }
+
+  // 해지를 마친 뒤 Polar 고객 — 이 배포의 모드에 흔적이 있을 때만(해지한 구독이 있으면 흔적이 있는 것이다)
+  let customerDeleted = false;
+  if (mor && livemode !== null && (targets.length > 0 || (await store.hasMorActivity(userId, livemode)))) {
+    const customer = await deleteCustomerForDeletion(mor, userId);
+    if (!customer.ok) {
+      await log(`billing account deletion blocked for user ${userId}: the Polar customer could not be deleted (${customer.why})${earlier()}`);
+      return { ok: false };
+    }
+    customerDeleted = customer.deleted;
+  }
+
+  const afterDelete: string[] = [];
   if (revoked.length > 0) {
     const { externals, rowIds } = idsOf(revoked);
     const rest =
       unended.length > 0 ? `; rows ${unended.join(",")} could not be ended — the Polar webhook normally ends them (the billing cron only after period end + 6h)` : "";
-    await log(`billing account deletion: mor subscriptions ${externals} revoked at Polar (rows ${rowIds})${rest}`);
+    afterDelete.push(`billing account deletion: mor subscriptions ${externals} revoked at Polar (rows ${rowIds})${rest}`);
   }
+  if (customerDeleted) afterDelete.push(`billing account deletion: Polar customer of user ${userId} deleted (anonymized)`);
   if (sandbox.length > 0) {
     const { externals, rowIds } = idsOf(sandbox);
-    await log(
+    afterDelete.push(
       `billing needs review: deleting the account of user ${userId} leaves sandbox mor subscriptions ${externals} (rows ${rowIds}) in the Polar sandbox; this deployment cannot reach the sandbox`,
     );
   }
-  return "ok";
+  return { ok: true, afterDelete };
 }

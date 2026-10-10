@@ -124,7 +124,7 @@ function refundRow(payment: PaymentRow, over: Partial<RefundRow> = {}): RefundRo
 
 const attempt = (over: Partial<CheckoutRow> = {}) => checkoutRow({ id: ATTEMPT, user_id: USER, price_id: PRICE.id, provider: "mor", ...over });
 
-/** Polar 결제창(정본) — 우리 결제 시작(Task 4)이 넣는 metadata·external_customer_id를 갖췄다 */
+/** Polar 결제창(정본) — 우리 결제 시작(flows/morStart.ts)이 넣는 metadata·external_customer_id를 갖췄다 */
 function checkout(over: Partial<PolarCheckout> = {}): PolarCheckout {
   return polarCheckout({ id: POLAR_CHECKOUT, external_customer_id: USER, product_id: PRODUCT, metadata: { checkout_id: ATTEMPT, user_id: USER }, ...over });
 }
@@ -221,12 +221,13 @@ describe("handleMorWebhook — billing_webhook_events 기록", () => {
     await expect(handleMorWebhook(deps, event("subscription.created"))).rejects.toThrow("polar getSubscription failed (network)");
   });
 
-  it("처리 완료를 적지 못하면 던진다(재시도 — 흐름은 멱등이다)", async () => {
+  it("처리 완료를 적지 못하면 기록 한 줄 뒤 던진다(재시도 — 흐름은 멱등이다)", async () => {
     const { deps, store } = world({}, { getSubscription: [sub()] });
     store.finishWebhookEvent = async (_p, _id, outcome) => {
       if (outcome.error === undefined) throw new Error("billing store finishWebhookEvent: down");
     };
     await expect(handleMorWebhook(deps, event("subscription.created"))).rejects.toThrow("down");
+    expect(logs(deps)).toEqual([`billing polar webhook ${EVENT_ID} (subscription.created) could not be marked processed: billing store finishWebhookEvent: down`]);
   });
 });
 
@@ -395,10 +396,10 @@ describe("구독 이벤트 — 정본을 다시 읽어 syncMorSubscription", () 
     expect(morSub(rows)).toMatchObject({ status: "active" });
   });
 
-  it("Polar 404(지워짐)는 처리됨 + 기록 한 줄", async () => {
+  it("Polar 404는 처리됨 + needs review 한 줄 — 토큰과 웹훅 끝점의 조직이 어긋난 사고를 드러낸다", async () => {
     const { deps, rows } = world({}, { getSubscription: [new PolarError("ResourceNotFound", "polar getSubscription failed: ResourceNotFound (404)", 404)] });
     expect(await handleMorWebhook(deps, event("subscription.updated"))).toBe("processed");
-    expect(logs(deps)).toEqual([`billing polar subscription ${SUB_ID} was not found at Polar; webhook event ${EVENT_ID} skipped`]);
+    expect(logs(deps)).toEqual([`billing needs review: polar subscription ${SUB_ID} was not found at Polar; webhook event ${EVENT_ID} skipped — check that the Polar access token belongs to the organization of the webhook endpoint`]);
     expect(rows.subscriptions).toEqual([]);
     expect(eventRow(rows)!.processed_at).not.toBeNull();
   });
@@ -477,15 +478,15 @@ describe("주문 이벤트 — 주문·구독을 다시 읽어 구독을 먼저 
   it("주문의 구독이 Polar에 없으면(404) 기록 한 줄 뒤 주문은 그대로 적는다", async () => {
     const { deps, rows } = world({}, { getOrder: [order()], getSubscription: [new PolarError("ResourceNotFound", "x", 404)] });
     expect(await handleMorWebhook(deps, event("order.paid", ORDER_ID))).toBe("processed");
-    expect(logs(deps)).toContain(`billing polar subscription ${SUB_ID} was not found at Polar; webhook event ${EVENT_ID} skipped`);
+    expect(logs(deps)).toContain(`billing needs review: polar subscription ${SUB_ID} was not found at Polar; webhook event ${EVENT_ID} skipped — check that the Polar access token belongs to the organization of the webhook endpoint`);
     expect(rows.payments).toHaveLength(1);
     expect(rows.subscriptions).toEqual([]);
   });
 
-  it("주문이 Polar에 없으면(404) 처리됨 + 기록 한 줄", async () => {
+  it("주문이 Polar에 없으면(404) 처리됨 + needs review 한 줄", async () => {
     const { deps, rows } = world({}, { getOrder: [new PolarError("ResourceNotFound", "x", 404)] });
     expect(await handleMorWebhook(deps, event("order.refunded", ORDER_ID))).toBe("processed");
-    expect(logs(deps)).toEqual([`billing polar order ${ORDER_ID} was not found at Polar; webhook event ${EVENT_ID} skipped`]);
+    expect(logs(deps)).toEqual([`billing needs review: polar order ${ORDER_ID} was not found at Polar; webhook event ${EVENT_ID} skipped — check that the Polar access token belongs to the organization of the webhook endpoint`]);
     expect(rows.payments).toEqual([]);
   });
 
@@ -570,7 +571,11 @@ describe("환불 이벤트 — 환불을 다시 읽어 우리 환불 기록을 �
     const autoId = morAutoRefundId(payment.id);
     const { deps, rows } = world(
       { payments: [payment], refunds: [refundRow(payment, { id: autoId, reason: "auto_ungranted", status: "succeeded" })] },
-      { getRefund: [polarRefund({ id: REFUND_ID, status: "canceled", order_id: ORDER_ID })], getOrder: [looseOrder()] },
+      // 끝 상태끼리 뒤집기(succeeded → failed)는 한 번 더 읽어 같을 때만
+      {
+        getRefund: [polarRefund({ id: REFUND_ID, status: "canceled", order_id: ORDER_ID }), polarRefund({ id: REFUND_ID, status: "canceled", order_id: ORDER_ID })],
+        getOrder: [looseOrder()],
+      },
     );
     await handleMorWebhook(deps, event("refund.updated", REFUND_ID));
     expect(rows.refunds[0]!.status).toBe("failed");
@@ -595,12 +600,42 @@ describe("환불 이벤트 — 환불을 다시 읽어 우리 환불 기록을 �
     const autoId = morAutoRefundId(payment.id);
     const { deps, rows } = world(
       { payments: [payment], refunds: [refundRow(payment, { id: autoId, status: "failed" })] },
-      { getRefund: [polarRefund({ id: REFUND_ID, status: "succeeded", order_id: ORDER_ID })], getOrder: [looseOrder()] },
+      {
+        getRefund: [polarRefund({ id: REFUND_ID, status: "succeeded", order_id: ORDER_ID }), polarRefund({ id: REFUND_ID, status: "succeeded", order_id: ORDER_ID })],
+        getOrder: [looseOrder()],
+      },
     );
     await handleMorWebhook(deps, event("refund.updated", REFUND_ID));
+    expect(deps.polar.calls.getRefund).toEqual([[REFUND_ID], [REFUND_ID]]);
     expect(rows.refunds[0]!.status).toBe("succeeded");
     expect(reviews(deps)).toEqual([]);
     expect(logs(deps)).toEqual([`billing automatic refund ${REFUND_ID} of order ${ORDER_ID} (payment ${payment.id}) succeeded at Polar after it was recorded as failed`]);
+  });
+
+  it("끝 상태끼리 뒤집기는 직전에 다시 읽은 값이 같을 때만 — 다르면 그대로 두고 다음 이벤트에 맡긴다", async () => {
+    const payment = orderPayment();
+    const autoId = morAutoRefundId(payment.id);
+    const { deps, rows } = world(
+      { payments: [payment], refunds: [refundRow(payment, { id: autoId, status: "succeeded" })] },
+      {
+        getRefund: [polarRefund({ id: REFUND_ID, status: "failed", order_id: ORDER_ID }), polarRefund({ id: REFUND_ID, status: "succeeded", order_id: ORDER_ID })],
+        getOrder: [looseOrder()],
+      },
+    );
+    expect(await handleMorWebhook(deps, event("refund.updated", REFUND_ID))).toBe("processed");
+    expect(rows.refunds[0]!.status).toBe("succeeded");
+    expect(reviews(deps)).toEqual([]);
+  });
+
+  it("pending에서 끝 상태로는 다시 읽지 않고 맞춘다", async () => {
+    const payment = orderPayment();
+    const { deps, rows } = world(
+      { payments: [payment], refunds: [refundRow(payment)] },
+      { getRefund: [polarRefund({ id: REFUND_ID, status: "failed", order_id: ORDER_ID })], getOrder: [looseOrder()] },
+    );
+    await handleMorWebhook(deps, event("refund.updated", REFUND_ID));
+    expect(deps.polar.calls.getRefund).toHaveLength(1);
+    expect(rows.refunds[0]!.status).toBe("failed");
   });
 
   it("관리자 환불(무작위 id)의 실패는 failed로 적되 needs review는 남기지 않는다", async () => {
@@ -636,6 +671,36 @@ describe("환불 이벤트 — 환불을 다시 읽어 우리 환불 기록을 �
     );
     await handleMorWebhook(deps, event("refund.created", REFUND_ID));
     expect(rows.refunds[0]).toMatchObject({ id: autoId, external_refund_id: REFUND_ID, status: "succeeded" });
+  });
+
+  it("자동 환불의 전용 키(refund_record_id)로 그 기록을 찾는다 — payment_id가 없어도 잇는다", async () => {
+    const payment = orderPayment();
+    const autoId = morAutoRefundId(payment.id);
+    const { deps, rows } = world(
+      { payments: [payment], refunds: [refundRow(payment, { id: autoId, external_refund_id: null })] },
+      { getRefund: [polarRefund({ id: REFUND_ID, status: "succeeded", order_id: ORDER_ID, metadata: { refund_record_id: autoId.toUpperCase() } })], getOrder: [looseOrder()] },
+    );
+    await handleMorWebhook(deps, event("refund.created", REFUND_ID));
+    expect(rows.refunds[0]).toMatchObject({ id: autoId, external_refund_id: REFUND_ID, status: "succeeded" });
+  });
+
+  it("전용 키가 다른 결제의 기록이거나 이미 Polar id가 있는 기록을 가리키면 잇지 않는다(payment_id로 대신 찾지도 않는다)", async () => {
+    const payment = orderPayment();
+    const autoId = morAutoRefundId(payment.id);
+    const elsewhere = paymentRow({ user_id: USER, provider: "mor", currency: "USD", status: "paid", period_start: null, period_end: null });
+    const foreign = refundRow(elsewhere, { id: morAutoRefundId(elsewhere.id), external_refund_id: null });
+    const { deps, rows } = world(
+      { payments: [payment, elsewhere], refunds: [refundRow(payment, { id: autoId, external_refund_id: null }), foreign] },
+      {
+        getRefund: [polarRefund({ id: REFUND_ID, status: "succeeded", order_id: ORDER_ID, metadata: { refund_record_id: foreign.id, payment_id: payment.id } })],
+        getOrder: [looseOrder()],
+      },
+    );
+    await handleMorWebhook(deps, event("refund.created", REFUND_ID));
+    expect(rows.refunds.map((r) => [r.id, r.external_refund_id, r.status])).toEqual([
+      [autoId, null, "pending"],
+      [foreign.id, null, "pending"],
+    ]);
   });
 
   it("metadata가 없거나 다른 결제를 가리키면(대시보드 환불) 자동 환불 기록에 잇지 않는다", async () => {

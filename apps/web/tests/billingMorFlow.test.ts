@@ -572,7 +572,10 @@ describe("syncMorSubscription — 돈 안전 불변식(진행 중 구독이 이�
     const r = await syncMorSubscription(deps, { ...created, metadata: { user_id: USER, checkout_id: attempt.id } }, false, { orderId: ORDER_ID });
     expect(r).toEqual({ kind: "ungranted", refund: "refunded" });
     expect(deps.polar.calls.updateSubscription).toEqual([[SUB_ID, { revoke: true }]]);
-    expect(deps.polar.calls.createRefund).toEqual([[{ order_id: ORDER_ID, reason: "duplicate", amount: 1234, metadata: { payment_id: rows.payments[0].id } }]]);
+    // 자동 환불의 연결 키 — 환불 웹훅이 refund_record_id로 이 기록을 찾는다(payment_id는 운영자용)
+    expect(deps.polar.calls.createRefund).toEqual([
+      [{ order_id: ORDER_ID, reason: "duplicate", amount: 1234, metadata: { payment_id: rows.payments[0].id, refund_record_id: morAutoRefundId(rows.payments[0].id) } }],
+    ]);
     expect(morSub(rows)).toBeUndefined();
     expect(rows.refunds).toEqual([expect.objectContaining({ amount: 1234, status: "succeeded", external_refund_id: REFUND_ID })]);
     // 우리 결제 시도는 실패(중복 환불)로 닫는다
@@ -707,6 +710,97 @@ describe("syncMorSubscription — 돈 안전 불변식(진행 중 구독이 이�
     expect(deps.polar.calls.createRefund).toEqual([]);
     expect(reviews(deps)).toHaveLength(1);
   });
+
+  it("revoke 응답(200)이 canceled가 아니면 한 번 다시 읽어 canceled일 때만 해지된 것으로 본다", async () => {
+    const created = sub();
+    const ok = world(
+      { subscriptions: [live()] },
+      {
+        updateSubscription: [{ ...created, status: "active" }],
+        getSubscription: [{ ...created, status: "canceled" }],
+        getOrder: [order()],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    expect(await syncMorSubscription(ok.deps, created, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(ok.deps.polar.calls.getSubscription).toEqual([[SUB_ID]]);
+
+    const still = world({ subscriptions: [live()] }, { updateSubscription: [{ ...created, status: "active" }], getSubscription: [{ ...created, status: "active" }] });
+    expect(await syncMorSubscription(still.deps, created, false, { orderId: ORDER_ID })).toEqual({ kind: "review" });
+    expect(still.deps.polar.calls.createRefund).toEqual([]);
+    expect(reviews(still.deps)).toEqual([`billing needs review: revoke of mor subscription ${SUB_ID} has an unknown outcome`]);
+  });
+
+  it("이미 해지됨(403 AlreadyCanceledSubscription)이면 다시 읽은 정본의 시각으로 기존 행을 끝낸다", async () => {
+    const orphan = morRow({ user_id: null });
+    const cycled = sub({ modified_at: T1 });
+    const canonical = { ...cycled, status: "canceled", modified_at: "2026-01-25T16:00:09.000000Z", ended_at: "2026-01-25T16:00:08.000000Z" };
+    const { deps, rows } = world(
+      { subscriptions: [orphan], profiles: [] },
+      {
+        updateSubscription: [new PolarError("AlreadyCanceledSubscription", "x", 403, true)],
+        getSubscription: [canonical],
+        getOrder: [order({ billing_reason: "subscription_cycle" })],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    expect(await syncMorSubscription(deps, cycled, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(morSub(rows)).toMatchObject({
+      status: "ended",
+      ended_reason: "refunded",
+      ended_at: pgTime(canonical.ended_at),
+      external_updated_at: pgTime(canonical.modified_at),
+    });
+  });
+
+  it("revoke가 429(한도)면 실패로 적지 않고 던진다 — 웹훅이 다시 시도한다", async () => {
+    const { deps } = world({ subscriptions: [live()] }, { updateSubscription: [new PolarError("RateLimitExceeded", "x", 429, true)] });
+    await expect(syncMorSubscription(deps, sub(), false, { orderId: ORDER_ID })).rejects.toMatchObject({ status: 429 });
+    expect(reviews(deps)).toEqual([]);
+    expect(deps.polar.calls.getSubscription).toEqual([]);
+    expect(deps.polar.calls.createRefund).toEqual([]);
+  });
+});
+
+describe("Polar 한도(429) — 환불 경로는 던져 다시 시도한다", () => {
+  const live = () => subscriptionRow({ user_id: USER });
+
+  it("환불할 주문을 읽다 429면 던진다(해지 뒤라 환불 미완료 한 줄) — 다시 받으면 마저 환불한다", async () => {
+    const created = sub();
+    const { deps, rows } = world(
+      { subscriptions: [live()] },
+      {
+        updateSubscription: [{ ...created, status: "canceled" }],
+        getOrder: [new PolarError("RateLimitExceeded", "x", 429), order()],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    await expect(syncMorSubscription(deps, created, false, { orderId: ORDER_ID })).rejects.toMatchObject({ status: 429 });
+    expect(reviews(deps)).toEqual([`billing needs review: mor subscription ${SUB_ID} was revoked (user already has a live subscription) but its refund did not finish`]);
+    expect(rows.refunds).toEqual([]);
+    expect(await syncMorSubscription(deps, { ...created, status: "canceled", modified_at: T1 }, false, { orderId: ORDER_ID })).toEqual({
+      kind: "ungranted",
+      refund: "refunded",
+    });
+    expect(rows.refunds).toEqual([expect.objectContaining({ status: "succeeded" })]);
+  });
+
+  it("환불 요청이 429면 선점을 풀고 던진다 — 다시 받으면 같은 결정적 id로 다시 선점해 환불한다(Polar 환불은 한 번)", async () => {
+    const revoked = sub({ status: "canceled" });
+    const { deps, rows } = world(
+      {},
+      {
+        getOrder: [order(), order()],
+        createRefund: [new PolarError("RateLimitExceeded", "x", 429, true), { id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    await expect(syncMorSubscription(deps, revoked, false, { orderId: ORDER_ID })).rejects.toMatchObject({ status: 429 });
+    expect(rows.refunds).toEqual([]);
+    expect(reviews(deps)).toEqual([]);
+    expect(await syncMorSubscription(deps, revoked, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(rows.refunds).toEqual([expect.objectContaining({ id: morAutoRefundId(rows.payments[0].id), status: "succeeded", external_refund_id: REFUND_ID })]);
+    expect(deps.polar.calls.createRefund).toHaveLength(2);
+  });
 });
 
 describe("환불 — 같은 주문을 두 번 환불하지 않는다", () => {
@@ -836,6 +930,32 @@ describe("환불 — 같은 주문을 두 번 환불하지 않는다", () => {
     expect(reviews(deps)).toHaveLength(1);
   });
 
+  it("실패를 적기 전에 needs review를 먼저 남긴다 — 기록 갱신까지 실패해도 운영자가 안다", async () => {
+    for (const createRefund of [new PolarError("RefundAmountTooHigh", "x", 400, true), { id: REFUND_ID, status: "failed", amount: 1234, order_id: ORDER_ID }]) {
+      const { deps, store } = world({}, { getOrder: [order()], createRefund: [createRefund as PolarScript["createRefund"][number]] });
+      store.updateRefundIf = async () => {
+        throw new Error("billing store updateRefundIf: timeout");
+      };
+      await expect(syncMorSubscription(deps, sub({ status: "canceled" }), false, { orderId: ORDER_ID })).rejects.toThrow("timeout");
+      expect(reviews(deps)).toEqual([expect.stringContaining(`of order ${ORDER_ID} (mor subscription ${SUB_ID})`)]);
+    }
+  });
+
+  it("환불 응답을 적을 때 기록이 그 사이 바뀌었으면(환불 웹훅이 먼저 맞춤) 덮지 않는다", async () => {
+    const { deps, rows, store } = world({}, { getOrder: [order()], createRefund: [{ id: REFUND_ID, status: "pending", amount: 1234, order_id: ORDER_ID }] });
+    const realCreate = deps.polar.createRefund;
+    deps.polar.createRefund = async (input) => {
+      const out = await realCreate(input);
+      // 응답이 오기 전에 환불 웹훅이 먼저 기록을 succeeded·Polar id로 맞췄다
+      Object.assign(rows.refunds[0], { status: "succeeded", external_refund_id: REFUND_ID });
+      return out;
+    };
+    const update = vi.spyOn(store, "updateRefundIf");
+    expect(await syncMorSubscription(deps, sub({ status: "canceled" }), false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(update).toHaveBeenCalledWith(rows.refunds[0].id, { status: "pending", externalRefundId: null }, { status: "pending", external_refund_id: REFUND_ID });
+    expect(rows.refunds).toEqual([expect.objectContaining({ status: "succeeded", external_refund_id: REFUND_ID })]);
+  });
+
   it.each(["failed", "canceled"])("Polar가 환불을 %s로 돌려주면 failed + needs review", async (status) => {
     const { deps, rows } = world({}, { getOrder: [order()], createRefund: [{ id: REFUND_ID, status, amount: 1234, order_id: ORDER_ID }] });
     expect(await syncMorSubscription(deps, sub({ status: "canceled" }), false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "review" });
@@ -912,7 +1032,7 @@ describe("해지 뒤 저장소 오류 — 기록을 남기고 던진다, 다시 
   }
 
   /** 그 저장소 메서드가 한 번만 던지게 한다 */
-  function failOnce(store: ReturnType<typeof world>["store"], method: "hasRefundFor" | "insertRefund" | "updateRefund" | "finishCheckout" | "insertExternalPayment") {
+  function failOnce(store: ReturnType<typeof world>["store"], method: "hasRefundFor" | "insertRefund" | "updateRefundIf" | "finishCheckout" | "insertExternalPayment") {
     const real = (store[method] as (...a: unknown[]) => Promise<unknown>).bind(store);
     (store as unknown as Record<string, unknown>)[method] = async (...args: unknown[]) => {
       (store as unknown as Record<string, unknown>)[method] = real;
@@ -920,7 +1040,7 @@ describe("해지 뒤 저장소 오류 — 기록을 남기고 던진다, 다시 
     };
   }
 
-  it.each(["hasRefundFor", "insertRefund", "updateRefund", "finishCheckout"] as const)(
+  it.each(["hasRefundFor", "insertRefund", "updateRefundIf"] as const)(
     "%s가 실패하면 needs review 한 줄 + 다시 던지고, 단서 없는 재시도가 결제 시도의 첫 결제로 마저 환불한다(Polar 환불은 한 번)",
     async (method) => {
       const { deps, rows, store, created } = setup();
@@ -937,6 +1057,17 @@ describe("해지 뒤 저장소 오류 — 기록을 남기고 던진다, 다시 
       expect(deps.polar.calls.updateSubscription).toHaveLength(1);
     },
   );
+
+  it("환불을 마친 뒤 결제 시도를 닫다 실패하면 사실대로(환불은 끝, 시도는 열림) needs review 한 줄 — 던지지 않는다(시도는 크론의 만료 처리가 닫는다)", async () => {
+    const { deps, rows, store, created, attempt } = setup();
+    failOnce(store, "finishCheckout");
+    expect(await syncMorSubscription(deps, created, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(reviews(deps)).toEqual([
+      `billing needs review: mor subscription ${SUB_ID} was revoked (user already has a live subscription) and its order refunded, but checkout attempt ${attempt.id} could not be closed (refund done, attempt not closed)`,
+    ]);
+    expect(rows.refunds).toEqual([expect.objectContaining({ status: "succeeded" })]);
+    expect(rows.checkouts[0].status).toBe("open");
+  });
 
   it("결제 행을 적기 전에 실패하면 재시도에 단서가 없을 때는 건너뛰고, 주문 이벤트가 오면 환불한다", async () => {
     const { deps, rows, store, created } = setup();
@@ -984,6 +1115,28 @@ describe("기존 행의 주문 단서 확인 — 이미 기간을 받은 주문�
     expect(reviews(deps)).toEqual([expect.stringContaining(ORDER_ID)]);
     // 해지는 했고 행도 refunded로 끝났다
     expect(morSub(rows)).toMatchObject({ status: "ended", ended_reason: "refunded" });
+  });
+
+  it("경계는 행의 기간 시작과 Polar 구독의 기간 시작 중 늦은 쪽 — Polar가 기간을 넘겼으면 그 전 주문은 환불하지 않는다", async () => {
+    const orphan = morRow({ user_id: null });
+    const cycled = sub({ modified_at: "2026-02-20T16:00:05.000000Z", current_period_start: PERIOD_END, current_period_end: "2026-03-20T16:00:00.000000Z" });
+    // 행의 기간 시작(1/20) 뒤, Polar의 지금 기간 시작(2/20) 앞에 만든 주문
+    const midPeriod = order({ billing_reason: "subscription_cycle", created_at: "2026-01-25T16:00:00.000000Z" });
+    const { deps, rows } = world({ subscriptions: [orphan], profiles: [] }, { updateSubscription: [{ ...cycled, status: "canceled" }], getOrder: [midPeriod] });
+    expect(await syncMorSubscription(deps, cycled, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "review" });
+    expect(deps.polar.calls.createRefund).toEqual([]);
+    expect(rows.refunds).toEqual([]);
+    expect(reviews(deps)).toEqual([expect.stringContaining(`order ${ORDER_ID} predates`)]);
+  });
+
+  it("기존 행인데 주문 단서가 없으면 경계 시각 뒤에 만든 주문이 있을 때만 수동 환불하라고 적는다", async () => {
+    const orphan = morRow({ user_id: null });
+    const cycled = sub({ modified_at: T1 });
+    const { deps } = world({ subscriptions: [orphan], profiles: [] }, { updateSubscription: [{ ...cycled, status: "canceled" }] });
+    expect(await syncMorSubscription(deps, cycled, false)).toEqual({ kind: "ungranted", refund: "review" });
+    expect(reviews(deps)).toEqual([
+      `billing needs review: mor subscription ${SUB_ID} was revoked (user account does not exist) but its order is not known yet; refund an order of this subscription manually only if it was created at or after ${PERIOD_START} — check billing_refunds first`,
+    ]);
   });
 
   it("일시정지에서 돌아온 행 — 일시정지로 끝난 시각(ended_at) 이전의 주문은 환불하지 않는다", async () => {
@@ -1130,6 +1283,30 @@ describe("recordMorOrder — 주문을 결제 행으로", () => {
     expect(await recordMorOrder(deps, order({ currency: "eur" }), false)).toBeNull();
     expect(rows.payments).toEqual([]);
     expect(reviews(deps)).toHaveLength(1);
+  });
+
+  it.each(["subscription_update", "subscription_meter_cycle"])(
+    "첫 결제가 아닌 주문(%s)은 initial로 적되 주문번호 접두 mor_upd_로 가른다 — 결과를 모르는 첫 결제로 세지 않는다",
+    async (billing_reason) => {
+      const row = morRow();
+      const { deps, rows, store } = world({ subscriptions: [row] });
+      const pending = order({ billing_reason, status: "pending", paid: false });
+      const recorded = await recordMorOrder(deps, pending, false);
+      expect(recorded).toMatchObject({ kind: "initial", order_id: `mor_upd_${ORDER_ID}`, external_payment_id: ORDER_ID, status: "pending", subscription_id: row.id });
+      expect(await store.hasPendingInitialPayment(USER, false)).toBe(false);
+      // 같은 주문을 다시 받으면 같은 행(외부 id 유니크)
+      await recordMorOrder(deps, { ...pending, status: "paid", paid: true }, false);
+      expect(rows.payments).toHaveLength(1);
+      expect(rows.payments[0]).toMatchObject({ status: "paid", order_id: `mor_upd_${ORDER_ID}` });
+    },
+  );
+
+  it("첫 구독 결제(subscription_create)·단건(purchase)은 mor_<id> 그대로 — pending이면 결제 시작을 막는다", async () => {
+    for (const billing_reason of ["subscription_create", "purchase"]) {
+      const { deps, store } = world();
+      expect(await recordMorOrder(deps, order({ billing_reason, status: "pending", paid: false }), false)).toMatchObject({ order_id: `mor_${ORDER_ID}` });
+      expect(await store.hasPendingInitialPayment(USER, false)).toBe(true);
+    }
   });
 
   it("갱신 주문인데 연결 구독(기간)이 아직 없으면 initial로 적고 로그 한 줄", async () => {
@@ -1299,6 +1476,19 @@ describe("markMorCheckout — 우리 결제 시도를 닫는다", () => {
     expect(await markMorCheckout(deps, attempt.id, "completed", { livemode: false, userId: USER, subscriptionId: SUBSCRIPTION })).toBe(false);
     expect(rows.consents[0].subscription_id).toBe(SUBSCRIPTION);
     expect(rows.checkouts[0].status).toBe("expired");
+  });
+
+  it("이미 completed인 시도는 동의를 다시 잇지 않는다(그때 이었다) — 불필요한 갱신 없음", async () => {
+    const FIRST = "abababab-abab-4bab-8bab-abababababab";
+    const attempt = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor", status: "completed", subscription_id: FIRST });
+    const { deps, rows, store } = world({
+      checkouts: [attempt],
+      consents: [{ id: "c1", user_id: USER, checkout_id: attempt.id, subscription_id: FIRST, kind: "recurring_payment" }],
+    });
+    const link = vi.spyOn(store, "linkConsents");
+    expect(await markMorCheckout(deps, attempt.id, "completed", { livemode: false, userId: USER, subscriptionId: FIRST })).toBe(false);
+    expect(link).not.toHaveBeenCalled();
+    expect(rows.consents[0].subscription_id).toBe(FIRST);
   });
 
   it("expired — 끝나지 않은 시도만", async () => {

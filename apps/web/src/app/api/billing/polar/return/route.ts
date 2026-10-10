@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { UUID_RE, checkoutErrorPath, checkoutLocale, requestOrigin, type CheckoutLocale } from "@/lib/billing/checkout";
+import { UUID_RE, callbackRedirectPath, checkoutErrorPath, checkoutLocale, requestOrigin, type CheckoutLocale } from "@/lib/billing/checkout";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { morReturnPath } from "@/lib/billing/flows/morReturn";
 import { errorText } from "@/lib/billing/flows/subscribe";
+import { allowPolarCall } from "@/lib/billing/polarThrottle";
 import { createMorDeps } from "@/lib/billing/server";
 import { logAppError } from "@/lib/logs";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -30,7 +31,8 @@ async function logFailure(message: string): Promise<void> {
 /**
  * Polar 결제창 성공 주소 — 결제를 마치면 Polar가 `?checkout_id=<결제창 id>`로 보낸다(결제 시작이 `{CHECKOUT_ID}`로 넣은 주소).
  * 토스 복귀(tossReturn.ts)와 같은 게이트: 결제 모드 off면 404, 로그인 세션이 없으면 로그인으로(next 없이), id가 UUID가 아니면
- * notFound, Polar 설정이 없으면 notConfigured. 통과하면 결제창을 다시 읽어 동기화한 결과(flows/morReturn.ts)의 내부 경로로 303.
+ * notFound, Polar 설정이 없으면 notConfigured. 사용자당 Polar 호출 한도(polarThrottle.ts)를 넘으면 Polar를 부르지 않고 확인 중(pending)
+ * 으로 보낸다 — 권한은 웹훅·크론이 준다. 통과하면 결제창을 다시 읽어 동기화한 결과(flows/morReturn.ts)의 내부 경로로 303.
  * 예외는 기록(id만) 뒤 error=failed. origin은 결제 액션과 같은 규칙(검증한 Host 헤더) — 브라우저가 쓴 호스트로 돌아가야
  * 로그인 쿠키가 따라온다. 헤더가 규칙에 맞지 않으면 request.url의 origin.
  */
@@ -54,6 +56,7 @@ export async function GET(request: Request) {
     if (!checkoutId) return go(checkoutErrorPath(fallbackLocale, null, "notFound"));
     const deps = createMorDeps();
     if (!deps) return go(checkoutErrorPath(fallbackLocale, null, "notConfigured"));
+    if (!(await allowPolarCall(user.id))) return go(callbackRedirectPath({ kind: "pending" }, fallbackLocale));
     return go(await morReturnPath(deps, { checkoutId, userId: user.id, livemode, fallbackLocale }));
   } catch (e) {
     await logFailure(`billing polar return failed for checkout ${checkoutId ?? "invalid"}: ${errorText(e)}`);

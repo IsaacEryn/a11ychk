@@ -11,6 +11,7 @@ import { BillingSubnav } from "../BillingSubnav";
 import { displayStatus } from "../subscriptionStatus";
 import { PullDueForm } from "./PullDueForm";
 import { RunCycleForm } from "./RunCycleForm";
+import { MorSyncForm } from "./MorSyncForm";
 import { RunMorCycleForm } from "./RunMorCycleForm";
 
 // "결제 크론 지금 실행"이 이 페이지의 서버 액션으로 돈다 — 결제 크론 라우트와 같은 최대 실행 시간을 준다
@@ -24,7 +25,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 
 /**
  * 결제 테스트 도구 — 현재 모드와 설정 여부(예·아니요만, 키 값은 출력하지 않는다), 결제 크론 지금 실행, MoR(Polar) 대사만 지금 실행,
- * 테스트 구독(livemode=false·toss·진행 중)의 결제일 당기기. 0041 미적용이면 구독 표 대신 안내만 보여 준다.
+ * Polar 구독 id로 지금 동기화(review로 끝난 새 구독 되살리기), 테스트 구독(livemode=false·toss·진행 중)의 결제일 당기기.
+ * 0041 미적용이면 구독 표 대신 안내만 보여 준다.
  */
 export default async function AdminBillingToolsPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -110,6 +112,21 @@ export default async function AdminBillingToolsPage({ params }: { params: Promis
           {mode === "off" ? t("billing.tools.morHint.off") : hasPolarKeys ? t("billing.tools.morHint.on") : t("billing.tools.morHint.noKeys")}
         </p>
         <RunMorCycleForm disabled={mode === "off" || !hasPolarKeys} describedBy="admin-billing-tools-mor-hint" />
+      </section>
+
+      <section aria-labelledby="admin-billing-tools-mor-sync-heading" className="mt-8 border-[1.5px] border-dashed border-[var(--color-line)] p-4">
+        <h3 id="admin-billing-tools-mor-sync-heading" className="font-display text-lg font-bold">{t("billing.tools.morSync.title")}</h3>
+        <p
+          id="admin-billing-tools-mor-sync-intro"
+          className={
+            mode === "off" || !hasPolarKeys
+              ? "mt-2 border-l-[3px] border-[var(--color-mark)] bg-[var(--color-warn-tint)] px-4 py-3 text-sm font-medium"
+              : "mt-1 text-xs text-[var(--color-ink-faint)]"
+          }
+        >
+          {mode === "off" ? t("billing.tools.morHint.off") : hasPolarKeys ? t("billing.tools.morSync.intro") : t("billing.tools.morHint.noKeys")}
+        </p>
+        <MorSyncForm requireConfirm={mode === "live"} disabled={mode === "off" || !hasPolarKeys} describedBy="admin-billing-tools-mor-sync-intro" />
       </section>
 
       <section aria-labelledby="admin-billing-tools-subs-heading" className="mt-8">

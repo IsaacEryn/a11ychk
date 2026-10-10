@@ -19,6 +19,7 @@ import {
   makeMorDeps,
   paymentRow,
   pgTime,
+  polarOrder,
   polarSubscription,
   priceRow,
   subscriptionRow,
@@ -323,6 +324,137 @@ describe("runMorCycle — 놓친 웹훅을 정본으로 메운다", () => {
   });
 });
 
+describe("runMorCycle — 결과를 모르는 MoR 결제를 Polar 정본으로 확정한다(결제 시작을 영원히 막지 않게)", () => {
+  const ORDER = "e1000000-0000-4000-8000-000000000001";
+  const ORDER_2 = "e1000000-0000-4000-8000-000000000002";
+  const ORDER_3 = "e1000000-0000-4000-8000-000000000003";
+  const pendingPayment = (orderId: string, over: Partial<PaymentRow> = {}) =>
+    paymentRow({
+      user_id: USER,
+      provider: "mor",
+      currency: "USD",
+      kind: "initial",
+      status: "pending",
+      external_payment_id: orderId,
+      order_id: `mor_${orderId}`,
+      amount: 1334,
+      period_start: null,
+      period_end: null,
+      requested_at: iso(NOW - 2 * HOUR),
+      ...over,
+    });
+  const polarOrderOf = (id: string, over: Parameters<typeof polarOrder>[0] = {}) =>
+    polarOrder({ id, subscription_id: null, billing_reason: "purchase", customer: { external_id: USER }, metadata: { user_id: USER }, ...over });
+
+  it("1시간 넘게 pending인 MoR 결제를 다시 읽어 확정한다 — paid가 되면 결제 시작을 더는 막지 않는다(mor_payments_synced)", async () => {
+    const { deps, rows, store } = world({ payments: [pendingPayment(ORDER)] }, { getOrder: [polarOrderOf(ORDER)] });
+    expect(await store.hasPendingInitialPayment(USER, false)).toBe(true);
+
+    const out = await runMorCycle(deps, false);
+
+    expect(out).toMatchObject({ mor_payments_synced: 1, mor_failed: 0, mor_review: 0 });
+    expect(deps.polar.calls.getOrder).toEqual([[ORDER]]);
+    expect(rows.payments[0]).toMatchObject({ status: "paid", amount: 1334 });
+    expect(await store.hasPendingInitialPayment(USER, false)).toBe(false);
+    expect(logs(deps)).toEqual([]);
+  });
+
+  it("무효(void)가 됐으면 failed로 확정한다", async () => {
+    const { deps, rows } = world({ payments: [pendingPayment(ORDER)] }, { getOrder: [polarOrderOf(ORDER, { status: "void", paid: false })] });
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_payments_synced: 1 });
+    expect(rows.payments[0].status).toBe("failed");
+  });
+
+  it("후보: mor·이 모드·pending·1시간보다 오래된 것만, 오래된 순서", async () => {
+    const recent = pendingPayment("e1000000-0000-4000-8000-0000000000a1", { requested_at: iso(NOW - 30 * MIN) });
+    const older = pendingPayment(ORDER_2, { requested_at: iso(NOW - 5 * HOUR) });
+    const due = pendingPayment(ORDER);
+    const live = pendingPayment("e1000000-0000-4000-8000-0000000000a2", { livemode: true });
+    const paid = pendingPayment("e1000000-0000-4000-8000-0000000000a3", { status: "paid" });
+    const toss = paymentRow({ user_id: USER, status: "pending", requested_at: iso(NOW - 5 * HOUR) });
+    const { deps } = world({ payments: [recent, older, due, live, paid, toss] }, { getOrder: [(id) => polarOrderOf(id), (id) => polarOrderOf(id)] });
+
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_payments_synced: 2 });
+    expect(deps.polar.calls.getOrder).toEqual([[ORDER_2], [ORDER]]);
+  });
+
+  it("연결 구독이 있으면 구독 정본도 다시 읽어 주문 단서와 함께 동기화한 뒤 적는다 — 결제 행이 구독·기간에 이어진다", async () => {
+    const { deps, rows } = world(
+      { payments: [pendingPayment(ORDER)] },
+      {
+        getOrder: [polarOrderOf(ORDER, { subscription_id: SUB_ID, billing_reason: "subscription_create", product_id: PRODUCT })],
+        getSubscription: [sub({ current_period_start: "2026-01-29T16:00:00.000000Z", current_period_end: NEW_END })],
+      },
+    );
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_payments_synced: 1 });
+    expect(deps.polar.calls.getSubscription).toEqual([[SUB_ID]]);
+    const row = rows.subscriptions.find((s) => s.external_id === SUB_ID)!;
+    expect(row).toMatchObject({ status: "active", user_id: USER });
+    expect(rows.payments[0]).toMatchObject({ status: "paid", subscription_id: row.id, period_end: pgTime(NEW_END) });
+  });
+
+  it("Polar에 없는 주문(404)은 그 결제 행을 failed(POLAR_NOT_FOUND)로 조건부 갱신하고 needs review 한 줄(mor_payments_failed)", async () => {
+    const payment = pendingPayment(ORDER);
+    const { deps, rows, store } = world({ payments: [payment] }, { getOrder: [new PolarError("ResourceNotFound", "x", 404)] });
+
+    const out = await runMorCycle(deps, false);
+
+    expect(out).toMatchObject({ mor_payments_failed: 1, mor_payments_synced: 0 });
+    expect(rows.payments[0]).toMatchObject({ status: "failed", failure_code: "POLAR_NOT_FOUND" });
+    expect(reviews(deps)).toEqual([
+      `billing needs review: mor payment ${payment.id} (order ${ORDER}) was not found at Polar; marked failed — check that the Polar access token belongs to the organization of this billing mode`,
+    ]);
+    expect(await store.hasPendingInitialPayment(USER, false)).toBe(false);
+    expect(cycleIssues(out).review).toBe(1);
+  });
+
+  it("404인데 그 사이 결제 행이 바뀌었으면 덮지 않는다(mor_changed)", async () => {
+    const holder: { rows?: MemoryRows } = {};
+    const paidMeanwhile = () => {
+      holder.rows!.payments[0].status = "paid";
+      throw new PolarError("ResourceNotFound", "x", 404);
+    };
+    const { deps, rows } = world({ payments: [pendingPayment(ORDER)] }, { getOrder: [paidMeanwhile] });
+    holder.rows = rows;
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_changed: 1 });
+    expect(rows.payments[0]).toMatchObject({ status: "paid", failure_code: null });
+    expect(reviews(deps)).toEqual([]);
+  });
+
+  it("결과 불명·저장소 오류는 그 건만 mor_failed로 세고 다음 건을 계속한다, 401·403이면 멈춘다", async () => {
+    const a = pendingPayment(ORDER_2, { requested_at: iso(NOW - 5 * HOUR) });
+    const b = pendingPayment(ORDER);
+    const { deps, rows } = world({ payments: [a, b] }, { getOrder: [new PolarError("NETWORK", "x", 0), polarOrderOf(ORDER)] });
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_failed: 1, mor_payments_synced: 1 });
+    expect(logs(deps)).toEqual([`billing mor reconcile failed for payment ${a.id}: NETWORK (0)`]);
+    expect(rows.payments.find((p) => p.id === b.id)!.status).toBe("paid");
+
+    const c = pendingPayment(ORDER_3, { requested_at: iso(NOW - 6 * HOUR) });
+    const halted = world({ payments: [c, pendingPayment(ORDER)] }, { getOrder: [new PolarError("HTTP_401", "x", 401), polarOrderOf(ORDER)] });
+    expect(await runMorCycle(halted.deps, false)).toMatchObject({ mor_halted: 1, mor_failed: 1, mor_deferred: 1 });
+    expect(halted.deps.polar.calls.getOrder).toHaveLength(1);
+  });
+
+  it("구독 대사가 토큰 거부로 멈췄으면 결제 대사도 하지 않는다", async () => {
+    const { deps } = world({ subscriptions: [morRow()], payments: [pendingPayment(ORDER)] }, { getSubscription: [new PolarError("HTTP_403", "x", 403)] });
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_halted: 1 });
+    expect(deps.polar.calls.getOrder).toEqual([]);
+  });
+
+  it("같은 예산을 쓴다 — 다 됐으면 결제를 읽지 않고 미룬다", async () => {
+    const { deps } = world({ payments: [pendingPayment(ORDER)] }, { getOrder: [polarOrderOf(ORDER)] });
+    expect(await runMorCycle(deps, false, { deadline: NOW })).toMatchObject({ mor_deferred: 1, mor_payments_synced: 0 });
+    expect(deps.polar.calls.getOrder).toEqual([]);
+  });
+
+  it("한 번에 50건까지", async () => {
+    const payments = Array.from({ length: 51 }, (_, i) => pendingPayment(`e2000000-0000-4000-8000-${String(i).padStart(12, "0")}`, { requested_at: iso(NOW - (100 - i) * HOUR) }));
+    const { deps } = world({ payments }, { getOrder: Array.from({ length: 51 }, () => (id: string) => polarOrderOf(id)) });
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_payments_synced: 50 });
+    expect(deps.polar.calls.getOrder).toHaveLength(50);
+  });
+});
+
 describe("runMorCycle — 만료된 MoR 결제 시도를 닫는다", () => {
   it("만료 시각이 지난 open MoR 시도만 expired(실패 코드 그대로) — 만료 전·processing·토스·다른 모드는 그대로", async () => {
     const stale = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor", expires_at: iso(NOW - MIN) });
@@ -568,6 +700,66 @@ describe("Supabase 저장소 — MoR 대사·탈퇴·포털 메서드", () => {
     expect(b.calls).toEqual(expect.arrayContaining([["eq", ["user_id", USER]], ["eq", ["provider", "mor"]], ["eq", ["livemode", false]], ["limit", [1]]]));
     const c = fakeAdmin([{ data: [], error: null }]);
     expect(await createSupabaseBillingStore(c.admin).hasProviderSubscription(USER, "mor", true)).toBe(false);
+  });
+
+  it("listPendingMorPayments: mor·livemode·pending·외부 결제 id 있음·requested_at < 기준, 오래된 순·limit", async () => {
+    const s = fakeAdmin([{ data: [{ id: "p" }], error: null }]);
+    expect(await createSupabaseBillingStore(s.admin).listPendingMorPayments(true, "2026-01-30T15:00:00.000Z", 50)).toEqual([{ id: "p" }]);
+    expect(s.calls).toEqual(
+      expect.arrayContaining([
+        ["from", ["billing_payments"]],
+        ["eq", ["provider", "mor"]],
+        ["eq", ["livemode", true]],
+        ["eq", ["status", "pending"]],
+        ["not", ["external_payment_id", "is", null]],
+        ["lt", ["requested_at", "2026-01-30T15:00:00.000Z"]],
+        ["order", ["requested_at", { ascending: true }]],
+        ["limit", [50]],
+      ]),
+    );
+  });
+
+  it("hasMorActivity: 구독 → 결제 → 결제 시도 차례로 그 사용자·mor·모드의 한 행만 묻고, 찾으면 멈춘다", async () => {
+    const none = fakeAdmin([{ data: [], error: null }]);
+    expect(await createSupabaseBillingStore(none.admin).hasMorActivity(USER, true)).toBe(false);
+    expect(none.calls.filter(([name]) => name === "from").map(([, args]) => args[0])).toEqual(["subscriptions", "billing_payments", "billing_checkouts"]);
+    expect(none.calls).toEqual(expect.arrayContaining([["eq", ["user_id", USER]], ["eq", ["provider", "mor"]], ["eq", ["livemode", true]], ["limit", [1]]]));
+
+    const first = fakeAdmin([{ data: [{ id: "s" }], error: null }]);
+    expect(await createSupabaseBillingStore(first.admin).hasMorActivity(USER, false)).toBe(true);
+    expect(first.calls.filter(([name]) => name === "from")).toHaveLength(1);
+
+    const attemptOnly = fakeAdmin([{ data: [], error: null }, { data: [], error: null }, { data: [{ id: "c" }], error: null }]);
+    expect(await createSupabaseBillingStore(attemptOnly.admin).hasMorActivity(USER, false)).toBe(true);
+  });
+
+  it("extendCheckout: open이고 지금 만료가 더 이를 때만 늦춘다, ISO가 아니면 묻기 전에 던진다", async () => {
+    const s = fakeAdmin([{ data: null, error: null }]);
+    await createSupabaseBillingStore(s.admin).extendCheckout("c1", "2026-01-30T17:00:00.000Z");
+    expect(s.calls).toEqual([
+      ["from", ["billing_checkouts"]],
+      ["update", [{ expires_at: "2026-01-30T17:00:00.000Z" }]],
+      ["eq", ["id", "c1"]],
+      ["eq", ["status", "open"]],
+      ["lt", ["expires_at", "2026-01-30T17:00:00.000Z"]],
+    ]);
+    const bad = fakeAdmin([{ data: null, error: null }]);
+    await expect(createSupabaseBillingStore(bad.admin).extendCheckout("c1", "tomorrow")).rejects.toThrow("ISO");
+    expect(bad.calls).toEqual([]);
+  });
+
+  it("releaseRefundClaim: pending이고 Polar 환불 id가 없을 때만 지운다", async () => {
+    const s = fakeAdmin([{ data: [{ id: "r" }], error: null }]);
+    expect(await createSupabaseBillingStore(s.admin).releaseRefundClaim("r")).toBe(true);
+    expect(s.calls).toEqual([
+      ["from", ["billing_refunds"]],
+      ["delete", []],
+      ["eq", ["id", "r"]],
+      ["eq", ["status", "pending"]],
+      ["is", ["external_refund_id", null]],
+      ["select", ["id"]],
+    ]);
+    expect(await createSupabaseBillingStore(fakeAdmin([{ data: [], error: null }]).admin).releaseRefundClaim("r")).toBe(false);
   });
 
   it("오류는 코드를 달아 던진다", async () => {

@@ -11,7 +11,7 @@ import {
   reminderFrom,
 } from "@/lib/billing/period";
 import { FATAL_TOSS_CODES, TossError, classifyTossError, isOutcomeUnknown, type TossPayment } from "@/lib/billing/toss";
-import type { BillingDeps, MorDeps, PaymentRow, SubscriptionExpectation, SubscriptionRow } from "@/lib/billing/types";
+import { POLAR_NOT_FOUND, type BillingDeps, type MorDeps, type PaymentRow, type SubscriptionExpectation, type SubscriptionRow } from "@/lib/billing/types";
 import { closeEndedSubscription } from "@/lib/billing/flows/end";
 import { runMorCycle } from "@/lib/billing/flows/morCycle";
 import {
@@ -76,11 +76,11 @@ const ACCOUNT_HALT_CODES = new Set(["UNAUTHORIZED_KEY", "INVALID_API_KEY", "FORB
  */
 const INCIDENT_STREAK_HALT = 3;
 /**
- * 사용자에게 실패 메일을 보내지 않은 실패 코드 — 설정 사고와 대사로 확정한 실패. 같은 기간에 이것만 있었다면
- * 다음의 실제 카드 거절이 그 기간의 첫 안내다. 결제 관리의 결제 내역도 이 코드의 실패를 "실패" 대신 청구 없는 미처리로
- * 보인다(manageData.ts). 이 목록은 여기 한 곳에서만 정한다
+ * 사용자에게 실패 메일을 보내지 않은 실패 코드 — 설정 사고와 대사로 확정한 실패(MoR 대사가 Polar에 없는 주문으로 확정한 결제
+ * POLAR_NOT_FOUND 포함). 같은 기간에 이것만 있었다면 다음의 실제 카드 거절이 그 기간의 첫 안내다. 결제 관리의 결제 내역도
+ * 이 코드의 실패를 "실패" 대신 청구 없는 미처리로 보인다(manageData.ts). 이 목록은 여기 한 곳에서만 정한다
  */
-export const NOT_USER_FACING = { codes: [DECRYPT_FAILED, ...FATAL_TOSS_CODES], prefixes: ["RECONCILED_"] } as const;
+export const NOT_USER_FACING = { codes: [DECRYPT_FAILED, ...FATAL_TOSS_CODES, POLAR_NOT_FOUND], prefixes: ["RECONCILED_"] } as const;
 const LIVE: SubscriptionExpectation["statuses"] = ["active", "past_due"];
 /** 토스가 이 결제는 돈이 움직이지 않았다고 답한 상태 */
 const NOT_PAID = new Set(["ABORTED", "EXPIRED"]);

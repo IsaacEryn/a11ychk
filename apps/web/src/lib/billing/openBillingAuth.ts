@@ -1,6 +1,7 @@
 import { useActionState, useEffect, useRef } from "react";
 import { abandonCheckout, type StartCheckoutError, type StartCheckoutState, type TossCheckoutSdk } from "@/lib/actions/billing";
 import type { CheckoutBlock } from "@/lib/billing/checkout";
+import { releasePrevious } from "@/lib/billing/releaseCheckout";
 import { loadTossPayments } from "@/lib/billing/tossSdk";
 
 /**
@@ -45,21 +46,6 @@ export async function openBillingAuth(sdk: TossCheckoutSdk): Promise<{ error?: B
   }
 }
 
-export interface ReleaseResult {
-  error?: "notConfigured" | "failed" | "inProgress";
-  /** error가 inProgress일 때 — 닫은 뒤에도 처리 중인 결제가 남았다(기다려야 한다) */
-  blockedBy?: CheckoutBlock;
-  /** released: 닫았다, nothingToRelease: 닫을 것이 없었다(성공으로 안내하지 않는다) */
-  notice?: "released" | "nothingToRelease";
-}
-
-/** 이전 시도 닫기 — 닫은 것이 없으면 성공으로 안내하지 않고, 처리 중인 결제가 남았으면 기다리라고 안내한다 */
-async function releasePreviousCheckout(): Promise<ReleaseResult> {
-  const res = await abandonCheckout();
-  if (res.error) return { error: res.error };
-  if (res.blockedBy) return { error: "inProgress", blockedBy: res.blockedBy };
-  return { notice: (res.closed ?? 0) > 0 ? "released" : "nothingToRelease" };
-}
 
 export interface BillingAuthFormState {
   error?: StartCheckoutError | BillingAuthError;
@@ -78,7 +64,7 @@ export interface BillingAuthFormState {
  */
 export function useBillingAuthAction(start: (formData: FormData) => Promise<StartCheckoutState>) {
   const [state, formAction, pending] = useActionState<BillingAuthFormState, FormData>(async (_prev, fd) => {
-    if (fd.get("intent") === "release") return releasePreviousCheckout();
+    if (fd.get("intent") === "release") return releasePrevious(abandonCheckout);
     const res = await start(fd);
     if (!res.ok || !res.sdk) return { error: res.error ?? "failed", ...(res.blockedBy ? { blockedBy: res.blockedBy } : {}) };
     return openBillingAuth(res.sdk);

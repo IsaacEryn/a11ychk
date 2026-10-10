@@ -80,6 +80,11 @@ describe("Polar 웹훅 라우트 — 게이트", () => {
     expect(maxDuration).toBe(30);
   });
 
+  it("Polar 호출 시간 제한을 4초로 줄인 의존성을 쓴다 — Polar의 10초 응답 제한 안에 끝나게", async () => {
+    expect((await POST(signed(body("customer.updated")))).status).toBe(200);
+    expect(m.createMorDeps).toHaveBeenCalledWith({ timeoutMs: 4000 });
+  });
+
   it("결제 꺼짐이면 POST·GET 모두 404 — 의존성을 만들지 않고 본문도 보지 않는다", async () => {
     vi.stubEnv("BILLING_MODE", "");
     expect((await POST(signed(body("customer.updated")))).status).toBe(404);

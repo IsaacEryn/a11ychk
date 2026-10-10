@@ -6,6 +6,27 @@ import type { CardSummary, TossClient } from "./toss";
  * 실제 구현은 store.ts(Supabase)·toss.ts·server.ts(메일러 조립), 테스트는 메모리 구현이다.
  */
 
+/** 진행 중 구독 상태 — 사용자·모드당 1건 유니크(0041 subscriptions_one_live_per_user)가 세는 상태. 저장소·흐름이 이 목록 하나를 쓴다 */
+export const LIVE_STATUSES = ["active", "past_due"] as const;
+export const isLiveStatus = (status: string): status is (typeof LIVE_STATUSES)[number] => (LIVE_STATUSES as readonly string[]).includes(status);
+
+/**
+ * 판매 대행(MoR) 결제 행 중 첫 결제가 아닌 주문(플랜 변경 차액 subscription_update·사용량 청구 subscription_meter_cycle)의 주문번호 접두.
+ * kind 제약(initial·renewal·retry·manual) 안에서 이 주문들은 initial로 적지만(renewal은 같은 기간 attempt 1 유니크와 부딪힌다),
+ * 접두로 갈라 결제 시작을 막는 "결과를 모르는 첫 결제"에 세지 않는다(hasPendingInitialPayment). 다른 MoR 주문은 mor_<주문 id>
+ */
+export const MOR_NON_FIRST_ORDER_PREFIX = "mor_upd_";
+/**
+ * 결과를 모르는(pending) MoR 첫 결제가 새 결제 시작을 막는 기간 — 그 뒤에는 크론의 MoR 결제 대사(flows/morCycle.ts, 1시간 넘은
+ * pending을 Polar 정본으로 확정)가 이미 돌았다고 보고 막지 않는다. 토스 결제 행에는 기간이 없다(토스 대사가 확정한다)
+ */
+export const MOR_PENDING_BLOCKS_MS = 24 * 3_600_000;
+/**
+ * Polar가 모르는 주문(404)으로 크론의 MoR 결제 대사가 확정한 결제의 실패 코드 — 결제 내역은 청구 없는 미처리로 보인다
+ * (flows/renew.ts NOT_USER_FACING)
+ */
+export const POLAR_NOT_FOUND = "POLAR_NOT_FOUND";
+
 export interface PriceRow { id: string; plan_code: string; provider: "toss" | "mor" | "manual"; currency: "KRW" | "USD"; interval: "month" | "year"; amount: number; livemode: boolean; active: boolean; external_price_id: string | null }
 export interface CustomerRow { id: string; user_id: string; livemode: boolean; toss_customer_key: string | null; toss_billing_key_enc: string | null; toss_card_summary: CardSummary | null }
 export interface CheckoutRow { id: string; user_id: string; provider: "toss" | "mor"; livemode: boolean; price_id: string; purpose: "subscribe" | "card_change"; status: "open" | "processing" | "completed" | "failed" | "expired"; failure_code: string | null; subscription_id: string | null; expires_at: string }
@@ -123,11 +144,15 @@ export interface BillingStore {
   listCycleCandidates(livemode: boolean, nowIso: string, limit: number): Promise<SubscriptionRow[]>;
   /** 대사 후보: toss, livemode, pending, requested_at < olderThanIso */
   listPendingPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;
+  /** MoR 결제 대사 후보: mor, livemode, pending, 외부 결제 id 있음, requested_at < olderThanIso — 오래된 것부터 limit건 */
+  listPendingMorPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;
   /** 이 구독에 결과를 모르는(pending) 결제가 있는지 — 나이·개수 제한 없이 */
   hasPendingPayment(subscriptionId: string): Promise<boolean>;
   /**
    * 그 사용자·모드에 결과를 모르는(pending) 첫 결제가 있는지 — 결제를 확인하는 동안 새 시도를 막는다.
-   * 결제사(provider)는 일부러 보지 않는다: 진행 중 구독 1건 규칙이 토스·MoR를 합쳐서라, 결과를 모르는 MoR 첫 결제도 토스 결제 시작을 막는다
+   * 결제사를 합쳐서 본다: 진행 중 구독 1건 규칙이 토스·MoR를 합쳐서라, 결과를 모르는 MoR 첫 결제도 토스 결제 시작을 막는다.
+   * 다만 MoR 행은 requested_at이 MOR_PENDING_BLOCKS_MS 안인 것만, 첫 결제가 아닌 주문(MOR_NON_FIRST_ORDER_PREFIX)은 빼고 센다
+   * (그보다 오래된 pending은 크론의 MoR 결제 대사가 확정한다). 기준 시각은 저장소의 시계다
    */
   hasPendingInitialPayment(userId: string, livemode: boolean): Promise<boolean>;
   /**
@@ -197,6 +222,21 @@ export interface BillingStore {
   listPausedMorSubscriptions(userId: string): Promise<MorSubscriptionRow[]>;
   /** 그 사용자에게 이 결제사·모드의 구독 행이 있는지(끝난 것 포함) — 고객 포털을 열기 전에 본다 */
   hasProviderSubscription(userId: string, provider: SubscriptionRow["provider"], livemode: boolean): Promise<boolean>;
+  /**
+   * 그 사용자에게 이 모드의 MoR 흔적(구독 행·결제 행·결제 시도 — 끝난 것 포함)이 하나라도 있는지. Polar 고객은 결제창을 연 순간
+   * 생길 수 있어 탈퇴 전에 Polar 고객을 지울지 정할 때 본다
+   */
+  hasMorActivity(userId: string, livemode: boolean): Promise<boolean>;
+  /**
+   * 결제 시도의 만료 시각을 늦춘다 — open이고 지금 만료 시각이 expiresAt보다 이를 때만(Polar 결제창의 expires_at에 맞춘다).
+   * expiresAt은 ISO 시각이어야 한다
+   */
+  extendCheckout(id: string, expiresAt: string): Promise<void>;
+  /**
+   * 자동 환불 선점을 푼다 — pending이고 결제사 환불 id가 없을 때만 지운다(지웠으면 true). Polar가 요청을 처리하지 않고 돌려보냈을 때
+   * (429) 다음 시도가 다시 선점해 환불하도록 쓴다. 결과를 모르는 요청 뒤에는 쓰지 않는다(이중 환불)
+   */
+  releaseRefundClaim(id: string): Promise<boolean>;
   /**
    * 크론 대사 후보: mor, livemode, 진행 중(active·past_due)이고 외부 id가 있으며 기간 끝이 beforeIso보다 이르거나 미납인 것 —
    * 기간 끝이 이른 순서로 limit건. beforeIso는 ISO 시각이어야 한다(PostgREST 필터에 들어간다)

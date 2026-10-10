@@ -109,6 +109,8 @@ export default async function BillingManagePage({
   const tCheckout = await getTranslations("billing.checkout");
   const format = await getFormatter();
   const day = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "long" });
+  // 해외 결제(Polar)의 기간은 UTC로 정해진다 — KST로 적으면 하루 어긋날 수 있어 UTC 날짜에 (UTC)를 붙인다(결제 확인 화면은 날짜를 적지 않는다)
+  const utcDay = (iso: string) => t("subscription.utcDate", { date: format.dateTime(new Date(iso), { dateStyle: "long", timeZone: "UTC" }) });
   const shortDay = (iso: string) => format.dateTime(new Date(iso), { dateStyle: "medium" });
   // 행의 통화 단위(KRW는 원, USD는 cent)를 화면 단위로 바꿔 서식을 입힌다
   const money = (amount: number, currency: "KRW" | "USD") => format.number(amountInMajorUnits(amount, currency), { style: "currency", currency });
@@ -228,10 +230,10 @@ export default async function BillingManagePage({
                 const status = pastDue
                   ? t("subscription.statusPastDue")
                   : s.cancel_at_period_end
-                    ? t("subscription.statusScheduled", { date: day(s.current_period_end) })
+                    ? t("subscription.statusScheduled", { date: utcDay(s.current_period_end) })
                     : canOpen
-                      ? t("subscription.statusActive", { date: day(nextChargeAt(s)) })
-                      : t("subscription.statusActiveUntil", { date: day(s.current_period_end) });
+                      ? t("subscription.statusActive", { date: utcDay(nextChargeAt(s)) })
+                      : t("subscription.statusActiveUntil", { date: utcDay(s.current_period_end) });
                 return (
                   <div key={s.id} className="mt-4">
                     {pastDue && (

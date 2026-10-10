@@ -2,9 +2,12 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAdminAction, logAppError } from "@/lib/logs";
+import { UUID_RE } from "@/lib/billing/checkout";
 import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
+import { syncMorSubscription, type MorSyncResult } from "@/lib/billing/flows/mor";
 import { runMorCycle } from "@/lib/billing/flows/morCycle";
+import { PolarError } from "@/lib/billing/polar";
 import { runBillingCycle } from "@/lib/billing/flows/renew";
 import { errorText } from "@/lib/billing/flows/subscribe";
 import { parsePullDue, planPullDue, type PullKind, type PullableSubscription } from "@/lib/billing/pullDue";
@@ -12,7 +15,7 @@ import { createBillingDeps, createMorDeps } from "@/lib/billing/server";
 import { requireAdmin, type SaveState } from "./shared";
 
 /**
- * 결제 테스트 도구 — 결제 크론을 지금 돌리고, 테스트 구독의 결제일을 당긴다.
+ * 결제 테스트 도구 — 결제 크론을 지금 돌리고, MoR 대사·Polar 구독 하나의 동기화를 지금 하고, 테스트 구독의 결제일을 당긴다.
  * 결제일 당기기는 테스트 결제(livemode=false)의 카드 구독에만 쓸 수 있다. 실결제 구독의 기간을
  * 건드리면 사용자에게 예정에 없던 결제가 나가므로, 읽을 때와 쓸 때 모두 livemode=false를 요구한다.
  */
@@ -77,6 +80,57 @@ export async function runMorReconcileNow(): Promise<CycleState> {
   }
   await logAdminAction(admin, actor.id, "billing.mor_reconcile_run", undefined, { mode, ok: true, summary });
   return { ok: true, summary };
+}
+
+/** Polar 구독 동기화 결과 — result는 동기화 결과의 종류, applied·stale이면 우리 행 id(와 applied의 상태), ungranted면 환불 결과 */
+export interface MorSyncState extends SaveState {
+  result?: MorSyncResult["kind"];
+  subscriptionId?: string;
+  status?: "active" | "past_due" | "ended";
+  refund?: "refunded" | "none" | "review";
+}
+
+/**
+ * Polar 구독 id로 지금 동기화 — 결제는 됐는데 review로 끝나 우리 행이 없는 새 구독(가격 행 없음·지원하지 않는 주기·사용자 id 문제·
+ * 기간 없음 등)을, 원인을 고친 뒤 되살린다. 웹훅·크론과 같은 동기화(flows/mor.ts syncMorSubscription)에 Polar API로 다시 읽은 정본을
+ * 넘긴다 — 결과는 흐름의 판정 그대로(review면 흐름이 needs review를 남겼다). 웹훅 재전송은 같은 webhook-id라 duplicate로 무시되고
+ * 크론 대사는 행이 있는 구독만 보므로 이 길이 필요하다.
+ * 이 배포 모드의 Polar만 부른다(livemode = 배포 모드). 동기화는 돈 안전 불변식으로 해지·환불을 일으킬 수 있어 live 모드는 확인 체크를
+ * 요구한다. 입력은 UUID만(소문자로). 실패도 감사에 남긴다(외부 id·결과·오류 코드만). 오류 문구는 errorText(비밀 없음).
+ */
+export async function syncMorSubscriptionNow(_prev: MorSyncState, fd: FormData): Promise<MorSyncState> {
+  const { user: actor } = await requireAdmin();
+  const mode = billingMode();
+  const livemode = rowLivemode(mode);
+  if (livemode === null) return { error: "off" };
+  const raw = String(fd.get("subscriptionId") ?? "").trim();
+  if (!UUID_RE.test(raw)) return { error: "invalid" };
+  const externalId = raw.toLowerCase();
+  if (mode === "live" && fd.get("confirm") !== "on") return { error: "confirm" };
+  const deps = createMorDeps();
+  if (!deps) return { error: "notConfigured" };
+
+  const admin = createAdminClient();
+  const audit = (detail: Record<string, unknown>) => logAdminAction(admin, actor.id, "billing.mor_sync", undefined, { mode, externalId, ...detail });
+  let result: MorSyncResult;
+  try {
+    result = await syncMorSubscription(deps, await deps.polar.getSubscription(externalId), livemode);
+  } catch (e) {
+    const notFound = e instanceof PolarError && e.status === 404;
+    if (!notFound) await logAppError(admin, `syncMorSubscriptionNow failed for polar subscription ${externalId}: ${errorText(e)}`, { path: PATH });
+    await audit({ ok: false, error: notFound ? "notFound" : "failed" });
+    return { error: notFound ? "notFound" : "failed" };
+  }
+  const detail: Omit<MorSyncState, "ok" | "error"> =
+    result.kind === "applied"
+      ? { result: result.kind, subscriptionId: result.subscriptionId, status: result.status }
+      : result.kind === "stale"
+        ? { result: result.kind, subscriptionId: result.subscriptionId }
+        : result.kind === "ungranted"
+          ? { result: result.kind, refund: result.refund }
+          : { result: result.kind };
+  await audit({ ok: true, ...detail });
+  return { ok: true, ...detail };
 }
 
 /** 결제일 당기기 결과 — 실제로 당긴 종류(charge·remind·retry)를 알려 성공 문구를 맞춘다 */

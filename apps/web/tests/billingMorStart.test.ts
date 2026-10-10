@@ -188,23 +188,37 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
   });
 
   describe("끝나지 않은 시도", () => {
-    it("만료 전 open 시도(MoR·토스)는 닫고(superseded) 새로 연다, 만료된 open은 실패 코드 없이 만료로", async () => {
+    it("만료 전 토스 open 시도는 닫고(superseded) 새로 연다, 만료된 open은 실패 코드 없이 만료로", async () => {
       const { deps, store, price } = setup();
-      const morOpen = checkoutRow({ user_id: USER, price_id: price.id, provider: "mor" });
       const tossOpen = checkoutRow({ user_id: USER, price_id: price.id, provider: "toss" });
       const stale = checkoutRow({ user_id: USER, price_id: price.id, provider: "mor", expires_at: iso(NOW - MIN) });
       const othersOpen = checkoutRow({ user_id: OTHER, price_id: price.id, provider: "mor" });
-      store.rows.checkouts.push(morOpen, tossOpen, stale, othersOpen);
+      store.rows.checkouts.push(tossOpen, stale, othersOpen);
 
       const out = await startMorCheckout(deps, input(price.id));
 
       expect(out.ok).toBe(true);
       const byId = (id: string) => store.rows.checkouts.find((c) => c.id === id);
-      expect(byId(morOpen.id)).toMatchObject({ status: "expired", failure_code: "superseded" });
       expect(byId(tossOpen.id)).toMatchObject({ status: "expired", failure_code: "superseded" });
       expect(byId(stale.id)).toMatchObject({ status: "expired", failure_code: null });
       expect(byId(othersOpen.id)).toMatchObject({ status: "open" });
       expect(store.rows.checkouts.filter((c) => c.user_id === USER && c.status === "open")).toHaveLength(1);
+    });
+
+    it("만료 전 MoR open 시도가 있으면 새로 만들지 않고 inProgress·open — 그 Polar 결제창이 아직 살아 있다(사용자가 이전 시도를 닫을 수 있다)", async () => {
+      const { deps, store, polar, price } = setup();
+      const morOpen = checkoutRow({ user_id: USER, price_id: price.id, provider: "mor", expires_at: iso(NOW + 50 * MIN) });
+      const tossOpen = checkoutRow({ user_id: USER, price_id: price.id, provider: "toss" });
+      store.rows.checkouts.push(morOpen, tossOpen);
+
+      expect(await startMorCheckout(deps, input(price.id))).toEqual({ ok: false, error: "inProgress", blockedBy: "open" });
+
+      expect(store.rows.checkouts.map((c) => [c.provider, c.status])).toEqual([
+        ["mor", "open"],
+        ["toss", "open"],
+      ]);
+      expect(store.rows.consents).toHaveLength(0);
+      expect(polar.calls.createCheckout).toHaveLength(0);
     });
 
     it("처리 중(processing) 시도가 있으면 inProgress·processing — 닫지도 새로 만들지도 않는다", async () => {
@@ -268,7 +282,7 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
       expect(attempt).toMatchObject({ status: "failed", failure_code: "polarCheckoutFailed" });
       expect(deps.log).toHaveBeenCalledTimes(1);
       const line = deps.log.mock.calls[0][0];
-      expect(line).toBe(`billing mor checkout ${attempt.id} for user ${USER}: Polar createCheckout failed (validation_error 422)`);
+      expect(line).toBe(`billing mor checkout ${attempt.id} for user ${USER}: Polar createCheckout failed: validation_error (422)`);
       expect(line).not.toContain(EMAIL);
     });
 
@@ -276,22 +290,21 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
       ["연결 실패", new PolarError("NETWORK", "polar createCheckout failed (network)", 0, true)],
       ["Polar 5xx", new PolarError("HTTP_502", "polar createCheckout failed: HTTP_502 (502)", 502, true)],
       ["2xx인데 응답 모양이 틀림", new PolarError("BAD_RESPONSE", "polar createCheckout response invalid: url", 201, true)],
-    ])("결과 불명(%s)이면 시도를 열어 둔 채 failed — 아무것도 청구되지 않았고 다음 시작이 닫는다", async (_why, err) => {
+    ])("결과 불명(%s)이면 시도를 닫고(startFailed) failed — 주소가 사용자에게 가지 않아 그 결제창으로는 결제할 수 없다, 다시 시작하면 바로 연다", async (_why, err) => {
       const { deps, store, polar, price } = setup();
       polar.script.createCheckout = [err];
 
       expect(await startMorCheckout(deps, input(price.id))).toEqual({ ok: false, error: "failed" });
 
       const attempt = store.rows.checkouts[0];
-      expect(attempt).toMatchObject({ status: "open", failure_code: null });
+      expect(attempt).toMatchObject({ status: "expired", failure_code: "startFailed" });
       expect(deps.log).toHaveBeenCalledExactlyOnceWith(
-        `billing mor checkout ${attempt.id} for user ${USER}: Polar createCheckout outcome unknown (${err.code} ${err.status}); attempt left open`,
+        `billing mor checkout ${attempt.id} for user ${USER}: Polar createCheckout outcome unknown: ${err.code} (${err.status}); attempt closed`,
       );
 
-      // 다시 시작하면 그 시도를 닫고 새로 연다
       polar.script.createCheckout = [polarCheckout({ url: CHECKOUT_URL })];
       expect((await startMorCheckout(deps, input(price.id))).ok).toBe(true);
-      expect(store.rows.checkouts[0]).toMatchObject({ status: "expired", failure_code: "superseded" });
+      expect(store.rows.checkouts.filter((c) => c.status === "open")).toHaveLength(1);
     });
 
     it("Polar가 polar.sh 밖의 주소를 주면 열지 않는다 — 시도를 failed로 닫고 failed", async () => {
@@ -303,7 +316,7 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
     });
 
     it("결제창 금액·통화·주기가 가격 행과 다르면 열지 않는다 — priceMismatch로 닫고 needs review(id만), priceInactive", async () => {
-      for (const checkout of [{ amount: 999 }, { currency: "eur" }, { recurring_interval: "year" }, { recurring_interval: "week" }]) {
+      for (const checkout of [{ amount: 999 }, { currency: "eur" }, { recurring_interval: "year" }, { recurring_interval: "week" }, { recurring_interval_count: 3 }]) {
         const { deps, store, price } = setup({}, { checkout });
         expect(await startMorCheckout(deps, input(price.id))).toEqual({ ok: false, error: "priceInactive" });
         expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "priceMismatch" });
@@ -320,8 +333,34 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
     });
 
     it("Polar가 금액·통화·주기를 주지 않으면 비교하지 않고 연다", async () => {
-      const { deps, price } = setup({}, { checkout: { amount: null, currency: null, recurring_interval: null } });
+      const { deps, price } = setup({}, { checkout: { amount: null, currency: null, recurring_interval: null, recurring_interval_count: null } });
       expect(await startMorCheckout(deps, input(price.id))).toMatchObject({ ok: true, url: CHECKOUT_URL });
+    });
+
+    it("시도의 만료 시각을 Polar 결제창의 expires_at에 맞춘다 — 더 늦을 때만, 읽을 수 없으면 그대로", async () => {
+      const later = setup({}, { checkout: { expires_at: "2026-01-30T17:00:00.000000Z" } });
+      expect((await startMorCheckout(later.deps, input(later.price.id))).ok).toBe(true);
+      expect(later.store.rows.checkouts[0].expires_at).toBe(pgTime("2026-01-30T17:00:00.000000Z"));
+
+      const earlier = setup({}, { checkout: { expires_at: "2026-01-30T16:10:00.000000Z" } });
+      expect((await startMorCheckout(earlier.deps, input(earlier.price.id))).ok).toBe(true);
+      expect(earlier.store.rows.checkouts[0].expires_at).toBe(pgTime(NOW + 30 * MIN));
+
+      const odd = setup({}, { checkout: { expires_at: "2026-01-30 17:00 (UTC)" } });
+      expect((await startMorCheckout(odd.deps, input(odd.price.id))).ok).toBe(true);
+      expect(odd.store.rows.checkouts[0].expires_at).toBe(pgTime(NOW + 30 * MIN));
+    });
+
+    it("만료 시각을 늦추다 저장소 오류가 나도 결제창은 연다(기록 한 줄) — 시도는 30분 만료 그대로", async () => {
+      const { deps, store, price } = setup({}, { checkout: { expires_at: "2026-01-30T17:00:00.000000Z" } });
+      store.extendCheckout = async () => {
+        throw new Error("billing store extendCheckout: timeout");
+      };
+      const out = await startMorCheckout(deps, input(price.id));
+      expect(out).toMatchObject({ ok: true, url: CHECKOUT_URL });
+      expect(deps.log).toHaveBeenCalledExactlyOnceWith(
+        `billing mor checkout ${store.rows.checkouts[0].id}: expiry could not be matched to the Polar checkout (billing store extendCheckout: timeout)`,
+      );
     });
   });
 });

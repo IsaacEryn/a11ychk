@@ -1,5 +1,6 @@
 import "server-only";
 import { callbackRedirectPath, checkoutErrorPath, checkoutLocale, type CheckoutLocale } from "@/lib/billing/checkout";
+import { errorText } from "@/lib/billing/errorText";
 import { MOR_CHECKOUT_FAILED, markMorCheckout, morAttemptId, morCheckoutOwner, syncMorSubscription } from "@/lib/billing/flows/mor";
 import { PolarError, type PolarCheckout } from "@/lib/billing/polar";
 import type { MorDeps } from "@/lib/billing/types";
@@ -28,8 +29,6 @@ export interface MorReturnInput {
   /** 결제창을 믿을 수 없을 때의 로케일(라우트가 로케일 쿠키로 정한다) */
   fallbackLocale: CheckoutLocale;
 }
-
-const reason = (e: unknown) => (e instanceof PolarError ? `${e.code} ${e.status}` : e instanceof Error ? e.message : String(e)).slice(0, 300);
 
 const knownLocale = (v: unknown): CheckoutLocale | null => (v === "ko" || v === "en" ? checkoutLocale(v) : null);
 
@@ -83,7 +82,7 @@ async function syncSucceeded(
         return pending;
     }
   } catch (e) {
-    await deps.log(`billing polar return: subscription ${checkout.subscription_id} of checkout ${checkout.id} was not synced (${reason(e)}); shown as pending`);
+    await deps.log(`billing polar return: subscription ${checkout.subscription_id} of checkout ${checkout.id} was not synced: ${errorText(e)}; shown as pending`);
     return pending;
   }
 }
@@ -94,7 +93,7 @@ export async function morReturnPath(deps: MorDeps, input: MorReturnInput): Promi
     checkout = await deps.polar.getCheckout(input.checkoutId);
   } catch (e) {
     if (e instanceof PolarError && (e.status === 404 || e.code === "INVALID_ID")) return checkoutErrorPath(input.fallbackLocale, null, "notFound");
-    await deps.log(`billing polar return: checkout ${input.checkoutId} could not be read (${reason(e)}); shown as pending`);
+    await deps.log(`billing polar return: checkout ${input.checkoutId} could not be read: ${errorText(e)}; shown as pending`);
     return callbackRedirectPath({ kind: "pending" }, input.fallbackLocale);
   }
   // 주인·모드가 맞지 않는 결제창은 없는 것으로 본다 — 그 값(로케일 포함)도 쓰지 않는다

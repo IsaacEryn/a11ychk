@@ -7,11 +7,13 @@ const m = vi.hoisted(() => ({
   createClient: vi.fn(),
   createMorDeps: vi.fn(),
   logAppError: vi.fn(),
+  allowPolarCall: vi.fn(),
 }));
 vi.mock("@/lib/supabase/server", () => ({ createClient: m.createClient }));
 vi.mock("@/lib/supabase/admin", () => ({ createAdminClient: () => ({}) }));
 vi.mock("@/lib/logs", () => ({ logAppError: m.logAppError }));
 vi.mock("@/lib/billing/server", () => ({ createMorDeps: m.createMorDeps }));
+vi.mock("@/lib/billing/polarThrottle", () => ({ allowPolarCall: m.allowPolarCall }));
 
 import { GET, maxDuration } from "../src/app/api/billing/polar/return/route";
 import { morAutoRefundId } from "../src/lib/billing/flows/mor";
@@ -82,7 +84,8 @@ beforeEach(() => {
     ),
     polar: createFakePolar(),
   });
-  for (const fn of [m.createClient, m.createMorDeps, m.logAppError]) fn.mockReset();
+  for (const fn of [m.createClient, m.createMorDeps, m.logAppError, m.allowPolarCall]) fn.mockReset();
+  m.allowPolarCall.mockResolvedValue(true);
   m.createClient.mockImplementation(async () => ({ auth: { getUser: async () => ({ data: { user: m.user } }) } }));
   m.createMorDeps.mockImplementation(() => deps);
   m.logAppError.mockResolvedValue(undefined);
@@ -123,6 +126,15 @@ describe("Polar 결제창 복귀 라우트 — 게이트", () => {
       expect(res.status).toBe(303);
       expect(location(res)).toBe("http://localhost:3100/ko/mypage/billing?error=notFound");
     }
+    expect(deps.polar.calls.getCheckout).toHaveLength(0);
+  });
+
+  it("사용자당 Polar 호출 한도를 넘으면 Polar를 부르지 않고 확인 중(pending)으로 — 웹훅·크론이 마친다", async () => {
+    m.allowPolarCall.mockResolvedValue(false);
+    const res = await GET(req(`?checkout_id=${PC}`, { host: "localhost:3100", cookie: "NEXT_LOCALE=en" }));
+    expect(res.status).toBe(303);
+    expect(location(res)).toBe("http://localhost:3100/en/mypage/billing?result=pending");
+    expect(m.allowPolarCall).toHaveBeenCalledWith(USER);
     expect(deps.polar.calls.getCheckout).toHaveLength(0);
   });
 
@@ -264,7 +276,7 @@ describe("Polar 결제창 복귀 라우트 — 결제창 상태", () => {
     deps.polar.script.getCheckout = [checkout(), checkout()];
     deps.polar.script.getSubscription = [new PolarError("NETWORK", "polar getSubscription failed (network)", 0)];
     expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=pending");
-    expect(deps.log).toHaveBeenCalledWith(`billing polar return: subscription ${SUB} of checkout ${PC} was not synced (NETWORK 0); shown as pending`);
+    expect(deps.log).toHaveBeenCalledWith(`billing polar return: subscription ${SUB} of checkout ${PC} was not synced: NETWORK (0); shown as pending`);
 
     deps.polar.script.getSubscription = [subscription()];
     deps.store.insertMorSubscription = async () => {
@@ -344,7 +356,7 @@ describe("Polar 결제창 복귀 라우트 — 주인·모드·로케일", () =>
     ];
     expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/ko/mypage/billing?error=notFound");
     expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/ko/mypage/billing?result=pending");
-    expect(deps.log).toHaveBeenCalledWith(`billing polar return: checkout ${PC} could not be read (HTTP_503 503); shown as pending`);
+    expect(deps.log).toHaveBeenCalledWith(`billing polar return: checkout ${PC} could not be read: HTTP_503 (503); shown as pending`);
   });
 
   it("로케일: metadata.locale → 결제창 locale → 로케일 쿠키 → ko, ko·en 밖의 값은 버린다", async () => {

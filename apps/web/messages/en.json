@@ -1068,14 +1068,16 @@
       "subscriptionPastDue": "Payment failed · check Billing",
       "manageBilling": "Billing",
       "subscriptionUntil": "Subscribed · until {date}",
-      "subscriptionFailed": "Payment failed"
+      "subscriptionFailed": "Payment failed",
+      "utcDate": "{date} (UTC)"
     },
     "account": {
       "title": "Delete account",
       "desc": "Deleting your account also deletes the data you have in this service.",
       "open": "Show deletion steps",
       "deleted": "Deleted: your account and profile, registered domains with their verification, public listing and badges, all audits, reports and reviewer judgments, inquiries, and scan presets",
-      "kept": "Kept: security sign-in records (email, IP, browser details) are deleted automatically 90 days after they were recorded. If you joined through an invitation, the referral record keeps a hash that can only confirm whether an email matches, the sign-up IP (deleted after 90 days) and the referral status. Internal audit records such as admins viewing your reports or acting on your account (including site addresses) are retained for security. Invitations you sent are deleted with your account.",
+      "subscription": "Any active subscription ends immediately when you delete your account.",
+      "kept": "Kept: security sign-in records (email, IP, browser details) are deleted automatically 90 days after they were recorded. If you joined through an invitation, the referral record keeps a hash that can only confirm whether an email matches, the sign-up IP (deleted after 90 days) and the referral status. Internal audit records such as admins viewing your reports or acting on your account (including site addresses) are retained for security. Invitations you sent are deleted with your account. Billing records (subscriptions, payments and consents) are kept as the law requires, with your user information removed. For international payments, Polar, the merchant of record, keeps its own customer and payment records.",
       "irreversible": "Deleted accounts and reports cannot be restored. Download any reports you need as PDF or CSV first.",
       "confirmLabel": "Confirmation",
       "confirmHint": "To continue, type {phrase} exactly.",
@@ -1348,7 +1350,8 @@
         "billing_price_deactivate": "Price deactivated",
         "billing_cycle_run": "Billing cron run manually",
         "billing_pull_due": "Test due date pulled forward",
-        "billing_mor_reconcile_run": "MoR reconcile run manually"
+        "billing_mor_reconcile_run": "MoR reconcile run manually",
+        "billing_mor_sync": "Polar subscription synced"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",
@@ -1716,7 +1719,7 @@
         "morHint": {
           "off": "Billing mode is off, so this cannot run.",
           "noKeys": "Polar keys (POLAR_ACCESS_TOKEN and POLAR_WEBHOOK_SECRET) are not set, so this cannot run.",
-          "on": "Runs only the international (Polar) step of the billing cron now. It re-reads subscriptions whose period has ended or that are past due, closes expired checkout attempts and reports automatic refunds left pending without a Polar id. It does not charge anyone."
+          "on": "Runs only the international (Polar) step of the billing cron now. It re-reads subscriptions whose period has ended or that are past due, settles payments whose outcome has been unknown for over an hour from Polar, closes expired checkout attempts and reports automatic refunds left pending without a Polar id. It does not charge anyone."
         },
         "morRun": "Reconcile MoR now",
         "morRan": "MoR reconcile finished ({candidates} subscriptions checked)",
@@ -1770,11 +1773,13 @@
           "mor_review": "MoR needs operator review",
           "mor_failed": "MoR reconcile failures",
           "mor_ended": "MoR subscriptions ended (not found at Polar)",
-          "mor_changed": "MoR skipped (changed before ending)",
+          "mor_changed": "MoR skipped (changed before it was settled)",
           "mor_deferred": "MoR deferred (out of time)",
           "mor_expired": "Expired MoR checkout attempts closed",
           "mor_stale_refunds": "Automatic refunds pending without a Polar id",
-          "mor_halted": "MoR reconcile halted (Polar token or permission)"
+          "mor_halted": "MoR reconcile halted (Polar token or permission)",
+          "mor_payments_synced": "MoR payments settled from Polar",
+          "mor_payments_failed": "MoR payments marked failed (not found at Polar)"
         },
         "subsTitle": "Test subscriptions",
         "subsIntro": "Only test (livemode=false) card subscriptions are listed. Run the billing cron after pulling for it to take effect.",
@@ -1811,6 +1816,29 @@
           "remind": "Pulled to notice time",
           "retry": "Retry time set to now",
           "end": "Period end moved to one minute from now (cancellation scheduled — run the cron after that minute and the subscription ends instead of renewing)"
+        },
+        "morSync": {
+          "title": "Sync a Polar subscription now",
+          "intro": "Recovers a new subscription that was paid but ended in needs review without a subscription row, after you fix the cause (price row, Polar product settings and so on). It re-reads that subscription from Polar and runs the same sync as the webhook and the cron. If the user already has another subscription or no longer exists, Polar may revoke and refund it.",
+          "label": "Polar subscription ID",
+          "hint": "Paste the subscription ID (UUID) from the Polar dashboard or the needs review log line.",
+          "confirm": "This is live mode. I understand that syncing can revoke the subscription and refund it.",
+          "submit": "Sync now",
+          "results": {
+            "applied": "Synced (subscription row {id}).",
+            "stale": "A newer state was already recorded (subscription row {id}).",
+            "skipped": "Nothing to record. The subscription has not started at Polar, or it is canceled without a known order.",
+            "review": "Needs review. Check the billing needs review line in the error log.",
+            "ungranted": "No period could be granted, so it was revoked at Polar. {refund, select, refunded {The order was refunded.} none {There was nothing to refund.} other {The refund needs review. Check the error log.}}"
+          },
+          "errors": {
+            "off": "Billing mode is off.",
+            "invalid": "Check the Polar subscription ID (UUID).",
+            "confirm": "Live mode needs the confirmation checkbox.",
+            "notConfigured": "Polar keys are not set.",
+            "notFound": "That subscription was not found at Polar for this mode. Check the ID and the token's organization and mode.",
+            "failed": "Could not process it. Check the error log."
+          }
         }
       },
       "payments": {
@@ -2221,7 +2249,8 @@
         "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
         "sdkFailed": "The payment window could not be opened. Please try again.",
         "sdkCanceled": "You closed the payment window. You can try again.",
-        "inProgressChecking": "We are still confirming your previous payment. Confirmation can take up to a day, so please check the result under Billing."
+        "inProgressChecking": "We are still confirming your previous payment. Confirmation can take up to a day, so please check the result under Billing.",
+        "rateLimited": "Too many requests. Please try again in a minute."
       },
       "period": "Service period",
       "periodValue": "{start} – {end}",
@@ -2238,12 +2267,12 @@
         "renewalDate": "Polar sets the renewal date from the moment you complete payment. You can see it on your receipt and in the customer portal.",
         "taxNote": "Applicable taxes are calculated for your country and added at checkout.",
         "cancelHow": "You can cancel at any time by opening the Polar customer portal from Billing on My page, and you keep access until the end of the period you paid for.",
-        "seller": "Payments are processed by Polar, our merchant of record. Polar sends your receipt and payment emails.",
-        "consent": "I agree to these subscription terms and to Polar processing the payment as merchant of record",
+        "seller": "Polar sells this order as the merchant of record, and the charge appears as Polar on your card statement. Polar sends your receipt and payment emails.",
+        "consent": "I agree to these subscription terms and to Polar selling this order and processing the payment as merchant of record",
         "submit": "Continue to secure checkout",
         "pending": "Preparing secure checkout…",
         "leaving": "Taking you to Polar checkout…",
-        "inProgressOpen": "This overlapped with a payment started in another window. Please try again in a moment."
+        "inProgressOpen": "A Polar checkout you opened earlier is still open. If you did not pay in that window, cancel the previous payment attempt and try again."
       }
     },
     "manage": {
@@ -2291,7 +2320,8 @@
         "pastDueBodyMor": "Polar will retry the payment. To update your card, use Manage billing (Polar) below.",
         "endingSoon": "The grace period is over, so this subscription will end soon. To keep using the plan, subscribe again after it ends.",
         "statusActiveUntil": "Active · until {date}",
-        "readOnly": "This subscription cannot be changed here right now."
+        "readOnly": "This subscription cannot be changed here right now.",
+        "utcDate": "{date} (UTC)"
       },
       "cardChange": {
         "button": "Change card",
@@ -2320,7 +2350,8 @@
         "errors": {
           "notConfigured": "Payments are not set up yet, so the Polar customer portal cannot be opened right now.",
           "notFound": "We could not find your subscription at Polar. Please reload the page and try again, or contact us.",
-          "failed": "The Polar customer portal could not be opened. Please try again in a moment."
+          "failed": "The Polar customer portal could not be opened. Please try again in a moment.",
+          "rateLimited": "Too many requests. Please try again in a minute."
         }
       },
       "cancel": {

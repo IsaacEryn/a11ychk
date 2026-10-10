@@ -1,5 +1,6 @@
 import "server-only";
 import { z } from "zod";
+import { UUID_RE } from "./checkout";
 import type { PolarKeys } from "./config";
 
 /**
@@ -7,6 +8,7 @@ import type { PolarKeys } from "./config";
  * 액세스 토큰·요청 본문·응답 전문은 오류 메시지에 넣지 않는다 — 호출부가 메시지를 app_errors에 남기고,
  * 응답에는 이메일·주소 같은 개인정보가 있다. 응답도 필요한 필드만 읽고 나머지는 버린다.
  */
+/** 호출 하나의 시간 제한 기본값 — 웹훅처럼 응답 시간이 짧아야 하는 경로는 createPolarClient의 timeoutMs로 줄인다 */
 const TIMEOUT_MS = 15_000;
 
 export class PolarError extends Error {
@@ -35,6 +37,19 @@ export function isPolarOutcomeUnknown(err: unknown): boolean {
   // 상태를 먼저 본다 — 5xx·408이면 코드가 무엇이든 결과 불명이다
   if (err.code === "NETWORK" || err.status >= 500 || err.status === 408) return true;
   return err.code === "BAD_RESPONSE" && err.mutating;
+}
+
+/**
+ * 한도 초과(429) — Polar가 요청을 처리하지 않고 돌려보냈다. 결과 불명은 아니지만(돈은 움직이지 않았다) 확정 실패도 아니라서,
+ * 호출부는 실패로 적지 않고 다시 던져 웹훅 재시도·다음 크론에 맡긴다(isPolarOutcomeUnknown은 바꾸지 않는다)
+ */
+export function isPolarRateLimited(err: unknown): boolean {
+  return err instanceof PolarError && err.status === 429;
+}
+
+/** 기록에 남기는 Polar 오류 — 코드와 상태만(본문·비밀 없음). PolarError가 아니면 "unexpected error" */
+export function polarCode(err: unknown): string {
+  return err instanceof PolarError ? `${err.code} (${err.status})` : "unexpected error";
 }
 
 /** 알려진 값 + 처음 보는 문자열 — Polar가 값을 늘려도 BAD_RESPONSE로 막히지 않고, 매핑은 호출부가 판단한다 */
@@ -148,6 +163,8 @@ export interface PolarCheckout {
    * 맞는지 본다. 처음 보는 값도 문자열 그대로 둔다(호출부가 판정). 응답에 없으면 null
    */
   recurring_interval: Open<PolarRecurringInterval> | null;
+  /** 결제 주기의 횟수(예: 3개월마다면 3) — 주기를 준 쪽(상품, 없으면 상품 가격)의 값. 응답에 없으면 null */
+  recurring_interval_count: number | null;
   metadata: PolarMetadata;
 }
 
@@ -210,6 +227,11 @@ export interface PolarClient {
   getRefund(id: string): Promise<PolarRefund>;
   createRefund(input: PolarRefundInput): Promise<PolarRefund>;
   createCustomerSession(input: PolarCustomerSessionInput): Promise<PolarCustomerSession>;
+  /**
+   * 외부 id(a11ychk 사용자 id)의 Polar 고객 삭제 — Polar는 진행 중 구독을 즉시 해지하고 혜택을 회수한다. anonymize면 개인정보도
+   * 익명화한다. 204면 끝(본문 없음). 그 고객이 없으면 PolarError 404(ResourceNotFound) — 호출부가 성공으로 본다
+   */
+  deleteCustomerByExternalId(externalId: string, opts: { anonymize: boolean }): Promise<void>;
 }
 
 // ── 응답 스키마 — z.object는 모르는 필드를 버린다 ──
@@ -283,11 +305,11 @@ const orderSchema: z.ZodType<PolarOrder, z.ZodTypeDef, unknown> = z.object({
   metadata,
 });
 
-/** 결제창의 상품·상품 가격 — 결제 주기만 읽는다(이름·가격 목록 같은 나머지는 버린다) */
+/** 결제창의 상품·상품 가격 — 결제 주기와 그 횟수만 읽는다(이름·가격 목록 같은 나머지는 버린다) */
 const intervalHolder = z
-  .object({ recurring_interval: nullableString })
+  .object({ recurring_interval: nullableString, recurring_interval_count: z.number().int().positive().nullish() })
   .nullish()
-  .transform((v) => v?.recurring_interval ?? null);
+  .transform((v) => ({ interval: v?.recurring_interval ?? null, count: v?.recurring_interval_count ?? null }));
 
 const checkoutSchema: z.ZodType<PolarCheckout, z.ZodTypeDef, unknown> = z
   .object({
@@ -305,7 +327,11 @@ const checkoutSchema: z.ZodType<PolarCheckout, z.ZodTypeDef, unknown> = z
     product_price: intervalHolder,
     metadata,
   })
-  .transform(({ product, product_price, ...rest }) => ({ ...rest, recurring_interval: product ?? product_price }));
+  .transform(({ product, product_price, ...rest }) => {
+    // 주기를 준 쪽에서 횟수도 읽는다 — 상품에 주기가 없으면 상품 가격(이전 형식)
+    const holder = product.interval !== null ? product : product_price;
+    return { ...rest, recurring_interval: holder.interval, recurring_interval_count: holder.interval !== null ? holder.count : null };
+  });
 
 const refundFields = {
   id: requiredId,
@@ -326,7 +352,6 @@ const customerSessionSchema: z.ZodType<PolarCustomerSession, z.ZodTypeDef, unkno
 
 // ── 호출 ──
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 /** 오류 코드로 받아들일 모양 — 그 밖의 문자열은 본문 내용일 수 있어 HTTP_<상태>로 바꾼다 */
 const CODE_RE = /^[A-Za-z][A-Za-z0-9_.-]{0,79}$/;
 /** 이 모듈이 스스로 붙이는 코드 — 서버 본문이 같은 값을 보내도 HTTP_<상태>로 바꾼다(결과 불명 판정이 흔들리지 않게) */
@@ -338,7 +363,8 @@ function idPath(prefix: string, id: string): string {
   return `${prefix}${encodeURIComponent(id)}`;
 }
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
+/** JSON 객체(배열·null 아님) — 오류 본문·웹훅 본문(flows/morWebhook.ts)을 읽을 때 쓴다 */
+export function isPlainObject(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
 
@@ -356,13 +382,17 @@ interface PolarClientDeps {
   fetchImpl: typeof fetch;
   base: string;
   auth: string;
+  timeoutMs: number;
 }
+
+/** 응답 본문을 읽지 않는 호출(고객 삭제 — 204) */
+const NO_BODY = Symbol("no body");
 
 async function call<T>(
   deps: PolarClientDeps,
   op: string,
-  init: { method: "GET" | "POST" | "PATCH"; path: string; body?: unknown },
-  schema: z.ZodType<T, z.ZodTypeDef, unknown>,
+  init: { method: "GET" | "POST" | "PATCH" | "DELETE"; path: string; body?: unknown },
+  schema: z.ZodType<T, z.ZodTypeDef, unknown> | typeof NO_BODY,
 ): Promise<T> {
   let res: Response;
   const mutating = init.method !== "GET";
@@ -380,7 +410,7 @@ async function call<T>(
         ...(init.body === undefined ? {} : { "Content-Type": "application/json" }),
       },
       body: init.body === undefined ? undefined : JSON.stringify(init.body),
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(deps.timeoutMs),
     });
   } catch {
     // 시간 초과·연결 실패·리다이렉트 — Polar가 처리했는지 알 수 없다. 원래 오류 문구는 싣지 않는다
@@ -390,6 +420,11 @@ async function call<T>(
     const parsedError: unknown = await res.json().catch(() => null);
     const code = errorCode(parsedError, res.status);
     throw new PolarError(code, `polar ${op} failed: ${code} (${res.status})`, res.status, mutating);
+  }
+  if (schema === NO_BODY) {
+    // 2xx면 Polar가 처리했다 — 본문(대개 204라 없다)은 읽지 않고 흘려보낸다
+    await res.body?.cancel().catch(() => undefined);
+    return undefined as T;
   }
   // 본문을 읽다 시간 초과·끊김이 나도 Polar는 이미 처리했을 수 있다 — 결과 불명으로
   let parsed: unknown;
@@ -407,8 +442,18 @@ async function call<T>(
   return result.data;
 }
 
-export function createPolarClient(keys: Pick<PolarKeys, "accessToken" | "apiBase">, fetchImpl: typeof fetch = fetch): PolarClient {
-  const deps: PolarClientDeps = { fetchImpl, base: keys.apiBase.replace(/\/+$/, ""), auth: `Bearer ${keys.accessToken}` };
+/** timeoutMs: 호출 하나의 시간 제한(기본 15초) — 웹훅 라우트는 Polar의 10초 응답 제한 안에 끝나게 짧게 준다 */
+export function createPolarClient(
+  keys: Pick<PolarKeys, "accessToken" | "apiBase">,
+  fetchImpl: typeof fetch = fetch,
+  opts: { timeoutMs?: number } = {},
+): PolarClient {
+  const deps: PolarClientDeps = {
+    fetchImpl,
+    base: keys.apiBase.replace(/\/+$/, ""),
+    auth: `Bearer ${keys.accessToken}`,
+    timeoutMs: opts.timeoutMs ?? TIMEOUT_MS,
+  };
   return {
     createCheckout(input) {
       // 무료 체험·할인 코드는 쓰지 않는다 — 호출부가 무엇을 넘기든 여기서 끈다
@@ -441,6 +486,11 @@ export function createPolarClient(keys: Pick<PolarKeys, "accessToken" | "apiBase
     },
     createCustomerSession(input) {
       return call(deps, "createCustomerSession", { method: "POST", path: "/v1/customer-sessions/", body: input }, customerSessionSchema);
+    },
+    async deleteCustomerByExternalId(externalId, opts) {
+      // 스코프 customers:write. 외부 id는 우리 사용자 id(UUID)라 경로 검사를 그대로 쓴다
+      const path = `${idPath("/v1/customers/external/", externalId)}${opts.anonymize ? "?anonymize=true" : ""}`;
+      await call<void>(deps, "deleteCustomer", { method: "DELETE", path }, NO_BODY);
     },
   };
 }

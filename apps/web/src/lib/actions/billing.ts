@@ -17,6 +17,7 @@ import { abandonOpenCheckouts, startCardChangeCheckout, startSubscribeCheckout, 
 import { errorText } from "@/lib/billing/flows/subscribe";
 import { PolarError } from "@/lib/billing/polar";
 import { isPolarHostedUrl } from "@/lib/billing/polarRedirect";
+import { allowPolarCall } from "@/lib/billing/polarThrottle";
 import { createBillingDeps, createMorDeps } from "@/lib/billing/server";
 import type { BillingDeps } from "@/lib/billing/types";
 import { loadViewer } from "@/lib/billing/viewer";
@@ -131,7 +132,8 @@ export async function startCardChange(_prev: StartCheckoutState, fd: FormData): 
   );
 }
 
-export type StartMorCheckoutError = Exclude<StartCheckoutError, "graceOver">;
+/** rateLimited: 사용자당 Polar 호출 한도(polarThrottle.ts)를 넘었다 — 잠시 뒤 다시 */
+export type StartMorCheckoutError = Exclude<StartCheckoutError, "graceOver"> | "rateLimited";
 
 export interface StartMorCheckoutState {
   ok?: true;
@@ -144,7 +146,8 @@ export interface StartMorCheckoutState {
 
 /**
  * 해외(판매 대행 Polar) 구독 결제 시작 — 입력(가격 id·동의) → 결제 모드(off면 notAllowed) → Polar 의존성(없으면 notConfigured,
- * 토스 키와 무관) → 공개 범위(canCheckout) → 요청 origin → 흐름(flows/morStart.ts) → 결제창 주소.
+ * 토스 키와 무관) → 공개 범위(canCheckout) → 요청 origin → 사용자당 Polar 호출 한도(넘으면 rateLimited) → 흐름(flows/morStart.ts)
+ * → 결제창 주소.
  */
 export async function startMorCheckoutAction(_prev: StartMorCheckoutState, fd: FormData): Promise<StartMorCheckoutState> {
   const { supabase, user } = await requireUser();
@@ -163,6 +166,7 @@ export async function startMorCheckoutAction(_prev: StartMorCheckoutState, fd: F
     await deps.log("billing mor checkout refused: request origin is not a valid http(s) host");
     return { error: "failed" };
   }
+  if (!(await allowPolarCall(user.id))) return { error: "rateLimited" };
   const locale = checkoutLocale(await actionLocale());
   try {
     const outcome = await startMorCheckout(deps, {
@@ -198,6 +202,23 @@ export async function abandonCheckout(): Promise<AbandonCheckoutState> {
   const ready = billingReady();
   if (!ready.ok) return { error: "notConfigured" };
   const result = await abandonOpenCheckouts(ready.deps, { userId: user.id, livemode: ready.livemode });
+  if (!result.ok) return { error: "failed" };
+  return { closed: result.closed, blockedBy: result.blockedBy };
+}
+
+/**
+ * 해외 결제 확인 화면의 "이전 시도 취소" — 만료 전 MoR 시도가 새 결제 시작을 막을 때(그 Polar 결제창이 아직 살아 있다, flows/morStart.ts)
+ * 사용자가 이전 결제창을 닫았다면 이 버튼으로 닫는다. 토스의 abandonCheckout과 같은 흐름이지만 Polar 의존성만 본다(토스 키가 없어도 된다).
+ * 닫아도 Polar 쪽 세션은 만료 때까지 남는다 — 거기서 결제가 끝나 구독이 둘이 되면 돈 안전 불변식(나중 구독 해지 + 환불)이 받친다.
+ * 그 사용자·지금 모드의 선점 전(open) 시도만 닫는다. 입력은 받지 않는다.
+ */
+export async function abandonMorCheckout(): Promise<AbandonCheckoutState> {
+  const { user } = await requireUser();
+  const livemode = rowLivemode(billingMode());
+  if (livemode === null) return { error: "notConfigured" };
+  const deps = createMorDeps();
+  if (!deps) return { error: "notConfigured" };
+  const result = await abandonOpenCheckouts(deps, { userId: user.id, livemode });
   if (!result.ok) return { error: "failed" };
   return { closed: result.closed, blockedBy: result.blockedBy };
 }
@@ -250,7 +271,7 @@ export async function resumeSubscriptionAction(): Promise<ManageSubscriptionStat
   return out.result === "resumed" ? { ok: true, done: "resumed" } : { error: out.result };
 }
 
-export type OpenMorPortalError = "notConfigured" | "notFound" | "failed";
+export type OpenMorPortalError = "notConfigured" | "notFound" | "rateLimited" | "failed";
 
 export interface OpenMorPortalState {
   ok?: true;
@@ -262,7 +283,8 @@ export interface OpenMorPortalState {
 /**
  * 결제 관리의 "결제 관리(Polar)" — 해외 결제 구독의 해지·해지 취소·결제 수단 변경·영수증은 Polar 고객 포털이 맡는다.
  * 로그인 사용자 → 결제 모드·Polar 의존성(없으면 notConfigured, 토스 키와 무관) → 이 모드의 MoR 구독 행이 있는지(없으면 notFound,
- * 끝난 구독도 내역을 볼 수 있게 센다) → 요청 origin → Polar 고객 세션(external_customer_id = 사용자 id, 돌아올 곳 = 결제 관리).
+ * 끝난 구독도 내역을 볼 수 있게 센다) → 요청 origin → 사용자당 Polar 호출 한도(넘으면 rateLimited) → Polar 고객 세션
+ * (external_customer_id = 사용자 id, 돌아올 곳 = 결제 관리).
  * 포털 주소는 응답으로만 돌려준다(서버 redirect로 외부에 보내지 않는다 — CSP form-action을 넓히지 않는다). 입력은 받지 않는다.
  * Polar가 그 고객을 모르면(404) notFound, 그 밖의 실패는 기록 한 줄(id·코드만) 뒤 failed.
  */
@@ -283,6 +305,7 @@ export async function openMorPortal(): Promise<OpenMorPortalState> {
   }
   const origin = requestOrigin(await headers());
   if (!origin) return fail("request origin is not a valid http(s) host");
+  if (!(await allowPolarCall(user.id))) return { error: "rateLimited" };
   const locale = checkoutLocale(await actionLocale());
 
   let url: string;
@@ -291,7 +314,7 @@ export async function openMorPortal(): Promise<OpenMorPortalState> {
     url = session.customer_portal_url;
   } catch (e) {
     if (e instanceof PolarError && e.status === 404) return { error: "notFound" };
-    return fail(e instanceof PolarError ? `${e.code} (${e.status})` : errorText(e));
+    return fail(errorText(e));
   }
   // 주소는 기록하지 않는다(세션 토큰이 들어 있다)
   if (!isPolarHostedUrl(url)) return fail("portal url is not a polar.sh address");

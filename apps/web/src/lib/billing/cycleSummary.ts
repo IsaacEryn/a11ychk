@@ -48,15 +48,25 @@ export const CYCLE_SUMMARY_KEYS = [
   "mor_expired",
   "mor_stale_refunds",
   "mor_halted",
+  "mor_payments_synced",
+  "mor_payments_failed",
 ] as const;
 
 /**
  * 운영자 확인이 필요한 건 — 결제는 paid로 남았지만 확인이 필요한 결제(자동 취소 실패, 진행 중 구독이 다른 기간에 있음)와
- * MoR 대사의 needs review(동기화 확인 필요, Polar에 없어 끝낸 구독, Polar 환불 id 없이 남은 자동 환불)
+ * MoR 대사의 needs review(동기화 확인 필요, Polar에 없어 끝낸 구독, Polar 환불 id 없이 남은 자동 환불, Polar에 없어 failed로 확정한 결제)
  */
-export const REVIEW_SUMMARY_KEYS = ["reconciled_review", "charge_review", "retry_review", "mor_review", "mor_ended", "mor_stale_refunds"] as const;
+export const REVIEW_SUMMARY_KEYS = [
+  "reconciled_review",
+  "charge_review",
+  "retry_review",
+  "mor_review",
+  "mor_ended",
+  "mor_stale_refunds",
+  "mor_payments_failed",
+] as const;
 /** 오류로 세는 키 — 처리 중 예외(errors)와 MoR 대사의 실패(mor_failed) */
-export const ERROR_SUMMARY_KEYS = ["errors", "mor_failed"] as const;
+const ERROR_SUMMARY_KEYS = ["errors", "mor_failed"] as const;
 
 export interface CycleIssues {
   /** ERROR_SUMMARY_KEYS의 합 */

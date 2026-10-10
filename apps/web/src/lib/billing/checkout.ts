@@ -19,8 +19,8 @@ export const CHECKOUT_TTL_MS = 30 * MIN_MS;
 export const PROCESSING_STALE_MS = 30 * MIN_MS;
 /** 결제 확인 화면 문구의 판 — 문구를 바꾸면 올린다(동의 기록이 어떤 문구를 봤는지 남긴다) */
 export const DISCLOSURE_VERSION = "recurring-2026-10";
-/** 판매 대행(Polar) 결제 확인 화면 문구의 판 — 토스 화면과 문구가 달라 따로 올린다 */
-export const MOR_DISCLOSURE_VERSION = "mor-recurring-2026-10";
+/** 판매 대행(Polar) 결제 확인 화면 문구의 판 — 토스 화면과 문구가 달라 따로 올린다(판매자 고지·동의 문구를 MoR 표현으로 바꿔 b) */
+export const MOR_DISCLOSURE_VERSION = "mor-recurring-2026-10b";
 
 export const CHECKOUT_LOCALES = ["ko", "en"] as const;
 export type CheckoutLocale = (typeof CHECKOUT_LOCALES)[number];

@@ -47,5 +47,5 @@ export type { SaveState } from "./actions/shared";
 
 export { createContract, updateContract, setContractEnd, endContract } from "./actions/adminBilling";
 export { createPrice, deactivatePrice } from "./actions/adminBillingPrices";
-export { runBillingCycleNow, runMorReconcileNow, pullDueDate } from "./actions/adminBillingTools";
-export type { CycleState, PullState } from "./actions/adminBillingTools";
+export { runBillingCycleNow, runMorReconcileNow, syncMorSubscriptionNow, pullDueDate } from "./actions/adminBillingTools";
+export type { CycleState, MorSyncState, PullState } from "./actions/adminBillingTools";

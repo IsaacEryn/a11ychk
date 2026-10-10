@@ -275,7 +275,7 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
 ### 준비
 
 1. **sandbox 조직** — sandbox.polar.sh에 가입하고 조직을 만든다. sandbox는 운영과 완전히 따로라 토큰·상품·웹훅을 모두 따로 만든다.
-2. **Organization Access Token** — 조직 설정의 개발자(Developers) 메뉴에서 만든다(`polar_oat_…`). 스코프는 아래 일곱 개다.
+2. **Organization Access Token** — 조직 설정의 개발자(Developers) 메뉴에서 만든다(`polar_oat_…`). 스코프는 아래 여덟 개다.
 
    ```
    checkouts:write
@@ -285,14 +285,19 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
    refunds:read
    refunds:write
    customer_sessions:write
+   customers:write
    ```
 
-   결제창 만들기, 구독 조회·즉시 해지(중복 구독·탈퇴), 주문 조회, 자동 환불과 환불 조회, 결제 관리의 고객 포털 열기에 쓴다.
+   결제창 만들기, 구독 조회·즉시 해지(중복 구독·탈퇴), 주문 조회, 자동 환불과 환불 조회, 결제 관리의 고객 포털 열기, 탈퇴할 때 Polar 고객
+   삭제(익명화)에 쓴다. `customers:write`가 없으면 MoR 흔적이 있는 사용자의 탈퇴가 막힌다(`customer deletion failed: … (403)`).
 3. **상품** — 정기 구독(recurring) 상품을 월간·연간 하나씩 만든다. 통화는 USD, 무료 체험은 두지 않는다(결제창도 체험·할인 코드를 끈다).
    만든 뒤 상품 id(UUID)를 적어 둔다. 금액은 이 문서나 저장소에 적지 않는다.
 4. **웹훅** — 조직 설정의 Webhooks에서 끝점을 추가한다.
    - 주소: `https://<정식 호스트>/api/billing/webhooks/polar`. 정식 호스트는 리다이렉트 없이 바로 응답하는 주소다. Polar는 3xx를
-     실패로 세고, 연달아 10번 실패하면 끝점을 끈다(예: apex 주소가 www로 보내면 모든 웹훅이 실패한다).
+     실패로 세고, 연달아 10번 실패하면 끝점을 끈다(예: apex 주소가 www로 보내면 모든 웹훅이 실패한다). 웹훅 경로는 Polar 호출 하나를
+     4초로 끊어 Polar의 10초 응답 제한 안에 답한다.
+   - 끝점이 꺼졌는지 정기적으로 확인하고(Webhooks 화면의 상태·최근 전달), 꺼졌으면 원인(배포 장애·시크릿 불일치·리다이렉트)을 고친 뒤
+     다시 켜고 실패한 전달을 다시 보낸다. 꺼져 있던 동안의 반영은 크론 대사가 기존 구독·결과를 모르는 결제만 메운다.
    - 형식: **Standard Webhooks**(Raw 아님). 서명이 맞지 않으면 401이고 DB를 건드리지 않는다.
    - 이벤트: `subscription.*`, `order.*`, `refund.*`, `checkout.updated`, `checkout.expired`.
    - 시크릿(`whsec_…`)을 아래 환경변수에 넣는다.
@@ -325,6 +330,9 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
 8. **가격 행** — 관리자 → 결제·계약 → 가격에서 결제사를 **해외 결제(Polar)**로 고르고 플랜·주기·금액(달러, 세금 제외)·Polar 상품 id를
    넣는다. 모드는 **테스트**, 활성으로 저장한다. 금액은 Polar 상품 가격과 같아야 한다 — 다르면 결제 시작이 결제창을 열지 않고
    `billing needs review:` 한 줄을 남긴다(사용자가 동의하지 않은 금액으로 결제되지 않게). 같은 플랜·결제사·주기·모드에서 활성 행은 하나뿐이다.
+9. **고객 포털 설정** — 조직 설정의 고객 포털(Customer portal)에서 **플랜 변경을 끈다(권장)**. 켜 두려면 차액을 즉시 정산하게
+   한다(비례 정산을 다음 청구로 미루면 상위 플랜을 먼저 쓰게 된다). 고객이 포털에서 상품을 바꾸면 동기화가 그 상품의 가격 행을 따라
+   plan_code를 바꾼다(가격 행이 없는 상품이면 `no mor price for product …` 확인 필요). 해지·결제 수단 변경·영수증은 켜 둔다.
 
 ### 로컬에서 끝까지 돌려 보기
 
@@ -339,25 +347,54 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
 6. 포털에서 해지 예약 → 결제 관리가 "해지 예약"으로 바뀌는지, 해지 취소 → 원래대로 돌아오는지 본다. sandbox 대시보드에서 구독을
    즉시 해지(revoke)하면 구독이 끝나고 권한이 무료로 돌아간다.
 7. Polar 대시보드에서 같은 웹훅을 다시 보내도(redeliver) 결과가 같아야 한다.
-8. 관리자 → 결제·계약 → 테스트 도구의 **MoR 지금 대사**로 크론의 MoR 단계만 돌려 볼 수 있다(결제를 일으키지 않는다).
+8. 관리자 → 결제·계약 → 테스트 도구의 **MoR 지금 대사**로 크론의 MoR 단계만 돌려 볼 수 있다(결제를 일으키지 않는다). 같은 화면의
+   **Polar 구독 id로 지금 동기화**는 구독 하나를 Polar에서 다시 읽어 맞춘다(아래 "`billing needs review:` 줄").
+9. 결제창을 연 채 결제 확인 화면으로 돌아와 다시 누르면 "이전에 연 Polar 결제창이 아직 열려 있습니다"가 보인다 — 결제 시도는 Polar
+   결제창이 만료될 때까지 열려 있다. **이전 결제 시도 취소**를 누르면 다시 시작할 수 있다.
+
+### sandbox 끝-끝 확인 목록
+
+라이브 전에 sandbox에서 한 번씩 확인하고, 결과가 다르면 코드·문서를 고친다.
+
+- `metadata.livemode`가 결제창 조회(`GET /v1/checkouts/{id}`)에서 불리언으로 돌아오는지 — 문자열이면 결제창 복귀가 모두 notFound가 된다
+  (권한은 웹훅이 주지만 사용자는 오류 화면을 본다).
+- Polar의 자동 재시도·대시보드 재전송이 새 `webhook-timestamp`로 다시 서명되는지 — 아니면 5분 뒤 재시도가 모두 401(stale)이 되어 끝점이 꺼진다.
+- `success_url`에 Polar가 `checkout_id` 말고 덧붙이는 값(고객 세션 토큰 등)이 있는지 — 있으면 Vercel 요청 로그에 남는다.
+- 탈퇴 → 같은 이메일로 다시 가입 → 구독: 탈퇴 때 Polar 고객이 지워졌는지(대시보드에서 익명화), 새 계정의 구독이 새 고객(새 external_id)으로
+  붙어 `has conflicting user ids` 없이 행이 생기는지. 고객 삭제가 진행 중 구독을 즉시 해지하는지도 본다.
+- `order.created` 시점의 주문 상태(pending인지 paid인지)와, pending으로 남은 주문을 크론의 MoR 결제 대사가 1시간 뒤 확정하는지.
+- 결제창의 `expires_at`(기본 유효 시간)과, 만료되면 `checkout.expired`가 와서 우리 결제 시도가 닫히는지.
+- 결제창 응답의 `amount`가 세금·할인 전 cent인지(아니면 모든 결제가 priceMismatch로 막힌다), `product.recurring_interval`·
+  `recurring_interval_count`가 실리는지와 그 모양.
+- `checkout.updated`(succeeded)에 `subscription_id`가 실리는지.
+- 환불 조회(`GET /v1/refunds/?id=…`)가 한 건만 거르는지, `refundable_amount`를 전액 환불한 주문이 `refunded`가 되는지, 자동 환불의
+  `metadata.refund_record_id`가 환불 웹훅에서 그대로 읽히는지.
+- 쓰는 끝점 아홉 개(결제창 생성·조회, 구독 조회·변경, 주문 조회, 환불 생성·조회, 고객 세션, 고객 삭제)가 리다이렉트 없이 응답하는지 —
+  설정 오류가 리다이렉트로만 보이면 모두 결과 불명(network)으로 기록된다.
+- 화면 낭독기로 동의 → Polar 결제창 이동 → 복귀 → 결제 관리까지 따라가 본다.
 
 ### 웹훅과 크론 대사
 
 - **웹훅** — 서명을 확인한 뒤 이벤트 id로 한 번만 처리한다(재전송 멱등). 본문의 상태는 믿지 않고 구독·주문·환불·결제창을 Polar
   API로 다시 읽어 반영한다. 처리 중 실패는 500으로 답해 Polar가 다시 보낸다. 다시 받아도 같은 결과가 날 실패(응답 모양이 다름,
   DB 제약 위반)가 다섯 번째 전달에서도 나면 처리된 것으로 끝내고(200) `billing needs review:` 한 줄(이벤트 id·종류·대상 id)을 남긴다 —
-  고칠 수 없는 이벤트 하나 때문에 Polar가 끝점을 끄지 않게 하려는 것이다. **그 이벤트의 반영은 빠진다.** 크론 대사는 기간 끝이 지났거나
-  미납인 기존 구독 행만 다시 읽으므로 새 구독·주문·환불은 메우지 못하고, `processed_at`이 적혀 있어 Polar에서 다시 보내도 무시된다.
-  아래 "상한으로 끝낸 웹훅 복구"로 운영자가 되살린다.
+  고칠 수 없는 이벤트 하나 때문에 Polar가 끝점을 끄지 않게 하려는 것이다. **그 이벤트의 반영은 빠진다.** 크론 대사는 기존 구독 행과
+  결과를 모르는 결제 행만 다시 읽으므로 새 구독은 메우지 못하고, `processed_at`이 적혀 있어 Polar에서 다시 보내도 무시된다.
+  아래 "상한으로 끝낸 웹훅 복구"로 운영자가 되살린다. Polar가 구독·주문을 모른다(404)고 하면 처리된 것으로 끝내되 확인 필요를 남긴다 —
+  토큰과 웹훅 끝점의 조직이 어긋나면 모든 이벤트가 이렇게 버려진다. 한도 초과(429)는 실패로 적지 않고 500으로 답해 다시 받는다.
 - **크론 대사** — 결제 크론(위 "결제 크론")이 토스 단계 뒤에 같은 예산으로 MoR 단계를 돈다. Polar 키가 없으면 이 단계만 건너뛴다.
   1. 만료 시각이 지난 open 해외 결제 시도를 닫는다.
   2. Polar 환불 id 없이 30분 넘게 `pending`으로 남은 자동 환불 기록마다 확인 필요 한 줄을 남긴다.
   3. 기간 끝이 6시간 넘게 지났거나 미납인 진행 중 해외 결제 구독을 오래된 순서로 50건까지 Polar에서 다시 읽어 맞춘다. Polar에 없는
      구독(404)은 끝내고(사유 admin) 확인 필요를 남긴다. 다만 그 실행에서 읽힌 구독이 하나도 없으면(대상이 하나뿐이고 시간 부족으로
      미루지 않은 경우는 빼고) 토큰의 조직이 다를 수 있어 끝내지 않는다. 끝낼 때는 읽은 상태·Polar 시각을 조건으로 써서 그 사이 들어온
-     웹훅을 덮지 않는다. 토큰·권한 거부(401·403)면 그 실행의 대사를 멈춘다.
-  결과는 `cron_runs` 요약의 `mor_*` 키(`mor_synced`·`mor_failed`·`mor_review`·`mor_stale_refunds` 등)로 남고, 관리자 테스트 도구는
-  실패·확인 필요·중단을 문제로 보인다(토스 결제 중단과 MoR 대사 중단은 따로 표시한다).
+     웹훅을 덮지 않는다. 토큰·권한 거부(401·403)면 그 실행의 대사를 멈춘다(4단계도 하지 않는다).
+  4. 1시간 넘게 `pending`인 해외 결제 행을 오래된 순서로 50건까지 Polar에서 다시 읽어 확정한다(주문을 읽고, 연결 구독이 있으면 구독도
+     다시 읽어 맞춘 뒤 적는다). Polar에 없는 주문(404)은 그 결제 행을 failed(`POLAR_NOT_FOUND` — 결제 내역에는 청구 없는 미처리로
+     보인다)로 끝내고 확인 필요를 남긴다. 결과를 모르는 해외 결제 첫 결제는 24시간까지만 새 결제 시작(토스·해외 결제 모두)을 막는다 —
+     그 뒤는 이 단계가 이미 확정했다고 본다. 플랜 변경 차액·사용량 주문(주문번호 `mor_upd_…`)은 첫 결제로 세지 않는다.
+  결과는 `cron_runs` 요약의 `mor_*` 키(`mor_synced`·`mor_failed`·`mor_review`·`mor_stale_refunds`·`mor_payments_synced`·
+  `mor_payments_failed` 등)로 남고, 관리자 테스트 도구는 실패·확인 필요·중단을 문제로 보인다(토스 결제 중단과 MoR 대사 중단은 따로 표시한다).
 - **회원 탈퇴** — 계정을 지우기 **전에** 그 사용자의 해외 결제 구독을 Polar에서 즉시 해지(revoke)한다. Polar 구독은 빌링키와 달리
   계정과 함께 사라지지 않아 지운 뒤에도 청구될 수 있기 때문이다.
   - 진행 중 구독은 해지하고 행을 사용자 해지로 끝낸다.
@@ -367,14 +404,29 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
     `billing needs review: deleting the account of user … leaves sandbox mor subscriptions …` 한 줄을 남긴다.
   - 이 배포에 Polar 키가 없거나, 이 배포가 다룰 수 없는 모드의 구독(test 배포의 live 구독 등)이 있거나, 해지를 확인하지 못하면
     탈퇴를 막고 사용자에게 "잠시 뒤 다시 시도하고, 계속 안 되면 문의"를 안내한다(포털의 해지는 기간 끝 예약이라 탈퇴를 풀지 못한다).
-  - 기록은 `billing account deletion …` 한 줄(구독·행·사용자 id)이다. 막혔을 때 운영자가 푸는 법:
-    1. 기록 줄의 까닭을 본다. 결과 불명·일시 오류였으면 사용자가 다시 시도하면 된다.
+  - 해지를 마친 뒤 Polar 고객도 지운다(외부 id = 사용자 id, 익명화). Polar가 남은 진행 중 구독을 즉시 해지하고 혜택을 회수하므로
+    우리 행이 없는 구독(확인 필요로 끝난 구독 등)도 멈추고, 같은 이메일로 다시 가입한 계정이 옛 고객에 붙지 않는다. 이 배포 모드에
+    MoR 흔적(구독·결제·결제 시도 행)이 있는 사용자만 지운다. 고객이 없으면(404) 그대로 탈퇴한다. 결과를 모르면 한 번 다시 하고,
+    그래도 모르거나 실패하면 탈퇴를 막는다.
+  - 기록: 막혔을 때 `billing account deletion blocked …` 한 줄, 탈퇴가 끝나면 `billing account deletion …`(해지·고객 삭제) 줄과 sandbox
+    확인 필요 줄(구독·행·사용자 id만). 계정 삭제가 실패하면 뒤의 줄들은 남기지 않는다. 막혔을 때 운영자가 푸는 법:
+    1. 기록 줄의 까닭을 본다. 결과 불명·일시 오류·한도 초과(429)였으면 사용자가 다시 시도하면 된다.
     2. 계속 실패하면 Polar 대시보드에서 그 구독을 즉시 해지(revoke)한다. 해지 웹훅이 우리 행을 끝내고, 사용자는 다시 탈퇴할 수 있다.
+       고객 삭제가 막히면(`the Polar customer could not be deleted`) 토큰에 `customers:write`가 있는지 보고, 대시보드에서 그 고객을 지운다.
     3. 다른 모드의 구독 때문이면 그 모드의 배포에서 탈퇴한다(live 구독은 live 배포 — live 배포에서는 sandbox 구독이 막지 않는다).
+    4. 진행 중 live 행인데 Polar가 404를 주어(`revoke failed: ResourceNotFound (404)`) 계속 막히면 대시보드 해지로는 풀리지 않는다.
+       Polar에 그 구독이 정말 없는지(토큰의 조직·모드) 확인한 뒤 SQL로 그 행을 끝낸다. 결제가 꺼진(off) 배포에 남은 live 일시정지 행도
+       같은 방법으로 끝낸다(행 id는 기록 줄의 `row …`).
+
+       ```sql
+       update subscriptions set status = 'ended', ended_reason = 'admin', ended_at = now() where id = '…';
+       ```
 
 ### 상한으로 끝낸 웹훅 복구
 
 `billing needs review: polar webhook … failed … times with a deterministic error …; marked processed …` 줄이 남은 이벤트는 반영되지 않았다.
+구독 이벤트였으면 원인을 고친 뒤 관리자 테스트 도구의 **Polar 구독 id로 지금 동기화**에 그 구독 id(기록 줄의 `data …`)를 넣는 것이
+가장 빠르다. 주문·환불 이벤트이거나 재전송으로 되살리려면 아래 순서를 따른다.
 
 1. 기록 줄과 `last_error`로 원인(가격 행·상품 설정·응답 모양 변화 등)을 고친다.
 2. 그 이벤트의 처리 표시를 지운다(`event_id`는 기록 줄의 `polar webhook <id>`).
@@ -400,8 +452,43 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
 
 `select created_at, message from app_errors where message like 'billing needs review:%' order by created_at desc;`로 본다. 기록에는 id만 있다.
 
+**결제는 됐는데 행이 없는 확인 필요 줄의 복구** — 새 구독이 아래 까닭으로 확인 필요가 되면 고객은 결제했는데 우리 행이 없다(권한 없음).
+웹훅은 처리된 것으로 끝나 재전송해도 무시되고, 크론 대사는 행이 있는 구독만 다시 읽는다. **원인을 고친 뒤 관리자 → 결제·계약 → 테스트
+도구의 "Polar 구독 id로 지금 동기화"에 기록 줄의 구독 id를 넣는다**(또는 그 구독의 웹훅 이벤트를 `payload->>'data_id'`로 찾아
+`processed_at`을 비우고 Polar 대시보드에서 다시 보낸다 — 아래 "상한으로 끝낸 웹훅 복구"와 같은 방법). 해당하는 줄:
+`no mor price for product … (subscription …)` · `mor subscription … has an unsupported billing interval` · `… is not billed in USD` ·
+`… has an unknown status` · `… has conflicting user ids` · `… has no user id` · `… has a malformed user id` · `… has no usable current period`.
+
 - `mor subscription … has an unknown status` · `… unsupported billing interval` · `… is not billed in USD` · `no mor price for product …` —
-  Polar 상품 설정이나 가격 행(Polar 상품 id·모드)이 맞지 않는다. 행은 바꾸지 않았다. 고친 뒤 크론 대사나 웹훅 재전송으로 다시 맞춘다.
+  Polar 상품 설정이나 가격 행(Polar 상품 id·모드)이 맞지 않는다. 행은 바꾸지 않았다. 고친 뒤 위의 "지금 동기화"로 다시 맞춘다
+  (기존 행이 있는 구독이면 크론 대사도 맞춘다).
+- `mor subscription … has conflicting user ids` — Polar 고객의 외부 id와 구독 metadata의 사용자 id가 다르다. 대개 탈퇴 전에 만든 Polar
+  고객이 남아(같은 이메일로 다시 가입) 새 계정의 결제가 옛 고객에 붙은 경우다. 행이 없어 사용자는 포털에서 해지할 수 없다(포털은 새
+  id로 고객을 찾는다). **운영자가 Polar 대시보드에서 그 구독을 즉시 해지(revoke)하고 그 주문을 환불한 뒤**, 옛 고객을 지우고 사용자에게
+  다시 구독하라고 안내한다. 지금은 탈퇴할 때 Polar 고객을 지우므로 새로 생기지 않아야 한다.
+- `mor subscription … has no user id` · `… has a malformed user id` — 우리 결제 시작을 거치지 않은 구독(대시보드에서 만든 것 등)이다.
+  우리 사용자의 것이면 Polar에서 고객의 외부 id를 그 사용자 id로 고친 뒤 "지금 동기화"를 하고, 아니면 Polar에서 해지·환불한다.
+- `mor subscription … has no usable current period` — Polar 구독에 기간(시작·끝)이 없거나 뒤집혔다. Polar 대시보드에서 구독을 확인한 뒤
+  "지금 동기화"를 다시 하고, 계속 같으면 Polar에서 해지·환불한다.
+- `mor subscription … belongs to another user than row …` — 우리 행의 사용자와 Polar 구독의 사용자가 다르다. 행은 바꾸지 않았다.
+  어느 쪽이 맞는지 확인하고, 잘못 붙은 결제면 Polar에서 해지·환불한다.
+- `order … of revoked mor subscription … is not paid yet; check it manually` — 해지한 구독의 주문이 아직 결제 전이다. 결제되면 다음
+  주문 웹훅이 자동 환불한다. 며칠 지나도 그대로면 Polar 대시보드에서 주문 상태를 보고, 결제됐으면 `billing_refunds`를 확인한 뒤 환불한다.
+- `order … predates the ungranted period of mor subscription …; not refunded` — 이미 기간을 받은 주문이라 자동 환불하지 않았다. 대개
+  할 일이 없다. 사용자가 그 기간도 받지 못했다면 운영자가 판단해 환불한다.
+- `order … of mor subscription … could not be read for refund: …` — 환불할 주문을 읽지 못했다(구독은 이미 해지됐다). Polar 대시보드에서
+  그 주문이 환불됐는지 보고, 안 됐으면 `billing_refunds`를 확인한 뒤 환불한다.
+- `refund record … for Polar refund … points at another payment than order …` — 같은 Polar 환불 id가 다른 결제의 기록에 이어져 있다.
+  기록을 바꾸지 않았다. `billing_refunds`의 그 행과 Polar 대시보드의 환불을 대조해 바로잡는다.
+- `mor subscription … was revoked (…) but its order is not known yet; …` — 해지는 했지만 환불할 주문을 아직 모른다. 새 구독이면 주문
+  웹훅이 오면 자동으로 환불된다(수동 환불 전에 `billing_refunds`부터 본다). 기존 행이면 기록 줄의 시각 뒤에 만든 주문이 있을 때만
+  수동으로 환불한다 — 그보다 먼저 만든 주문은 이미 기간을 받았다.
+- `mor subscription … was revoked (…) and its order refunded, but checkout attempt … could not be closed` — 환불은 끝났고 결제 시도만
+  열려 있다. 시도는 만료 시각에 크론이 닫는다(그때까지 그 사용자의 새 결제 시작은 "이전 결제 시도 취소"로 풀 수 있다).
+- `polar subscription … was not found at Polar; webhook event …` · `polar order … was not found at Polar; …` — 웹훅의 대상이 Polar에 없다.
+  `POLAR_ACCESS_TOKEN`의 조직·모드가 웹훅 끝점의 조직과 같은지 확인한다(어긋나면 모든 이벤트가 버려진다).
+- `mor payment … (order …) was not found at Polar; marked failed` — 결과를 모르던 결제 행의 주문이 Polar에 없어 failed로 끝냈다. 토큰의
+  조직·모드를 확인한다. 나중에 같은 주문의 웹훅이 오면 결제 행은 정본대로 다시 나아간다.
 - `mor subscription … was revoked (…) …` · `refund … did not go through` · `refund of order … has an unknown outcome …` ·
   `automatic refund … was failed at Polar …` — 이미 다른 구독이 있거나 탈퇴한 사용자의 결제라 자동으로 해지·환불하다 멈춘 것이다.
   `billing_refunds`에서 그 결제의 기록을 확인한 뒤, 고객이 돈을 돌려받지 못했으면 Polar 대시보드에서 환불한다(두 번 환불하지 않게
@@ -428,12 +515,13 @@ a11ychk는 결제 메일을 보내지 않는다. 같은 `BILLING_MODE` 게이트
 
 1. Polar 운영 조직의 판매자 심사(seller verification)를 마친다.
 2. 지급 계정(payout account)을 연결한다.
-3. 운영 조직에서 위 스코프의 토큰을 새로 만든다(sandbox 토큰은 쓰지 않는다).
+3. 운영 조직에서 위 스코프(여덟 개 — `customers:write` 포함)의 토큰을 새로 만든다(sandbox 토큰은 쓰지 않는다).
 4. 운영 조직에 웹훅을 다시 등록한다(정식 호스트, 같은 형식·이벤트). 새 시크릿을 쓴다.
 5. 운영 조직에 월간·연간 상품을 다시 만들고, 관리자 가격 행을 모드 **실결제**로 그 상품 id와 함께 추가한다(sandbox 상품 id는 쓰지 않는다).
 6. Vercel **Production**에만 `POLAR_ACCESS_TOKEN`·`POLAR_WEBHOOK_SECRET`(과 `BILLING_MODE=live`)를 넣고 재배포한다.
-7. 공개하기 전에 관리자 계정으로 실제 결제 → 결제 관리의 포털에서 해지 → Polar 대시보드에서 환불을 한 번 해 보고, 웹훅 기록과
-   결제 관리 화면을 확인한다. 공개 범위 플래그는 토스와 같다(위 체크리스트 6번).
+7. 운영 조직의 고객 포털도 위 "준비" 9번처럼 설정한다(플랜 변경 끄기).
+8. 공개하기 전에 관리자 계정으로 실제 결제 → 결제 관리의 포털에서 해지 → Polar 대시보드에서 환불을 한 번 해 보고, 웹훅 기록과
+   결제 관리 화면을 확인한다. 위 "sandbox 끝-끝 확인 목록"을 모두 마쳤는지 본다. 공개 범위 플래그는 토스와 같다(위 체크리스트 6번).
 
 ## 3. Vercel 배포
 

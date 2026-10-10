@@ -1,7 +1,9 @@
 import "server-only";
-import { PolarError, isPolarOutcomeUnknown, type PolarRefund } from "@/lib/billing/polar";
+import { UUID_RE } from "@/lib/billing/checkout";
+import { PolarError, isPlainObject, isPolarOutcomeUnknown, type PolarRefund } from "@/lib/billing/polar";
 import {
   MOR_CHECKOUT_FAILED,
+  lowerUuid,
   markMorCheckout,
   morAttemptId,
   morAutoRefundId,
@@ -24,15 +26,17 @@ import type { MorDeps, RefundRow, WebhookEventRecord } from "@/lib/billing/types
  *    - 그 밖(customer.*·benefit*·product.*·organization.*·처음 보는 종류) → 처리한 것으로 적고 끝
  *    livemode는 배포의 결제 모드가 정한 값이다(본문에서 읽지 않는다).
  * 3) 끝까지 가면 processed_at. 동기화의 review·ungranted·stale·skipped도 처리된 것이다(필요한 기록은 흐름이 남겼다).
- *    Polar가 그 객체를 모르면(404) 다시 받아도 같으므로 기록 한 줄 뒤 처리된 것으로 끝낸다. 그 밖의 실패(결과 불명·저장소 오류·
- *    권한)는 last_error를 먼저 적고 던진다 — 라우트가 500으로 답해 Polar가 다시 보낸다. 흐름이 멱등이라 다시 처리해도 안전하다.
+ *    Polar가 그 객체를 모르면(404) 다시 받아도 같으므로 기록 한 줄 뒤 처리된 것으로 끝낸다 — 구독·주문이면 needs review다(이 배포의
+ *    토큰과 웹훅 끝점의 조직이 어긋나면 모든 이벤트가 404로 조용히 버려진다). 그 밖의 실패(결과 불명·저장소 오류·권한·한도)는
+ *    last_error를 먼저 적고 던진다 — 라우트가 500으로 답해 Polar가 다시 보낸다. 처리를 마쳤는데 processed_at을 적지 못해도 기록 한 줄
+ *    뒤 던진다. 흐름이 멱등이라 다시 처리해도 안전하다.
  * 4) 다시 받아도 같은 결과가 나올 실패(결정적 실패 — Polar 읽기 응답 모양 BAD_RESPONSE, 저장소 CHECK·FK 위반, INVALID_ID)가
  *    GIVE_UP_ATTEMPTS번째 전달에서도 나면 last_error를 남기고 처리된 것으로 끝낸다(200 + needs review 한 줄, 이벤트·대상 id).
  *    Polar는 연속 10번 실패한 끝점을 끄므로 고칠 수 없는 이벤트 하나가 모든 웹훅을 멈추게 두지 않는다. 그 이벤트의 반영은 빠진다 —
- *    크론의 MoR 대사는 기간 끝이 지났거나 미납인 **기존** 구독 행만 다시 읽으므로 새 구독·주문·환불은 메우지 못한다. 그리고 processed_at이
- *    적혀 있어 Polar에서 다시 보내도 duplicate로 무시된다. 복구는 운영자가 한다: 원인을 고치고 그 이벤트의 processed_at을 비운 뒤
- *    Polar 대시보드에서 다시 보낸다(docs/SETUP.md "해외 결제 테스트(Polar)"). 결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)은
- *    몇 번째든 끝내지 않는다.
+ *    크론의 MoR 대사는 기존 구독 행과 결과를 모르는 MoR 결제 행만 다시 읽으므로 새 구독은 메우지 못한다. 그리고 processed_at이
+ *    적혀 있어 Polar에서 다시 보내도 duplicate로 무시된다. 복구는 운영자가 한다: 원인을 고친 뒤 관리자 테스트 도구의 "Polar 구독 id로
+ *    지금 동기화"를 쓰거나, 그 이벤트의 processed_at을 비우고 Polar 대시보드에서 다시 보낸다(docs/SETUP.md "해외 결제 테스트(Polar)").
+ *    결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)은 몇 번째든 끝내지 않는다.
  * 기록은 id만 남긴다(본문·헤더·비밀 없음).
  */
 
@@ -52,17 +56,12 @@ export interface MorWebhookEvent {
  */
 export type MorWebhookResult = "processed" | "duplicate" | "abandoned";
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const TYPE_MAX = 100;
 const ERROR_MAX = 300;
 /** 결정적 실패를 처리된 것으로 끝내는 전달 횟수 — Polar가 끝점을 끄는 연속 실패(10번)보다 넉넉히 앞에서 */
-export const GIVE_UP_ATTEMPTS = 5;
+const GIVE_UP_ATTEMPTS = 5;
 /** Postgres CHECK 위반·FK 위반 — 같은 입력이면 다시 써도 같다 */
 const DETERMINISTIC_DB_CODES = new Set(["23514", "23503"]);
-
-const lowerUuid = (v: unknown): string | null => (typeof v === "string" && UUID_RE.test(v) ? v.toLowerCase() : null);
-
-const isPlainObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
  * 서명을 확인한 본문에서 이벤트 종류와 대상 id만 꺼낸다 — 그 밖의 값(상태·고객 정보)은 돌려주지 않는다.
@@ -129,7 +128,13 @@ export async function handleMorWebhook(deps: MorDeps, event: MorWebhookEvent): P
     await deps.log(`${label} failed: ${text}`);
     throw e;
   }
-  await deps.store.finishWebhookEvent("polar", event.id, {});
+  try {
+    await deps.store.finishWebhookEvent("polar", event.id, {});
+  } catch (e) {
+    // 반영은 끝났다 — 다시 받으면 같은 결과로 다시 처리한다(멱등)
+    await deps.log(`${label} could not be marked processed: ${failureText(e)}`);
+    throw e;
+  }
   return "processed";
 }
 
@@ -173,17 +178,25 @@ interface Ctx {
   eventId: string;
 }
 
+/** 404가 needs review인 것 — 구독·주문은 Polar가 지우지 않는다. 없으면 토큰과 웹훅 끝점의 조직이 어긋났을 가능성이 크다 */
+const REVIEW_IF_MISSING = new Set(["subscription", "order"]);
+
 /**
- * Polar에서 정본을 다시 읽는다. 지워졌거나(404) id가 UUID가 아니면(INVALID_ID) 다시 받아도 같으니 기록 한 줄 뒤 null.
- * 그 밖(결과 불명·권한·한도·응답 모양)은 던진다 — 재시도가 처리한다.
+ * Polar에서 정본을 다시 읽는다. 지워졌거나(404) id가 UUID가 아니면(INVALID_ID) 다시 받아도 같으니 기록 한 줄 뒤 null —
+ * 구독·주문의 404는 needs review로 남긴다(조직 불일치 사고를 드러낸다). 그 밖(결과 불명·권한·한도·응답 모양)은 던진다 — 재시도가 처리한다.
  */
-async function reread<T>(ctx: Ctx, what: string, id: string, read: (id: string) => Promise<T>): Promise<T | null> {
+async function reread<T>(ctx: Ctx, what: "subscription" | "order" | "refund" | "checkout", id: string, read: (id: string) => Promise<T>): Promise<T | null> {
   try {
     return await read(id);
   } catch (e) {
     if (e instanceof PolarError && (e.status === 404 || e.code === "INVALID_ID")) {
       const shown = UUID_RE.test(id) ? id : "(malformed id)";
-      await ctx.deps.log(`billing polar ${what} ${shown} was not found at Polar; webhook event ${ctx.eventId} skipped`);
+      const line = `polar ${what} ${shown} was not found at Polar; webhook event ${ctx.eventId} skipped`;
+      await ctx.deps.log(
+        e.status === 404 && REVIEW_IF_MISSING.has(what)
+          ? `billing needs review: ${line} — check that the Polar access token belongs to the organization of the webhook endpoint`
+          : `billing ${line}`,
+      );
       return null;
     }
     throw e;
@@ -229,6 +242,8 @@ const REFUND_STATUS = new Map<string, RefundRow["status"]>([
  * 기록은 Polar 환불 id로 찾고, 그 주문의 결제(provider mor·이 모드)의 기록일 때만 바꾼다. 자동 환불이 결과를 모른 채 Polar id 없이
  * 남았으면 Polar가 돌려준 metadata의 결제 id로 그 기록에 Polar id를 잇는다.
  * 자동 환불(결정적 id)이 failed가 되면 needs review 한 줄 — 고객에게 돈이 돌아가지 않았다. 이미 failed였으면 다시 남기지 않는다.
+ * 끝 상태끼리 뒤집기(succeeded ↔ failed)는 쓰기 직전에 Polar 환불을 한 번 더 읽어 같은 상태일 때만 한다 — 늦게 읽은 값으로 확정된
+ * 결과를 뒤집지 않게. 다르면 그대로 두고 다음 이벤트에 맡긴다.
  * 읽은 뒤 다른 요청이 기록을 바꿨으면 한 번 다시 읽어 맞추고, 그래도 엇갈리면 던진다(재시도).
  */
 async function settleRefundRecord(ctx: Ctx, refund: PolarRefund): Promise<void> {
@@ -247,7 +262,11 @@ async function settleRefundRecord(ctx: Ctx, refund: PolarRefund): Promise<void> 
     if (!row) return;
     const patch: Partial<Pick<RefundRow, "status" | "external_refund_id">> = {};
     if (row.external_refund_id === null) patch.external_refund_id = refund.id;
-    const next = target !== "pending" && target !== row.status ? target : undefined;
+    let next = target !== "pending" && target !== row.status ? target : undefined;
+    if (next && row.status !== "pending") {
+      const fresh = await deps.polar.getRefund(refund.id);
+      if (REFUND_STATUS.get(fresh.status) !== next) next = undefined;
+    }
     if (next) patch.status = next;
     if (Object.keys(patch).length === 0) return;
     if (!(await deps.store.updateRefundIf(row.id, { status: row.status, externalRefundId: row.external_refund_id }, patch))) continue;
@@ -274,10 +293,13 @@ async function refundRecordFor(ctx: Ctx, refund: PolarRefund, paymentId: string)
     await deps.log(`billing needs review: refund record ${linked.id} for Polar refund ${refund.id} points at another payment than order ${refund.order_id}; left unchanged`);
     return null;
   }
-  // 대시보드에서 한 환불은 metadata에 우리 결제 id가 없어 잇지 않는다
+  // 자동 환불은 전용 키(refund_record_id)로 그 기록을 가리킨다(flows/mor.ts). 그 키가 있으면 그것만 본다
+  const unlinked = (r: RefundRow | null) => (r && r.payment_id === paymentId && r.external_refund_id === null ? r : null);
+  const recordId = lowerUuid(refund.metadata?.refund_record_id);
+  if (recordId) return unlinked(await deps.store.getRefund(recordId));
+  // 전용 키가 없던 자동 환불 — 우리 결제 id가 맞으면 그 결제의 자동 환불 id 기록만. 대시보드에서 한 환불은 metadata가 없어 잇지 않는다
   if (lowerUuid(refund.metadata?.payment_id) !== paymentId) return null;
-  const auto = await deps.store.getRefund(morAutoRefundId(paymentId));
-  return auto && auto.payment_id === paymentId && auto.external_refund_id === null ? auto : null;
+  return unlinked(await deps.store.getRefund(morAutoRefundId(paymentId)));
 }
 
 /**

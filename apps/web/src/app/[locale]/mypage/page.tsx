@@ -79,6 +79,11 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   const subscriptionManaged = subscriptionLine !== null && subscriptionLine.livemode === rowLivemode();
   // 보여 줄 다음 결제일 — 토스는 기간 끝 하루 전, 해외 결제는 기간 끝. 지났으면 오늘(결제 관리 화면과 같은 함수). 요청마다 렌더된다
   const nextChargeAt = subscriptionLine ? nextChargeOf(subscriptionLine) : null;
+  // 구독 줄의 날짜 — 해외 결제(Polar)의 기간은 UTC로 정해져 KST로 적으면 하루 어긋날 수 있다. UTC 날짜에 (UTC)를 붙인다
+  const lineDate = (iso: string) =>
+    subscriptionLine?.provider === "mor"
+      ? t("tier.utcDate", { date: format.dateTime(new Date(iso), { dateStyle: "medium", timeZone: "UTC" }) })
+      : format.dateTime(new Date(iso), { dateStyle: "medium" });
 
   // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
   //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.
@@ -172,17 +177,13 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
                     ? t("tier.subscriptionPastDue")
                     : t("tier.subscriptionFailed")
                   : subscriptionLine.cancel_at_period_end
-                    ? t("tier.subscriptionEnding", {
-                        date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
-                      })
+                    ? t("tier.subscriptionEnding", { date: lineDate(subscriptionLine.current_period_end) })
                     : subscriptionManaged && nextChargeAt
                       ? t("tier.subscriptionNext", {
                           // 다음 결제일 = 토스는 기간 끝 하루 전(결제 확인 화면·안내 메일과 같은 날짜), 해외 결제는 기간 끝. 지났으면 오늘
-                          date: format.dateTime(new Date(nextChargeAt), { dateStyle: "medium" }),
+                          date: lineDate(nextChargeAt),
                         })
-                      : t("tier.subscriptionUntil", {
-                          date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
-                        })}
+                      : t("tier.subscriptionUntil", { date: lineDate(subscriptionLine.current_period_end) })}
               </span>
             )}
           </div>

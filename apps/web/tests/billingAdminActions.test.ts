@@ -23,7 +23,9 @@ vi.mock("@/lib/billing/flows/renew", async (importOriginal) => ({
 
 import { endContract } from "../src/lib/actions/adminBilling";
 import { createPrice, deactivatePrice } from "../src/lib/actions/adminBillingPrices";
-import { pullDueDate, runBillingCycleNow, runMorReconcileNow } from "../src/lib/actions/adminBillingTools";
+import { pullDueDate, runBillingCycleNow, runMorReconcileNow, syncMorSubscriptionNow } from "../src/lib/actions/adminBillingTools";
+import { PolarError } from "../src/lib/billing/polar";
+import { createFakePolar, createMemoryStore, makeMorDeps, polarSubscription, priceRow, subscriptionRow as memorySubscriptionRow } from "./billingFakes";
 import { decideRenewalAction } from "../src/lib/billing/flows/renew";
 import type { SubscriptionRow } from "../src/lib/billing/types";
 
@@ -523,6 +525,103 @@ describe("runMorReconcileNow — MoR 대사만 지금 실행", () => {
     expect(await runMorReconcileNow()).toEqual({ error: "failed" });
     expect(m.logAppError).toHaveBeenCalledWith(m.admin, "runMorReconcileNow failed: boom", { path: "adminBillingTools" });
     expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.mor_reconcile_run", undefined, { mode: "test", ok: false });
+  });
+});
+
+describe("syncMorSubscriptionNow — Polar 구독 id로 지금 동기화(review로 끝난 새 구독을 되살린다)", () => {
+  const POLAR_SUB = "66666666-6666-4666-8666-666666666666";
+  const USER = "11111111-1111-4111-8111-111111111111";
+  const PRODUCT_ID = "44444444-4444-4444-8444-444444444444";
+
+  function morWorld(livemode: boolean, script: Parameters<typeof createFakePolar>[0] = {}, seed: Parameters<typeof createMemoryStore>[0] = {}) {
+    const price = priceRow({ provider: "mor", currency: "USD", external_price_id: PRODUCT_ID, livemode });
+    const store = createMemoryStore({ prices: [price], profiles: [USER], ...seed }, { now: () => NOW });
+    const deps = makeMorDeps({ store, polar: createFakePolar(script), now: () => NOW });
+    m.createMorDeps.mockReturnValue(deps);
+    return { deps, store, price };
+  }
+  const polarSub = (over: Parameters<typeof polarSubscription>[0] = {}) =>
+    polarSubscription({
+      id: POLAR_SUB,
+      product_id: PRODUCT_ID,
+      customer: { id: "55555555-5555-4555-8555-555555555555", external_id: USER },
+      metadata: { user_id: USER },
+      current_period_start: "2026-11-20T00:00:00.000000Z",
+      current_period_end: "2026-12-20T00:00:00.000000Z",
+      ...over,
+    });
+
+  it("모드가 off면 off, id가 UUID가 아니면 invalid, Polar 의존성이 없으면 notConfigured — Polar를 부르지 않는다", async () => {
+    vi.stubEnv("BILLING_MODE", "");
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ error: "off" });
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: "sub_123" }))).toEqual({ error: "invalid" });
+    m.createMorDeps.mockReturnValue(null);
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ error: "notConfigured" });
+    expect(m.logAdminAction).not.toHaveBeenCalled();
+  });
+
+  it("정본을 읽어 동기화하고 결과를 돌려주며 감사에 남긴다 — 행이 없던 결제된 구독이 행을 얻는다", async () => {
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    const { deps, store } = morWorld(false, { getSubscription: [polarSub()] });
+
+    const out = await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB.toUpperCase() }));
+
+    const row = store.rows.subscriptions.find((r) => r.external_id === POLAR_SUB)!;
+    expect(out).toEqual({ ok: true, result: "applied", subscriptionId: row.id, status: "active" });
+    expect(deps.polar.calls.getSubscription).toEqual([[POLAR_SUB]]);
+    expect(row).toMatchObject({ user_id: USER, status: "active", livemode: false });
+    expect(m.logAdminAction).toHaveBeenCalledWith(m.admin, "admin-1", "billing.mor_sync", undefined, {
+      mode: "test",
+      externalId: POLAR_SUB,
+      ok: true,
+      result: "applied",
+      subscriptionId: row.id,
+      status: "active",
+    });
+  });
+
+  it("review·ungranted도 결과로 돌려준다(기록은 흐름이 남겼다)", async () => {
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    morWorld(false, { getSubscription: [polarSub({ status: "frozen" })] });
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ ok: true, result: "review" });
+
+    // 이미 다른 진행 중 구독이 있으면 돈 안전 불변식 — 해지(주문 단서 없음 → 환불은 review)
+    morWorld(false, { getSubscription: [polarSub()], updateSubscription: [polarSub({ status: "canceled" })] }, { subscriptions: [memorySubscriptionRow({ user_id: USER })] });
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ ok: true, result: "ungranted", refund: "review" });
+  });
+
+  it("Polar에 없으면 notFound, 읽기·동기화가 실패하면 기록하고 failed — 실패도 감사에 남긴다", async () => {
+    vi.stubEnv("BILLING_MODE", "test");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    morWorld(false, { getSubscription: [new PolarError("ResourceNotFound", "x", 404)] });
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ error: "notFound" });
+    expect(m.logAdminAction).toHaveBeenLastCalledWith(m.admin, "admin-1", "billing.mor_sync", undefined, { mode: "test", externalId: POLAR_SUB, ok: false, error: "notFound" });
+
+    morWorld(false, { getSubscription: [new PolarError("HTTP_401", "x", 401)] });
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ error: "failed" });
+    expect(m.logAppError).toHaveBeenLastCalledWith(m.admin, `syncMorSubscriptionNow failed for polar subscription ${POLAR_SUB}: HTTP_401 (401)`, { path: "adminBillingTools" });
+
+    const { store } = morWorld(false, { getSubscription: [polarSub()] });
+    store.insertMorSubscription = async () => {
+      throw new Error("billing store insertMorSubscription: timeout");
+    };
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ error: "failed" });
+    expect(m.logAdminAction).toHaveBeenLastCalledWith(m.admin, "admin-1", "billing.mor_sync", undefined, { mode: "test", externalId: POLAR_SUB, ok: false, error: "failed" });
+  });
+
+  it("live 모드는 확인 체크가 있어야 돌린다(동기화가 해지·환불을 일으킬 수 있다) — 실결제 행(livemode=true)으로", async () => {
+    vi.stubEnv("BILLING_MODE", "live");
+    vi.stubEnv("TOSS_SECRET_KEY", "");
+    const { deps, store } = morWorld(true, { getSubscription: [polarSub()] });
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB }))).toEqual({ error: "confirm" });
+    expect(deps.polar.calls.getSubscription).toEqual([]);
+
+    expect(await syncMorSubscriptionNow({}, fd({ subscriptionId: POLAR_SUB, confirm: "on" }))).toMatchObject({ ok: true, result: "applied" });
+    expect(store.rows.subscriptions[0]).toMatchObject({ livemode: true, external_id: POLAR_SUB });
   });
 });
 

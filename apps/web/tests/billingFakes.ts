@@ -16,6 +16,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { vi, type Mock } from "vitest";
 import { PolarError, type PolarCheckout, type PolarClient, type PolarOrder, type PolarRefund, type PolarSubscription } from "../src/lib/billing/polar";
 import { TossError, type TossBillingAuth, type TossClient, type TossPayment } from "../src/lib/billing/toss";
+import { MOR_NON_FIRST_ORDER_PREFIX, MOR_PENDING_BLOCKS_MS } from "../src/lib/billing/types";
 import type {
   BillingDeps,
   BillingEmailKind,
@@ -459,7 +460,25 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
     },
 
     async hasPendingInitialPayment(userId, livemode) {
-      return rows.payments.some((p) => p.user_id === userId && p.livemode === livemode && p.kind === "initial" && p.status === "pending");
+      // Supabase 저장소와 같은 규칙 — MoR 행은 24시간 안이고 첫 결제가 아닌 주문(mor_upd_)이 아닐 때만
+      const since = now() - MOR_PENDING_BLOCKS_MS;
+      return rows.payments.some(
+        (p) =>
+          p.user_id === userId &&
+          p.livemode === livemode &&
+          p.kind === "initial" &&
+          p.status === "pending" &&
+          (p.provider !== "mor" || (Date.parse(p.requested_at) >= since && !p.order_id.startsWith(MOR_NON_FIRST_ORDER_PREFIX))),
+      );
+    },
+
+    async listPendingMorPayments(livemode, olderThanIso, limit) {
+      const before = Date.parse(olderThanIso);
+      return rows.payments
+        .filter((p) => p.provider === "mor" && p.livemode === livemode && p.status === "pending" && p.external_payment_id !== null && Date.parse(p.requested_at) < before)
+        .sort((a, b) => Date.parse(a.requested_at) - Date.parse(b.requested_at))
+        .slice(0, limit)
+        .map(outPayment);
     },
 
     async hasUserFacingFailure(subscriptionId, periodStart, exclude) {
@@ -632,6 +651,25 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       return rows.subscriptions.some((r) => r.user_id === userId && r.provider === provider && r.livemode === livemode);
     },
 
+    async hasMorActivity(userId, livemode) {
+      const mine = (r: { user_id: string | null; provider: string; livemode: boolean }) => r.user_id === userId && r.provider === "mor" && r.livemode === livemode;
+      return rows.subscriptions.some(mine) || rows.payments.some(mine) || rows.checkouts.some(mine);
+    },
+
+    async extendCheckout(id, expiresAt) {
+      if (Number.isNaN(micros(expiresAt))) throw storeError("extendCheckout", "expiresAt must be an ISO time");
+      const c = found(rows.checkouts, id);
+      if (!c || c.status !== "open" || !(Date.parse(c.expires_at) < Date.parse(expiresAt))) return;
+      c.expires_at = pgTime(expiresAt);
+    },
+
+    async releaseRefundClaim(id) {
+      const i = rows.refunds.findIndex((r) => r.id === id && r.status === "pending" && r.external_refund_id === null);
+      if (i === -1) return false;
+      rows.refunds.splice(i, 1);
+      return true;
+    },
+
     async listMorReconcileCandidates(livemode, beforeIso, limit) {
       const before = micros(beforeIso);
       if (Number.isNaN(before)) throw storeError("listMorReconcileCandidates", "beforeIso must be an ISO time");
@@ -776,7 +814,8 @@ type PolarMethods =
   | "getOrder"
   | "getRefund"
   | "createRefund"
-  | "createCustomerSession";
+  | "createCustomerSession"
+  | "deleteCustomerByExternalId";
 type PolarResult<M extends PolarMethods> = Awaited<ReturnType<PolarClient[M]>>;
 /** 성공 값, 던질 PolarError, 또는 호출 시점에 실행할 함수(인자에 맞춘 응답·경합 흉내) */
 export type PolarStep<M extends PolarMethods> =
@@ -798,6 +837,7 @@ export function createFakePolar(script: Partial<PolarScript> = {}): FakePolar {
     "getRefund",
     "createRefund",
     "createCustomerSession",
+    "deleteCustomerByExternalId",
   ];
   const queues = Object.fromEntries(methods.map((m) => [m, [...(script[m] ?? [])]])) as PolarScript;
   const calls = Object.fromEntries(methods.map((m) => [m, []])) as unknown as PolarCalls;
@@ -825,6 +865,7 @@ export function createFakePolar(script: Partial<PolarScript> = {}): FakePolar {
     getRefund: (...args) => run("getRefund", args),
     createRefund: (...args) => run("createRefund", args),
     createCustomerSession: (...args) => run("createCustomerSession", args),
+    deleteCustomerByExternalId: (...args) => run("deleteCustomerByExternalId", args),
   };
 }
 
@@ -914,6 +955,7 @@ export function polarCheckout(over: Partial<PolarCheckout> = {}): PolarCheckout 
     currency: "usd",
     locale: null,
     recurring_interval: "month",
+    recurring_interval_count: 1,
     metadata: {},
     ...over,
   };

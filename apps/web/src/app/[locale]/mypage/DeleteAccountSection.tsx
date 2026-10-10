@@ -32,6 +32,7 @@ export function DeleteAccountSection({ phrase }: { phrase: string }) {
         </summary>
         <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-[var(--color-ink-soft)]">
           <li>{t("deleted")}</li>
+          <li>{t("subscription")}</li>
           <li>{t("kept")}</li>
           <li>{t("irreversible")}</li>
         </ul>

@@ -120,6 +120,7 @@ describe("Polar 클라이언트 요청 모양", () => {
       currency: null,
       locale: null,
       recurring_interval: null,
+      recurring_interval_count: null,
       metadata: { attempt: "a1" },
     });
   });
@@ -135,6 +136,15 @@ describe("Polar 클라이언트 요청 모양", () => {
     expect(c).not.toHaveProperty("product");
     expect(c).not.toHaveProperty("product_price");
     await expect(read({ product: { recurring_interval: 5 } })).rejects.toMatchObject({ code: "BAD_RESPONSE" });
+  });
+
+  it("결제창 — 결제 주기의 횟수(recurring_interval_count)도 주기를 준 쪽에서 읽는다(없으면 null)", async () => {
+    const read = (body: Record<string, unknown>) => createPolarClient(KEYS, fakeFetch(200, { ...checkout, ...body })).getCheckout(CHECKOUT_ID);
+    expect((await read({ product: { recurring_interval: "month", recurring_interval_count: 3 } })).recurring_interval_count).toBe(3);
+    expect((await read({ product: { id: PRODUCT_ID }, product_price: { recurring_interval: "month", recurring_interval_count: 1 } })).recurring_interval_count).toBe(1);
+    expect((await read({ product: { recurring_interval: "year" } })).recurring_interval_count).toBeNull();
+    expect((await read({ product: null })).recurring_interval_count).toBeNull();
+    await expect(read({ product: { recurring_interval: "month", recurring_interval_count: 0 } })).rejects.toMatchObject({ code: "BAD_RESPONSE" });
   });
 
   it("결제창 — 금액(세금 전 cent)·통화·로케일을 읽는다(없으면 null)", async () => {
@@ -344,6 +354,53 @@ describe("Polar 클라이언트 요청 모양", () => {
     expect(url).toBe("https://sandbox-api.polar.sh/v1/customer-sessions/");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body)).toEqual({ external_customer_id: USER_ID, return_url: "https://example.test/en/mypage" });
+  });
+
+  it("고객 삭제 — DELETE /v1/customers/external/{외부 id}?anonymize=true, 204(본문 없음)면 끝", async () => {
+    const f = vi.fn().mockImplementation(async () => new Response(null, { status: 204 }));
+    await expect(createPolarClient(KEYS, f).deleteCustomerByExternalId(USER_ID, { anonymize: true })).resolves.toBeUndefined();
+    const [url, init] = f.mock.calls[0]!;
+    expect(url).toBe(`https://sandbox-api.polar.sh/v1/customers/external/${USER_ID}?anonymize=true`);
+    expect(init.method).toBe("DELETE");
+    expect(init.body).toBeUndefined();
+    expect(init.headers.Authorization).toBe("Bearer polar_oat_fake_token");
+    expect(init.redirect).toBe("error");
+  });
+
+  it("고객 삭제 — anonymize를 끄면 쿼리 없이, 2xx 본문이 있어도 읽지 않고 끝", async () => {
+    const f = fakeFetch(200, { unexpected: true });
+    await expect(createPolarClient(KEYS, f).deleteCustomerByExternalId(USER_ID, { anonymize: false })).resolves.toBeUndefined();
+    expect(f.mock.calls[0]![0]).toBe(`https://sandbox-api.polar.sh/v1/customers/external/${USER_ID}`);
+  });
+
+  it("고객 삭제 — 고객이 없으면 404(ResourceNotFound), 연결 실패는 결과 불명(쓰기), UUID가 아니면 호출 전에 INVALID_ID", async () => {
+    const missing = await createPolarClient(KEYS, fakeFetch(404, { error: "ResourceNotFound", detail: "Not found" }))
+      .deleteCustomerByExternalId(USER_ID, { anonymize: true })
+      .catch((e) => e);
+    expect(missing).toMatchObject({ name: "PolarError", code: "ResourceNotFound", status: 404, mutating: true });
+    expect(isPolarOutcomeUnknown(missing)).toBe(false);
+
+    const down = await createPolarClient(KEYS, vi.fn().mockRejectedValue(new TypeError("fetch failed")))
+      .deleteCustomerByExternalId(USER_ID, { anonymize: true })
+      .catch((e) => e);
+    expect(down).toMatchObject({ code: "NETWORK", mutating: true });
+    expect(isPolarOutcomeUnknown(down)).toBe(true);
+
+    const f = fakeFetch(204, null);
+    await expect(createPolarClient(KEYS, f).deleteCustomerByExternalId("../orders", { anonymize: true })).rejects.toMatchObject({ code: "INVALID_ID" });
+    expect(f).not.toHaveBeenCalled();
+  });
+
+  it("시간 제한 — 기본 15초, timeoutMs를 주면 그 값(웹훅 경로는 짧게 둔다)", async () => {
+    const timeout = vi.spyOn(AbortSignal, "timeout");
+    try {
+      await createPolarClient(KEYS, fakeFetch(200, order)).getOrder(ORDER_ID);
+      expect(timeout).toHaveBeenLastCalledWith(15_000);
+      await createPolarClient(KEYS, fakeFetch(200, order), { timeoutMs: 4000 }).getOrder(ORDER_ID);
+      expect(timeout).toHaveBeenLastCalledWith(4000);
+    } finally {
+      timeout.mockRestore();
+    }
   });
 
   it("live 키의 apiBase를 그대로 쓴다", async () => {
