@@ -12,7 +12,7 @@ export const maxDuration = 300;
  * 결제 크론 — 10:00 KST(카드사 응대 시간대, 사용자가 메일을 보고 바로 조치할 수 있다).
  * 모드가 off면 처리 없이 기록만 남긴다(상호 감시가 멈춤으로 오해하지 않게).
  * 모드가 켜졌는데 토스 키가 없으면 실패로 기록한다 — 갱신이 조용히 멈추지 않게 상호 감시가 알린다. Polar 키가 있으면 그 전에
- * MoR 대사는 마저 돌린다(Polar만 설정한 배포에서도 놓친 웹훅을 메운다). Polar 키가 없으면 MoR 단계만 건너뛴다.
+ * MoR 대사는 마저 돌린다(Polar만 설정한 배포에서도 기존 구독 행을 정본으로 맞춘다). Polar 키가 없으면 MoR 단계만 건너뛴다.
  * test 모드는 테스트 결제 행(livemode=false)만, live 모드는 실결제 행만 다룬다.
  */
 export async function GET(request: Request) {

@@ -55,7 +55,7 @@ export async function runBillingCycleNow(_prev: CycleState, fd: FormData): Promi
 
 /**
  * MoR 지금 대사 — 결제 크론의 판매 대행(Polar) 단계만 지금 돌린다(flows/morCycle.ts: 만료된 결제 시도 닫기, Polar id 없이 남은 자동
- * 환불 알림, 놓친 웹훅 메우기). 토스 결제는 하지 않고 결제를 일으키지 않아 live에서도 확인 체크를 받지 않는다.
+ * 환불 알림, 기존 구독 행을 정본으로 맞추기). 토스 결제는 하지 않고 결제를 일으키지 않아 live에서도 확인 체크를 받지 않는다.
  * 모드가 off면 off, Polar 키가 없으면 notConfigured(토스 키와 무관). 폼 입력은 받지 않는다(useActionState가 넘기는 값은 쓰지 않는다).
  */
 export async function runMorReconcileNow(): Promise<CycleState> {

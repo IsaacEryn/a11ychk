@@ -31,7 +31,7 @@ export function RunMorCycleForm({ disabled, describedBy }: { disabled: boolean; 
         </button>
         {hasIssues ? (
           <span role="alert" className="text-xs font-bold text-[var(--color-crit)]">
-            {t("morRanIssues", { candidates, errors: issues.errors, review: issues.review, halted: issues.halted })}
+            {t("morRanIssues", { candidates, errors: issues.errors, review: issues.review, morHalted: issues.morHalted })}
           </span>
         ) : (
           <FormFeedback state={state} okLabel={t("morRan", { candidates })} errors={errors} fallback={errors.failed} />

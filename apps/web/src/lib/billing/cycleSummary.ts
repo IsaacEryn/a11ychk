@@ -57,14 +57,14 @@ export const CYCLE_SUMMARY_KEYS = [
 export const REVIEW_SUMMARY_KEYS = ["reconciled_review", "charge_review", "retry_review", "mor_review", "mor_ended", "mor_stale_refunds"] as const;
 /** 오류로 세는 키 — 처리 중 예외(errors)와 MoR 대사의 실패(mor_failed) */
 export const ERROR_SUMMARY_KEYS = ["errors", "mor_failed"] as const;
-/** 중단으로 세는 키 — 토스 설정 사고(halted)와 Polar 토큰·권한 거부(mor_halted) */
-export const HALT_SUMMARY_KEYS = ["halted", "mor_halted"] as const;
 
 export interface CycleIssues {
   /** ERROR_SUMMARY_KEYS의 합 */
   errors: number;
-  /** HALT_SUMMARY_KEYS의 합 */
+  /** 토스 결제 중단(설정 사고 — halted) */
   halted: number;
+  /** MoR 대사 중단(Polar 토큰·권한 거부 — mor_halted). 토스 결제 중단과 따로 보인다 */
+  morHalted: number;
   /** 운영자 확인이 필요한 건수(REVIEW_SUMMARY_KEYS의 합) */
   review: number;
   /** 하나라도 있으면 성공 표시로 덮지 않는다 */
@@ -76,7 +76,8 @@ export function cycleIssues(summary: Record<string, number> | undefined): CycleI
   const count = (key: string) => summary?.[key] ?? 0;
   const sum = (keys: readonly string[]) => keys.reduce((total, key) => total + count(key), 0);
   const errors = sum(ERROR_SUMMARY_KEYS);
-  const halted = sum(HALT_SUMMARY_KEYS);
+  const halted = count("halted");
+  const morHalted = count("mor_halted");
   const review = sum(REVIEW_SUMMARY_KEYS);
-  return { errors, halted, review, any: errors > 0 || halted > 0 || review > 0 };
+  return { errors, halted, morHalted, review, any: errors > 0 || halted > 0 || morHalted > 0 || review > 0 };
 }

@@ -1086,7 +1086,7 @@
         "admin": "Admin accounts cannot be deleted. Remove admin rights first, then try again.",
         "active": "An audit is in progress. Try again after it finishes.",
         "failed": "Could not delete the account. Try again later or contact us.",
-        "billingCancelFailed": "We could not cancel your international (Polar) subscription, so your account was not deleted. Please cancel the subscription in Billing, then try again or contact us."
+        "billingCancelFailed": "We could not cancel your international (Polar) subscription, so your account was not deleted. Please try again shortly, and contact us if this keeps happening."
       }
     }
   },
@@ -1720,7 +1720,7 @@
         },
         "morRun": "Reconcile MoR now",
         "morRan": "MoR reconcile finished ({candidates} subscriptions checked)",
-        "morRanIssues": "MoR reconcile finished with issues ({candidates} subscriptions checked, {errors} failures{review, plural, =0 {} other {, # need review}}{halted, plural, =0 {} other {, halted by a Polar token or permission problem}}). Please check the error log.",
+        "morRanIssues": "MoR reconcile finished with issues ({candidates} subscriptions checked, {errors} failures{review, plural, =0 {} other {, # need review}}{morHalted, plural, =0 {} other {, halted by a Polar token or permission problem}}). Please check the error log.",
         "morErrors": {
           "off": "Billing mode is off.",
           "notConfigured": "Polar keys are not set.",
@@ -1797,7 +1797,7 @@
           "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription.",
           "cancelScheduled": "Upcoming-charge notices aren't sent for a subscription with a scheduled cancellation, so it can't be pulled to notice time. Use Pull due date to test the ending, or undo the cancellation and try again."
         },
-        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{review, plural, =0 {} other {, items needing review: #}}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
+        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{review, plural, =0 {} other {, items needing review: #}}{halted, plural, =0 {} other {, card charging halted by a setup incident}}{morHalted, plural, =0 {} other {, international (Polar) reconcile halted by a token or permission problem}}). Check the error log.",
         "subsItems": {
           "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge. For a subscription with a scheduled cancellation this tests the ending instead: run the cron after that minute and the subscription ends.",
           "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet. Not available for subscriptions with a scheduled cancellation (the cron doesn't send them a notice).",

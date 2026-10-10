@@ -622,6 +622,12 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       return rows.subscriptions.filter((r) => r.user_id === userId && r.provider === "mor" && LIVE.has(r.status)).map(outMorSubscription);
     },
 
+    async listPausedMorSubscriptions(userId) {
+      return rows.subscriptions
+        .filter((r) => r.user_id === userId && r.provider === "mor" && r.status === "ended" && r.ended_reason === "admin" && r.external_id != null)
+        .map(outMorSubscription);
+    },
+
     async hasProviderSubscription(userId, provider, livemode) {
       return rows.subscriptions.some((r) => r.user_id === userId && r.provider === provider && r.livemode === livemode);
     },

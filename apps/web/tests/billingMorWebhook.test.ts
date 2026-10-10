@@ -251,12 +251,20 @@ describe("handleMorWebhook — 같은 결정적 실패가 반복되면 처리됨
     expect(row.processed_at).not.toBeNull();
     expect(row.last_error).toBe("polar getSubscription response invalid: status");
     expect(capped(deps)).toEqual([
-      `billing needs review: polar webhook ${EVENT_ID} (subscription.updated) failed 5 times with a deterministic error (polar getSubscription response invalid: status); marked processed without applying it — the daily billing cron reconciles mor subscriptions`,
+      `billing needs review: polar webhook ${EVENT_ID} (subscription.updated, data ${SUB_ID}) failed 5 times with a deterministic error (polar getSubscription response invalid: status); marked processed without applying it — fix the cause, clear processed_at of this event in billing_webhook_events and redeliver it from the Polar dashboard`,
     ]);
     // 끝낸 뒤의 재전송은 duplicate — Polar를 다시 읽지 않는다
     expect(await handleMorWebhook(deps, event("subscription.updated"))).toBe("duplicate");
     expect(deps.polar.calls.getSubscription).toHaveLength(5);
     expectIdsOnly(deps);
+
+    // 복구(SETUP): 원인을 고친 뒤 processed_at을 비우고 Polar에서 다시 보내면 반영된다
+    eventRow(rows)!.processed_at = null;
+    deps.polar.script.getSubscription.push(sub());
+    expect(await handleMorWebhook(deps, event("subscription.updated"))).toBe("processed");
+    expect(eventRow(rows)).toMatchObject({ attempts: 6 });
+    expect(eventRow(rows)!.processed_at).not.toBeNull();
+    expect(morSub(rows)).toMatchObject({ status: "active", user_id: USER });
   });
 
   it("저장소 CHECK(23514)·FK(23503) 위반도 결정적이다 — 상한에서 끝낸다", async () => {

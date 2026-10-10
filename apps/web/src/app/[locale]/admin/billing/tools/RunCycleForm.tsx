@@ -53,7 +53,7 @@ export function RunCycleForm({
         </button>
         {hasIssues ? (
           <span role="alert" className="text-xs font-bold text-[var(--color-crit)]">
-            {t("ranIssues", { candidates, errors: issues.errors, review: issues.review, halted: issues.halted })}
+            {t("ranIssues", { candidates, errors: issues.errors, review: issues.review, halted: issues.halted, morHalted: issues.morHalted })}
           </span>
         ) : (
           <FormFeedback state={state} okLabel={t("ran", { candidates })} errors={errors} fallback={errors.failed} />

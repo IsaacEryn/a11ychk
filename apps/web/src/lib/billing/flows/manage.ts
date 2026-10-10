@@ -291,21 +291,28 @@ async function logPendingPaymentsForDeletion(
 // ── 탈퇴 전 판매 대행(Polar) 구독 해지 ──
 
 type MorRevoke = { ok: true; sub: PolarSubscription | null } | { ok: false; why: string };
+type PausedCheck = { ok: true; gone: true } | MorRevoke;
+
+const polarCode = (e: unknown) => (e instanceof PolarError ? `${e.code} (${e.status})` : "unexpected error");
 
 /**
- * Polar 구독 즉시 해지 — 해지됐으면 그 뒤 정본(이미 해지돼 있었으면 null), 못 했으면 까닭. 403 AlreadyCanceledSubscription은 성공.
- * 결과 불명이거나 응답이 canceled가 아니면 한 번만 다시 읽어 canceled일 때만 성공으로 본다(반복하지 않는다).
+ * Polar 구독 즉시 해지 — 해지됐으면 그 뒤 정본, 못 했으면 까닭. 결과 불명이거나 응답이 canceled가 아니면 한 번만 다시 읽어 canceled일
+ * 때만 성공으로 본다(반복하지 않는다). 403 AlreadyCanceledSubscription(이미 해지됐거나 기간 끝 해지가 예약돼 더 청구되지 않는다)도
+ * 성공이고, 행을 끝낼 정본 시각을 얻으려고 한 번 다시 읽는다(읽지 못하면 정본 없이 — 지금 시각으로 끝낸다).
  */
 async function revokeAtPolarForDeletion(mor: MorDeps, externalId: string): Promise<MorRevoke> {
   try {
     const sub = await mor.polar.updateSubscription(externalId, { revoke: true });
     if (sub.status === "canceled") return { ok: true, sub };
   } catch (e) {
-    if (e instanceof PolarError && e.code === "AlreadyCanceledSubscription") return { ok: true, sub: null };
-    if (!isPolarOutcomeUnknown(e)) {
-      const code = e instanceof PolarError ? `${e.code} (${e.status})` : "unexpected error";
-      return { ok: false, why: `revoke failed: ${code}` };
+    if (e instanceof PolarError && e.code === "AlreadyCanceledSubscription") {
+      try {
+        return { ok: true, sub: await mor.polar.getSubscription(externalId) };
+      } catch {
+        return { ok: true, sub: null };
+      }
     }
+    if (!isPolarOutcomeUnknown(e)) return { ok: false, why: `revoke failed: ${polarCode(e)}` };
   }
   try {
     const again = await mor.polar.getSubscription(externalId);
@@ -317,8 +324,31 @@ async function revokeAtPolarForDeletion(mor: MorDeps, externalId: string): Promi
 }
 
 /**
+ * 일시정지로 끝난 행의 Polar 구독 — 먼저 읽어 canceled이거나 Polar에 없으면(404 — 크론이 404로 끝낸 행) 할 일이 없다(gone).
+ * 그 밖의 상태(paused·되살아난 active 등)면 해지한다. 읽기가 결과 불명이면 한 번 더 읽고, 그래도 모르거나 확정 실패면 까닭을 돌려준다.
+ */
+async function revokePausedForDeletion(mor: MorDeps, externalId: string): Promise<PausedCheck> {
+  let failure: unknown = null;
+  for (let pass = 0; pass < 2; pass++) {
+    try {
+      const sub = await mor.polar.getSubscription(externalId);
+      if (sub.status === "canceled") return { ok: true, gone: true };
+      return revokeAtPolarForDeletion(mor, externalId);
+    } catch (e) {
+      if (e instanceof PolarError && e.status === 404) return { ok: true, gone: true };
+      failure = e;
+      if (!isPolarOutcomeUnknown(e)) break;
+    }
+  }
+  return {
+    ok: false,
+    why: isPolarOutcomeUnknown(failure) ? "paused subscription could not be read (outcome unknown)" : `paused subscription could not be read: ${polarCode(failure)}`,
+  };
+}
+
+/**
  * 해지한 구독의 우리 행을 ended(user_canceled)로 — 조건부 갱신(읽은 상태·저장된 Polar 시각 이하)이라 그 사이 웹훅이 먼저 끝냈으면
- * 덮지 않는다. 시각은 해지 응답의 modified_at(없으면 지금)이고, 저장된 시각이 더 늦으면 다시 읽어 그 시각을 조건으로 한 번 더 쓴다.
+ * 덮지 않는다. 시각은 해지 정본의 modified_at(없으면 지금)이고, 저장된 시각이 더 늦으면 다시 읽어 그 시각을 조건으로 한 번 더 쓴다.
  * 끝냈거나 이미 끝나 있었으면 true. 저장소 오류는 던진다.
  */
 async function endMorRowForDeletion(store: BillingStore, row: MorSubscriptionRow, revoked: PolarSubscription | null, now: number): Promise<boolean> {
@@ -339,16 +369,29 @@ async function endMorRowForDeletion(store: BillingStore, row: MorSubscriptionRow
   return (await store.updateMorSubscriptionIf(current.id, { status: current.status, notAfter }, patchAt(notAfter))) === "updated";
 }
 
+const LIVE_STATUS = new Set<SubscriptionRow["status"]>(["active", "past_due"]);
+const idsOf = (rows: MorSubscriptionRow[]) => ({
+  externals: rows.map((r) => r.external_id ?? "(none)").join(","),
+  rowIds: rows.map((r) => r.id).join(","),
+});
+
 /**
- * 탈퇴 전 — 그 사용자의 진행 중 MoR 구독(두 livemode)을 Polar에서 즉시 해지(revoke)하고 우리 행을 ended(user_canceled)로 끝낸다.
- * 계정을 지운 뒤에도 Polar가 계속 청구하지 않게, 해지를 확인하지 못하면 "blocked"를 돌려 탈퇴를 막는다(토스와 다르다 — 토스는 빌링키가
- * 계정과 함께 지워져 청구가 멈추지만 Polar 구독은 Polar에 남는다).
- * - 이 배포의 Polar 의존성(mor)이 없거나(off·키 없음) 다른 모드의 구독이 하나라도 있으면 아무것도 해지하지 않고 막는다 —
- *   의존성은 이 배포의 모드(livemode) 것뿐이라 다른 모드의 구독은 여기서 해지할 수 없다.
- * - 해지가 확정 실패하거나 다시 읽어도 결과를 모르면 그 자리에서 막는다(앞서 해지한 구독은 끝난 그대로 둔다).
- * - 해지한 뒤 우리 행을 끝내지 못하면(저장소 오류·엇갈림) 막지 않는다 — Polar는 더 청구하지 않고, 남은 행은 크론의 MoR 대사가
- *   Polar 정본(canceled)으로 끝낸다.
- * 기록은 한 줄(구독·행·사용자 id만). 구독 목록을 읽는 저장소 오류는 던진다(호출부가 테이블 없음과 가른다).
+ * 탈퇴 전 — 그 사용자의 MoR 구독을 Polar에서 즉시 해지(revoke)한다. 계정을 지운 뒤에도 Polar가 계속 청구하지 않게, 해지를 확인하지
+ * 못하면 "blocked"를 돌려 탈퇴를 막는다(토스와 다르다 — 토스는 빌링키가 계정과 함께 지워져 청구가 멈추지만 Polar 구독은 Polar에 남는다).
+ * 대상(두 livemode):
+ * - 진행 중(active·past_due) 행 — 해지하고 우리 행을 ended(user_canceled)로 끝낸다.
+ * - 일시정지로 끝난 행(ended·admin·외부 id 있음) — Polar에서 재개되면 다시 청구된다. 먼저 읽어 canceled·404면 건너뛰고, 아니면 해지한다.
+ *   우리 행은 이미 끝났으니 바꾸지 않는다.
+ * 모드: 이 배포의 Polar 의존성은 이 배포 모드의 것뿐이다.
+ * - sandbox 행(livemode=false)이 test가 아닌 배포(live·off)에서 나오면 막지 않는다 — sandbox는 실제 돈을 청구하지 않고 이 배포는 sandbox에
+ *   닿지 못한다. 해지를 마친 뒤 needs review 한 줄을 남긴다(나중에 sandbox 동기화가 탈퇴한 사용자로 보고 해지·환불한다).
+ * - 그 밖에 모드가 다른 행(test 배포의 live 행·off 배포의 live 행), Polar 의존성 없음, 외부 id 없는 진행 중 행이 하나라도 있으면
+ *   아무것도 해지하지 않고 막는다.
+ * - 해지·읽기가 확정 실패하거나 다시 읽어도 결과를 모르면 그 자리에서 막는다(앞서 해지한 구독은 끝난 그대로 두고 기록에 남긴다).
+ * - 해지한 뒤 우리 행을 끝내지 못하면(저장소 오류·엇갈림) 막지 않는다 — Polar는 더 청구하지 않고, 해지 웹훅이 보통 그 행을 끝낸다
+ *   (크론 대사는 기간 끝 + 6시간이 지나야 그 행을 본다).
+ * 기록은 해지 결과 한 줄(+ sandbox 행이 있으면 needs review 한 줄, 구독·행·사용자 id만). 구독 목록을 읽는 저장소 오류는 던진다
+ * (호출부가 테이블 없음과 가른다).
  */
 export async function revokeMorForDeletion(
   store: BillingStore,
@@ -357,42 +400,61 @@ export async function revokeMorForDeletion(
   userId: string,
   log: (message: string) => Promise<void>,
 ): Promise<"ok" | "blocked"> {
-  const rows = await store.listLiveMorSubscriptions(userId);
-  if (rows.length === 0) return "ok";
-  const externals = rows.map((r) => r.external_id ?? "(none)").join(",");
-  const rowIds = rows.map((r) => r.id).join(",");
-  const cannot = !mor
-    ? "Polar is not configured"
-    : rows.some((r) => r.livemode !== livemode)
-      ? "livemode differs from this deployment"
-      : rows.some((r) => !r.external_id)
-        ? "a row has no Polar subscription id"
-        : null;
-  if (!mor || cannot) {
+  const all = [...(await store.listLiveMorSubscriptions(userId)), ...(await store.listPausedMorSubscriptions(userId))];
+  if (all.length === 0) return "ok";
+  const unreachableSandbox = (r: MorSubscriptionRow) => r.livemode === false && livemode !== false;
+  const sandbox = all.filter(unreachableSandbox);
+  const targets = all.filter((r) => !unreachableSandbox(r));
+
+  const cannot =
+    targets.length === 0
+      ? null
+      : !mor
+        ? "Polar is not configured"
+        : targets.some((r) => r.livemode !== livemode)
+          ? "livemode differs from this deployment"
+          : targets.some((r) => !r.external_id)
+            ? "a row has no Polar subscription id"
+            : null;
+  if (cannot) {
+    const { externals, rowIds } = idsOf(targets);
     await log(`billing account deletion blocked for user ${userId}: mor subscriptions ${externals} (rows ${rowIds}) cannot be canceled at Polar here (${cannot})`);
     return "blocked";
   }
 
-  const revoked: string[] = [];
+  const revoked: MorSubscriptionRow[] = [];
   const unended: string[] = [];
-  for (const row of rows) {
+  for (const row of targets) {
     const externalId = row.external_id!;
-    const outcome = await revokeAtPolarForDeletion(mor, externalId);
+    const live = LIVE_STATUS.has(row.status);
+    const outcome = live ? await revokeAtPolarForDeletion(mor!, externalId) : await revokePausedForDeletion(mor!, externalId);
     if (!outcome.ok) {
-      const earlier = revoked.length > 0 ? `; already revoked: ${revoked.join(",")}` : "";
+      const earlier = revoked.length > 0 ? `; already revoked: ${idsOf(revoked).externals}` : "";
       await log(`billing account deletion blocked for user ${userId}: mor subscription ${externalId} (row ${row.id}) could not be canceled at Polar (${outcome.why})${earlier}`);
       return "blocked";
     }
-    revoked.push(externalId);
+    if ("gone" in outcome) continue;
+    revoked.push(row);
+    if (!live) continue; // 일시정지로 끝난 행은 이미 끝났다
     let ended = false;
     try {
-      ended = await endMorRowForDeletion(store, row, outcome.sub, mor.now());
+      ended = await endMorRowForDeletion(store, row, outcome.sub, mor!.now());
     } catch {
       ended = false;
     }
     if (!ended) unended.push(row.id);
   }
-  const rest = unended.length > 0 ? `; rows ${unended.join(",")} could not be ended — the billing cron reconciles them` : "";
-  await log(`billing account deletion: mor subscriptions ${revoked.join(",")} revoked at Polar (rows ${rowIds})${rest}`);
+  if (revoked.length > 0) {
+    const { externals, rowIds } = idsOf(revoked);
+    const rest =
+      unended.length > 0 ? `; rows ${unended.join(",")} could not be ended — the Polar webhook normally ends them (the billing cron only after period end + 6h)` : "";
+    await log(`billing account deletion: mor subscriptions ${externals} revoked at Polar (rows ${rowIds})${rest}`);
+  }
+  if (sandbox.length > 0) {
+    const { externals, rowIds } = idsOf(sandbox);
+    await log(
+      `billing needs review: deleting the account of user ${userId} leaves sandbox mor subscriptions ${externals} (rows ${rowIds}) in the Polar sandbox; this deployment cannot reach the sandbox`,
+    );
+  }
   return "ok";
 }

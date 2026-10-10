@@ -556,6 +556,19 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       return (data as MorSubscriptionRow[] | null) ?? [];
     },
 
+    async listPausedMorSubscriptions(userId) {
+      const { data, error } = await admin
+        .from("subscriptions")
+        .select(MOR_SUBSCRIPTION_COLS)
+        .eq("user_id", userId)
+        .eq("provider", "mor")
+        .eq("status", "ended")
+        .eq("ended_reason", "admin")
+        .not("external_id", "is", null);
+      if (error) throw fail("listPausedMorSubscriptions", error);
+      return (data as MorSubscriptionRow[] | null) ?? [];
+    },
+
     async hasProviderSubscription(userId, provider, livemode) {
       const { data, error } = await admin
         .from("subscriptions")

@@ -344,16 +344,30 @@ describe("deleteAccount — 해외 결제(Polar) 구독은 계정을 지우기 �
     expect(messages().join("\n")).not.toContain("user@example.com");
   });
 
-  it("이미 해지됨(403 AlreadyCanceledSubscription)도 성공 — 행을 끝내고 탈퇴한다", async () => {
-    const { store } = polarWorld(
-      { subscriptions: [morRow({ status: "past_due" })] },
-      { updateSubscription: [new PolarError("AlreadyCanceledSubscription", "polar updateSubscription failed: AlreadyCanceledSubscription (403)", 403, true)] },
-    );
+  const alreadyCanceled = () => new PolarError("AlreadyCanceledSubscription", "polar updateSubscription failed: AlreadyCanceledSubscription (403)", 403, true);
+
+  it("이미 해지됨(403 AlreadyCanceledSubscription)도 성공 — 한 번 다시 읽은 정본의 시각으로 행을 끝내고 탈퇴한다", async () => {
+    const { store, mor } = polarWorld({ subscriptions: [morRow({ status: "past_due" })] }, { updateSubscription: [alreadyCanceled()], getSubscription: [canceled()] });
 
     await expectDeleted();
 
-    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
+    expect(mor.polar.calls.getSubscription).toEqual([[POLAR_SUB]]);
+    expect(store.rows.subscriptions[0]).toMatchObject({
+      status: "ended",
+      ended_reason: "user_canceled",
+      ended_at: pgTime(REVOKED_AT),
+      external_updated_at: pgTime(REVOKED_AT),
+    });
     expect(m.deleteUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("AlreadyCanceled 뒤 다시 읽기가 실패해도 성공 — 지금 시각으로 끝낸다", async () => {
+    const { store } = polarWorld(
+      { subscriptions: [morRow()] },
+      { updateSubscription: [alreadyCanceled()], getSubscription: [new PolarError("NETWORK", "polar getSubscription failed (network)", 0)] },
+    );
+    await expectDeleted();
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled", ended_at: pgTime(NOW) });
   });
 
   it("결과 불명이면 한 번 다시 읽어 canceled면 성공으로 본다", async () => {
@@ -443,7 +457,7 @@ describe("deleteAccount — 해외 결제(Polar) 구독은 계정을 지우기 �
     ]);
   });
 
-  it("해지 뒤 우리 행을 끝내지 못해도(저장소 오류) 탈퇴는 계속한다 — Polar는 더 청구하지 않고, 남은 행은 크론 대사가 끝낸다", async () => {
+  it("해지 뒤 우리 행을 끝내지 못해도(저장소 오류) 탈퇴는 계속한다 — Polar는 더 청구하지 않고, 남은 행은 보통 해지 웹훅이 끝낸다", async () => {
     const { store } = polarWorld({ subscriptions: [morRow()] }, { updateSubscription: [canceled()] });
     store.updateMorSubscriptionIf = async () => {
       throw new Error("billing store updateMorSubscriptionIf: timeout");
@@ -453,7 +467,7 @@ describe("deleteAccount — 해외 결제(Polar) 구독은 계정을 지우기 �
 
     expect(store.rows.subscriptions[0]).toMatchObject({ status: "active", user_id: null });
     expect(messages()).toEqual([
-      `billing account deletion: mor subscriptions ${POLAR_SUB} revoked at Polar (rows ${store.rows.subscriptions[0].id}); rows ${store.rows.subscriptions[0].id} could not be ended — the billing cron reconciles them`,
+      `billing account deletion: mor subscriptions ${POLAR_SUB} revoked at Polar (rows ${store.rows.subscriptions[0].id}); rows ${store.rows.subscriptions[0].id} could not be ended — the Polar webhook normally ends them (the billing cron only after period end + 6h)`,
     ]);
   });
 
@@ -500,5 +514,167 @@ describe("deleteAccount — 해외 결제(Polar) 구독은 계정을 지우기 �
 
     expect(store.rows.subscriptions.map((s) => s.status)).toEqual(["ended", "active"]);
     expect(m.logAppError).not.toHaveBeenCalled();
+  });
+
+  // ── 일시정지로 끝난 행(ended·admin) — Polar에서 재개되면 탈퇴 뒤에도 청구된다 ──
+
+  const pausedRow = (over: Partial<MemorySubscription> = {}) =>
+    morRow({ status: "ended", ended_reason: "admin", ended_at: pgTime(NOW - DAY), external_id: POLAR_SUB_2, ...over });
+  const pausedAtPolar = (over: Parameters<typeof polarSubscription>[0] = {}) => polarSubscription({ id: POLAR_SUB_2, status: "paused", ...over });
+
+  it("일시정지로 끝난 행: Polar에서 읽어 아직 살아 있으면 deleteUser 전에 revoke — 우리 행은 바꾸지 않는다", async () => {
+    const paused = pausedRow();
+    const { store, mor } = polarWorld({ subscriptions: [paused] }, { getSubscription: [pausedAtPolar()], updateSubscription: [canceled({ id: POLAR_SUB_2 })] });
+    let revokedBeforeDelete = false;
+    const deleteAfterCascade = m.deleteUser.getMockImplementation()!;
+    m.deleteUser.mockImplementationOnce(async (id: string) => {
+      revokedBeforeDelete = mor.polar.calls.updateSubscription.length === 1;
+      return deleteAfterCascade(id);
+    });
+
+    await expectDeleted();
+
+    expect(revokedBeforeDelete).toBe(true);
+    expect(mor.polar.calls.getSubscription).toEqual([[POLAR_SUB_2]]);
+    expect(mor.polar.calls.updateSubscription).toEqual([[POLAR_SUB_2, { revoke: true }]]);
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "admin", ended_at: pgTime(NOW - DAY), user_id: null });
+    expect(messages()).toEqual([`billing account deletion: mor subscriptions ${POLAR_SUB_2} revoked at Polar (rows ${paused.id})`]);
+  });
+
+  it("일시정지 행이 Polar에서 canceled거나 404(크론이 404로 끝낸 행)면 건너뛴다 — revoke 없음, 기록 없음", async () => {
+    for (const read of [pausedAtPolar({ status: "canceled" }), new PolarError("ResourceNotFound", "polar getSubscription failed: ResourceNotFound (404)", 404)]) {
+      m.deleteUser.mockClear();
+      m.logAppError.mockClear();
+      const { mor } = polarWorld({ subscriptions: [pausedRow()] }, { getSubscription: [read] });
+
+      await expectDeleted();
+
+      expect(mor.polar.calls.updateSubscription).toEqual([]);
+      expect(m.deleteUser).toHaveBeenCalledTimes(1);
+      expect(messages()).toEqual([]);
+    }
+  });
+
+  it("일시정지 행의 AlreadyCanceled도 성공", async () => {
+    const { mor } = polarWorld({ subscriptions: [pausedRow()] }, { getSubscription: [pausedAtPolar({ status: "active" }), canceled({ id: POLAR_SUB_2 })], updateSubscription: [alreadyCanceled()] });
+    await expectDeleted();
+    expect(mor.polar.calls.updateSubscription).toHaveLength(1);
+  });
+
+  it("일시정지 행의 revoke가 실패하거나, 읽기가 두 번 모두 결과 불명이거나 확정 실패면 탈퇴를 막는다", async () => {
+    const cases: Array<[string, Partial<PolarScript>, string]> = [
+      ["revoke 확정 실패", { getSubscription: [pausedAtPolar()], updateSubscription: [new PolarError("HTTP_422", "x", 422, true)] }, "revoke failed: HTTP_422 (422)"],
+      [
+        "읽기 결과 불명 두 번",
+        { getSubscription: [new PolarError("NETWORK", "x", 0), new PolarError("HTTP_503", "x", 503)] },
+        "paused subscription could not be read (outcome unknown)",
+      ],
+      ["읽기 확정 실패", { getSubscription: [new PolarError("HTTP_401", "x", 401)] }, "paused subscription could not be read: HTTP_401 (401)"],
+    ];
+    for (const [name, script, why] of cases) {
+      m.deleteUser.mockClear();
+      m.logAppError.mockClear();
+      const paused = pausedRow();
+      polarWorld({ subscriptions: [paused] }, script);
+
+      expect(await run(), name).toEqual(blocked);
+
+      expect(m.deleteUser, name).not.toHaveBeenCalled();
+      expect(messages(), name).toEqual([
+        `billing account deletion blocked for user ${USER}: mor subscription ${POLAR_SUB_2} (row ${paused.id}) could not be canceled at Polar (${why})`,
+      ]);
+    }
+  });
+
+  it("일시정지 행의 첫 읽기가 결과 불명이면 한 번 더 읽는다 — 두 번째가 canceled면 건너뛴다", async () => {
+    const { mor } = polarWorld({ subscriptions: [pausedRow()] }, { getSubscription: [new PolarError("NETWORK", "x", 0), pausedAtPolar({ status: "canceled" })] });
+    await expectDeleted();
+    expect(mor.polar.calls.getSubscription).toHaveLength(2);
+    expect(mor.polar.calls.updateSubscription).toEqual([]);
+  });
+
+  it("외부 id가 없거나 다른 사유로 끝난 행은 일시정지 대상이 아니다", async () => {
+    const { mor } = polarWorld({
+      subscriptions: [pausedRow({ external_id: null }), pausedRow({ ended_reason: "user_canceled", external_id: "68686868-6868-4868-8868-686868686868" })],
+    });
+    await expectDeleted();
+    expect(mor.polar.calls.getSubscription).toEqual([]);
+  });
+
+  // ── 모드가 다른 행 ──
+
+  it("live 배포에서 sandbox(livemode=false) 행은 탈퇴를 막지 않는다 — Polar를 부르지 않고 needs review 한 줄", async () => {
+    vi.stubEnv("BILLING_MODE", "live");
+    const sandbox = morRow({ livemode: false });
+    const sandboxPaused = pausedRow({ livemode: false });
+    const store = memory({ subscriptions: [sandbox, sandboxPaused], profiles: [USER] });
+    const mor = makeMorDeps({ store, polar: createFakePolar() });
+    m.mor = mor;
+
+    await expectDeleted();
+
+    expect(mor.polar.calls.getSubscription).toEqual([]);
+    expect(mor.polar.calls.updateSubscription).toEqual([]);
+    expect(store.rows.subscriptions.map((s) => [s.status, s.ended_reason])).toEqual([
+      ["active", null],
+      ["ended", "admin"],
+    ]);
+    expect(messages()).toEqual([
+      `billing needs review: deleting the account of user ${USER} leaves sandbox mor subscriptions ${POLAR_SUB},${POLAR_SUB_2} (rows ${sandbox.id},${sandboxPaused.id}) in the Polar sandbox; this deployment cannot reach the sandbox`,
+    ]);
+  });
+
+  it("결제가 꺼진 배포(off)에서도 sandbox 행만 있으면 막지 않는다 — live 행은 여전히 막는다", async () => {
+    const sandbox = morRow({ livemode: false });
+    memory({ subscriptions: [sandbox], profiles: [USER] });
+    m.mor = null;
+    await expectDeleted();
+    expect(messages()).toHaveLength(1);
+    expect(messages()[0]).toMatch(/^billing needs review: deleting the account of user .* leaves sandbox mor subscriptions/);
+
+    m.deleteUser.mockClear();
+    m.logAppError.mockClear();
+    memory({ subscriptions: [morRow({ livemode: true })], profiles: [USER] });
+    expect(await run()).toEqual(blocked);
+    expect(m.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it("live 배포에서 live 행은 해지하고 sandbox 행은 기록만 — 두 줄", async () => {
+    vi.stubEnv("BILLING_MODE", "live");
+    const liveRow = morRow({ livemode: true });
+    const sandbox = morRow({ livemode: false, external_id: POLAR_SUB_2 });
+    const store = memory({ subscriptions: [liveRow, sandbox], profiles: [USER] });
+    const mor = makeMorDeps({ store, polar: createFakePolar({ updateSubscription: [canceled()] }) });
+    m.mor = mor;
+
+    await expectDeleted();
+
+    expect(mor.polar.calls.updateSubscription).toEqual([[POLAR_SUB, { revoke: true }]]);
+    expect(store.rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "user_canceled" });
+    expect(messages()).toEqual([
+      `billing account deletion: mor subscriptions ${POLAR_SUB} revoked at Polar (rows ${liveRow.id})`,
+      `billing needs review: deleting the account of user ${USER} leaves sandbox mor subscriptions ${POLAR_SUB_2} (rows ${sandbox.id}) in the Polar sandbox; this deployment cannot reach the sandbox`,
+    ]);
+  });
+
+  it("live 배포에서 해지가 막히면 sandbox 기록 줄은 남기지 않는다(탈퇴하지 않았다)", async () => {
+    vi.stubEnv("BILLING_MODE", "live");
+    const store = memory({ subscriptions: [morRow({ livemode: true }), morRow({ livemode: false, external_id: POLAR_SUB_2 })], profiles: [USER] });
+    m.mor = makeMorDeps({ store, polar: createFakePolar({ updateSubscription: [new PolarError("HTTP_422", "x", 422, true)] }) });
+
+    expect(await run()).toEqual(blocked);
+    expect(messages()).toHaveLength(1);
+    expect(messages()[0]).toMatch(/^billing account deletion blocked/);
+  });
+
+  it("test 배포가 live 행(일시정지 행 포함)을 찾으면 막는다", async () => {
+    const livePaused = pausedRow({ livemode: true });
+    const { mor } = polarWorld({ subscriptions: [livePaused] });
+
+    expect(await run()).toEqual(blocked);
+    expect(mor.polar.calls.getSubscription).toEqual([]);
+    expect(messages()).toEqual([
+      `billing account deletion blocked for user ${USER}: mor subscriptions ${POLAR_SUB_2} (rows ${livePaused.id}) cannot be canceled at Polar here (livemode differs from this deployment)`,
+    ]);
   });
 });

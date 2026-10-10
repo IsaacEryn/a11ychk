@@ -87,10 +87,12 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
  * 모르는 결제는 기록만 남기고, 승인으로 확인되면 대사가 자동 취소한다. 결제 모드가 off여도 라이브 구독은 남아 있을 수 있어
  * 모드와 상관없이 정리한다.
  *
- * 해외 결제(판매 대행 Polar) 구독은 예외다 — 계정을 지우기 **전에** Polar에서 즉시 해지(revoke)하고 우리 행을 끝낸다
- * (flows/manage.ts revokeMorForDeletion). Polar 구독은 빌링키처럼 계정과 함께 사라지지 않아, 지운 뒤에도 Polar가 계속 청구할 수 있기
- * 때문이다. 해지를 확인하지 못하면(Polar 미설정·이 배포와 다른 모드의 구독·해지 실패·결과 불명) 탈퇴를 막는다(billingCancelFailed —
- * 결제 관리의 Polar 고객 포털에서 해지한 뒤 다시 시도하라고 안내한다). 토스 구독은 위 순서 그대로다.
+ * 해외 결제(판매 대행 Polar) 구독은 예외다 — 계정을 지우기 **전에** Polar에서 즉시 해지(revoke)한다(진행 중 구독은 우리 행도 끝내고,
+ * 일시정지로 끝난 행은 Polar에서 살아 있을 때만 해지한다 — flows/manage.ts revokeMorForDeletion). Polar 구독은 빌링키처럼 계정과 함께
+ * 사라지지 않아, 지운 뒤에도 Polar가 계속 청구할 수 있기 때문이다. 해지를 확인하지 못하면(Polar 미설정·이 배포가 다룰 수 없는 모드의
+ * 구독·해지 실패·결과 불명) 탈퇴를 막는다(billingCancelFailed — 잠시 뒤 다시 시도하고 계속 안 되면 문의하라고 안내한다. 포털의 해지는
+ * 기간 끝 예약이라 막힘을 풀지 못한다. 운영자가 푸는 법은 docs/SETUP.md). live·off 배포의 sandbox 구독은 막지 않는다(실제 청구 없음).
+ * 토스 구독은 위 순서 그대로다.
  *
  * 거절 조건: 확인 문구 불일치 · 관리자 계정(콘솔 잠김 방지 — 권한을 넘긴 뒤 탈퇴) ·
  * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다) ·

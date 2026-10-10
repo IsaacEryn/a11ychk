@@ -215,8 +215,47 @@ describe("runMorCycle — 놓친 웹훅을 정본으로 메운다", () => {
     expect(out.mor_ended ?? 0).toBe(0);
     expect(rows.subscriptions.map((s) => s.status)).toEqual(["active", "active"]);
     expect(reviews(deps)).toEqual([
-      "billing needs review: 2 mor subscriptions were not found at Polar and none could be read in this run; rows left as they are — check that the Polar access token belongs to the organization of this billing mode",
+      `billing needs review: mor subscriptions ${SUB_ID},${SUB_2} (rows ${a.id},${b.id}) were not found at Polar and no subscription could be read in this run; rows left as they are — check that the Polar access token belongs to the organization of this billing mode`,
     ]);
+  });
+
+  it("예산 때문에 한 건만 읽어 봤는데 404면 끝내지 않는다 — 읽힌 구독이 없어 토큰을 믿을 수 없다", async () => {
+    const clock = { t: NOW };
+    const slow404 = () => {
+      clock.t += 200_000;
+      throw new PolarError("ResourceNotFound", "x", 404);
+    };
+    const a = morRow({ current_period_end: iso(NOW - 3 * DAY) });
+    const b = morRow({ id: "a3100000-0000-4000-8000-000000000001", user_id: OTHER_USER, external_id: SUB_2 });
+    const { deps, rows } = world({ subscriptions: [a, b] }, { getSubscription: [slow404, sub()] }, () => clock.t);
+
+    const out = await runMorCycle(deps, false, { deadline: NOW + 100_000 });
+
+    expect(out).toMatchObject({ mor_candidates: 2, mor_deferred: 1, mor_review: 1 });
+    expect(out.mor_ended ?? 0).toBe(0);
+    expect(rows.subscriptions.map((r) => r.status)).toEqual(["active", "active"]);
+    expect(deps.polar.calls.getSubscription).toHaveLength(1);
+  });
+
+  it("404로 끝낼 때는 읽은 external_updated_at을 조건으로 쓴다 — 그 사이 웹훅이 반영했으면 끝내지 않는다", async () => {
+    const holder: { rows?: MemoryRows } = {};
+    const webhookLanded = () => {
+      // 대사가 읽은 뒤 웹훅이 더 새로운 Polar 시각으로 같은 상태를 적었다(지금보다는 이르다)
+      holder.rows!.subscriptions[0].external_updated_at = pgTime("2026-01-30T10:00:00.000000Z");
+      throw new PolarError("ResourceNotFound", "x", 404);
+    };
+    const { deps, rows } = world({ subscriptions: [morRow()] }, { getSubscription: [webhookLanded] });
+    holder.rows = rows;
+
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_changed: 1 });
+    expect(rows.subscriptions[0].status).toBe("active");
+    expect(reviews(deps)).toEqual([]);
+  });
+
+  it("읽은 external_updated_at이 비어 있으면 아직 비어 있을 때만 끝낸다", async () => {
+    const { deps, rows } = world({ subscriptions: [morRow({ external_updated_at: null })] }, { getSubscription: [new PolarError("ResourceNotFound", "x", 404)] });
+    expect(await runMorCycle(deps, false)).toMatchObject({ mor_ended: 1 });
+    expect(rows.subscriptions[0]).toMatchObject({ status: "ended", ended_reason: "admin" });
   });
 
   it("그 사이 행이 바뀌었으면(조건부 갱신 엇갈림) 끝내지 않는다", async () => {
@@ -400,8 +439,16 @@ describe("runBillingCycle — MoR 단계", () => {
   it("관리자 도구가 MoR 실패·확인 필요·중단을 문제로 보인다(cycleIssues)", () => {
     expect(cycleIssues({ errors: 0, mor_failed: 2 })).toMatchObject({ errors: 2, any: true });
     expect(cycleIssues({ mor_review: 1, mor_stale_refunds: 2, mor_ended: 1 })).toMatchObject({ review: 4, any: true });
-    expect(cycleIssues({ mor_halted: 1 })).toMatchObject({ halted: 1, any: true });
-    expect(cycleIssues({ mor_candidates: 3, mor_synced: 3, mor_expired: 1, mor_deferred: 0, mor_changed: 1 })).toEqual({ errors: 0, halted: 0, review: 0, any: false });
+    // MoR 대사 중단은 토스 결제 중단(halted)과 따로 센다
+    expect(cycleIssues({ mor_halted: 1 })).toMatchObject({ halted: 0, morHalted: 1, any: true });
+    expect(cycleIssues({ halted: 1 })).toMatchObject({ halted: 1, morHalted: 0, any: true });
+    expect(cycleIssues({ mor_candidates: 3, mor_synced: 3, mor_expired: 1, mor_deferred: 0, mor_changed: 1 })).toEqual({
+      errors: 0,
+      halted: 0,
+      morHalted: 0,
+      review: 0,
+      any: false,
+    });
   });
 });
 
@@ -493,6 +540,21 @@ describe("Supabase 저장소 — MoR 대사·탈퇴·포털 메서드", () => {
       ]),
     );
     expect(s.calls.find(([name]) => name === "select")![1][0]).toContain("billing_payments!inner(provider, livemode)");
+  });
+
+  it("listPausedMorSubscriptions: 사용자·mor·ended·사유 admin·외부 id 있음(두 모드)", async () => {
+    const s = fakeAdmin([{ data: [], error: null }]);
+    await createSupabaseBillingStore(s.admin).listPausedMorSubscriptions(USER);
+    expect(s.calls).toEqual(
+      expect.arrayContaining([
+        ["eq", ["user_id", USER]],
+        ["eq", ["provider", "mor"]],
+        ["eq", ["status", "ended"]],
+        ["eq", ["ended_reason", "admin"]],
+        ["not", ["external_id", "is", null]],
+      ]),
+    );
+    expect(s.calls.some(([name, args]) => name === "eq" && args[0] === "livemode")).toBe(false);
   });
 
   it("listLiveMorSubscriptions·hasProviderSubscription: 사용자·결제사(·모드)로 거른다", async () => {

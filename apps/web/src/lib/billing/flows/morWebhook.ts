@@ -27,9 +27,12 @@ import type { MorDeps, RefundRow, WebhookEventRecord } from "@/lib/billing/types
  *    Polar가 그 객체를 모르면(404) 다시 받아도 같으므로 기록 한 줄 뒤 처리된 것으로 끝낸다. 그 밖의 실패(결과 불명·저장소 오류·
  *    권한)는 last_error를 먼저 적고 던진다 — 라우트가 500으로 답해 Polar가 다시 보낸다. 흐름이 멱등이라 다시 처리해도 안전하다.
  * 4) 다시 받아도 같은 결과가 나올 실패(결정적 실패 — Polar 읽기 응답 모양 BAD_RESPONSE, 저장소 CHECK·FK 위반, INVALID_ID)가
- *    GIVE_UP_ATTEMPTS번째 전달에서도 나면 last_error를 남기고 처리된 것으로 끝낸다(200 + needs review 한 줄). Polar는 연속 10번
- *    실패한 끝점을 끄므로 고칠 수 없는 이벤트 하나가 모든 웹훅을 멈추게 두지 않는다. 빠진 반영은 매일 결제 크론의 MoR 대사가
- *    정본을 다시 읽어 메운다(flows/morCycle.ts). 결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)은 몇 번째든 끝내지 않는다.
+ *    GIVE_UP_ATTEMPTS번째 전달에서도 나면 last_error를 남기고 처리된 것으로 끝낸다(200 + needs review 한 줄, 이벤트·대상 id).
+ *    Polar는 연속 10번 실패한 끝점을 끄므로 고칠 수 없는 이벤트 하나가 모든 웹훅을 멈추게 두지 않는다. 그 이벤트의 반영은 빠진다 —
+ *    크론의 MoR 대사는 기간 끝이 지났거나 미납인 **기존** 구독 행만 다시 읽으므로 새 구독·주문·환불은 메우지 못한다. 그리고 processed_at이
+ *    적혀 있어 Polar에서 다시 보내도 duplicate로 무시된다. 복구는 운영자가 한다: 원인을 고치고 그 이벤트의 processed_at을 비운 뒤
+ *    Polar 대시보드에서 다시 보낸다(docs/SETUP.md "해외 결제 테스트(Polar)"). 결과 불명(NETWORK·5xx·408·쓰기 BAD_RESPONSE)은
+ *    몇 번째든 끝내지 않는다.
  * 기록은 id만 남긴다(본문·헤더·비밀 없음).
  */
 
@@ -45,7 +48,7 @@ export interface MorWebhookEvent {
 
 /**
  * processed: 처리를 마쳤다(할 일이 없었던 것 포함) / duplicate: 이미 처리한 이벤트의 재전송 /
- * abandoned: 결정적 실패가 반복돼 반영하지 못한 채 처리된 것으로 끝냈다(needs review 기록 — 크론 대사가 메운다)
+ * abandoned: 결정적 실패가 반복돼 반영하지 못한 채 처리된 것으로 끝냈다(needs review 기록 — 운영자가 processed_at을 비우고 다시 보내 복구한다)
  */
 export type MorWebhookResult = "processed" | "duplicate" | "abandoned";
 
@@ -119,7 +122,7 @@ export async function handleMorWebhook(deps: MorDeps, event: MorWebhookEvent): P
     }
     if (recorded.attempts >= GIVE_UP_ATTEMPTS && isDeterministicWebhookFailure(e) && (await markGivenUp(deps, event.id))) {
       await deps.log(
-        `billing needs review: polar webhook ${event.id} (${event.type}) failed ${recorded.attempts} times with a deterministic error (${text}); marked processed without applying it — the daily billing cron reconciles mor subscriptions`,
+        `billing needs review: polar webhook ${event.id} (${event.type}, data ${event.dataId ?? "none"}) failed ${recorded.attempts} times with a deterministic error (${text}); marked processed without applying it — fix the cause, clear processed_at of this event in billing_webhook_events and redeliver it from the Polar dashboard`,
       );
       return "abandoned";
     }

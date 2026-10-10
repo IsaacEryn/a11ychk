@@ -190,6 +190,11 @@ export interface BillingStore {
   ): Promise<boolean>;
   /** 그 사용자의 진행 중(active·past_due) MoR 구독 — 두 livemode(탈퇴 전 Polar 해지용, 모드당 1건이라 많아야 둘) */
   listLiveMorSubscriptions(userId: string): Promise<MorSubscriptionRow[]>;
+  /**
+   * 그 사용자의 일시정지로 끝난 MoR 구독 — ended·ended_reason admin·외부 id 있음, 두 livemode. Polar에서 재개되면 다시 청구되므로
+   * 탈퇴 전에 Polar 상태를 보고 해지한다(크론이 404로 끝낸 행도 같은 표지라 여기에 들어온다 — Polar에 없으면 건너뛴다)
+   */
+  listPausedMorSubscriptions(userId: string): Promise<MorSubscriptionRow[]>;
   /** 그 사용자에게 이 결제사·모드의 구독 행이 있는지(끝난 것 포함) — 고객 포털을 열기 전에 본다 */
   hasProviderSubscription(userId: string, provider: SubscriptionRow["provider"], livemode: boolean): Promise<boolean>;
   /**
