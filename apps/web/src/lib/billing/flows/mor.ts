@@ -1,6 +1,7 @@
 import "server-only";
+import { createHash } from "node:crypto";
 import { graceUntil, iso } from "@/lib/billing/period";
-import { PolarError, isPolarOutcomeUnknown, type PolarMetadata, type PolarOrder, type PolarSubscription } from "@/lib/billing/polar";
+import { PolarError, isPolarOutcomeUnknown, type PolarMetadata, type PolarOrder, type PolarRefund, type PolarSubscription } from "@/lib/billing/polar";
 import type {
   MorDeps,
   MorSubscriptionPatch,
@@ -22,8 +23,11 @@ import type {
  *
  * 돈 안전 불변식(토스 renew.ts의 refundUngranted와 같은 뜻): 결제된 Polar 구독에 기간을 줄 수 없으면 — 그 사용자·모드에
  * 다른 진행 중 구독이 이미 있거나(유니크 충돌), 사용자가 없거나(탈퇴), 일시정지에서 돌아왔는데 다른 진행 중 구독이 있으면 —
- * Polar 구독을 즉시 해지(revoke)하고 그 주문을 전액 환불한다. 같은 주문은 두 번 환불하지 않는다(billing_refunds 기록 + Polar의
- * RefundedAlready). 결과 불명인 쓰기(해지·환불)는 한 번만 다시 읽어 확인하고, 그래도 모르면 needs review로 멈춘다(반복하지 않는다).
+ * Polar 구독을 즉시 해지(revoke)하고 그 주문을 전액 환불한다. 같은 결제는 두 번 자동 환불하지 않는다 — 환불 기록의 id를 결제 id에서
+ * 정해(morAutoRefundId) Polar에 요청하기 전에 pending으로 먼저 넣는다. 기본 키가 동시 요청 중 하나만 통과시킨다(유니크 제약을 새로
+ * 만들지 않고 선점한다). Polar의 RefundedAlready도 성공으로 본다. 결과 불명인 쓰기(해지·환불)는 한 번만 다시 읽어 확인하고, 그래도
+ * 모르면 needs review로 멈춘다(반복하지 않는다). 해지한 뒤의 단계가 저장소 오류로 멈추면 needs review 한 줄을 남기고 던진다 —
+ * 웹훅 재시도가 받은 적 없는 해지 구독으로 다시 들어와 마저 환불한다(settleNeverGranted).
  *
  * 모르는 값(상태·주기·통화)은 needs review로 보내고 행을 만들거나 바꾸지 않는다 — 진행 중 행을 새로 만들지 않는다.
  * 기록은 id만 남긴다(이메일·금액·Polar 응답 문구 없음). MoR 구독에는 a11ychk 결제 메일을 보내지 않는다(Polar가 보낸다).
@@ -73,6 +77,11 @@ const ORDER_STATUS = new Map<string, PaymentRow["status"]>([
 ]);
 /** 결제 행 상태는 이 순서로만 나아간다 — 늦게 읽은 주문이 환불 기록을 되돌리지 않게 */
 const STATUS_RANK: Record<PaymentRow["status"], number> = { pending: 0, failed: 1, paid: 2, partially_refunded: 3, refunded: 4 };
+
+/**
+ * 자동 환불 기록 id의 이름공간 — 바꾸면 이미 남은 기록과 다른 id가 나와 이중 환불 방지가 깨진다(테스트가 값을 고정한다)
+ */
+const AUTO_REFUND_NAMESPACE = "a11ychk/billing/mor-auto-refund/v1:";
 
 const UNGRANTED_TEXT: Record<UngrantedWhy, string> = {
   hasActive: "user already has a live subscription",
@@ -127,6 +136,19 @@ async function review(deps: MorDeps, message: string): Promise<{ kind: "review" 
 
 const lowerUuid = (v: unknown): string | null => (typeof v === "string" && UUID_RE.test(v) ? v.toLowerCase() : null);
 
+/**
+ * 결제 하나의 자동 환불 기록 id — SHA-256(이름공간 + 결제 id 소문자)의 앞 16바이트를 UUID로 적고 version 5·RFC 4122 variant
+ * 비트를 박는다. 같은 결제면 늘 같은 id라 billing_refunds 기본 키가 동시 자동 환불을 하나로 줄인다. 관리자 부분 환불(후속 작업)은
+ * 무작위 id를 쓰므로 이 id와 겹치지 않고, 자동 환불 판정에도 세지 않는다.
+ */
+export function morAutoRefundId(paymentId: string): string {
+  const b = createHash("sha256").update(AUTO_REFUND_NAMESPACE).update(paymentId.toLowerCase()).digest().subarray(0, 16);
+  b[6] = (b[6] & 0x0f) | 0x50;
+  b[8] = (b[8] & 0x3f) | 0x80;
+  const h = b.toString("hex");
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
+}
+
 /** Polar metadata의 우리 결제 시도 id(billing_checkouts) — 결제 시작(Task 4)이 checkout_id로 넣는다 */
 export function morAttemptId(metadata: PolarMetadata): string | null {
   return lowerUuid(metadata.checkout_id);
@@ -164,7 +186,17 @@ function periodOf(sub: PolarSubscription): { start: string; end: string } | null
   return { start, end };
 }
 
-/** 진행 중 구독의 Polar 값 — 플랜·금액·기간·해지 예약을 따라간다. 미납은 기간 끝 + 7일까지 유예 */
+/**
+ * 미납 유예 기한 — 처음 미납이 된 때부터 GRACE_DAYS. 기간 끝 기준이 아니다: Polar는 주기가 시작될 때 기간을 먼저 넘기고 그다음
+ * 결제를 시도하므로, 기간 끝 + 7일이면 결제하지 않은 한 주기를 통째로 더 준다.
+ */
+const freshGrace = (now: number) => graceUntil(iso(now));
+
+/**
+ * 진행 중 구독의 Polar 값 — 플랜·금액·기간·해지 예약을 따라간다.
+ * 유예: active면 지운다. 미납으로 처음 바뀌면(직전이 active이거나 일시정지로 끝난 행) 지금 + 7일. 이미 미납이고 유예가 있으면
+ * 키를 빼서 그대로 둔다 — 미납 중 기간이 넘어가도 유예가 늘지 않는다.
+ */
 function livePatch(
   sub: PolarSubscription,
   target: "active" | "past_due",
@@ -172,7 +204,10 @@ function livePatch(
   interval: "month" | "year",
   period: { start: string; end: string },
   source: string,
+  row: MorSubscriptionRow,
+  now: number,
 ): MorSubscriptionPatch {
+  const keepGrace = target === "past_due" && row.status === "past_due" && row.grace_until !== null;
   return {
     status: target,
     plan_code: price.plan_code,
@@ -184,7 +219,7 @@ function livePatch(
     current_period_end: period.end,
     cancel_at_period_end: sub.cancel_at_period_end,
     canceled_at: canonicalTime(sub.canceled_at),
-    grace_until: target === "past_due" ? graceUntil(period.end) : null,
+    ...(target === "active" ? { grace_until: null } : keepGrace ? {} : { grace_until: freshGrace(now) }),
     ended_reason: null,
     ended_at: null,
     external_customer_id: sub.customer.id,
@@ -215,10 +250,11 @@ export async function syncMorSubscription(deps: MorDeps, sub: PolarSubscription,
 /** 행이 아직 없는 구독. "retry"는 그 사이 같은 구독의 행이 생겼다는 뜻이다(다시 읽어 갱신으로) */
 async function syncNew(deps: MorDeps, sub: PolarSubscription, livemode: boolean, hint: MorSyncHint, source: string): Promise<MorSyncResult | "retry"> {
   if (NOT_STARTED.has(sub.status)) return { kind: "skipped" };
-  const terms = await readTerms(deps, sub);
-  if ("kind" in terms) return terms;
   if (sub.status === "paused") return review(deps, `mor subscription ${sub.id} is paused before it was recorded`);
   if (sub.status === "canceled") return settleNeverGranted(deps, sub, livemode, hint);
+  // 주기·통화는 진행 중으로 적을 때만 본다 — 끝내는 상태는 낯선 값이어도 처리한다
+  const terms = await readTerms(deps, sub);
+  if ("kind" in terms) return terms;
 
   const owner = await resolveOwner(deps, sub);
   if (owner.kind === "review") return owner;
@@ -226,7 +262,7 @@ async function syncNew(deps: MorDeps, sub: PolarSubscription, livemode: boolean,
   if (!price) return review(deps, `no mor price for product ${sub.product_id} (subscription ${sub.id})`);
   const period = periodOf(sub);
   if (!period) return review(deps, `mor subscription ${sub.id} has no usable current period`);
-  if (owner.kind === "missing") return rejectSubscription(deps, sub, livemode, { why: "userMissing", row: null, hint });
+  if (owner.kind === "missing") return rejectSubscription(deps, sub, livemode, { why: "userMissing", row: null, hint, userId: null });
 
   const target = sub.status === "active" || sub.status === "trialing" ? "active" : "past_due";
   const inserted = await deps.store.insertMorSubscription({
@@ -245,7 +281,7 @@ async function syncNew(deps: MorDeps, sub: PolarSubscription, livemode: boolean,
     status: target,
     cancel_at_period_end: sub.cancel_at_period_end,
     canceled_at: canonicalTime(sub.canceled_at),
-    grace_until: target === "past_due" ? graceUntil(period.end) : null,
+    grace_until: target === "past_due" ? freshGrace(deps.now()) : null,
     external_id: sub.id,
     external_customer_id: sub.customer.id,
     external_updated_at: source,
@@ -258,7 +294,7 @@ async function syncNew(deps: MorDeps, sub: PolarSubscription, livemode: boolean,
   // 제약 이름에 기대지 않고 다시 읽어 가른다
   if (await deps.store.getSubscriptionByExternal("mor", sub.id, livemode)) return "retry";
   const live = await deps.store.getLiveSubscription(owner.userId, livemode);
-  if (live) return rejectSubscription(deps, sub, livemode, { why: "hasActive", row: null, hint });
+  if (live) return rejectSubscription(deps, sub, livemode, { why: "hasActive", row: null, hint, userId: owner.userId });
   // 충돌한 진행 중 구독이 그 사이 끝났다 — 다시 시도한다
   return "retry";
 }
@@ -275,8 +311,6 @@ async function syncExisting(
     await deps.log(`billing mor subscription ${sub.id} is not started at Polar; row ${row.id} left unchanged`);
     return { kind: "skipped" };
   }
-  const terms = await readTerms(deps, sub);
-  if ("kind" in terms) return terms;
   const expected = { status: row.status, notAfter: source };
 
   if (sub.status === "canceled" || sub.status === "paused") {
@@ -294,7 +328,9 @@ async function syncExisting(
             cancel_at_period_end: sub.cancel_at_period_end,
             external_updated_at: source,
           }
-        : // 우리 화면에는 일시정지가 없다 — 끝내 두고 사람이 본다. 같은 구독이 돌아오면 이 행을 되살린다
+        : // 우리 화면에는 일시정지가 없다 — 끝내 두고 사람이 본다. 같은 구독이 돌아오면 이 행을 되살린다.
+          // ended_reason admin은 이 "일시정지 표지"를 겸한다(되살리기 허용). 후속 작업의 관리자 종료는 Polar에서 먼저 revoke해야
+          // 한다 — 그러면 Polar가 다시 active를 보내지 않아 관리자가 끝낸 행이 되살아나지 않는다
           { status: "ended", ended_reason: "admin", ended_at: endedAt, external_updated_at: source };
     const written = await deps.store.updateMorSubscriptionIf(row.id, expected, patch);
     if (written === "skipped") return "retry";
@@ -303,10 +339,12 @@ async function syncExisting(
     return { kind: "applied", subscriptionId: row.id, status: "ended" };
   }
 
-  // active·trialing·past_due·unpaid
+  // active·trialing·past_due·unpaid — 되살릴 수 있는 끝난 행은 일시정지 표지(admin)뿐이다
   if (row.status === "ended" && row.ended_reason !== "admin") {
     return review(deps, `mor subscription ${sub.id} is live at Polar but row ${row.id} has ended`);
   }
+  const terms = await readTerms(deps, sub);
+  if ("kind" in terms) return terms;
   const owner = await resolveOwner(deps, sub);
   if (owner.kind === "review") return owner;
   if (row.user_id !== null && row.user_id !== owner.userId) return review(deps, `mor subscription ${sub.id} belongs to another user than row ${row.id}`);
@@ -314,30 +352,33 @@ async function syncExisting(
   if (!price) return review(deps, `no mor price for product ${sub.product_id} (subscription ${sub.id})`);
   const period = periodOf(sub);
   if (!period) return review(deps, `mor subscription ${sub.id} has no usable current period`);
-  if (owner.kind === "missing") return rejectSubscription(deps, sub, livemode, { why: "userMissing", row, hint });
+  if (owner.kind === "missing") return rejectSubscription(deps, sub, livemode, { why: "userMissing", row, hint, userId: null });
 
   const target = sub.status === "active" || sub.status === "trialing" ? "active" : "past_due";
-  const written = await deps.store.updateMorSubscriptionIf(row.id, expected, livePatch(sub, target, price, terms.interval, period, source));
+  const patch = livePatch(sub, target, price, terms.interval, period, source, row, deps.now());
+  const written = await deps.store.updateMorSubscriptionIf(row.id, expected, patch);
   if (written === "skipped") return "retry";
   // 일시정지(ended·admin)에서 돌아왔는데 그 사용자에게 다른 진행 중 구독이 있다
-  if (written === "conflict") return rejectSubscription(deps, sub, livemode, { why: "resumedHasActive", row, hint });
+  if (written === "conflict") return rejectSubscription(deps, sub, livemode, { why: "resumedHasActive", row, hint, userId: owner.userId });
   await completeAttempt(deps, sub, livemode, owner.userId, row.id);
   return { kind: "applied", subscriptionId: row.id, status: target };
 }
 
 /**
- * 받은 적 없는(행이 없는) 구독이 이미 끝나 있다 — 기간을 준 적이 없으니 이 동기화를 일으킨 주문이 결제됐으면 돌려준다.
- * 우리가 기간을 줄 수 없어 해지한 구독의 주문이 해지 뒤에 도착한 경우가 이것이다. 우리 구독임(사용자 id·가격 매핑)을
- * 확인한 뒤에만 환불한다. 주문 단서가 없으면 할 일이 없다.
+ * 받은 적 없는(행이 없는) 구독이 이미 끝나 있다 — 기간을 준 적이 없으니 그 주문이 결제됐으면 돌려준다.
+ * 우리가 기간을 줄 수 없어 해지한 구독의 주문이 해지 뒤에 도착했거나, 해지 뒤 환불이 저장소 오류로 멈춘 뒤의 재시도가 이것이다.
+ * 주문: 단서(hint.orderId), 없으면 우리 결제 시도에 묶인 첫 결제 — 행이 없으니 기간을 받은 결제가 아니고, 주문의 구독 id는
+ * refundOrder가 확인한다. 우리 구독임(사용자 id·가격 매핑)을 확인한 뒤에만 환불한다. 주문을 모르면 할 일이 없다.
  */
 async function settleNeverGranted(deps: MorDeps, sub: PolarSubscription, livemode: boolean, hint: MorSyncHint): Promise<MorSyncResult> {
-  if (!hint.orderId) return { kind: "skipped" };
+  const orderId = hint.orderId ?? (await initialOrderIdFor(deps, sub, livemode));
+  if (!orderId) return { kind: "skipped" };
   const owner = await resolveOwner(deps, sub);
   if (owner.kind === "review") return owner;
   if (!(await deps.store.findPriceByExternal("mor", sub.product_id, livemode))) {
     return review(deps, `no mor price for product ${sub.product_id} (subscription ${sub.id})`);
   }
-  return { kind: "ungranted", refund: await refundOrder(deps, hint.orderId, livemode, sub.id, "neverGranted") };
+  return { kind: "ungranted", refund: await refundOrder(deps, orderId, livemode, sub.id, "neverGranted") };
 }
 
 /** 새 구독이 우리 결제 시도에서 왔으면 그 시도를 completed로 닫고 동의 기록을 잇는다(이미 닫혔으면 그대로) */
@@ -349,39 +390,85 @@ async function completeAttempt(deps: MorDeps, sub: PolarSubscription, livemode: 
 /**
  * 돈 안전 불변식 — Polar 구독을 즉시 해지하고, 우리 행이 있으면 ended(refunded)로, 그 주문을 전액 환불한다.
  * 주문: 단서(hint.orderId), 없으면 새 구독일 때만 우리 결제 시도(metadata.checkout_id)에 묶인 첫 결제 행. 되살리려던 기존 행의
- * 첫 결제는 이미 기간을 받은 결제라 찾지 않는다. 찾지 못하면 needs review(구독 id) — 나중에 오는 주문 이벤트(해지된 구독)는
- * settleNeverGranted가 환불한다(새 구독일 때).
+ * 첫 결제는 이미 기간을 받은 결제라 찾지 않고, 기존 행의 단서 주문도 그 행이 받은 기간보다 뒤에 만든 것만 환불한다.
+ * 해지한 뒤의 단계(행 정리·주문 기록·환불·시도 닫기)가 던지면 needs review 한 줄을 남기고 다시 던진다(웹훅 재시도).
  */
 async function rejectSubscription(
   deps: MorDeps,
   sub: PolarSubscription,
   livemode: boolean,
-  ctx: { why: UngrantedWhy; row: MorSubscriptionRow | null; hint: MorSyncHint },
+  ctx: { why: UngrantedWhy; row: MorSubscriptionRow | null; hint: MorSyncHint; userId: string | null },
 ): Promise<MorSyncResult> {
   const revoked = await revokeAtPolar(deps, sub);
   if (!revoked) return { kind: "review" };
-
-  if (ctx.row) {
-    // 해지 응답의 시각으로 적는다 — 뒤에 오는 오래된 이벤트가 이 행을 되살리지 못하게
-    const source = canonicalTime(revoked.modified_at ?? revoked.created_at) ?? canonicalTime(sub.modified_at ?? sub.created_at)!;
-    const endedAt = canonicalTime(revoked.ended_at) ?? iso(deps.now());
-    await deps.store.updateMorSubscriptionIf(
-      ctx.row.id,
-      { status: ctx.row.status, notAfter: source },
-      { status: "ended", ended_reason: "refunded", ended_at: endedAt, canceled_at: canonicalTime(revoked.canceled_at) ?? endedAt, external_updated_at: source },
-    );
+  try {
+    if (ctx.row) await markRowRefunded(deps, sub, revoked, ctx.row);
+    const refund = await refundAfterRevoke(deps, sub, livemode, ctx);
+    // 시도는 환불 뒤에 닫는다 — 닫다가 멈춰도 환불은 이미 끝났다
+    if (ctx.why === "hasActive") {
+      const attemptId = morAttemptId(sub.metadata);
+      if (attemptId) await markMorCheckout(deps, attemptId, "failed", { livemode, userId: ctx.userId, failureCode: "duplicateRefunded" });
+    }
+    return { kind: "ungranted", refund };
+  } catch (e) {
+    await deps.log(`billing needs review: mor subscription ${sub.id} was revoked (${UNGRANTED_TEXT[ctx.why]}) but its refund did not finish`);
+    throw e;
   }
-  if (ctx.why === "hasActive") {
-    const attemptId = morAttemptId(sub.metadata);
-    if (attemptId) await markMorCheckout(deps, attemptId, "failed", { livemode, failureCode: "duplicateRefunded" });
-  }
+}
 
+async function refundAfterRevoke(
+  deps: MorDeps,
+  sub: PolarSubscription,
+  livemode: boolean,
+  ctx: { why: UngrantedWhy; row: MorSubscriptionRow | null; hint: MorSyncHint },
+): Promise<RefundOutcome> {
   const orderId = ctx.hint.orderId ?? (ctx.row ? null : await initialOrderIdFor(deps, sub, livemode));
   if (!orderId) {
-    await review(deps, `mor subscription ${sub.id} was revoked (${UNGRANTED_TEXT[ctx.why]}) but its order is not known yet; refund it manually`);
-    return { kind: "ungranted", refund: "review" };
+    const next = ctx.row
+      ? "refund its new order manually — check billing_refunds first"
+      : "the refund will run automatically when the order event arrives — check billing_refunds before refunding manually";
+    await review(deps, `mor subscription ${sub.id} was revoked (${UNGRANTED_TEXT[ctx.why]}) but its order is not known yet; ${next}`);
+    return "review";
   }
-  return { kind: "ungranted", refund: await refundOrder(deps, orderId, livemode, sub.id, ctx.why) };
+  return refundOrder(deps, orderId, livemode, sub.id, ctx.why, ctx.row ? grantedUntil(ctx.row) : undefined);
+}
+
+/**
+ * 기존 행이 이미 기간을 준 경계 — 이보다 먼저 만든 주문은 기간을 받은 결제라 자동 환불하지 않는다.
+ * 일시정지로 끝난 행(admin)은 끝난 시각 뒤, 그 밖은 지금 기간의 시작 이후에 만든 주문만 받는다.
+ */
+function grantedUntil(row: MorSubscriptionRow): { time: string; strict: boolean } {
+  if (row.status === "ended" && row.ended_reason === "admin" && row.ended_at) return { time: row.ended_at, strict: true };
+  return { time: row.current_period_start, strict: false };
+}
+
+/**
+ * 해지한 구독의 우리 행을 ended(refunded)로 — 해지 응답의 시각으로 적어 뒤에 오는 오래된 이벤트가 되살리지 못하게 한다.
+ * 그 사이 해지 웹훅이 먼저 끝냈으면(조건부 갱신이 엇갈림) 한 번 다시 읽어 사유만 refunded로 맞춘다. 그래도 안 되면 로그 한 줄
+ * (돈은 움직이지 않는다 — 환불은 이어서 진행한다).
+ */
+async function markRowRefunded(deps: MorDeps, sub: PolarSubscription, revoked: PolarSubscription, row: MorSubscriptionRow): Promise<void> {
+  const source = canonicalTime(revoked.modified_at ?? revoked.created_at) ?? canonicalTime(sub.modified_at ?? sub.created_at)!;
+  const endedAt = canonicalTime(revoked.ended_at) ?? iso(deps.now());
+  const ended: MorSubscriptionPatch = {
+    status: "ended",
+    ended_reason: "refunded",
+    ended_at: endedAt,
+    canceled_at: canonicalTime(revoked.canceled_at) ?? endedAt,
+    external_updated_at: source,
+  };
+  if ((await deps.store.updateMorSubscriptionIf(row.id, { status: row.status, notAfter: source }, ended)) === "updated") return;
+
+  const current = await deps.store.getSubscriptionByExternal("mor", sub.id, row.livemode);
+  if (current?.status === "ended" && current.ended_reason === "refunded") return;
+  let fixed = false;
+  if (current) {
+    // 저장된 시각이 더 새로우면 그 시각을 조건으로 — 그 사이 또 바뀌지 않았을 때만 맞춘다
+    const notAfter = storedIsNewer(current.external_updated_at, source) ? (canonicalTime(current.external_updated_at) ?? source) : source;
+    const patch: MorSubscriptionPatch = current.status === "ended" ? { ended_reason: "refunded" } : { ...ended, external_updated_at: notAfter };
+    fixed = (await deps.store.updateMorSubscriptionIf(current.id, { status: current.status, notAfter }, patch)) === "updated";
+  }
+  if (!fixed) await deps.log(`billing mor subscription ${sub.id}: row ${row.id} could not be marked refunded after revoke`);
 }
 
 async function initialOrderIdFor(deps: MorDeps, sub: PolarSubscription, livemode: boolean): Promise<string | null> {
@@ -428,7 +515,15 @@ function refundableOf(order: PolarOrder): number {
  * 환불 기록(pending·succeeded)이 이미 있으면 다시 요청하지 않는다. 요청 전에 pending 기록을 먼저 남긴다 — 결과를 모르면 그 기록이
  * 다음 시도의 이중 환불을 막는다. 403 RefundedAlready는 성공. 실패는 needs review 한 줄(id만).
  */
-async function refundOrder(deps: MorDeps, orderId: string, livemode: boolean, subscriptionId: string, why: UngrantedWhy): Promise<RefundOutcome> {
+async function refundOrder(
+  deps: MorDeps,
+  orderId: string,
+  livemode: boolean,
+  subscriptionId: string,
+  why: UngrantedWhy,
+  /** 기존 행의 단서 주문일 때 — 이보다 먼저 만든 주문은 이미 기간을 받았다 */
+  notBefore?: { time: string; strict: boolean },
+): Promise<RefundOutcome> {
   let order: PolarOrder;
   try {
     order = await deps.polar.getOrder(orderId);
@@ -439,6 +534,15 @@ async function refundOrder(deps: MorDeps, orderId: string, livemode: boolean, su
   if (order.subscription_id !== subscriptionId) {
     await review(deps, `order ${order.id} does not belong to mor subscription ${subscriptionId}; not refunded`);
     return "review";
+  }
+  if (notBefore) {
+    const created = micros(order.created_at);
+    const bound = micros(notBefore.time);
+    const after = Number.isFinite(created) && Number.isFinite(bound) && (notBefore.strict ? created > bound : created >= bound);
+    if (!after) {
+      await review(deps, `order ${order.id} predates the ungranted period of mor subscription ${subscriptionId}; not refunded`);
+      return "review";
+    }
   }
   const payment = await recordMorOrder(deps, order, livemode);
   if (!payment) return "review"; // recordMorOrder가 needs review를 남겼다
@@ -454,43 +558,54 @@ async function refundOrder(deps: MorDeps, orderId: string, livemode: boolean, su
     await deps.log(`billing auto-canceled mor subscription ${subscriptionId}: ${UNGRANTED_TEXT[why]}, order ${order.id} was already refunded`);
     return "none";
   }
-  if (await deps.store.hasRefundFor(payment.id)) return "refunded";
-
+  // 결정적 id로 선점한다 — 확인과 기록 사이에 다른 요청이 끼어도 기본 키가 하나만 통과시킨다. 이미 있으면(어떤 상태든)
+  // 그 자동 환불이 진행 중이거나 끝났다(실패였다면 그때 needs review를 남겼다)
+  const refundId = morAutoRefundId(payment.id);
+  if (await deps.store.hasRefundFor(payment.id, refundId)) return "refunded";
   const record = await deps.store.insertRefund({
+    id: refundId,
     payment_id: payment.id,
+    // 세금 제외(Polar 환불 금액 기준) — 결제 행의 amount·refunded_amount(세금 포함)와 기준이 다르다
     amount,
     reason: REFUND_REASON[why],
     external_refund_id: null,
     status: "pending",
     requested_by: null,
   });
+  if (record === "duplicate") return "refunded";
+  // Polar 호출의 오류만 아래에서 가른다 — 기록(updateRefund)의 저장소 오류를 환불 실패로 적으면 안 된다(돈은 이미 돌아갔을 수 있다).
+  // 저장소 오류는 던진다: 기록은 pending으로 남아 재시도가 다시 요청하지 않는다
+  let refund: PolarRefund | null = null;
+  let failure: unknown = null;
   try {
-    const refund = await deps.polar.createRefund({
+    refund = await deps.polar.createRefund({
       order_id: order.id,
       reason: why === "hasActive" || why === "resumedHasActive" ? "duplicate" : "other",
       amount,
       metadata: { payment_id: payment.id },
     });
+  } catch (e) {
+    failure = e;
+  }
+  if (refund) {
     const status = refund.status === "succeeded" ? "succeeded" : refund.status === "pending" ? "pending" : "failed";
     await deps.store.updateRefund(record.id, { status, external_refund_id: refund.id });
     if (status === "failed") {
       await review(deps, `refund ${refund.id} of order ${order.id} (mor subscription ${subscriptionId}) did not go through`);
       return "review";
     }
-  } catch (e) {
-    if (e instanceof PolarError && e.code === "RefundedAlready") {
-      await deps.store.updateRefund(record.id, { status: "succeeded" });
-    } else if (isPolarOutcomeUnknown(e)) {
-      if (!(await refundConfirmed(deps, order, amount))) {
-        await review(deps, `refund of order ${order.id} (mor subscription ${subscriptionId}) has an unknown outcome; refund record ${record.id} left pending`);
-        return "review";
-      }
-      await deps.store.updateRefund(record.id, { status: "succeeded" });
-    } else {
-      await deps.store.updateRefund(record.id, { status: "failed" });
-      await review(deps, `refund of order ${order.id} (mor subscription ${subscriptionId}) failed: ${errorText(e)}`);
+  } else if (failure instanceof PolarError && failure.code === "RefundedAlready") {
+    await deps.store.updateRefund(record.id, { status: "succeeded" });
+  } else if (isPolarOutcomeUnknown(failure)) {
+    if (!(await refundConfirmed(deps, order, amount))) {
+      await review(deps, `refund of order ${order.id} (mor subscription ${subscriptionId}) has an unknown outcome; refund record ${record.id} left pending`);
       return "review";
     }
+    await deps.store.updateRefund(record.id, { status: "succeeded" });
+  } else {
+    await deps.store.updateRefund(record.id, { status: "failed" });
+    await review(deps, `refund of order ${order.id} (mor subscription ${subscriptionId}) failed: ${errorText(failure)}`);
+    return "review";
   }
   await deps.log(`billing auto-canceled mor subscription ${subscriptionId}: ${UNGRANTED_TEXT[why]}, order ${order.id} refunded (payment ${payment.id})`);
   return "refunded";
@@ -528,6 +643,8 @@ async function orderAttempt(deps: MorDeps, order: PolarOrder, livemode: boolean,
 }
 
 const kindOf = (reason: string): PaymentRow["kind"] => (reason === "subscription_cycle" ? "renewal" : "initial");
+/** 결제 행의 환불액 — 세금 포함(amount = total_amount와 같은 기준). Polar의 refunded_amount는 세금 제외다 */
+const paidBackOf = (order: PolarOrder) => order.refunded_amount + (order.refunded_tax_amount ?? 0);
 
 function approvedAtOf(order: PolarOrder): string | null {
   if (!order.paid) return null;
@@ -536,7 +653,8 @@ function approvedAtOf(order: PolarOrder): string | null {
 
 /**
  * Polar 주문(정본)을 결제 행에 맞춘다 — (provider mor, external_payment_id = 주문 id) 기준으로 만들거나 합친다. 주문번호는 mor_<주문 id>.
- * 종류: subscription_cycle → renewal, 그 밖 → initial. 금액은 total_amount(세금 포함), 환불액은 Polar refunded_amount.
+ * 종류: subscription_cycle → renewal, 그 밖 → initial. 금액은 total_amount(세금 포함), 환불액은 refunded_amount + refunded_tax_amount
+ * (Polar의 refunded_amount는 세금 제외라 세금을 더해 금액과 같은 기준으로 맞춘다).
  * 기간은 연결 구독 행의 지금 기간이다. 갱신인데 기간을 모르면(구독 행이 아직 없음) initial로 적고 로그 한 줄 — 갱신 행은 구독·기간이
  * 있어야 한다(0041 check). 구독 행이 아직 없으면 subscription_id를 비워 두고, 다음에 같은 주문을 받을 때 채운다.
  * 상태는 앞으로만 나아간다(pending → paid → 부분 환불 → 환불). 모르는 상태·USD 아닌 주문은 needs review로 쓰지 않고 null.
@@ -577,7 +695,7 @@ export async function recordMorOrder(deps: MorDeps, order: PolarOrder, livemode:
       period_end: subRow?.current_period_end ?? null,
       attempt: 1,
       status,
-      refunded_amount: order.refunded_amount,
+      refunded_amount: paidBackOf(order),
       approved_at: approvedAt,
     };
     if (base.kind === "renewal" && (base.subscription_id === null || base.period_start === null)) {
@@ -613,7 +731,8 @@ async function mergeOrder(
 ): Promise<PaymentRow | null> {
   const patch: Partial<Omit<PaymentRow, "id">> = {};
   if (STATUS_RANK[status] > STATUS_RANK[existing.status]) patch.status = status;
-  if (order.refunded_amount > existing.refunded_amount) patch.refunded_amount = order.refunded_amount;
+  const paidBack = paidBackOf(order);
+  if (paidBack > existing.refunded_amount) patch.refunded_amount = paidBack;
   if (existing.status === "pending" && existing.amount !== order.total_amount) patch.amount = order.total_amount;
   if (existing.approved_at === null && approvedAt !== null) patch.approved_at = approvedAt;
   if (subRow) {

@@ -505,8 +505,8 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       checkSubscription("updateMorSubscriptionIf", next);
       fk("updateMorSubscriptionIf", next.user_id === null || rows.profiles.includes(next.user_id), "user_id");
       fk("updateMorSubscriptionIf", next.price_id === null || rows.prices.some((p) => p.id === next.price_id), "price_id");
-      if (externalConflict(rows.subscriptions, next)) throw storeError("updateMorSubscriptionIf", "duplicate key value violates unique constraint");
-      if (liveConflict(rows.subscriptions, next)) return "conflict";
+      // Supabase 저장소처럼 23505는 모두 "conflict"
+      if (externalConflict(rows.subscriptions, next) || liveConflict(rows.subscriptions, next)) return "conflict";
       Object.assign(s, next);
       return "updated";
     },
@@ -555,15 +555,17 @@ export function createMemoryStore(seed: Partial<MemoryRows> = {}, opts: { now?: 
       return first ? outPayment(first) : null;
     },
 
-    async hasRefundFor(paymentId) {
-      return rows.refunds.some((r) => r.payment_id === paymentId && (r.status === "pending" || r.status === "succeeded"));
+    async hasRefundFor(paymentId, refundId) {
+      return rows.refunds.some((r) => r.id === refundId && r.payment_id === paymentId);
     },
 
     async insertRefund(row) {
       if (!(row.amount > 0)) throw storeError("insertRefund", "amount check violation");
       if (!["pending", "succeeded", "failed"].includes(row.status)) throw storeError("insertRefund", "status check violation");
       fk("insertRefund", rows.payments.some((p) => p.id === row.payment_id), "payment_id");
-      const r: RefundRow = { ...clone(row), id: randomUUID() };
+      const r: RefundRow = { ...clone(row), id: row.id ?? randomUUID() };
+      // 기본 키 — 자동 환불의 결정적 id가 동시 요청 중 하나만 통과시킨다
+      if (rows.refunds.some((o) => o.id === r.id)) return "duplicate";
       rows.refunds.push(r);
       return clone(r);
     },

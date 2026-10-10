@@ -21,8 +21,10 @@ export type NewMorSubscription = Pick<
   "user_id" | "livemode" | "plan_code" | "price_id" | "amount" | "currency" | "interval" | "current_period_start" | "current_period_end" | "status" | "cancel_at_period_end" | "canceled_at" | "grace_until"
 > & { provider: "mor"; mor_provider: "polar"; billing_anchor_day: null; external_id: string; external_customer_id: string | null; external_updated_at: string };
 export type MorSubscriptionPatch = Partial<Omit<MorSubscriptionRow, "id">>;
+/** amount는 결제사에 요청한 환불 금액 — MoR(Polar)은 세금 제외(결제 행의 amount·refunded_amount는 세금 포함이라 기준이 다르다) */
 export interface RefundRow { id: string; payment_id: string; amount: number; reason: string; external_refund_id: string | null; status: "pending" | "succeeded" | "failed"; requested_by: string | null }
-export type NewRefund = Omit<RefundRow, "id">;
+/** id를 주면 그 id로 넣는다(자동 환불의 결정적 id — 기본 키가 선점이 된다). 없으면 DB 기본값(무작위) */
+export type NewRefund = Omit<RefundRow, "id"> & { id?: string };
 
 /** refunded_amount는 DB 기본값 0으로 시작한다 */
 export type NewPayment = Omit<PaymentRow, "id" | "requested_at" | "external_payment_id" | "failure_code" | "failure_message" | "receipt_url" | "card_summary" | "refunded_amount" | "approved_at">;
@@ -107,7 +109,10 @@ export interface BillingStore {
   listPendingPayments(livemode: boolean, olderThanIso: string, limit: number): Promise<PaymentRow[]>;
   /** 이 구독에 결과를 모르는(pending) 결제가 있는지 — 나이·개수 제한 없이 */
   hasPendingPayment(subscriptionId: string): Promise<boolean>;
-  /** 그 사용자·모드에 결과를 모르는(pending) 첫 결제가 있는지 — 결제를 확인하는 동안 새 시도를 막는다 */
+  /**
+   * 그 사용자·모드에 결과를 모르는(pending) 첫 결제가 있는지 — 결제를 확인하는 동안 새 시도를 막는다.
+   * 결제사(provider)는 일부러 보지 않는다: 진행 중 구독 1건 규칙이 토스·MoR를 합쳐서라, 결과를 모르는 MoR 첫 결제도 토스 결제 시작을 막는다
+   */
   hasPendingInitialPayment(userId: string, livemode: boolean): Promise<boolean>;
   /**
    * 같은 구독·같은 기간 시작의 failed 결제 중 실패 코드가 제외 목록(코드·접두)에 없는 것이 있는지.
@@ -147,9 +152,13 @@ export interface BillingStore {
   updatePaymentIf(id: string, expected: { status: PaymentRow["status"]; refundedAmount: number }, patch: Partial<Omit<PaymentRow, "id">>): Promise<boolean>;
   /** 그 결제 시도(billing_checkouts id)에 묶인 첫 결제 — 여럿이면 가장 먼저 요청한 것 */
   findInitialPaymentByCheckout(checkoutId: string, provider: PaymentRow["provider"], livemode: boolean): Promise<PaymentRow | null>;
-  /** 이 결제에 진행 중(pending)이거나 끝난(succeeded) 환불 기록이 있는지 — 같은 주문을 두 번 환불하지 않게 */
-  hasRefundFor(paymentId: string): Promise<boolean>;
-  insertRefund(row: NewRefund): Promise<RefundRow>;
+  /**
+   * 이 결제에 그 id의 환불 기록이 있는지(상태 무관) — 자동 환불의 결정적 id(flows/mor.ts morAutoRefundId)로 묻는다.
+   * 관리자 부분 환불(무작위 id)은 세지 않는다
+   */
+  hasRefundFor(paymentId: string, refundId: string): Promise<boolean>;
+  /** 기본 키 위반(같은 id가 이미 있음)이면 "duplicate" — 자동 환불의 선점이 진 쪽 */
+  insertRefund(row: NewRefund): Promise<RefundRow | "duplicate">;
   updateRefund(id: string, patch: Partial<Pick<RefundRow, "status" | "external_refund_id">>): Promise<void>;
 }
 

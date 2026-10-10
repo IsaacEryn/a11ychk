@@ -107,7 +107,10 @@ export interface PolarOrder {
   net_amount: number | null;
   tax_amount: number | null;
   total_amount: number;
-  /** 세금을 뺀 금액 기준이다(Polar 환불 금액도 세금 제외 — 세금은 Polar가 비율대로 함께 돌려준다) */
+  /**
+   * 세금을 뺀 금액이다(Polar 환불 금액도 세금 제외 — 세금은 Polar가 비율대로 함께 돌려준다). 결제 행(billing_payments)에는
+   * refunded_tax_amount를 더해 세금 포함 금액(total_amount)과 같은 기준으로 적는다(flows/mor.ts)
+   */
   refunded_amount: number;
   refunded_tax_amount: number | null;
   /** 아직 환불할 수 있는 금액(세금 제외, 고객 잔액·이전 환불 반영). 응답에 없으면 null */

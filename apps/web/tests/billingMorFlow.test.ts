@@ -3,7 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { PolarError, type PolarOrder, type PolarSubscription } from "../src/lib/billing/polar";
 import { createSupabaseBillingStore } from "../src/lib/billing/store";
 import type { PaymentRow, RefundRow } from "../src/lib/billing/types";
-import { markMorCheckout, morAttemptId, recordMorOrder, syncMorSubscription } from "../src/lib/billing/flows/mor";
+import { markMorCheckout, morAttemptId, morAutoRefundId, recordMorOrder, syncMorSubscription } from "../src/lib/billing/flows/mor";
 import {
   DAY,
   NOW,
@@ -34,6 +34,8 @@ const SUB_ID = "66666666-6666-4666-8666-666666666666";
 const ORDER_ID = "77777777-7777-4777-8777-777777777777";
 const ORDER_2 = "78787878-7878-4878-8878-787878787878";
 const REFUND_ID = "88888888-8888-4888-8888-888888888888";
+/** morAutoRefundId("00000000-0000-4000-8000-000000000000") — 유도 방식이 바뀌지 않았음을 고정한다 */
+const PINNED_REFUND_ID = "e8b68f92-f280-5d6d-b1f9-9207ddfce1cc";
 
 /** Polar 시각(마이크로초) — 같은 밀리초 안에서 앞뒤가 갈리는 경우도 시험한다 */
 const T0 = "2026-01-20T16:00:05.123456Z";
@@ -154,18 +156,39 @@ describe("syncMorSubscription — 상태 매핑", () => {
     expect(morSub(rows)).toMatchObject({ interval: "year", amount: 4321 });
   });
 
-  it("past_due 새 구독 — 미납으로 만들고 유예는 기간 끝 + 7일", async () => {
+  it("past_due 새 구독 — 미납으로 만들고 유예는 지금 + 7일(기간 끝 기준이 아니다)", async () => {
     const { deps, rows } = world();
     expect(await syncMorSubscription(deps, sub({ status: "past_due" }), false)).toMatchObject({ kind: "applied", status: "past_due" });
-    expect(morSub(rows)).toMatchObject({ status: "past_due", grace_until: pgTime(Date.parse(PERIOD_END) + 7 * DAY) });
+    expect(morSub(rows)).toMatchObject({ status: "past_due", grace_until: pgTime(NOW + 7 * DAY) });
   });
 
-  it("unpaid도 past_due — 다시 active가 되면 유예를 지운다", async () => {
+  it("unpaid도 past_due — 처음 미납이 되면 지금 + 7일, 다시 active가 되면 유예를 지운다", async () => {
     const { deps, rows } = world({ subscriptions: [morRow()] });
     await syncMorSubscription(deps, sub({ status: "unpaid", modified_at: T1 }), false);
-    expect(morSub(rows)).toMatchObject({ status: "past_due", grace_until: pgTime(Date.parse(PERIOD_END) + 7 * DAY) });
+    expect(morSub(rows)).toMatchObject({ status: "past_due", grace_until: pgTime(NOW + 7 * DAY) });
     await syncMorSubscription(deps, sub({ status: "active", modified_at: "2026-01-26T00:00:00Z" }), false);
     expect(morSub(rows)).toMatchObject({ status: "active", grace_until: null });
+  });
+
+  it("미납이 이어지면 기간이 넘어가도 처음 정한 유예를 지킨다 — Polar는 결제 전에 기간을 넘긴다", async () => {
+    const firstGrace = iso(NOW + 3 * DAY);
+    const { deps, rows } = world({ subscriptions: [morRow({ status: "past_due", grace_until: firstGrace })] });
+    const next = { current_period_start: PERIOD_END, current_period_end: "2026-03-20T16:00:00.000000Z" };
+    expect(await syncMorSubscription(deps, sub({ status: "past_due", modified_at: T1, ...next }), false)).toMatchObject({ kind: "applied", status: "past_due" });
+    expect(morSub(rows)).toMatchObject({ status: "past_due", grace_until: pgTime(firstGrace), current_period_start: pgTime(PERIOD_END) });
+  });
+
+  it("미납 행에 유예가 비어 있으면 지금 + 7일로 채운다", async () => {
+    const { deps, rows } = world({ subscriptions: [morRow({ status: "past_due", grace_until: null })] });
+    await syncMorSubscription(deps, sub({ status: "past_due", modified_at: T1 }), false);
+    expect(morSub(rows)?.grace_until).toBe(pgTime(NOW + 7 * DAY));
+  });
+
+  it("일시정지(ended·admin)에서 미납으로 돌아오면 새 유예", async () => {
+    const paused = morRow({ status: "ended", ended_reason: "admin", ended_at: iso(NOW - DAY), grace_until: iso(NOW - 20 * DAY) });
+    const { deps, rows } = world({ subscriptions: [paused] });
+    expect(await syncMorSubscription(deps, sub({ status: "past_due", modified_at: T1 }), false)).toMatchObject({ kind: "applied", status: "past_due" });
+    expect(morSub(rows)).toMatchObject({ status: "past_due", grace_until: pgTime(NOW + 7 * DAY), ended_reason: null });
   });
 
   it("canceled — active였으면 ended(user_canceled), ended_at은 Polar 값", async () => {
@@ -187,7 +210,7 @@ describe("syncMorSubscription — 상태 매핑", () => {
   });
 
   it("canceled — 직전이 미납이었으면 payment_failed", async () => {
-    const { deps, rows } = world({ subscriptions: [morRow({ status: "past_due", grace_until: iso(Date.parse(PERIOD_END) + 7 * DAY) })] });
+    const { deps, rows } = world({ subscriptions: [morRow({ status: "past_due", grace_until: iso(NOW + 7 * DAY) })] });
     await syncMorSubscription(deps, sub({ status: "canceled", modified_at: T1 }), false);
     expect(morSub(rows)).toMatchObject({ status: "ended", ended_reason: "payment_failed" });
   });
@@ -248,7 +271,8 @@ describe("syncMorSubscription — 상태 매핑", () => {
     const paused = morRow({ status: "ended", ended_reason: "admin", ended_at: iso(NOW - DAY) });
     const toss = subscriptionRow({ user_id: USER });
     const resumed = sub({ status: "active", modified_at: T1 });
-    const resumeOrder = order({ billing_reason: "subscription_cycle" });
+    // 일시정지가 끝난(ended_at) 뒤에 만든 주문이어야 환불 대상이다
+    const resumeOrder = order({ billing_reason: "subscription_cycle", created_at: "2026-01-30T15:00:00.000000Z" });
     const { deps, rows } = world(
       { subscriptions: [paused, toss] },
       {
@@ -558,6 +582,21 @@ describe("syncMorSubscription — 돈 안전 불변식(진행 중 구독이 이�
     expectIdsOnly(deps);
   });
 
+  it("다른 사용자의 결제 시도는 실패로 닫지 않는다", async () => {
+    const created = sub();
+    const foreign = checkoutRow({ user_id: OTHER_USER, price_id: PRICE.id, provider: "mor" });
+    const { deps, rows } = world(
+      { subscriptions: [live()], checkouts: [foreign], profiles: [USER, OTHER_USER] },
+      {
+        updateSubscription: [{ ...created, status: "canceled" }],
+        getOrder: [order()],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    await syncMorSubscription(deps, { ...created, metadata: { user_id: USER, checkout_id: foreign.id } }, false, { orderId: ORDER_ID });
+    expect(rows.checkouts[0].status).toBe("open");
+  });
+
   it("주문 단서가 없으면 우리 결제 시도에 묶인 첫 결제 행에서 찾는다", async () => {
     const created = sub();
     const attempt = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor" });
@@ -593,6 +632,9 @@ describe("syncMorSubscription — 돈 안전 불변식(진행 중 구독이 이�
     expect(deps.polar.calls.updateSubscription).toHaveLength(1);
     expect(deps.polar.calls.createRefund).toEqual([]);
     expect(reviews(deps)).toEqual([expect.stringContaining(SUB_ID)]);
+    // 새 구독은 주문 이벤트가 오면 자동으로 환불된다 — 수동 환불 전에 billing_refunds를 보라고 안내한다
+    expect(reviews(deps)[0]).toContain("automatically when the order event arrives");
+    expect(reviews(deps)[0]).toContain("billing_refunds");
   });
 
   it("나중에 온 주문 이벤트(구독은 이미 해지됨) — 받은 적 없는 구독의 주문이라 환불한다", async () => {
@@ -671,8 +713,8 @@ describe("환불 — 같은 주문을 두 번 환불하지 않는다", () => {
   const live = () => subscriptionRow({ user_id: USER });
   const recorded = (over: Partial<PaymentRow> = {}) =>
     paymentRow({ user_id: USER, provider: "mor", currency: "USD", order_id: `mor_${ORDER_ID}`, external_payment_id: ORDER_ID, status: "paid", period_start: null, period_end: null, ...over });
-  const refundRow = (paymentId: string, status: RefundRow["status"]): RefundRow => ({
-    id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+  const refundRow = (paymentId: string, status: RefundRow["status"], id = morAutoRefundId(paymentId)): RefundRow => ({
+    id,
     payment_id: paymentId,
     amount: 1234,
     reason: "auto_ungranted",
@@ -690,14 +732,68 @@ describe("환불 — 같은 주문을 두 번 환불하지 않는다", () => {
     expect(rows.refunds).toHaveLength(1);
   });
 
-  it("실패한 환불 기록만 있으면 다시 요청한다", async () => {
+  it("자동 환불은 결제당 한 번 — 앞선 자동 환불이 failed여도 다시 요청하지 않는다(그때 needs review를 남겼다)", async () => {
     const pay = recorded();
+    const { deps, rows } = world({ payments: [pay], refunds: [refundRow(pay.id, "failed")] }, { getOrder: [order()] });
+    expect(await syncMorSubscription(deps, sub({ status: "canceled" }), false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(deps.polar.calls.createRefund).toEqual([]);
+    expect(rows.refunds).toHaveLength(1);
+  });
+
+  it("다른 id의 환불 기록(관리자 부분 환불)은 자동 환불을 막지 않는다", async () => {
+    const pay = recorded();
+    const manual = refundRow(pay.id, "succeeded", "abababab-abab-4bab-8bab-abababababab");
     const { deps, rows } = world(
-      { payments: [pay], refunds: [refundRow(pay.id, "failed")] },
+      { payments: [pay], refunds: [manual] },
       { getOrder: [order()], createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }] },
     );
     expect(await syncMorSubscription(deps, sub({ status: "canceled" }), false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
-    expect(rows.refunds.map((r) => r.status)).toEqual(["failed", "succeeded"]);
+    expect(deps.polar.calls.createRefund).toHaveLength(1);
+    expect(rows.refunds.map((r) => r.id)).toEqual([manual.id, morAutoRefundId(pay.id)]);
+  });
+
+  it("동시에 두 번 환불하려 해도(확인과 기록 사이에 끼어듦) Polar 환불은 한 번 — 결정적 id가 선점한다", async () => {
+    const { deps, rows, store } = world(
+      {},
+      {
+        getOrder: [order(), order()],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    // 두 요청이 모두 "기록 없음"을 본 뒤에야 기록하게 한다
+    const realCheck = store.hasRefundFor.bind(store);
+    let arrived = 0;
+    let release!: () => void;
+    const bothChecked = new Promise<void>((r) => (release = r));
+    store.hasRefundFor = async (...args) => {
+      const seen = await realCheck(...args);
+      arrived += 1;
+      if (arrived === 2) release();
+      await bothChecked;
+      return seen;
+    };
+    const revoked = sub({ status: "canceled" });
+    const results = await Promise.all([
+      syncMorSubscription(deps, revoked, false, { orderId: ORDER_ID }),
+      syncMorSubscription(deps, revoked, false, { orderId: ORDER_ID }),
+    ]);
+    expect(results).toEqual([
+      { kind: "ungranted", refund: "refunded" },
+      { kind: "ungranted", refund: "refunded" },
+    ]);
+    expect(deps.polar.calls.createRefund).toHaveLength(1);
+    expect(rows.refunds).toHaveLength(1);
+    expect(rows.refunds[0].id).toBe(morAutoRefundId(rows.payments[0].id));
+    expect(reviews(deps)).toEqual([]);
+  });
+
+  it("morAutoRefundId — 결제 id에서 정해지는 v5 모양 UUID(바뀌면 이중 환불 방지가 깨지므로 값을 고정한다)", () => {
+    const a = morAutoRefundId(ORDER_ID);
+    expect(a).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(morAutoRefundId(ORDER_ID)).toBe(a);
+    expect(morAutoRefundId(ORDER_2)).not.toBe(a);
+    expect(morAutoRefundId(ORDER_ID.toUpperCase())).toBe(a);
+    expect(morAutoRefundId("00000000-0000-4000-8000-000000000000")).toBe(PINNED_REFUND_ID);
   });
 
   it("403 RefundedAlready는 성공으로 본다", async () => {
@@ -797,6 +893,168 @@ describe("환불 — 같은 주문을 두 번 환불하지 않는다", () => {
   });
 });
 
+describe("해지 뒤 저장소 오류 — 기록을 남기고 던진다, 다시 받으면 마저 환불한다", () => {
+  const live = () => subscriptionRow({ user_id: USER });
+
+  function setup() {
+    const attempt = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor" });
+    const created = sub({ metadata: { user_id: USER, checkout_id: attempt.id } });
+    const paid = order({ metadata: { user_id: USER, checkout_id: attempt.id } });
+    const w = world(
+      { subscriptions: [live()], checkouts: [attempt] },
+      {
+        updateSubscription: [{ ...created, status: "canceled" }],
+        getOrder: [paid, paid, paid],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    return { ...w, created, attempt };
+  }
+
+  /** 그 저장소 메서드가 한 번만 던지게 한다 */
+  function failOnce(store: ReturnType<typeof world>["store"], method: "hasRefundFor" | "insertRefund" | "updateRefund" | "finishCheckout" | "insertExternalPayment") {
+    const real = (store[method] as (...a: unknown[]) => Promise<unknown>).bind(store);
+    (store as unknown as Record<string, unknown>)[method] = async (...args: unknown[]) => {
+      (store as unknown as Record<string, unknown>)[method] = real;
+      throw new Error(`billing store ${method}: timeout`);
+    };
+  }
+
+  it.each(["hasRefundFor", "insertRefund", "updateRefund", "finishCheckout"] as const)(
+    "%s가 실패하면 needs review 한 줄 + 다시 던지고, 단서 없는 재시도가 결제 시도의 첫 결제로 마저 환불한다(Polar 환불은 한 번)",
+    async (method) => {
+      const { deps, rows, store, created } = setup();
+      failOnce(store, method);
+      await expect(syncMorSubscription(deps, created, false, { orderId: ORDER_ID })).rejects.toThrow("timeout");
+      expect(reviews(deps)).toEqual([`billing needs review: mor subscription ${SUB_ID} was revoked (user already has a live subscription) but its refund did not finish`]);
+      // 기록 실패를 환불 실패로 적지 않는다 — 돈은 이미 돌아갔을 수 있다
+      expect(rows.refunds.filter((r) => r.status === "failed")).toEqual([]);
+      // 웹훅 재시도 — Polar 정본은 이제 canceled, 이번엔 주문 단서가 없다
+      const retry = await syncMorSubscription(deps, { ...created, status: "canceled", modified_at: T1 }, false);
+      expect(retry).toEqual({ kind: "ungranted", refund: "refunded" });
+      expect(deps.polar.calls.createRefund).toHaveLength(1);
+      expect(rows.refunds).toHaveLength(1);
+      expect(deps.polar.calls.updateSubscription).toHaveLength(1);
+    },
+  );
+
+  it("결제 행을 적기 전에 실패하면 재시도에 단서가 없을 때는 건너뛰고, 주문 이벤트가 오면 환불한다", async () => {
+    const { deps, rows, store, created } = setup();
+    failOnce(store, "insertExternalPayment");
+    await expect(syncMorSubscription(deps, created, false, { orderId: ORDER_ID })).rejects.toThrow("timeout");
+    expect(reviews(deps)).toHaveLength(1);
+    const canceled = { ...created, status: "canceled", modified_at: T1 };
+    expect(await syncMorSubscription(deps, canceled, false)).toEqual({ kind: "skipped" });
+    expect(await syncMorSubscription(deps, canceled, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(deps.polar.calls.createRefund).toHaveLength(1);
+    expect(rows.refunds).toHaveLength(1);
+  });
+
+  it("기존 행을 끝내다 실패해도 needs review 한 줄 + 다시 던진다", async () => {
+    const paused = morRow({ status: "ended", ended_reason: "admin", ended_at: iso(NOW - DAY) });
+    const resumed = sub({ modified_at: T1 });
+    const { deps, store } = world(
+      { subscriptions: [paused, live()] },
+      { updateSubscription: [{ ...resumed, status: "canceled" }] },
+    );
+    const real = store.updateMorSubscriptionIf.bind(store);
+    let calls = 0;
+    store.updateMorSubscriptionIf = async (...args) => {
+      calls += 1;
+      if (calls === 2) throw new Error("billing store updateMorSubscriptionIf: timeout");
+      return real(...args);
+    };
+    await expect(syncMorSubscription(deps, resumed, false, { orderId: ORDER_ID })).rejects.toThrow("timeout");
+    expect(reviews(deps)).toEqual([expect.stringContaining("but its refund did not finish")]);
+  });
+});
+
+describe("기존 행의 주문 단서 확인 — 이미 기간을 받은 주문은 환불하지 않는다", () => {
+  it("탈퇴 사용자의 진행 중 행 — 행의 기간 시작보다 먼저 만든 주문은 needs review, 환불 없음", async () => {
+    const orphan = morRow({ user_id: null });
+    const cycled = sub({ modified_at: T1 });
+    const oldCycle = order({ billing_reason: "subscription_cycle", created_at: "2025-12-20T16:00:01.000000Z" });
+    const { deps, rows } = world(
+      { subscriptions: [orphan], profiles: [] },
+      { updateSubscription: [{ ...cycled, status: "canceled" }], getOrder: [oldCycle] },
+    );
+    expect(await syncMorSubscription(deps, cycled, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "review" });
+    expect(deps.polar.calls.createRefund).toEqual([]);
+    expect(rows.refunds).toEqual([]);
+    expect(reviews(deps)).toEqual([expect.stringContaining(ORDER_ID)]);
+    // 해지는 했고 행도 refunded로 끝났다
+    expect(morSub(rows)).toMatchObject({ status: "ended", ended_reason: "refunded" });
+  });
+
+  it("일시정지에서 돌아온 행 — 일시정지로 끝난 시각(ended_at) 이전의 주문은 환불하지 않는다", async () => {
+    const paused = morRow({ status: "ended", ended_reason: "admin", ended_at: iso(NOW - DAY) });
+    const resumed = sub({ modified_at: T1 });
+    const { deps, rows } = world(
+      { subscriptions: [paused, subscriptionRow({ user_id: USER })] },
+      {
+        updateSubscription: [{ ...resumed, status: "canceled" }],
+        // 일시정지 전 주기의 주문(기간 시작 이후이지만 ended_at 이전)
+        getOrder: [order({ billing_reason: "subscription_cycle", created_at: "2026-01-25T16:00:00.000000Z" })],
+      },
+    );
+    expect(await syncMorSubscription(deps, resumed, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "review" });
+    expect(deps.polar.calls.createRefund).toEqual([]);
+    expect(reviews(deps)).toHaveLength(1);
+  });
+});
+
+describe("해지 뒤 행 정리 — 그 사이 해지 웹훅이 먼저 끝냈어도 사유는 refunded", () => {
+  it("조건부 갱신이 엇갈리면 다시 읽어 ended 행의 사유만 refunded로", async () => {
+    const orphan = morRow({ user_id: null });
+    const cycled = sub({ modified_at: T1 });
+    const { deps, rows, store } = world(
+      { subscriptions: [orphan], profiles: [] },
+      {
+        updateSubscription: [{ ...cycled, status: "canceled", modified_at: "2026-01-25T16:00:09Z" }],
+        getOrder: [order({ billing_reason: "subscription_cycle" })],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    const real = store.updateMorSubscriptionIf.bind(store);
+    store.updateMorSubscriptionIf = async (...args) => {
+      // 해지 웹훅(revoked)이 먼저 처리돼 user_canceled로 끝냈다
+      Object.assign(rows.subscriptions[0], { status: "ended", ended_reason: "user_canceled", ended_at: "2026-01-25T16:00:09+00:00", external_updated_at: "2026-01-25T16:00:10+00:00" });
+      store.updateMorSubscriptionIf = real;
+      return real(...args);
+    };
+    expect(await syncMorSubscription(deps, cycled, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(morSub(rows)).toMatchObject({ status: "ended", ended_reason: "refunded", external_updated_at: "2026-01-25T16:00:10+00:00" });
+  });
+
+  it("다시 맞추지도 못하면 로그 한 줄(환불은 그대로 진행)", async () => {
+    const orphan = morRow({ user_id: null });
+    const cycled = sub({ modified_at: T1 });
+    const { deps, rows, store } = world(
+      { subscriptions: [orphan], profiles: [] },
+      {
+        updateSubscription: [{ ...cycled, status: "canceled" }],
+        getOrder: [order({ billing_reason: "subscription_cycle" })],
+        createRefund: [{ id: REFUND_ID, status: "succeeded", amount: 1234, order_id: ORDER_ID }],
+      },
+    );
+    store.updateMorSubscriptionIf = async () => "skipped";
+    expect(await syncMorSubscription(deps, cycled, false, { orderId: ORDER_ID })).toEqual({ kind: "ungranted", refund: "refunded" });
+    expect(logs(deps).filter((m) => m.includes(orphan.id))).toHaveLength(1);
+    expect(rows.refunds).toHaveLength(1);
+  });
+});
+
+describe("끝내는 상태는 주기·통화가 낯설어도 끝낸다", () => {
+  it.each<[string, Partial<PolarSubscription>, string]>([
+    ["canceled + week", { status: "canceled", recurring_interval: "week" }, "user_canceled"],
+    ["paused + eur", { status: "paused", currency: "eur" }, "admin"],
+  ])("%s", async (_, over, reason) => {
+    const { deps, rows } = world({ subscriptions: [morRow()] });
+    expect(await syncMorSubscription(deps, sub({ ...over, modified_at: T1 }), false)).toMatchObject({ kind: "applied", status: "ended" });
+    expect(morSub(rows)).toMatchObject({ status: "ended", ended_reason: reason });
+  });
+});
+
 describe("recordMorOrder — 주문을 결제 행으로", () => {
   it("첫 구독 결제 — 금액은 total_amount, 주문번호 mor_<id>, 연결 구독의 기간·사용자", async () => {
     const row = morRow();
@@ -848,6 +1106,16 @@ describe("recordMorOrder — 주문을 결제 행으로", () => {
     const { deps, rows } = world({ subscriptions: [morRow()] });
     await recordMorOrder(deps, order({ status, paid }), false);
     expect(rows.payments[0]).toMatchObject({ status: mapped, approved_at: paid ? expect.any(String) : null });
+  });
+
+  it("환불액은 세금을 더해 금액(total_amount)과 같은 기준으로 적는다", async () => {
+    const { deps, rows } = world({ subscriptions: [morRow()] });
+    await recordMorOrder(deps, order(), false);
+    await recordMorOrder(deps, order({ status: "refunded", refunded_amount: 1234, refunded_tax_amount: 100, refundable_amount: 0 }), false);
+    expect(rows.payments[0]).toMatchObject({ status: "refunded", amount: 1334, refunded_amount: 1334 });
+    const fresh = world({ subscriptions: [morRow()] });
+    await recordMorOrder(fresh.deps, order({ status: "partially_refunded", refunded_amount: 600, refunded_tax_amount: 50 }), false);
+    expect(fresh.rows.payments[0]).toMatchObject({ refunded_amount: 650 });
   });
 
   it("처음 보는 주문 상태는 needs review, 쓰지 않는다", async () => {
@@ -1119,14 +1387,24 @@ describe("Supabase 저장소 — MoR 메서드", () => {
     expect(await createSupabaseBillingStore(none.admin).profileExists(USER)).toBe(false);
   });
 
-  it("hasRefundFor는 pending·succeeded만, updatePaymentIf는 상태·환불액 조건", async () => {
+  it("updatePaymentIf는 상태·환불액 조건", async () => {
     const s = fakeAdmin([{ data: [{ id: "r1" }], error: null }]);
     const store = createSupabaseBillingStore(s.admin);
-    expect(await store.hasRefundFor("p1")).toBe(true);
-    expect(s.calls).toContainEqual(["in", ["status", ["pending", "succeeded"]]]);
     await store.updatePaymentIf("p1", { status: "paid", refundedAmount: 0 }, { status: "refunded" });
     expect(s.calls).toContainEqual(["eq", ["refunded_amount", 0]]);
     expect(s.calls).toContainEqual(["eq", ["status", "paid"]]);
+  });
+
+  it("insertRefund: 정해 준 id를 그대로 넣고 23505(기본 키)는 duplicate, hasRefundFor는 그 id·결제로만 찾는다", async () => {
+    const dup = fakeAdmin([{ data: null, error: { code: "23505", message: "duplicate key" } }]);
+    const row = { id: PINNED_REFUND_ID, payment_id: "p1", amount: 1234, reason: "auto_ungranted", external_refund_id: null, status: "pending" as const, requested_by: null };
+    expect(await createSupabaseBillingStore(dup.admin).insertRefund(row)).toBe("duplicate");
+    expect(dup.calls).toContainEqual(["insert", [row]]);
+    const found = fakeAdmin([{ data: [{ id: PINNED_REFUND_ID }], error: null }]);
+    expect(await createSupabaseBillingStore(found.admin).hasRefundFor("p1", PINNED_REFUND_ID)).toBe(true);
+    expect(found.calls).toContainEqual(["eq", ["id", PINNED_REFUND_ID]]);
+    expect(found.calls).toContainEqual(["eq", ["payment_id", "p1"]]);
+    expect(found.calls.some(([m]) => m === "in")).toBe(false);
   });
 
   it("insertExternalPayment: 23505는 duplicate", async () => {

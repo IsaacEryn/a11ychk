@@ -334,6 +334,7 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
     },
 
     async hasPendingInitialPayment(userId, livemode) {
+      // provider로 거르지 않는다 — 진행 중 구독 1건 규칙이 결제사를 합쳐서라 MoR 첫 결제 pending도 토스 결제 시작을 막는다
       const { data, error } = await admin
         .from("billing_payments")
         .select("id")
@@ -489,12 +490,12 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
       return (data as PaymentRow | null) ?? null;
     },
 
-    async hasRefundFor(paymentId) {
+    async hasRefundFor(paymentId, refundId) {
       const { data, error } = await admin
         .from("billing_refunds")
         .select("id")
+        .eq("id", refundId)
         .eq("payment_id", paymentId)
-        .in("status", ["pending", "succeeded"])
         .limit(1);
       if (error) throw fail("hasRefundFor", error);
       return Array.isArray(data) && data.length > 0;
@@ -502,7 +503,11 @@ export function createSupabaseBillingStore(admin: SupabaseClient): BillingStore 
 
     async insertRefund(row) {
       const { data, error } = await admin.from("billing_refunds").insert(row).select(REFUND_COLS).single();
-      if (error) throw fail("insertRefund", error);
+      if (error) {
+        // billing_refunds의 유니크는 기본 키뿐 — 같은 자동 환불 id를 다른 요청이 먼저 넣었다
+        if (error.code === UNIQUE_VIOLATION) return "duplicate";
+        throw fail("insertRefund", error);
+      }
       return data as RefundRow;
     },
 
