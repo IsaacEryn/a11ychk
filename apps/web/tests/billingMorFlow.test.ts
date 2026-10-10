@@ -1255,6 +1255,52 @@ describe("markMorCheckout — 우리 결제 시도를 닫는다", () => {
     expect(rows.consents[0].subscription_id).toBe(id);
   });
 
+  it("이미 닫힌 시도(superseded·expired·failed)라도 그 사용자의 MoR 시도면 동의를 새 구독에 잇는다 — 상태는 그대로", async () => {
+    for (const closed of [
+      { status: "expired" as const, failure_code: "superseded" },
+      { status: "expired" as const, failure_code: null },
+      { status: "failed" as const, failure_code: "polarCheckoutFailed" },
+    ]) {
+      const attempt = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor", ...closed });
+      const { deps, rows } = world({
+        checkouts: [attempt],
+        consents: [{ id: "c1", user_id: USER, checkout_id: attempt.id, subscription_id: null, kind: "recurring_payment" }],
+      });
+      // 사용자가 닫힌 시도의 이전 결제창에서 결제를 마쳤다
+      expect(await syncMorSubscription(deps, sub({ metadata: { user_id: USER, checkout_id: attempt.id } }), false)).toMatchObject({ kind: "applied" });
+      const id = morSub(rows)!.id;
+      expect(rows.consents[0].subscription_id).toBe(id);
+      expect(rows.checkouts[0]).toMatchObject({ ...closed, subscription_id: null });
+    }
+  });
+
+  it("닫힌 시도의 동의는 사용자·결제사·모드가 맞을 때만 잇는다", async () => {
+    const SUBSCRIPTION = "abababab-abab-4bab-8bab-abababababab";
+    for (const [over, opts] of [
+      [{}, { livemode: false, userId: OTHER_USER }],
+      [{}, { livemode: false }],
+      [{ provider: "toss" as const }, { livemode: false, userId: USER }],
+      [{ livemode: true }, { livemode: false, userId: USER }],
+    ] as const) {
+      const attempt = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor", status: "expired", failure_code: "superseded", ...over });
+      const { deps, rows } = world({
+        checkouts: [attempt],
+        consents: [{ id: "c1", user_id: USER, checkout_id: attempt.id, subscription_id: null, kind: "recurring_payment" }],
+      });
+      expect(await markMorCheckout(deps, attempt.id, "completed", { ...opts, subscriptionId: SUBSCRIPTION })).toBe(false);
+      expect(rows.consents[0].subscription_id).toBeNull();
+    }
+    // 맞으면 잇되 상태는 바꾸지 않는다(false)
+    const attempt = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor", status: "expired", failure_code: "superseded" });
+    const { deps, rows } = world({
+      checkouts: [attempt],
+      consents: [{ id: "c1", user_id: USER, checkout_id: attempt.id, subscription_id: null, kind: "recurring_payment" }],
+    });
+    expect(await markMorCheckout(deps, attempt.id, "completed", { livemode: false, userId: USER, subscriptionId: SUBSCRIPTION })).toBe(false);
+    expect(rows.consents[0].subscription_id).toBe(SUBSCRIPTION);
+    expect(rows.checkouts[0].status).toBe("expired");
+  });
+
   it("expired — 끝나지 않은 시도만", async () => {
     const open = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor" });
     const processing = checkoutRow({ user_id: USER, price_id: PRICE.id, provider: "mor", status: "processing" });

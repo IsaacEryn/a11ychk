@@ -266,7 +266,7 @@ describe("startMorCheckoutAction — 해외(Polar) 결제 시작 액션", () => 
     morPrice = priceRow({ provider: "mor", currency: "USD", external_price_id: PRODUCT });
     mor = makeMorDeps({
       store: createMemoryStore({ prices: [morPrice] }, { now: () => NOW }),
-      polar: createFakePolar({ createCheckout: [polarCheckout({ url: URL, amount: morPrice.amount, currency: "usd" })] }),
+      polar: createFakePolar({ createCheckout: [polarCheckout({ url: URL })] }),
     });
     m.createMorDeps.mockImplementation(() => mor);
   });
@@ -332,7 +332,7 @@ describe("startMorCheckoutAction — 해외(Polar) 결제 시작 액션", () => 
     expect(await startMorCheckoutAction({}, fd({ priceId: morPrice.id, consent: "on" }))).toEqual({ error: "hasActive" });
     mor.store.rows.subscriptions.length = 0;
 
-    mor.polar.script.createCheckout = [polarCheckout({ url: "https://evil.example/pay", amount: null, currency: null })];
+    mor.polar.script.createCheckout = [polarCheckout({ url: "https://evil.example/pay" })];
     const bad = await startMorCheckoutAction({}, fd({ priceId: morPrice.id, consent: "on" }));
     expect(bad).toEqual({ error: "failed" });
     expect(JSON.stringify(bad)).not.toContain("evil.example");

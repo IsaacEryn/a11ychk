@@ -14,6 +14,7 @@ vi.mock("@/lib/logs", () => ({ logAppError: m.logAppError }));
 vi.mock("@/lib/billing/server", () => ({ createMorDeps: m.createMorDeps }));
 
 import { GET, maxDuration } from "../src/app/api/billing/polar/return/route";
+import { morAutoRefundId } from "../src/lib/billing/flows/mor";
 import { PolarError } from "../src/lib/billing/polar";
 import {
   NOW,
@@ -21,7 +22,9 @@ import {
   createFakePolar,
   createMemoryStore,
   makeMorDeps,
+  paymentRow,
   polarCheckout,
+  polarOrder,
   polarSubscription,
   priceRow,
   subscriptionRow,
@@ -33,6 +36,7 @@ const PRODUCT = "44444444-4444-4444-8444-444444444444";
 const PC = "55555555-5555-4555-8555-555555555555";
 const SUB = "66666666-6666-4666-8666-666666666666";
 const CUSTOMER = "77777777-7777-4777-8777-777777777777";
+const ORDER = "88888888-8888-4888-8888-888888888888";
 
 function req(query: string, headers: Record<string, string> = { host: "localhost:3100" }, base = "http://localhost:3100") {
   return new Request(`${base}/api/billing/polar/return${query}`, { headers });
@@ -176,14 +180,84 @@ describe("Polar 결제창 복귀 라우트 — 결제창 상태", () => {
     expect(deps.polar.calls.getSubscription).toHaveLength(2);
   });
 
-  it("succeeded인데 이미 다른 진행 중 구독이 있으면(돈 안전 불변식으로 해지·환불) 구독했다고 알리지 않는다 — pending", async () => {
+  it("succeeded인데 이미 다른 진행 중 구독이 있으면(돈 안전 불변식으로 해지·환불) 그 가격의 결제 확인 화면에 duplicateRefunded", async () => {
     deps.store.rows.subscriptions.push(subscriptionRow({ user_id: USER }));
     deps.polar.script.getCheckout = [checkout()];
     deps.polar.script.getSubscription = [subscription()];
     deps.polar.script.updateSubscription = [subscription({ status: "canceled" })];
-    // 주문을 아직 모른다 — 동기화가 needs review를 남기고 끝난다
-    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=pending");
+    // 주문을 아직 모른다 — 동기화가 해지하고 needs review를 남긴다(환불은 주문 웹훅이 마친다)
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe(`http://localhost:3100/en/billing/checkout?price=${price.id}&error=duplicateRefunded`);
     expect(deps.polar.calls.updateSubscription).toEqual([[SUB, { revoke: true }]]);
+  });
+
+  it("웹훅이 먼저 해지·환불을 시작했으면(구독 canceled, 첫 결제 행·자동 환불 기록 있음) 다시 해지·환불하지 않고 duplicateRefunded", async () => {
+    deps.store.rows.subscriptions.push(subscriptionRow({ user_id: USER }));
+    const payment = paymentRow({
+      user_id: USER,
+      provider: "mor",
+      currency: "USD",
+      checkout_id: attempt.id,
+      kind: "initial",
+      order_id: `mor_${ORDER}`,
+      external_payment_id: ORDER,
+      amount: 1334,
+      status: "paid",
+      period_start: null,
+      period_end: null,
+      approved_at: "2026-01-20T16:00:02.000000Z",
+    });
+    deps.store.rows.payments.push(payment);
+    deps.store.rows.refunds.push({
+      id: morAutoRefundId(payment.id),
+      payment_id: payment.id,
+      amount: 1234,
+      reason: "auto_duplicate",
+      external_refund_id: null,
+      status: "pending",
+      requested_by: null,
+    });
+    deps.polar.script.getCheckout = [checkout()];
+    deps.polar.script.getSubscription = [
+      subscription({ status: "canceled", canceled_at: "2026-01-20T16:00:06.000000Z", ended_at: "2026-01-20T16:00:06.000000Z", modified_at: "2026-01-20T16:00:06.000000Z" }),
+    ];
+    deps.polar.script.getOrder = [polarOrder({ id: ORDER, subscription_id: SUB, metadata: { checkout_id: attempt.id, user_id: USER } })];
+
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe(`http://localhost:3100/en/billing/checkout?price=${price.id}&error=duplicateRefunded`);
+    expect(deps.polar.calls.updateSubscription).toHaveLength(0);
+    expect(deps.polar.calls.createRefund).toHaveLength(0);
+    expect(deps.store.rows.refunds).toHaveLength(1);
+  });
+
+  it("stale(웹훅이 더 새로운 상태를 먼저 적음) — 우리 행이 이 사용자의 active면 subscribed", async () => {
+    deps.polar.script.getCheckout = [checkout(), checkout()];
+    // 웹훅이 먼저: 결제창 복귀가 읽은 구독보다 새로운 수정 시각으로 행을 만들었다
+    deps.polar.script.getSubscription = [subscription({ modified_at: "2026-01-20T16:00:09.000000Z" }), subscription()];
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=subscribed");
+    expect(deps.store.rows.subscriptions).toHaveLength(1);
+    // 복귀는 더 오래된 정본을 읽는다 → stale → 행을 읽어 판정
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=subscribed");
+    expect(deps.store.rows.subscriptions[0]).toMatchObject({ status: "active", external_updated_at: "2026-01-20T16:00:09+00:00" });
+  });
+
+  it("웹훅이 같은 정본으로 행을 먼저 만들었으면(재전송과 같다) subscribed", async () => {
+    deps.polar.script.getCheckout = [checkout(), checkout()];
+    deps.polar.script.getSubscription = [subscription(), subscription()];
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=subscribed");
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=subscribed");
+    expect(deps.store.rows.subscriptions).toHaveLength(1);
+  });
+
+  it("stale인데 우리 행이 미납이거나 남의 행이면 pending", async () => {
+    deps.polar.script.getCheckout = [checkout(), checkout(), checkout()];
+    deps.polar.script.getSubscription = [subscription({ status: "past_due", modified_at: "2026-01-20T16:00:09.000000Z" }), subscription()];
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=pending");
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=pending");
+
+    // 같은 외부 id의 행이 다른 사용자 것 — 구독했다고 알리지 않는다
+    deps.store.rows.subscriptions[0].status = "active";
+    deps.store.rows.subscriptions[0].user_id = OTHER;
+    deps.polar.script.getSubscription = [subscription()];
+    expect(location(await GET(req(`?checkout_id=${PC}`)))).toBe("http://localhost:3100/en/mypage/billing?result=pending");
   });
 
   it("구독 읽기·동기화가 실패하면(결과 불명) pending + 기록 — 웹훅·크론이 마친다", async () => {

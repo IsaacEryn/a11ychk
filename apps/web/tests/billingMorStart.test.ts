@@ -30,7 +30,8 @@ function setup(rows: Partial<MemoryRows> = {}, opts: { checkout?: Parameters<typ
   const price = priceRow({ provider: "mor", currency: "USD", amount: 1234, external_price_id: PRODUCT });
   const store = createMemoryStore({ prices: [price], profiles: [USER, OTHER], ...rows }, { now: () => NOW });
   const polar = createFakePolar({
-    createCheckout: [polarCheckout({ id: POLAR_CHECKOUT, url: CHECKOUT_URL, amount: 1234, currency: "usd", ...opts.checkout })],
+    // 금액·통화·주기는 가짜 결제창 기본값(가격 행과 같음) — 대조가 기본으로 돈다
+    createCheckout: [polarCheckout({ id: POLAR_CHECKOUT, url: CHECKOUT_URL, ...opts.checkout })],
   });
   const deps = makeMorDeps({ store, polar });
   return { deps, store, polar, price };
@@ -288,7 +289,7 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
       );
 
       // 다시 시작하면 그 시도를 닫고 새로 연다
-      polar.script.createCheckout = [polarCheckout({ url: CHECKOUT_URL, amount: 1234, currency: "usd" })];
+      polar.script.createCheckout = [polarCheckout({ url: CHECKOUT_URL })];
       expect((await startMorCheckout(deps, input(price.id))).ok).toBe(true);
       expect(store.rows.checkouts[0]).toMatchObject({ status: "expired", failure_code: "superseded" });
     });
@@ -301,19 +302,25 @@ describe("startMorCheckout — 해외(Polar) 결제창 시작", () => {
       expect(JSON.stringify(deps.log.mock.calls)).not.toContain("evil.example");
     });
 
-    it("결제창 금액·통화가 가격 행과 다르면 열지 않는다 — priceMismatch로 닫고 needs review(id만), priceInactive", async () => {
-      for (const checkout of [{ amount: 999 }, { currency: "eur" }]) {
+    it("결제창 금액·통화·주기가 가격 행과 다르면 열지 않는다 — priceMismatch로 닫고 needs review(id만), priceInactive", async () => {
+      for (const checkout of [{ amount: 999 }, { currency: "eur" }, { recurring_interval: "year" }, { recurring_interval: "week" }]) {
         const { deps, store, price } = setup({}, { checkout });
         expect(await startMorCheckout(deps, input(price.id))).toEqual({ ok: false, error: "priceInactive" });
         expect(store.rows.checkouts[0]).toMatchObject({ status: "failed", failure_code: "priceMismatch" });
         expect(deps.log).toHaveBeenCalledExactlyOnceWith(
-          `billing needs review: mor price ${price.id} does not match Polar checkout ${POLAR_CHECKOUT} (amount or currency); checkout not opened`,
+          `billing needs review: mor price ${price.id} does not match Polar checkout ${POLAR_CHECKOUT} (amount, currency or interval); checkout not opened`,
         );
       }
     });
 
-    it("Polar가 금액·통화를 주지 않으면 비교하지 않고 연다", async () => {
-      const { deps, price } = setup({}, { checkout: { amount: null, currency: null } });
+    it("연간 가격은 연간 결제창과 맞는다", async () => {
+      const price = priceRow({ provider: "mor", currency: "USD", amount: 1234, interval: "year", external_price_id: PRODUCT });
+      const { deps } = setup({ prices: [price] }, { checkout: { recurring_interval: "year" } });
+      expect(await startMorCheckout(deps, input(price.id))).toMatchObject({ ok: true, url: CHECKOUT_URL });
+    });
+
+    it("Polar가 금액·통화·주기를 주지 않으면 비교하지 않고 연다", async () => {
+      const { deps, price } = setup({}, { checkout: { amount: null, currency: null, recurring_interval: null } });
       expect(await startMorCheckout(deps, input(price.id))).toMatchObject({ ok: true, url: CHECKOUT_URL });
     });
   });

@@ -143,6 +143,11 @@ export interface PolarCheckout {
   currency: string | null;
   /** 결제창 로케일 — 복귀 라우트가 metadata.locale이 없을 때 쓴다. 응답에 없으면 null */
   locale: string | null;
+  /**
+   * 결제 주기 — 상품(product)의 recurring_interval, 없으면 상품 가격(product_price, 이전 형식)의 값. 결제 시작이 가격 행의 주기와
+   * 맞는지 본다. 처음 보는 값도 문자열 그대로 둔다(호출부가 판정). 응답에 없으면 null
+   */
+  recurring_interval: Open<PolarRecurringInterval> | null;
   metadata: PolarMetadata;
 }
 
@@ -278,19 +283,29 @@ const orderSchema: z.ZodType<PolarOrder, z.ZodTypeDef, unknown> = z.object({
   metadata,
 });
 
-const checkoutSchema: z.ZodType<PolarCheckout, z.ZodTypeDef, unknown> = z.object({
-  id: requiredId,
-  status: z.string().min(1),
-  url: httpsUrl,
-  expires_at: isoDate,
-  external_customer_id: nullableString,
-  product_id: nullableString,
-  subscription_id: nullableString,
-  amount: nullableCents,
-  currency: nullableString,
-  locale: nullableString,
-  metadata,
-});
+/** 결제창의 상품·상품 가격 — 결제 주기만 읽는다(이름·가격 목록 같은 나머지는 버린다) */
+const intervalHolder = z
+  .object({ recurring_interval: nullableString })
+  .nullish()
+  .transform((v) => v?.recurring_interval ?? null);
+
+const checkoutSchema: z.ZodType<PolarCheckout, z.ZodTypeDef, unknown> = z
+  .object({
+    id: requiredId,
+    status: z.string().min(1),
+    url: httpsUrl,
+    expires_at: isoDate,
+    external_customer_id: nullableString,
+    product_id: nullableString,
+    subscription_id: nullableString,
+    amount: nullableCents,
+    currency: nullableString,
+    locale: nullableString,
+    product: intervalHolder,
+    product_price: intervalHolder,
+    metadata,
+  })
+  .transform(({ product, product_price, ...rest }) => ({ ...rest, recurring_interval: product ?? product_price }));
 
 const refundFields = {
   id: requiredId,

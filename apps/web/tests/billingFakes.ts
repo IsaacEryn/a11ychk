@@ -833,7 +833,10 @@ export function polarOrder(over: Partial<PolarOrder> = {}): PolarOrder {
   };
 }
 
-/** Polar 결제창(정본) — 기본은 열린 결제창, 우리 시도·사용자 id는 비어 있다 */
+/**
+ * Polar 결제창(정본) — 기본은 열린 결제창, 우리 시도·사용자 id는 비어 있다. 금액·통화·주기는 priceRow 기본값(1234 cent·월간)과
+ * 맞춰 둔다 — 결제 시작의 가격 대조가 기본으로 돈다
+ */
 export function polarCheckout(over: Partial<PolarCheckout> = {}): PolarCheckout {
   return {
     id: randomUUID(),
@@ -843,9 +846,10 @@ export function polarCheckout(over: Partial<PolarCheckout> = {}): PolarCheckout 
     external_customer_id: null,
     product_id: null,
     subscription_id: null,
-    amount: null,
-    currency: null,
+    amount: 1234,
+    currency: "usd",
     locale: null,
+    recurring_interval: "month",
     metadata: {},
     ...over,
   };

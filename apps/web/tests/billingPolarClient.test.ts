@@ -119,8 +119,22 @@ describe("Polar 클라이언트 요청 모양", () => {
       amount: null,
       currency: null,
       locale: null,
+      recurring_interval: null,
       metadata: { attempt: "a1" },
     });
+  });
+
+  it("결제창 — 상품(없으면 상품 가격)의 결제 주기를 읽는다(처음 보는 값도 문자열 그대로, 없으면 null)", async () => {
+    const read = (body: Record<string, unknown>) => createPolarClient(KEYS, fakeFetch(200, { ...checkout, ...body })).getCheckout(CHECKOUT_ID);
+    expect((await read({ product: { id: PRODUCT_ID, name: "Fake", recurring_interval: "year", prices: [] } })).recurring_interval).toBe("year");
+    expect((await read({ product: { id: PRODUCT_ID }, product_price: { recurring_interval: "month" } })).recurring_interval).toBe("month");
+    expect((await read({ product: { recurring_interval: "week" }, product_price: { recurring_interval: "month" } })).recurring_interval).toBe("week");
+    expect((await read({ product: null, product_price: null })).recurring_interval).toBeNull();
+    const c = await read({ product: { recurring_interval: "fortnight", name: "Fake" } });
+    expect(c.recurring_interval).toBe("fortnight");
+    expect(c).not.toHaveProperty("product");
+    expect(c).not.toHaveProperty("product_price");
+    await expect(read({ product: { recurring_interval: 5 } })).rejects.toMatchObject({ code: "BAD_RESPONSE" });
   });
 
   it("결제창 — 금액(세금 전 cent)·통화·로케일을 읽는다(없으면 null)", async () => {

@@ -2,12 +2,10 @@ import { getFormatter, getTranslations, setRequestLocale } from "next-intl/serve
 import { Link } from "@/i18n/navigation";
 import { getBillingFlags } from "@/lib/appSettings";
 import { billingMode } from "@/lib/billing/config";
-import { isMissingTable } from "@/lib/billing/dbErrors";
-import { shouldLog } from "@/lib/billing/logThrottle";
-import { SELF_SERVE_PLAN_IDS, amountInMajorUnits, pricingChannel } from "@/lib/billing/price";
+import { amountInMajorUnits, pricingChannel } from "@/lib/billing/price";
+import { loadShownPrices } from "@/lib/billing/shownPrices";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout, canSeePrices, priceLivemode } from "@/lib/billing/visibility";
-import { logAppError } from "@/lib/logs";
 import { TIERS } from "@/lib/quota";
 import { localeAlternates } from "@/lib/seo/alternates";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -21,42 +19,6 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     title: t("title"),
     description: t("desc"),
   };
-}
-
-interface ShownPrice {
-  id: string;
-  plan_code: string;
-  interval: "month" | "year";
-  /** KRW는 원, USD는 cent */
-  amount: number;
-  currency: "KRW" | "USD";
-}
-
-/**
- * 진열할 가격 — 로케일의 결제 경로(pricingChannel: ko는 토스·원화, en은 판매 대행 Polar·USD)·지금 모드의 활성 가격
- * (billing_prices는 service role 전용이라 관리자 클라이언트로 읽는다). Polar 가격은 상품 id가 있어야 결제창을 열 수 있어 그런 행만 진열한다.
- * 0041 미적용(테이블 없음)이면 조용히 가격 없음, 그 밖의 오류는 기록하고 가격 없음 — 요금제 페이지는 늘 열린다.
- * 렌더마다 읽으므로 오류가 이어지는 동안 기록은 프로세스당 1분에 한 번(logThrottle).
- */
-async function loadShownPrices(livemode: boolean, channel: ReturnType<typeof pricingChannel>): Promise<ShownPrice[]> {
-  const admin = createAdminClient();
-  let query = admin
-    .from("billing_prices")
-    .select("id, plan_code, interval, amount, currency")
-    .eq("provider", channel.provider)
-    .eq("currency", channel.currency)
-    .eq("livemode", livemode)
-    .eq("active", true)
-    .in("plan_code", [...SELF_SERVE_PLAN_IDS]);
-  if (channel.provider === "mor") query = query.not("external_price_id", "is", null);
-  const { data, error } = await query;
-  if (error) {
-    if (!isMissingTable(error) && shouldLog("pricing price lookup failed")) {
-      await logAppError(admin, `pricing price lookup failed: ${error.message}`, { path: "pricing" });
-    }
-    return [];
-  }
-  return ((data as ShownPrice[] | null) ?? []).sort((a, b) => (a.interval === b.interval ? 0 : a.interval === "month" ? -1 : 1));
 }
 
 /**
@@ -81,7 +43,7 @@ export default async function PricingPage({ params }: { params: Promise<{ locale
   const showPrices = canSeePrices(mode, flags, viewer);
   const checkoutOpen = canCheckout(mode, flags, viewer);
   const channel = pricingChannel(locale);
-  const prices = showPrices ? await loadShownPrices(priceLivemode(mode), channel) : [];
+  const prices = showPrices ? await loadShownPrices(createAdminClient(), priceLivemode(mode), channel) : [];
 
   /** 결제 확인 화면 — 비로그인이면 로그인 뒤 그 화면으로 돌아온다 */
   const subscribeHref = (priceId: string) => {

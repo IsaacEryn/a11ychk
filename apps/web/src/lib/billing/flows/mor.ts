@@ -776,8 +776,10 @@ async function mergeOrder(
 
 /**
  * 우리 결제 시도(billing_checkouts, Polar metadata.checkout_id)를 닫는다 — 끝나지 않은(open·processing) 것만.
- * 그 모드의 MoR 시도이고 (주면) 그 사용자의 것일 때만 바꾼다. 바꿨으면 true.
+ * 그 모드의 MoR 시도이고 (주면) 그 사용자의 것일 때만 바꾼다. 상태를 바꿨으면 true.
  * completed는 구독 id를 잇고 동의 기록도 그 구독에 잇는다(먼저 — 중간에 멈추면 다음 동기화가 마저 한다).
+ * 동의 연결은 시도가 이미 닫혔어도 한다(새 시작이 superseded로 닫았거나 만료된 시도의 이전 결제창에서 결제를 마친 경우 — 사용자는
+ * 그 시도에서 동의했다). 닫힌 시도는 사용자(userId)까지 맞을 때만 잇고, 상태는 바꾸지 않는다(false).
  */
 export async function markMorCheckout(
   deps: MorDeps,
@@ -790,11 +792,14 @@ export async function markMorCheckout(
   const attempt = await deps.store.getCheckout(id);
   if (!attempt || attempt.provider !== "mor" || attempt.livemode !== opts.livemode) return false;
   if (opts.userId && attempt.user_id !== opts.userId) return false;
+  const unfinished = attempt.status === "open" || attempt.status === "processing";
+  if (status === "completed" && opts.subscriptionId && (unfinished || opts.userId === attempt.user_id)) {
+    await deps.store.linkConsents(attempt.id, opts.subscriptionId);
+  }
   if (attempt.status !== "open" && attempt.status !== "processing") return false;
   if (status === "expired") {
     await deps.store.expireCheckouts([attempt.id], attempt.status, null);
   } else if (status === "completed") {
-    if (opts.subscriptionId) await deps.store.linkConsents(attempt.id, opts.subscriptionId);
     await deps.store.finishCheckout(attempt.id, { status: "completed", subscription_id: opts.subscriptionId ?? null });
   } else {
     await deps.store.finishCheckout(attempt.id, { status: "failed", failure_code: opts.failureCode ?? null });

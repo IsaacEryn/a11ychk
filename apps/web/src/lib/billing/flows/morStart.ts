@@ -27,7 +27,7 @@ import type { MorDeps, PriceRow } from "@/lib/billing/types";
  * 등록하지 않는다). 처리 중(processing)이면 기다려야 한다(inProgress). 만든 뒤 다른 시도가 보이면 물러난다(토스와 같은 yieldIfRaced).
  *
  * Polar 결제창 생성이 확정 실패면 시도를 failed(polarCheckoutFailed)로 닫고, 결과 불명이면 열어 둔다 — 아직 아무것도 청구되지 않았고
- * 다음 시작이 닫는다. 결제창 금액·통화가 가격 행과 다르면(관리자가 넣은 금액과 Polar 상품 가격이 어긋남) 확인 화면에 보인 조건과
+ * 다음 시작이 닫는다. 결제창 금액·통화·결제 주기가 가격 행과 다르면(관리자가 넣은 값과 Polar 상품이 어긋남) 확인 화면에 보인 조건과
  * 다르므로 열지 않는다. 기록은 id·코드만 남긴다(이메일·금액 없음). 저장소 오류는 던진다(액션이 기록하고 failed).
  */
 
@@ -78,11 +78,12 @@ async function settleUnfinished(deps: MorDeps, userId: string, livemode: boolean
   return null;
 }
 
-/** 결제창이 확인 화면에 보인 가격과 같은지 — Polar가 금액·통화를 주지 않으면 비교하지 않는다 */
+/** 결제창이 확인 화면에 보인 가격과 같은지(금액·통화·결제 주기) — Polar가 값을 주지 않으면 그 항목은 비교하지 않는다 */
 function matchesPrice(checkout: PolarCheckout, price: PriceRow): boolean {
   const amountOk = checkout.amount === null || checkout.amount === price.amount;
   const currencyOk = checkout.currency === null || checkout.currency.toLowerCase() === price.currency.toLowerCase();
-  return amountOk && currencyOk;
+  const intervalOk = checkout.recurring_interval === null || checkout.recurring_interval === price.interval;
+  return amountOk && currencyOk && intervalOk;
 }
 
 export async function startMorCheckout(deps: MorDeps, input: MorStartInput): Promise<MorStartOutcome> {
@@ -151,7 +152,7 @@ export async function startMorCheckout(deps: MorDeps, input: MorStartInput): Pro
   }
 
   if (!matchesPrice(checkout, price)) {
-    await deps.log(`billing needs review: mor price ${price.id} does not match Polar checkout ${checkout.id} (amount or currency); checkout not opened`);
+    await deps.log(`billing needs review: mor price ${price.id} does not match Polar checkout ${checkout.id} (amount, currency or interval); checkout not opened`);
     await close(PRICE_MISMATCH);
     return { ok: false, error: "priceInactive" };
   }

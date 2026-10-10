@@ -101,8 +101,13 @@ export function parsePriceCreate(fd: FormData): PriceParse {
   };
 }
 
+export interface PricingChannel {
+  provider: PriceProvider;
+  currency: "KRW" | "USD";
+}
+
 /** 요금제 화면의 결제 경로 — 한국어(국내)는 토스(원화), 영어(해외)는 판매 대행 Polar(USD) */
-export function pricingChannel(locale: string): { provider: PriceProvider; currency: "KRW" | "USD" } {
+export function pricingChannel(locale: string): PricingChannel {
   return locale === "en" ? { provider: "mor", currency: "USD" } : { provider: "toss", currency: "KRW" };
 }
 
