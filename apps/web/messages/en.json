@@ -1050,6 +1050,7 @@
     "tier": {
       "title": "My usage",
       "invitedBonus": "Invited-signup perk · +1 daily scan",
+      "contractUntil": "Organization contract · until {date}",
       "free": "Free",
       "plus1": "Plus 1",
       "plus2": "Plus 2",
@@ -1061,7 +1062,13 @@
       "extLabel": "Extension scans",
       "extValue": "{limit}/day",
       "pageLabel": "Pages per scan",
-      "pageValue": "up to {limit}"
+      "pageValue": "up to {limit}",
+      "subscriptionNext": "Subscribed · next payment {date}",
+      "subscriptionEnding": "Cancellation scheduled · until {date}",
+      "subscriptionPastDue": "Payment failed · check Billing",
+      "manageBilling": "Billing",
+      "subscriptionUntil": "Subscribed · until {date}",
+      "subscriptionFailed": "Payment failed"
     },
     "account": {
       "title": "Delete account",
@@ -1220,6 +1227,14 @@
         "plus1": "Plus 1 earned",
         "plus2": "Plus 2 earned"
       },
+      "grantsLabel": "Grants",
+      "grantSource": {
+        "free": "Base",
+        "earned": "Referral reward",
+        "admin": "Admin grant",
+        "contract": "Organization contract",
+        "subscription": "Subscription"
+      },
       "email": {
         "toggle": "Send email",
         "templates": {
@@ -1277,7 +1292,8 @@
       "settings": "Settings",
       "logs": "Logs",
       "referrals": "Referrals",
-      "teaser": "Teaser"
+      "teaser": "Teaser",
+      "billing": "Billing"
     },
     "dashboard": {
       "goDetail": "Details →",
@@ -1322,7 +1338,15 @@
         "scan_admin_retry": "Retry failed scan",
         "report_view": "View user report",
         "announcement_publish": "Publish notice",
-        "announcement_clear": "Remove notice banner"
+        "announcement_clear": "Remove notice banner",
+        "billing_contract_create": "Contract created",
+        "billing_contract_update": "Contract updated",
+        "billing_contract_extend": "Contract end date changed",
+        "billing_contract_end": "Contract ended",
+        "billing_price_create": "Price added",
+        "billing_price_deactivate": "Price deactivated",
+        "billing_cycle_run": "Billing cron run manually",
+        "billing_pull_due": "Test due date pulled forward"
       },
       "detailActive": "enforcement on",
       "detailInactive": "enforcement off",
@@ -1412,7 +1436,8 @@
       "title": "Scheduled jobs",
       "jobs": {
         "scheduled-scans": "Scheduled scans & cleanup (daily)",
-        "repo-stats": "Repo stats collection (daily)"
+        "repo-stats": "Repo stats collection (daily)",
+        "billing": "Billing renewals & dunning (daily)"
       },
       "ok": "OK",
       "fail": "Failed",
@@ -1488,6 +1513,282 @@
       "bannerDaysHint": "After this period the banner comes down automatically; the notice stays on the notices page. The banner also stops after a user dismisses it or has seen it 5 times.",
       "until": "Banner ends: {date}",
       "untilNone": "No end date"
+    },
+    "billing": {
+      "title": "Billing & contracts",
+      "intro": "Subscriptions and organization contracts. To add a contract, find the user on the Users page and open their details.",
+      "migrationMissing": "Apply migration 0041 to see this page.",
+      "empty": "No subscriptions match these filters.",
+      "filters": {
+        "status": "Status",
+        "provider": "Payment method",
+        "all": "All",
+        "apply": "Apply"
+      },
+      "status": {
+        "active": "Active",
+        "past_due": "Past due",
+        "ended": "Ended",
+        "expired": "Expired"
+      },
+      "provider": {
+        "toss": "Card subscription",
+        "mor": "International payment",
+        "manual": "Organization contract"
+      },
+      "cols": {
+        "user": "User",
+        "plan": "Plan",
+        "provider": "Payment method",
+        "status": "Status",
+        "period": "Period",
+        "org": "Organization"
+      },
+      "testBadge": "Test",
+      "noNickname": "(no nickname)",
+      "deletedUser": "(deleted user)",
+      "detail": {
+        "back": "Back to list",
+        "user": "User",
+        "plan": "Plan",
+        "provider": "Payment method",
+        "status": "Status",
+        "period": "Period",
+        "amount": "Contract amount",
+        "endedReason": "End reason",
+        "createdAt": "Created",
+        "nonManual": "Managing card and international subscriptions (canceling and so on) is on the way. For now you can only view their payments."
+      },
+      "endedReason": {
+        "user_canceled": "Canceled by user",
+        "payment_failed": "Payment failed",
+        "admin": "Ended by admin",
+        "refunded": "Refunded",
+        "contract_expired": "Contract expired"
+      },
+      "contract": {
+        "createToggle": "Add organization contract",
+        "plan": "Plan",
+        "startDate": "Start date",
+        "endDate": "End date",
+        "periodHint": "Applies from 00:00 on the start date to 23:59 on the end date (Korea time).",
+        "amount": "Contract amount (KRW)",
+        "amountHint": "Including VAT. For records only; no payment is made.",
+        "orgName": "Organization",
+        "contractRef": "Contract number",
+        "memo": "Memo",
+        "memoHint": "Don't enter personal data such as resident registration numbers or personal phone numbers.",
+        "optional": "(optional)",
+        "paidDate": "Payment confirmed",
+        "taxInvoiceDate": "Tax invoice issued",
+        "create": "Add contract",
+        "creating": "Adding…",
+        "created": "Contract added",
+        "editTitle": "Contract details",
+        "save": "Save",
+        "saving": "Saving…",
+        "saved": "Saved",
+        "endDateTitle": "Change end date",
+        "endDateSubmit": "Change end date",
+        "endDateSaved": "End date changed",
+        "endTitle": "End contract now",
+        "endHint": "Ending removes this user's contract limits immediately.",
+        "endConfirm": "End this contract now",
+        "endSubmit": "End contract",
+        "ended": "Contract ended",
+        "errors": {
+          "invalid": "Please check the values.",
+          "period": "The end date must be on or after the start date.",
+          "hasActive": "This user already has an active subscription or contract.",
+          "notFound": "Contract not found.",
+          "notManual": "Only organization contracts can be changed here.",
+          "ended": "This contract has already ended.",
+          "migrationMissing": "Apply migration 0041, then try again.",
+          "userNotFound": "User not found.",
+          "failed": "Couldn't save. Please try again shortly."
+        }
+      },
+      "subnav": {
+        "label": "Billing sections",
+        "list": "List",
+        "prices": "Prices",
+        "tools": "Test tools"
+      },
+      "prices": {
+        "title": "Price list",
+        "intro": "Selling prices for card subscriptions (Toss). Price rows are never edited or deleted. To change an amount, deactivate the old price and add a new one. There is only one active price per plan, interval and mode.",
+        "deactivateNote": "A deactivated price can no longer start new payments. Existing subscribers keep renewing at the amount they subscribed with.",
+        "empty": "No prices yet.",
+        "cols": {
+          "plan": "Plan",
+          "interval": "Interval",
+          "amount": "Amount",
+          "mode": "Mode",
+          "status": "Status",
+          "createdAt": "Created",
+          "actions": "Actions"
+        },
+        "intervals": {
+          "month": "Monthly",
+          "year": "Yearly"
+        },
+        "modes": {
+          "test": "Test",
+          "live": "Live"
+        },
+        "status": {
+          "active": "Active",
+          "inactive": "Inactive"
+        },
+        "deactivate": "Deactivate",
+        "deactivating": "Working…",
+        "deactivated": "Deactivated",
+        "addTitle": "Add a price",
+        "addIntro": "Prices are entered only on this screen and never stored in the repository. The provider is fixed to Toss and the currency to KRW.",
+        "plan": "Plan",
+        "interval": "Interval",
+        "amount": "Amount (KRW)",
+        "amountHint": "In won, including VAT; not stored in the repository. Whole numbers from {min, number} to {max, number}.",
+        "mode": "Mode",
+        "modeHint": "Test prices apply in test mode; live prices apply in off and live mode.",
+        "activeLabel": "Activate when added",
+        "activeHint": "Each plan, interval and mode has only one active price. If one exists, deactivate it first.",
+        "create": "Add price",
+        "creating": "Adding…",
+        "created": "Price added",
+        "errors": {
+          "invalid": "Please check the values.",
+          "activeExists": "There is already an active price for this plan, interval and mode. Deactivate it first.",
+          "notFound": "Price not found or already inactive.",
+          "migrationMissing": "Apply migration 0041, then try again.",
+          "failed": "Couldn't complete that. Please try again shortly."
+        }
+      },
+      "tools": {
+        "title": "Test tools",
+        "stateTitle": "Billing setup",
+        "mode": "Billing mode",
+        "modes": {
+          "off": "off (billing disabled)",
+          "test": "test (test payments)",
+          "live": "live (real payments)"
+        },
+        "tossKeys": "Toss keys",
+        "encKey": "Billing-key encryption key",
+        "yes": "Configured",
+        "no": "Not configured",
+        "stateHint": "Shows only whether the environment variables match the mode. Key values are never displayed. In off mode, keys show as not configured even if they exist.",
+        "cycleTitle": "Run billing cron now",
+        "cycleHint": {
+          "off": "Billing mode is off, so this can't run. Check that the BILLING_MODE environment variable is test or live and that the Toss secret key prefix (test_/live_) matches that mode, then redeploy.",
+          "test": "Runs the daily billing cron (10:00 Korea time) once, now. It handles test subscriptions: renewal charges, retries for past-due payments, cancellation and non-payment endings, and upcoming-charge emails.",
+          "live": "Runs the daily billing cron (10:00 Korea time) once, now. Real charges go out for live subscriptions that are due."
+        },
+        "run": "Run billing cron now",
+        "running": "Running…",
+        "runConfirm": "I understand real charges will go out for due live subscriptions",
+        "ran": "Billing cron ran ({candidates} candidate subscriptions)",
+        "summaryLabel": "Result (counts)",
+        "summary": {
+          "reconciled_paid": "Confirmed paid by reconciliation",
+          "reconciled_failed": "Confirmed failed by reconciliation",
+          "reconciled_unresolved": "Still unresolved after reconciliation",
+          "reconciled_review": "Paid per reconciliation, needs review",
+          "candidates": "Candidate subscriptions",
+          "errors": "Errors",
+          "deferred": "Deferred (out of time)",
+          "none": "Nothing to do",
+          "remind": "Upcoming-charge notices sent",
+          "remind_skipped": "Upcoming-charge notices skipped",
+          "charge_paid": "Renewal charges succeeded",
+          "charge_failed": "Renewal charges failed",
+          "charge_pending": "Renewal charges with unknown result",
+          "charge_skipped": "Renewal charges skipped",
+          "charge_incident": "Renewal charges hit a setup incident",
+          "charge_halted": "Renewal charges halted",
+          "charge_refunded": "Renewal charges auto-canceled (no period to grant)",
+          "charge_review": "Renewal charges needing review",
+          "retry_paid": "Retries succeeded",
+          "retry_failed": "Retries failed",
+          "retry_pending": "Retries with unknown result",
+          "retry_skipped": "Retries skipped",
+          "retry_incident": "Retries hit a setup incident",
+          "retry_halted": "Retries halted",
+          "retry_refunded": "Retries auto-canceled (no period to grant)",
+          "retry_review": "Retries needing review",
+          "halt_skipped": "Charges deferred by a halt",
+          "end_canceled": "Ended after scheduled cancellation",
+          "end_unpaid": "Ended for non-payment",
+          "held": "Ending held (unresolved payment)",
+          "changed": "Skipped (changed meanwhile)",
+          "halted": "Charging halted"
+        },
+        "subsTitle": "Test subscriptions",
+        "subsIntro": "Only test (livemode=false) card subscriptions are listed. Run the billing cron after pulling for it to take effect.",
+        "subsEmpty": "No active test subscriptions.",
+        "cols": {
+          "periodEnd": "Period end",
+          "actions": "Actions"
+        },
+        "pulling": "Working…",
+        "errors": {
+          "off": "Billing mode is off. Check the BILLING_MODE environment variable and that the Toss secret key prefix (test_/live_) matches the mode, then redeploy.",
+          "notConfigured": "The Toss keys or the billing-key encryption key are not configured.",
+          "confirm": "Live mode requires the confirmation checkbox. Please refresh the page.",
+          "invalid": "Couldn't identify the subscription.",
+          "notFound": "Subscription not found.",
+          "notTest": "Only test card subscriptions can have their due date pulled forward.",
+          "ended": "This subscription has ended or changed in the meantime.",
+          "migrationMissing": "Apply migration 0041, then try again.",
+          "failed": "Couldn't complete that. Check the error log.",
+          "graceOver": "The grace period is over, so there is nothing to retry. The next billing cron will end this subscription.",
+          "cancelScheduled": "Upcoming-charge notices aren't sent for a subscription with a scheduled cancellation, so it can't be pulled to notice time. Use Pull due date to test the ending, or undo the cancellation and try again."
+        },
+        "ranIssues": "Billing cron ran with problems (candidates: {candidates}, errors: {errors}{review, plural, =0 {} other {, payments needing review: #}}{halted, plural, =0 {} other {, charging halted by a setup incident}}). Check the error log.",
+        "subsItems": {
+          "charge": "Pull due date (active): moves the period end to one minute from now and clears the upcoming-charge notice record. The cron then attempts the renewal charge. For a subscription with a scheduled cancellation this tests the ending instead: run the cron after that minute and the subscription ends.",
+          "remind": "Pull to notice time (active): moves the period end to two days from now and clears the notice record. The subscription becomes due for the upcoming-charge email, and no charge goes out yet. Not available for subscriptions with a scheduled cancellation (the cron doesn't send them a notice).",
+          "retry": "Pull retry time (past due): leaves the period end and grace deadline as they are and moves only the next retry time to now. If the grace period is over, the cron ends the subscription instead."
+        },
+        "pullCharge": "Pull due date",
+        "pullRemind": "Pull to notice time",
+        "pullRetry": "Pull retry time",
+        "pulled": {
+          "charge": "Due date pulled forward",
+          "remind": "Pulled to notice time",
+          "retry": "Retry time set to now",
+          "end": "Period end moved to one minute from now (cancellation scheduled — run the cron after that minute and the subscription ends instead of renewing)"
+        }
+      },
+      "payments": {
+        "title": "Payments",
+        "empty": "No payments yet.",
+        "cols": {
+          "at": "Date",
+          "kind": "Type",
+          "amount": "Amount",
+          "status": "Status",
+          "receipt": "Receipt"
+        },
+        "kind": {
+          "initial": "First payment",
+          "renewal": "Renewal",
+          "retry": "Retry",
+          "manual": "Manual"
+        },
+        "status": {
+          "pending": "Pending",
+          "paid": "Paid",
+          "failed": "Failed",
+          "refunded": "Refunded",
+          "partially_refunded": "Partially refunded"
+        },
+        "refunded": "refunded {amount}",
+        "receipt": "Receipt",
+        "newWindow": "(opens in a new window)",
+        "noReceipt": "No receipt",
+        "refundNote": "Refunds are handled in the Toss merchant dashboard (an admin refund feature is on the way)."
+      }
     },
     "pager": {
       "label": "Pagination",
@@ -1765,7 +2066,17 @@
     },
     "ctaFree": "Start for free",
     "ctaContact": "Contact us",
-    "note": "Until paid plans launch, every account runs on Free limits. Need more? Contact us and we will review and assign limits individually. Launch timing and prices will be announced on this page."
+    "note": "Until paid plans launch, every account runs on Free limits. Need more? Contact us and we will review and assign limits individually. Launch timing and prices will be announced on this page.",
+    "price": {
+      "month": "{amount}/month",
+      "year": "{amount}/year",
+      "vat": "VAT included"
+    },
+    "ctaSubscribe": {
+      "month": "Subscribe monthly",
+      "year": "Subscribe yearly"
+    },
+    "noteSubscribable": "Prices include VAT. Subscriptions renew automatically at the same amount until you cancel. For organization-wide plans or higher limits, please contact us."
   },
   "notices": {
     "title": "Notices",
@@ -1798,5 +2109,206 @@
     "ctaDesc": "Enter a URL and we will check this checkpoint along with the other 32. One page can be audited without signing in.",
     "ctaButton": "Run a free check",
     "relatedTitle": "Related checkpoints"
+  },
+  "billing": {
+    "checkout": {
+      "eyebrow": "Payment",
+      "title": "Review your subscription",
+      "desc": "Please review the payment details before registering a card. Once you agree and register a card, the first payment is charged today.",
+      "testMode": "Test payment — you will not actually be charged.",
+      "summaryTitle": "Payment details",
+      "plan": "Plan",
+      "amount": "Amount",
+      "amountValue": "{amount} (VAT included)",
+      "cycle": "Billing cycle",
+      "cycleValue": {
+        "month": "Monthly",
+        "year": "Yearly"
+      },
+      "firstCharge": "First payment",
+      "firstChargeValue": "Today ({date}) {amount}",
+      "nextCharge": "Next payment",
+      "renewal": "Your subscription renews automatically at the same amount until you cancel.",
+      "cancelHow": "You can cancel at any time under Billing on My page, and you keep access until the end of the period you paid for.",
+      "consent": "I have reviewed and agree to the recurring payment above",
+      "submit": "Register card and pay",
+      "pending": "Opening the payment window…",
+      "release": "Cancel previous attempt",
+      "released": "The previous payment attempt was canceled. You can pay again.",
+      "subscribedTitle": "You already have a subscription",
+      "subscribedBody": "You can cancel or resume your subscription and change your card under Billing.",
+      "manageLink": "Go to Billing",
+      "inactiveTitle": "This price is not available right now",
+      "pricingLink": "Back to pricing",
+      "returnErrors": {
+        "canceled": "The payment window was closed, so no payment was made. You can try again.",
+        "cardRejected": "This card cannot be used. Please try again with another card.",
+        "failed": "The payment could not be completed. Please try again in a moment.",
+        "expired": "The payment session has expired. Please start again.",
+        "hasActive": "You already have a subscription, so no new payment was made.",
+        "customerMismatch": "The payment details did not match, so nothing was charged. Please try again.",
+        "priceInactive": "This price is no longer available, so no payment was made.",
+        "notConfigured": "Payments are not set up yet, so you cannot pay right now.",
+        "duplicateRefunded": "You already have a subscription, so this payment is being canceled automatically. If the cancellation is not confirmed, please contact us.",
+        "notFound": "We could not find that payment attempt. Please start again."
+      },
+      "formErrors": {
+        "invalid": "The request was not valid. Please reload the page and try again.",
+        "consent": "You need to agree to the recurring payment to continue.",
+        "notAllowed": "This account cannot make payments right now.",
+        "hasActive": "You already have a subscription. Please check it under Billing.",
+        "priceInactive": "This price is not available right now.",
+        "notConfigured": "Payments are not set up yet, so you cannot pay right now.",
+        "inProgress": "Another payment attempt is in progress. If you are not paying in another window, cancel the previous attempt and try again.",
+        "failed": "The payment could not be started. Please try again in a moment.",
+        "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
+        "sdkFailed": "The payment window could not be opened. Please try again.",
+        "sdkCanceled": "You closed the payment window. You can try again.",
+        "inProgressChecking": "We are still confirming your previous payment. Confirmation can take up to a day, so please check the result under Billing."
+      },
+      "period": "Service period",
+      "periodValue": "{start} – {end}",
+      "nextChargeHint": "The next payment may be charged as early as one day before the service period ends, and we email you a reminder beforehand.",
+      "nothingToRelease": "There was no payment attempt to cancel. Please try paying again."
+    },
+    "manage": {
+      "eyebrow": "My page",
+      "title": "Billing",
+      "desc": "Check your subscription, payment card and payment history, and cancel or change your card.",
+      "newWindow": "(opens in a new window)",
+      "tier": {
+        "title": "Current plan",
+        "source": {
+          "free": "Default plan",
+          "earned": "Referral reward",
+          "admin": "Assigned by an administrator",
+          "contract": "Organization contract",
+          "contractUntil": "Organization contract · until {date}",
+          "subscription": "Subscription"
+        }
+      },
+      "contract": {
+        "title": "Organization contract",
+        "plan": "Plan",
+        "period": "Contract period",
+        "until": "Until {date}",
+        "starts": "Starts on {date}"
+      },
+      "subscription": {
+        "title": "Subscription",
+        "none": "You have no active subscription.",
+        "pricingLink": "View plans",
+        "testTag": "Test",
+        "plan": "Plan",
+        "amount": "Amount",
+        "amountValue": "{amount} (VAT included) · {cycle}",
+        "status": "Status",
+        "statusActive": "Active · next payment on {date}",
+        "statusScheduled": "Cancellation scheduled · ends on {date}",
+        "statusPastDue": "Payment failed",
+        "card": "Payment card",
+        "cardNone": "No card on file",
+        "pastDueTitle": "Your payment failed",
+        "pastDueBody": "If the payment has not gone through by {date}, your subscription will end. If you change your card, we will try the payment again right away with the new card.",
+        "endingSoon": "The grace period is over, so this subscription will end soon. To keep using the plan, subscribe again after it ends.",
+        "statusActiveUntil": "Active · until {date}",
+        "readOnly": "This subscription cannot be changed here right now."
+      },
+      "cardChange": {
+        "button": "Change card",
+        "pending": "Opening the payment window…",
+        "release": "Cancel previous attempt",
+        "released": "The previous attempt was canceled. You can change your card again.",
+        "nothingToRelease": "There was no attempt to cancel. Please try again.",
+        "errors": {
+          "invalid": "The request was not valid. Please reload the page and try again.",
+          "notAllowed": "The card for this subscription cannot be changed right now.",
+          "notConfigured": "Payments are not set up yet, so you cannot change your card right now.",
+          "inProgress": "Another payment attempt is in progress. If you are not using another window, cancel the previous attempt and try again.",
+          "inProgressChecking": "We are still confirming a previous payment. Confirmation can take up to a day, so please try again once it is confirmed.",
+          "graceOver": "The grace period is over, so the card can't be changed. Subscribe again from the pricing page after the subscription ends.",
+          "failed": "The card change could not be started. Please try again in a moment.",
+          "sdkLoad": "The payment window could not be loaded. Please check your connection and try again.",
+          "sdkFailed": "The payment window could not be opened. Please try again.",
+          "sdkCanceled": "You closed the payment window, so your card was not changed. You can try again."
+        }
+      },
+      "cancel": {
+        "open": "Cancel subscription",
+        "confirmActive": "If you cancel, you can keep using it until {date}, and you will not be charged after that.",
+        "confirmPastDue": "If you cancel, your subscription ends right away.",
+        "submitActive": "Schedule cancellation",
+        "submitPastDue": "Cancel now",
+        "back": "Go back",
+        "resume": "Undo cancellation",
+        "resumeHint": "If you undo the cancellation, your subscription continues and the next payment is made on {date}.",
+        "pending": "Processing…",
+        "done": {
+          "scheduled": "Your cancellation is scheduled. When the current period ends, your subscription ends and you will not be charged again.",
+          "endedNow": "Your subscription has been canceled. You will not be charged again.",
+          "resumed": "Your cancellation has been undone. Your subscription continues."
+        },
+        "errors": {
+          "notAllowed": "Subscriptions cannot be changed right now.",
+          "notConfigured": "Payments are not set up yet, so this cannot be done right now.",
+          "notFound": "We could not find a subscription to change. Please reload the page to see its current state.",
+          "already": "Your cancellation is already scheduled.",
+          "busy": "We are still confirming a previous payment, so you cannot cancel right now. Once it is confirmed (usually within a day), you can cancel again.",
+          "tooLate": "The current period has already ended, so the cancellation cannot be undone.",
+          "failed": "Something went wrong. Please try again in a moment.",
+          "retryLater": "Your subscription changed while this was being processed, so nothing was changed. Please try again in a moment."
+        }
+      },
+      "payments": {
+        "title": "Payment history",
+        "caption": "Recent payments",
+        "empty": "No payments yet.",
+        "colDate": "Date",
+        "colKind": "Type",
+        "colAmount": "Amount",
+        "colStatus": "Status",
+        "colReceipt": "Receipt",
+        "receipt": "View receipt",
+        "noReceipt": "None",
+        "testTag": "Test",
+        "kind": {
+          "initial": "First payment",
+          "renewal": "Renewal",
+          "retry": "Retry",
+          "manual": "Manual payment"
+        },
+        "status": {
+          "pending": "Confirming",
+          "paid": "Paid",
+          "failed": "Failed",
+          "refunded": "Refunded",
+          "partially_refunded": "Partially refunded",
+          "notProcessed": "Not processed (no charge)"
+        }
+      },
+      "results": {
+        "subscribed": "Your subscription has started. We will email you the receipt.",
+        "pending": "We are confirming your payment. Confirmation can take up to a day; once it is confirmed, the result will appear on this page.",
+        "cardChanged": {
+          "none": "Your payment card has been changed.",
+          "paid": "Your payment card has been changed and the overdue payment went through.",
+          "pending": "Your payment card has been changed. We are confirming the overdue payment, which can take up to a day; once it is confirmed, the result will appear on this page.",
+          "failed": "Your payment card has been changed, but the payment with the new card did not go through. Please check the card or change to another card.",
+          "refunded": "The subscription had already ended, so we canceled this payment automatically. To use the service again, please start a new subscription."
+        }
+      },
+      "returnErrors": {
+        "canceled": "The payment window was closed, so nothing changed. You can try again.",
+        "cardRejected": "This card cannot be used. Please try again with another card.",
+        "failed": "This could not be completed. Please try again in a moment.",
+        "expired": "The session expired, so nothing changed. Please start again.",
+        "hasActive": "You already have a subscription, so no new payment was made.",
+        "duplicateRefunded": "You already have a subscription, so this payment is being canceled automatically. If the cancellation is not confirmed, please contact us.",
+        "customerMismatch": "The payment details did not match, so nothing changed. Please try again.",
+        "priceInactive": "This price is no longer available, so no payment was made.",
+        "notConfigured": "Payments are not set up yet, so this cannot be done right now.",
+        "notFound": "We could not find that payment attempt. Please try again."
+      }
+    }
   }
 }

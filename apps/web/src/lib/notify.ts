@@ -6,7 +6,7 @@ import { logAppError } from "@/lib/logs";
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
 
 /** 카드형 브랜드 메일 색 (인라인 스타일 전용 — 이메일 클라이언트는 CSS 변수를 못 쓴다) */
-const EMAIL = {
+export const EMAIL = {
   paper: "#f5f3ee",
   card: "#ffffff",
   line: "#e5e1d8",
@@ -17,7 +17,7 @@ const EMAIL = {
 } as const;
 
 /** 로고 락업 + 본문 rows(tr/td)를 감싸는 카드형 메일 셸. 알림·승급·관리자 메일이 공유한다. */
-function emailCard(rows: string): string {
+export function emailCard(rows: string): string {
   return `
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${EMAIL.paper};padding:24px 0">
   <tr><td align="center">
@@ -30,7 +30,7 @@ function emailCard(rows: string): string {
 }
 
 /** 카드형 메일의 주요 CTA 버튼(seal 채움). */
-function emailButton(href: string, label: string): string {
+export function emailButton(href: string, label: string): string {
   return `<a href="${href}" style="display:inline-block;background:${EMAIL.seal};color:#fff;text-decoration:none;font-weight:700;font-size:15px;padding:12px 22px;border-radius:8px">${label}</a>`;
 }
 
@@ -322,7 +322,7 @@ export function shouldRetryEmailStatus(status: number): boolean {
 }
 
 /** Resend 발송 공통부 — 키 미설정 시 false(no-op). 일시 장애는 지수 백오프로 재시도. */
-async function sendEmail(msg: { to: string; subject: string; html: string; replyTo?: string }): Promise<boolean> {
+export async function sendEmail(msg: { to: string; subject: string; html: string; replyTo?: string }): Promise<boolean> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return false;
   for (let attempt = 0; ; attempt++) {
@@ -349,6 +349,6 @@ async function sendEmail(msg: { to: string; subject: string; html: string; reply
   }
 }
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 }

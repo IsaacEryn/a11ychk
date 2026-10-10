@@ -35,6 +35,7 @@ export default async function AdminLayout({
           label: t("nav.label"),
           dashboard: t("nav.dashboard"),
           users: t("nav.users"),
+          billing: t("nav.billing"),
           referrals: t("nav.referrals"),
           teaser: t("nav.teaser"),
           inquiries: t("nav.inquiries"),

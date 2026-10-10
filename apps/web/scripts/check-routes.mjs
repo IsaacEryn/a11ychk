@@ -43,6 +43,15 @@ const ROUTES = [
   // 307(→ /ko/site/...)이 나오면 그 링크들이 전부 404가 된 것이다.
   ["/site/nonexistent-host.example", 302, "배지 리졸버 (프록시 미통과)"],
   ["/sample/bad.html", 200, "public 정적 파일 (프록시 미통과)"],
+
+  // 결제 모드 게이트 — 기본 빌드(BILLING_MODE 없음)에서는 결제 화면·토스 리다이렉트가 없어야 한다
+  ["/ko/billing/checkout", 404, "결제 꺼짐(BILLING_MODE 없음)이면 결제 화면 없음"],
+  ["/api/billing/toss/callback", 404, "결제 꺼짐이면 토스 콜백 없음"],
+  ["/api/billing/toss/fail", 404, "결제 꺼짐이면 토스 실패 주소 없음"],
+  // 결제 관리는 마이페이지 아래라 마이페이지와 같다 — mypage/loading.tsx의 Suspense 경계 때문에 셸이 200으로 먼저 나가고
+  // 비로그인 리다이렉트는 본문(meta refresh)으로 간다. 리다이렉트 대상은 아래 BODY_CHECKS가 본다
+  ["/ko/mypage", 200, "마이페이지 (비로그인 → 본문 리다이렉트)"],
+  ["/ko/mypage/billing", 200, "결제 관리 (비로그인 → 본문 리다이렉트)"],
 ];
 
 /**
@@ -77,6 +86,8 @@ const BODY_CHECKS = [
   ["/ko/guide/table-structure", /KWCAG 2\.2 검사항목 3(?!\d)/, "가이드 상세 — 일련번호"],
   ["/ko/guide/table-structure", /KS X OT0003 5\.3\.1(?!\d)/, "가이드 상세 — 공식 번호"],
   ["/en/guide/text-contrast", /Checkpoint 8(?!\d)/, "가이드 상세(en) — 일련번호"],
+  // 비로그인 결제 관리 → 로그인, 돌아올 주소 보존(결제 모드와 무관하게 로그인이 먼저)
+  ["/ko/mypage/billing", /\/ko\/login\?next=%2Fko%2Fmypage%2Fbilling/, "결제 관리 비로그인 → 로그인(next 보존)"],
 ];
 
 /** sitemap.xml에 있으면 안 되는 것 — 로그인 게이트 주소를 색인 요청하지 않는다 */

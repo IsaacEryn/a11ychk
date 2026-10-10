@@ -1,0 +1,161 @@
+import "server-only";
+import { randomUUID } from "node:crypto";
+import {
+  CHECKOUT_TTL_MS,
+  DISCLOSURE_VERSION,
+  consentSnapshot,
+  isCardChangeTarget,
+  planCheckoutGuard,
+  type CheckoutBlock,
+  type CheckoutLocale,
+} from "@/lib/billing/checkout";
+import { errorText } from "@/lib/billing/flows/subscribe";
+import { graceOver, iso } from "@/lib/billing/period";
+import type { BillingDeps, CheckoutRow } from "@/lib/billing/types";
+
+/**
+ * 결제창을 열기 전의 흐름 — 결제 시도(billing_checkouts)를 만들고 토스 고객 키를 돌려준다.
+ * 서버 액션(lib/actions/billing.ts)이 로그인·모드·공개 범위·요청 origin을 확인한 뒤 부른다.
+ * 금액은 가격 행에서만 읽고, 시도에는 가격 id만 적는다(콜백이 가격 행을 다시 읽는다).
+ *
+ * 한 사용자·모드에는 끝나지 않은 시도가 하나만 있게 한다(planCheckoutGuard). 확인과 insert 사이에 다른 요청이
+ * 끼어들 수 있어, 만든 뒤 다시 보고 다른 시도가 있으면 방금 만든 시도를 물린다 — 둘 다 물러날 수는 있어도
+ * 둘 다 결제창을 여는 일은 없다.
+ */
+
+/** graceOver: 유예가 끝난 미납 구독 — 곧 크론이 끝내므로 카드를 바꿔 재결제할 수 없다 */
+export type StartError = "notAllowed" | "hasActive" | "priceInactive" | "inProgress" | "graceOver" | "failed";
+/** inProgress면 blockedBy로 막는 까닭을 함께 준다 — open이면 사용자가 이전 시도를 닫을 수 있다 */
+export type StartOutcome =
+  | { ok: true; checkoutId: string; customerKey: string }
+  | { ok: false; error: StartError; blockedBy?: CheckoutBlock };
+
+type StartDeps = Pick<BillingDeps, "store" | "now" | "log">;
+
+/** 같은 사용자·모드의 끝나지 않은 시도를 정리하고, 그래도 막는 까닭이 남으면 그 까닭(없으면 null) */
+async function blockReason(deps: StartDeps, userId: string, livemode: boolean): Promise<CheckoutBlock | null> {
+  const { store } = deps;
+  const [unfinished, pendingInitialPayment] = await Promise.all([
+    store.listUnfinishedCheckouts(userId, livemode),
+    store.hasPendingInitialPayment(userId, livemode),
+  ]);
+  const plan = planCheckoutGuard(unfinished, { now: deps.now(), pendingInitialPayment });
+  // 정리는 지금 상태가 그대로일 때만 바꾼다 — 그 사이 선점·완료된 시도는 덮지 않는다
+  await store.expireCheckouts(plan.expireOpen, "open", null);
+  await store.expireCheckouts(plan.expireProcessing, "processing", "stale");
+  return plan.blockedBy;
+}
+
+/** 만든 뒤 다시 확인 — 다른 끝나지 않은 시도가 보이면 방금 만든 시도를 물리고 그 시도의 상태로 막는 까닭을 준다 */
+async function yieldIfRaced(deps: StartDeps, created: CheckoutRow): Promise<CheckoutBlock | null> {
+  const others = (await deps.store.listUnfinishedCheckouts(created.user_id, created.livemode)).filter((c) => c.id !== created.id);
+  if (others.length === 0) return null;
+  await deps.store.expireCheckouts([created.id], "open", "superseded");
+  return others.some((c) => c.status === "processing") ? "processing" : "open";
+}
+
+async function openCheckout(
+  deps: StartDeps,
+  row: { userId: string; livemode: boolean; priceId: string; purpose: CheckoutRow["purpose"]; subscriptionId: string | null },
+  afterInsert?: (checkout: CheckoutRow) => Promise<void>,
+): Promise<StartOutcome> {
+  const { store } = deps;
+  const blocked = await blockReason(deps, row.userId, row.livemode);
+  if (blocked) return { ok: false, error: "inProgress", blockedBy: blocked };
+
+  const customer = await store.ensureCustomer(row.userId, row.livemode, randomUUID());
+  const checkout = await store.insertCheckout({
+    user_id: row.userId,
+    provider: "toss",
+    livemode: row.livemode,
+    price_id: row.priceId,
+    purpose: row.purpose,
+    subscription_id: row.subscriptionId,
+    expires_at: iso(deps.now() + CHECKOUT_TTL_MS),
+  });
+  try {
+    const raced = await yieldIfRaced(deps, checkout);
+    if (raced) return { ok: false, error: "inProgress", blockedBy: raced };
+    if (afterInsert) await afterInsert(checkout);
+  } catch (e) {
+    // 열린 채로 두면 30분 동안 새 시도를 막는다 — 닫고 실패로 돌려준다
+    await store.expireCheckouts([checkout.id], "open", "startFailed").catch(() => undefined);
+    throw e;
+  }
+  return { ok: true, checkoutId: checkout.id, customerKey: customer.toss_customer_key };
+}
+
+/**
+ * 새 구독의 결제 시도 — 가격(활성·토스·원화·같은 모드) → 진행 중 구독 → 진행 중 시도 → 고객 키 → 시도 →
+ * 정기결제 동의 기록(확인 화면과 같은 조건의 스냅샷). 저장소 오류는 던진다(액션이 기록하고 failed).
+ */
+export async function startSubscribeCheckout(
+  deps: StartDeps,
+  input: { userId: string; livemode: boolean; priceId: string; locale: CheckoutLocale },
+): Promise<StartOutcome> {
+  const { store } = deps;
+  const price = await store.getPrice(input.priceId);
+  if (!price || !price.active || price.provider !== "toss" || price.currency !== "KRW" || price.livemode !== input.livemode) {
+    return { ok: false, error: "priceInactive" };
+  }
+  if (await store.getLiveSubscription(input.userId, input.livemode)) return { ok: false, error: "hasActive" };
+
+  // 스냅샷은 확인 화면에 보여 준 그대로(이 시각 기준)다. 콜백이 KST 자정을 넘기면 실제 기간이 하루 늦을 수 있는데, 이는 사용자에게 유리한 방향이다
+  const now = deps.now();
+  return openCheckout(
+    deps,
+    { userId: input.userId, livemode: input.livemode, priceId: price.id, purpose: "subscribe", subscriptionId: null },
+    (checkout) =>
+      store.insertConsent({
+        user_id: input.userId,
+        checkout_id: checkout.id,
+        kind: "recurring_payment",
+        disclosure_version: DISCLOSURE_VERSION,
+        snapshot: consentSnapshot(price, now, input.locale),
+      }),
+  );
+}
+
+/**
+ * 카드 변경의 결제 시도 — 그 사용자의 진행 중 토스 구독(같은 모드)일 때만. 가격은 구독의 가격 행을 적는다
+ * (금액은 구독 스냅샷으로 결제하고, 시도의 가격 id는 참조용이다). 새 동의는 받지 않는다 — 조건이 바뀌지 않는다.
+ * 유예가 끝난 미납 구독은 막는다(graceOver): 그 시각부터 크론이 미납 종료를 하고 재결제는 하지 않으니, 카드를 등록해도
+ * 구독을 되살릴 수 없다. 이 구독은 끝난 뒤 다시 구독한다(결제 관리 화면도 같은 안내를 보인다).
+ */
+export async function startCardChangeCheckout(
+  deps: StartDeps,
+  input: { userId: string; livemode: boolean; subscriptionId: string },
+): Promise<StartOutcome> {
+  const sub = await deps.store.getSubscription(input.subscriptionId);
+  if (!sub || !isCardChangeTarget(sub, input.userId, input.livemode)) return { ok: false, error: "notAllowed" };
+  if (sub.status === "past_due" && graceOver(sub, deps.now())) return { ok: false, error: "graceOver" };
+  if (!sub.price_id) {
+    await deps.log(`billing card change: subscription ${sub.id} has no price`);
+    return { ok: false, error: "failed" };
+  }
+  return openCheckout(deps, { userId: input.userId, livemode: input.livemode, priceId: sub.price_id, purpose: "card_change", subscriptionId: sub.id });
+}
+
+/**
+ * 사용자가 그만둔 결제 시도를 닫는다 — 결제창을 닫았거나(SDK 오류) 뒤로 가기로 돌아온 경우. 선점 전(open)만 닫는다:
+ * 이미 콜백이 처리 중인 시도는 건드리지 않는다. 닫힌 시도로 늦게 돌아오면 콜백은 "만료"로 안내하고 빌링키를 발급하지 않는다.
+ * 닫은 개수(시도한 개수 — 그 사이 선점된 시도는 닫히지 않고 blockedBy에 processing으로 드러난다)와 닫은 뒤에도 남는 막는 까닭을 준다.
+ * 저장소 오류는 기록하고 ok: false.
+ */
+export async function abandonOpenCheckouts(
+  deps: StartDeps,
+  input: { userId: string; livemode: boolean },
+): Promise<{ ok: true; closed: number; blockedBy: CheckoutBlock | null } | { ok: false }> {
+  try {
+    const open = (await deps.store.listUnfinishedCheckouts(input.userId, input.livemode)).filter((c) => c.status === "open");
+    await deps.store.expireCheckouts(
+      open.map((c) => c.id),
+      "open",
+      "abandoned",
+    );
+    return { ok: true, closed: open.length, blockedBy: await blockReason(deps, input.userId, input.livemode) };
+  } catch (e) {
+    await deps.log(`billing abandonOpenCheckouts failed for user ${input.userId}: ${errorText(e)}`);
+    return { ok: false };
+  }
+}

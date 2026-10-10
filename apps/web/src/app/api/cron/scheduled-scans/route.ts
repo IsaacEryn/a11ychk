@@ -240,13 +240,16 @@ async function runScheduledScans(): Promise<Record<string, unknown>> {
     );
   }
 
-  // ── 상호 감시: repo-stats 크론이 26h 넘게 성공 기록이 없으면 관리자에게 경보 ──
-  // (역방향 감시는 repo-stats 쪽에 — 서로를 지켜본다. 둘 다 죽으면 대시보드가 마지막 안전망)
-  try {
-    const lastOk = await lastCronOkAt(admin, "repo-stats");
-    if (isCronStale(lastOk, CRON_STALE_HOURS)) await sendCronStaleAlert("repo-stats", lastOk);
-  } catch {
-    // 감시 실패가 본 작업을 막지 않게 — 0030 미적용 환경 포함
+  // ── 상호 감시: repo-stats·billing 크론이 26h 넘게 성공 기록이 없으면 관리자에게 경보 ──
+  // (이 크론은 repo-stats 쪽이 지켜본다. 모두 죽으면 대시보드가 마지막 안전망)
+  // billing은 결제 모드가 off여도 실행 기록을 남기므로 멈춤과 꺼짐을 구분할 수 있다
+  for (const job of ["repo-stats", "billing"] as const) {
+    try {
+      const lastOk = await lastCronOkAt(admin, job);
+      if (isCronStale(lastOk, CRON_STALE_HOURS)) await sendCronStaleAlert(job, lastOk);
+    } catch {
+      // 감시 실패가 본 작업을 막지 않게 — 0030 미적용 환경 포함
+    }
   }
 
   // 운영 지표 — 상태별 합계, 소유 확인 전이라 멈춘 도메인 수, 기한이 됐지만 이번에 못 고른 수
