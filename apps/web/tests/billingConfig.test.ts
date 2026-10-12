@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { billingMode, billingTestUserIds, entitlementLivemodes, rowLivemode, tossKeys } from "../src/lib/billing/config";
+import { billingMode, billingTestUserIds, entitlementLivemodes, polarKeys, rowLivemode, tossKeys } from "../src/lib/billing/config";
 
 describe("billingMode", () => {
   it.each([
@@ -50,5 +50,58 @@ describe("tossKeys / billingTestUserIds / rowLivemode", () => {
     expect(rowLivemode("test")).toBe(false);
     expect(rowLivemode("live")).toBe(true);
     expect(rowLivemode("off")).toBeNull();
+  });
+});
+
+describe("polarKeys", () => {
+  // 가짜 값 — 실제 토큰·시크릿이 아니다
+  const TOKEN = "polar_oat_fake";
+  const SECRET = "whsec_ZmFrZQ==";
+
+  it("test 모드는 sandbox, live 모드는 운영 API", () => {
+    expect(polarKeys({ BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: SECRET })).toEqual({
+      accessToken: TOKEN,
+      webhookSecret: SECRET,
+      apiBase: "https://sandbox-api.polar.sh",
+    });
+    expect(polarKeys({ BILLING_MODE: "live", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: SECRET })).toEqual({
+      accessToken: TOKEN,
+      webhookSecret: SECRET,
+      apiBase: "https://api.polar.sh",
+    });
+  });
+
+  it("앞뒤 공백은 잘라 낸다", () => {
+    expect(polarKeys({ BILLING_MODE: "test", POLAR_ACCESS_TOKEN: ` ${TOKEN}\n`, POLAR_WEBHOOK_SECRET: ` ${SECRET} ` })).toMatchObject({
+      accessToken: TOKEN,
+      webhookSecret: SECRET,
+    });
+  });
+
+  it("v1,whsec_ 시크릿도 받는다", () => {
+    expect(polarKeys({ BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: `v1,${SECRET}` })?.webhookSecret).toBe(`v1,${SECRET}`);
+  });
+
+  it("토스 키와 함께 있어도 모드가 맞으면 준다", () => {
+    expect(
+      polarKeys({ BILLING_MODE: "live", TOSS_SECRET_KEY: "live_sk_x", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: SECRET })?.apiBase,
+    ).toBe("https://api.polar.sh");
+  });
+
+  it.each([
+    ["모드 off", { POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: SECRET }],
+    ["모드 값 이상", { BILLING_MODE: "on", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: SECRET }],
+    ["토스 키가 모드와 어긋남(전체 off)", { BILLING_MODE: "live", TOSS_SECRET_KEY: "test_sk_x", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: SECRET }],
+    ["토큰 없음", { BILLING_MODE: "test", POLAR_WEBHOOK_SECRET: SECRET }],
+    ["시크릿 없음", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN }],
+    ["토큰이 공백뿐", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: "  ", POLAR_WEBHOOK_SECRET: SECRET }],
+    ["토큰 접두가 다름", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: "oat_fake", POLAR_WEBHOOK_SECRET: SECRET }],
+    ["토큰이 접두뿐", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: "polar_", POLAR_WEBHOOK_SECRET: SECRET }],
+    ["시크릿 접두가 다름", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: "ZmFrZQ==" }],
+    ["v1, 뒤에 whsec_가 없음", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: "v1,ZmFrZQ==" }],
+    ["시크릿이 접두뿐", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: "whsec_" }],
+    ["v1, 시크릿이 접두뿐", { BILLING_MODE: "test", POLAR_ACCESS_TOKEN: TOKEN, POLAR_WEBHOOK_SECRET: "v1,whsec_" }],
+  ])("%s → null", (_, env) => {
+    expect(polarKeys(env)).toBeNull();
   });
 });

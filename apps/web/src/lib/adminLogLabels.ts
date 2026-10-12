@@ -37,6 +37,8 @@ export const AUDIT_ACTIONS = [
   "billing.price_create",
   "billing.price_deactivate",
   "billing.cycle_run",
+  "billing.mor_reconcile_run",
+  "billing.mor_sync",
   "billing.pull_due",
 ] as const;
 

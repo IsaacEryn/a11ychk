@@ -11,8 +11,9 @@ import {
   reminderFrom,
 } from "@/lib/billing/period";
 import { FATAL_TOSS_CODES, TossError, classifyTossError, isOutcomeUnknown, type TossPayment } from "@/lib/billing/toss";
-import type { BillingDeps, PaymentRow, SubscriptionExpectation, SubscriptionRow } from "@/lib/billing/types";
+import { POLAR_NOT_FOUND, type BillingDeps, type MorDeps, type PaymentRow, type SubscriptionExpectation, type SubscriptionRow } from "@/lib/billing/types";
 import { closeEndedSubscription } from "@/lib/billing/flows/end";
+import { runMorCycle } from "@/lib/billing/flows/morCycle";
 import {
   UNGRANTED_CANCEL_REASON,
   activateInitialPayment,
@@ -75,11 +76,11 @@ const ACCOUNT_HALT_CODES = new Set(["UNAUTHORIZED_KEY", "INVALID_API_KEY", "FORB
  */
 const INCIDENT_STREAK_HALT = 3;
 /**
- * 사용자에게 실패 메일을 보내지 않은 실패 코드 — 설정 사고와 대사로 확정한 실패. 같은 기간에 이것만 있었다면
- * 다음의 실제 카드 거절이 그 기간의 첫 안내다. 결제 관리의 결제 내역도 이 코드의 실패를 "실패" 대신 청구 없는 미처리로
- * 보인다(manageData.ts). 이 목록은 여기 한 곳에서만 정한다
+ * 사용자에게 실패 메일을 보내지 않은 실패 코드 — 설정 사고와 대사로 확정한 실패(MoR 대사가 Polar에 없는 주문으로 확정한 결제
+ * POLAR_NOT_FOUND 포함). 같은 기간에 이것만 있었다면 다음의 실제 카드 거절이 그 기간의 첫 안내다. 결제 관리의 결제 내역도
+ * 이 코드의 실패를 "실패" 대신 청구 없는 미처리로 보인다(manageData.ts). 이 목록은 여기 한 곳에서만 정한다
  */
-export const NOT_USER_FACING = { codes: [DECRYPT_FAILED, ...FATAL_TOSS_CODES], prefixes: ["RECONCILED_"] } as const;
+export const NOT_USER_FACING = { codes: [DECRYPT_FAILED, ...FATAL_TOSS_CODES, POLAR_NOT_FOUND], prefixes: ["RECONCILED_"] } as const;
 const LIVE: SubscriptionExpectation["statuses"] = ["active", "past_due"];
 /** 토스가 이 결제는 돈이 움직이지 않았다고 답한 상태 */
 const NOT_PAID = new Set(["ABORTED", "EXPIRED"]);
@@ -570,11 +571,13 @@ async function sendReminder(deps: BillingDeps, sub: SubscriptionRow): Promise<bo
  * 반환은 대사 결과·처리 결과별 개수(예: charge_paid, retry_failed, remind, end_unpaid, held, errors, deferred).
  * 결제는 paid로 남았지만 운영자 확인이 필요한 건은 *_paid가 아니라 *_review(charge_review·retry_review·reconciled_review)로
  * 따로 센다 — 관리자 도구가 오류·중단과 함께 문제로 보인다(cycleSummary.ts).
+ * ③ opts.mor(판매 대행 Polar 의존성)가 있으면 토스 단계 뒤에 같은 예산으로 MoR 대사를 돌려 mor_* 키를 더한다(flows/morCycle.ts).
+ * 없으면(off·Polar 키 없음) 이 단계를 건너뛰고, 토스 단계는 그와 무관하게 같다.
  */
 export async function runBillingCycle(
   deps: BillingDeps,
   livemode: boolean,
-  opts: { budgetMs?: number; limit?: number } = {},
+  opts: { budgetMs?: number; limit?: number; mor?: MorDeps | null } = {},
 ): Promise<Record<string, number>> {
   const { store } = deps;
   const deadline = deps.now() + (opts.budgetMs ?? DEFAULT_BUDGET_MS);
@@ -661,5 +664,6 @@ export async function runBillingCycle(
       await deps.log(`billing cycle ${action} failed for subscription ${sub.id}: ${errorText(e)}`);
     }
   }
+  if (opts.mor) Object.assign(summary, await runMorCycle(opts.mor, livemode, { deadline }));
   return summary;
 }

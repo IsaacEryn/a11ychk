@@ -2,6 +2,7 @@ import "server-only";
 import { randomUUID } from "node:crypto";
 import { isCardChangeTarget, type CardChangeRetry } from "@/lib/billing/checkout";
 import { encryptBillingKey } from "@/lib/billing/crypto";
+import { errorText } from "@/lib/billing/errorText";
 import type { BillingEmailData, BillingEmailKind } from "@/lib/billing/emails";
 import { addInterval, earliestChargeAt, graceOver, iso, kstDayOfMonth } from "@/lib/billing/period";
 import {
@@ -67,9 +68,8 @@ const PLAN_NAMES: Record<string, string> = { pro: "Pro", enterprise: "Enterprise
 const DUPLICATE_CANCEL_REASON = "중복 구독 자동 취소";
 /** 받은 결제로 줄 기간이 없을 때의 취소 사유(토스 취소 요청에 실린다) — 경위를 단정하지 않는 중립 문구 */
 export const UNGRANTED_CANCEL_REASON = "결제 기간을 제공할 수 없어 자동 취소";
-/** 기록용 오류 문자열 — 저장소·토스 오류 메시지에는 비밀 값이 들어가지 않는다(각 모듈의 규칙) */
-export const errorText = (e: unknown) =>
-  (e instanceof TossError ? `${e.code} (${e.status})` : e instanceof Error ? e.message : String(e)).slice(0, 500);
+/** 기록용 오류 문자열 — 결제 흐름 전체가 쓰는 하나(errorText.ts)를 그대로 내보낸다(기존 import 경로 유지) */
+export { errorText };
 
 /** 메일·주문명에 쓰는 플랜 표시 이름 */
 export function planNameFor(planCode: string): string {

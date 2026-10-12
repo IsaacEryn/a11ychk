@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import crypto from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { logAppError } from "@/lib/logs";
+import { standardWebhookKeys, verifyStandardWebhook } from "@/lib/webhookSignature";
 
 /**
  * Supabase "Send Email" Auth Hook — 인증 메일을 로케일에 맞춰 직접 발송한다.
@@ -25,32 +25,20 @@ interface HookPayload {
   };
 }
 
-/** Standard Webhooks 서명 검증 */
+/**
+ * Standard Webhooks 서명 검증. 시크릿은 "v1,whsec_<base64>" 또는 "whsec_<base64>" 형태 — base64 부분을 디코딩한 키만 쓴다
+ * (Polar 옛 방식 키는 Supabase와 무관해 받지 않는다). 시간 허용 범위는 두지 않는다 — 예전 동작 그대로.
+ */
 function verify(body: string, headers: Headers, secret: string): boolean {
-  const id = headers.get("webhook-id");
-  const timestamp = headers.get("webhook-timestamp");
-  const sigHeader = headers.get("webhook-signature");
-  if (!id || !timestamp || !sigHeader) return false;
-
-  // 시크릿은 "v1,whsec_<base64>" 또는 "whsec_<base64>" 형태 — base64 부분만 사용
-  const base64Secret = secret.replace(/^v1,/, "").replace(/^whsec_/, "");
-  let key: Buffer;
-  try {
-    key = Buffer.from(base64Secret, "base64");
-  } catch {
-    return false;
-  }
-  const signed = `${id}.${timestamp}.${body}`;
-  const expected = crypto.createHmac("sha256", key).update(signed).digest("base64");
-  // 헤더는 "v1,<sig> v1,<sig2>" 공백 구분 — 하나라도 일치하면 통과
-  return sigHeader.split(" ").some((part) => {
-    const sig = part.split(",")[1] ?? part;
-    try {
-      return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
-    } catch {
-      return false;
-    }
-  });
+  return (
+    verifyStandardWebhook({
+      id: headers.get("webhook-id"),
+      timestamp: headers.get("webhook-timestamp"),
+      signatureHeader: headers.get("webhook-signature"),
+      body,
+      keys: standardWebhookKeys(secret, { polarLegacy: false }),
+    }) === "ok"
+  );
 }
 
 type Lang = "ko" | "en";

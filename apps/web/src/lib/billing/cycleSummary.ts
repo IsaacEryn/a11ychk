@@ -37,25 +37,57 @@ export const CYCLE_SUMMARY_KEYS = [
   "held",
   "changed",
   "halted",
+  "mor_candidates",
+  "mor_synced",
+  "mor_refunded",
+  "mor_review",
+  "mor_failed",
+  "mor_ended",
+  "mor_changed",
+  "mor_deferred",
+  "mor_expired",
+  "mor_stale_refunds",
+  "mor_halted",
+  "mor_payments_synced",
+  "mor_payments_failed",
 ] as const;
 
-/** 결제는 paid로 남았지만 운영자 확인이 필요한 건(자동 취소 실패, 진행 중 구독이 다른 기간에 있음) */
-export const REVIEW_SUMMARY_KEYS = ["reconciled_review", "charge_review", "retry_review"] as const;
+/**
+ * 운영자 확인이 필요한 건 — 결제는 paid로 남았지만 확인이 필요한 결제(자동 취소 실패, 진행 중 구독이 다른 기간에 있음)와
+ * MoR 대사의 needs review(동기화 확인 필요, Polar에 없어 끝낸 구독, Polar 환불 id 없이 남은 자동 환불, Polar에 없어 failed로 확정한 결제)
+ */
+export const REVIEW_SUMMARY_KEYS = [
+  "reconciled_review",
+  "charge_review",
+  "retry_review",
+  "mor_review",
+  "mor_ended",
+  "mor_stale_refunds",
+  "mor_payments_failed",
+] as const;
+/** 오류로 세는 키 — 처리 중 예외(errors)와 MoR 대사의 실패(mor_failed) */
+const ERROR_SUMMARY_KEYS = ["errors", "mor_failed"] as const;
 
 export interface CycleIssues {
+  /** ERROR_SUMMARY_KEYS의 합 */
   errors: number;
+  /** 토스 결제 중단(설정 사고 — halted) */
   halted: number;
-  /** 운영자 확인이 필요한 결제 수(REVIEW_SUMMARY_KEYS의 합) */
+  /** MoR 대사 중단(Polar 토큰·권한 거부 — mor_halted). 토스 결제 중단과 따로 보인다 */
+  morHalted: number;
+  /** 운영자 확인이 필요한 건수(REVIEW_SUMMARY_KEYS의 합) */
   review: number;
   /** 하나라도 있으면 성공 표시로 덮지 않는다 */
   any: boolean;
 }
 
-/** 크론이 끝까지 돌았어도 오류·설정 사고로 인한 중단·운영자 확인이 필요한 결제가 있으면 문제로 보인다 */
+/** 크론이 끝까지 돌았어도 오류·설정 사고로 인한 중단·운영자 확인이 필요한 건이 있으면 문제로 보인다 */
 export function cycleIssues(summary: Record<string, number> | undefined): CycleIssues {
   const count = (key: string) => summary?.[key] ?? 0;
-  const errors = count("errors");
+  const sum = (keys: readonly string[]) => keys.reduce((total, key) => total + count(key), 0);
+  const errors = sum(ERROR_SUMMARY_KEYS);
   const halted = count("halted");
-  const review = REVIEW_SUMMARY_KEYS.reduce((sum, key) => sum + count(key), 0);
-  return { errors, halted, review, any: errors > 0 || halted > 0 || review > 0 };
+  const morHalted = count("mor_halted");
+  const review = sum(REVIEW_SUMMARY_KEYS);
+  return { errors, halted, morHalted, review, any: errors > 0 || halted > 0 || morHalted > 0 || review > 0 };
 }

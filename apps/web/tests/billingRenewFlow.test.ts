@@ -39,7 +39,8 @@ const { withCronRun, createBillingDeps } = vi.hoisted(() => ({
   createBillingDeps: vi.fn(),
 }));
 vi.mock("@/lib/cronRun", () => ({ withCronRun }));
-vi.mock("@/lib/billing/server", () => ({ createBillingDeps }));
+// Polar 키가 없는 배포 — MoR 단계는 tests/billingCronRoute.test.ts·billingMorCycle.test.ts가 본다
+vi.mock("@/lib/billing/server", () => ({ createBillingDeps, createMorDeps: () => null }));
 
 import { GET } from "../src/app/api/cron/billing/route";
 

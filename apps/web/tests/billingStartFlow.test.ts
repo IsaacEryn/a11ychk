@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { DISCLOSURE_VERSION } from "../src/lib/billing/checkout";
@@ -157,6 +157,27 @@ describe("startSubscribeCheckout — 새 구독의 결제 시도", () => {
     expect(await subscribe(deps, price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "processing" });
     expect(store.rows.checkouts).toHaveLength(1);
     expect(store.rows.checkouts[0].status).toBe("processing");
+  });
+
+  it("해외 결제(MoR) pending 첫 결제는 24시간 안의 것만 막는다 — 그 뒤는 크론의 MoR 결제 대사가 확정한다, 토스 pending은 나이와 무관", async () => {
+    const mor = (over: Parameters<typeof paymentRow>[0]) =>
+      paymentRow({ provider: "mor", currency: "USD", external_payment_id: randomUUID(), order_id: `mor_${randomUUID()}`, ...over });
+    const fresh = setup({ payments: [mor({ user_id: USER, requested_at: iso(NOW - 23 * 3_600_000) })] });
+    expect(await subscribe(fresh.deps, fresh.price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "processing" });
+
+    const stale = setup({ payments: [mor({ user_id: USER, requested_at: iso(NOW - 25 * 3_600_000) })] });
+    expect(await subscribe(stale.deps, stale.price.id)).toMatchObject({ ok: true });
+
+    const toss = setup({ payments: [paymentRow({ user_id: USER, status: "pending", requested_at: iso(NOW - 3 * DAY) })] });
+    expect(await subscribe(toss.deps, toss.price.id)).toEqual({ ok: false, error: "inProgress", blockedBy: "processing" });
+  });
+
+  it("첫 결제가 아닌 MoR 주문(플랜 변경 차액·사용량 — 주문번호 mor_upd_)은 pending이어도 막지 않는다", async () => {
+    const id = randomUUID();
+    const { deps, price } = setup({
+      payments: [paymentRow({ user_id: USER, provider: "mor", currency: "USD", external_payment_id: id, order_id: `mor_upd_${id}`, requested_at: iso(NOW - 60_000) })],
+    });
+    expect(await subscribe(deps, price.id)).toMatchObject({ ok: true });
   });
 
   it("다른 모드의 pending 첫 결제·끝난 결제는 막지 않는다", async () => {
@@ -394,7 +415,13 @@ describe("Supabase 저장소 — 결제 시작 메서드", () => {
     );
 
     const pending = fakeAdmin([{ data: [{ id: "p1" }], error: null }]);
-    expect(await createSupabaseBillingStore(pending.admin).hasPendingInitialPayment(USER, true)).toBe(true);
+    vi.useFakeTimers();
+    vi.setSystemTime(NOW);
+    try {
+      expect(await createSupabaseBillingStore(pending.admin).hasPendingInitialPayment(USER, true)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
     expect(pending.calls).toEqual(
       expect.arrayContaining([
         ["from", ["billing_payments"]],
@@ -402,6 +429,8 @@ describe("Supabase 저장소 — 결제 시작 메서드", () => {
         ["eq", ["livemode", true]],
         ["eq", ["kind", "initial"]],
         ["eq", ["status", "pending"]],
+        // 토스 행은 그대로, MoR 행은 24시간 안이고 첫 결제가 아닌 주문(mor_upd_)이 아닐 때만 센다
+        ["or", [`provider.neq.mor,and(requested_at.gte."${new Date(NOW - 24 * 3_600_000).toISOString()}",order_id.not.like.mor_upd_*)`]],
         ["limit", [1]],
       ]),
     );

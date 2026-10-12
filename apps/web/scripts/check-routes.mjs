@@ -13,7 +13,7 @@
 const BASE = process.argv[2] ?? "http://127.0.0.1:3210";
 const READY_TIMEOUT_MS = 90_000;
 
-/** [경로, 기대 상태코드, 이 검사가 지키려는 것] */
+/** [경로, 기대 상태코드, 이 검사가 지키려는 것, 메서드(없으면 GET)] */
 const ROUTES = [
   ["/ko", 200, "한국어 홈"],
   ["/en", 200, "영문 홈"],
@@ -48,6 +48,9 @@ const ROUTES = [
   ["/ko/billing/checkout", 404, "결제 꺼짐(BILLING_MODE 없음)이면 결제 화면 없음"],
   ["/api/billing/toss/callback", 404, "결제 꺼짐이면 토스 콜백 없음"],
   ["/api/billing/toss/fail", 404, "결제 꺼짐이면 토스 실패 주소 없음"],
+  ["/api/billing/webhooks/polar", 404, "결제 꺼짐이면 Polar 웹훅 없음(GET)"],
+  ["/api/billing/webhooks/polar", 404, "결제 꺼짐이면 Polar 웹훅 없음(POST)", "POST"],
+  ["/api/billing/polar/return", 404, "결제 꺼짐이면 Polar 결제창 복귀 주소 없음"],
   // 결제 관리는 마이페이지 아래라 마이페이지와 같다 — mypage/loading.tsx의 Suspense 경계 때문에 셸이 200으로 먼저 나가고
   // 비로그인 리다이렉트는 본문(meta refresh)으로 간다. 리다이렉트 대상은 아래 BODY_CHECKS가 본다
   ["/ko/mypage", 200, "마이페이지 (비로그인 → 본문 리다이렉트)"],
@@ -111,11 +114,12 @@ async function main() {
   await waitForReady();
   const failures = [];
 
-  for (const [path, expected, what] of ROUTES) {
-    const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
+  for (const [path, expected, what, method = "GET"] of ROUTES) {
+    const res = await fetch(`${BASE}${path}`, { method, redirect: "manual", ...(method === "POST" ? { body: "{}" } : {}) });
     const ok = res.status === expected;
-    console.log(`  ${ok ? "✓" : "✗"} ${String(res.status).padEnd(3)} ${path.padEnd(30)} ${what}`);
-    if (!ok) failures.push(`${path} — ${expected} 기대, ${res.status} 받음 (${what})`);
+    const label = method === "GET" ? path : `${method} ${path}`;
+    console.log(`  ${ok ? "✓" : "✗"} ${String(res.status).padEnd(3)} ${label.padEnd(30)} ${what}`);
+    if (!ok) failures.push(`${label} — ${expected} 기대, ${res.status} 받음 (${what})`);
   }
 
   // 딥링크 리다이렉트가 next에 ?url= 을 보존하는지 — 상태 코드만으로는 파라미터

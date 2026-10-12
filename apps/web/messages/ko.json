@@ -1068,14 +1068,16 @@
       "subscriptionPastDue": "결제 실패 · 결제 관리에서 확인해 주세요",
       "manageBilling": "결제 관리",
       "subscriptionUntil": "구독 중 · {date}까지",
-      "subscriptionFailed": "결제 실패"
+      "subscriptionFailed": "결제 실패",
+      "utcDate": "{date} (UTC)"
     },
     "account": {
       "title": "회원 탈퇴",
       "desc": "계정을 삭제하면 이 서비스에 남긴 데이터가 함께 지워집니다.",
       "open": "탈퇴 절차 보기",
       "deleted": "삭제되는 것: 계정·프로필, 등록한 도메인과 소유 확인·공개 등재·배지, 모든 검사와 보고서·점검자 판정, 문의, 검사 프리셋",
-      "kept": "남는 것: 보안용 로그인 기록(이메일·IP·브라우저 정보)은 기록한 날부터 90일이 지나면 자동 삭제됩니다. 초대를 받아 가입했다면 초대 기록에 같은 이메일인지 대조만 할 수 있는 해시값, 가입 시점 IP(90일 후 삭제), 초대 처리 상태가 남습니다. 관리자의 보고서 열람·계정 조치 같은 내부 감사 기록(사이트 주소 포함)은 보안 목적으로 보존됩니다. 내가 보낸 초대 기록은 함께 삭제됩니다.",
+      "subscription": "진행 중인 구독은 탈퇴와 함께 바로 끝납니다.",
+      "kept": "남는 것: 보안용 로그인 기록(이메일·IP·브라우저 정보)은 기록한 날부터 90일이 지나면 자동 삭제됩니다. 초대를 받아 가입했다면 초대 기록에 같은 이메일인지 대조만 할 수 있는 해시값, 가입 시점 IP(90일 후 삭제), 초대 처리 상태가 남습니다. 관리자의 보고서 열람·계정 조치 같은 내부 감사 기록(사이트 주소 포함)은 보안 목적으로 보존됩니다. 내가 보낸 초대 기록은 함께 삭제됩니다. 결제 기록(구독·결제·동의 내역)은 관련 법령에 따라 보관하되 사용자 정보는 지웁니다. 해외 결제는 판매 대행사 Polar가 자체 고객·결제 기록을 보관합니다.",
       "irreversible": "삭제한 계정과 보고서는 되살릴 수 없습니다. 필요한 보고서는 먼저 PDF나 CSV로 내려받아 두세요.",
       "confirmLabel": "확인 문구",
       "confirmHint": "계속하려면 {phrase} 를 그대로 입력하세요.",
@@ -1085,7 +1087,8 @@
         "mismatch": "확인 문구가 일치하지 않습니다.",
         "admin": "관리자 계정은 탈퇴할 수 없습니다. 관리자 권한을 해제한 뒤 다시 시도해 주세요.",
         "active": "진행 중인 검사가 있습니다. 검사가 끝난 뒤 다시 시도해 주세요.",
-        "failed": "탈퇴 처리에 실패했습니다. 잠시 후 다시 시도하거나 문의해 주세요."
+        "failed": "탈퇴 처리에 실패했습니다. 잠시 후 다시 시도하거나 문의해 주세요.",
+        "billingCancelFailed": "해외 결제 구독을 해지하지 못해 탈퇴를 진행하지 못했습니다. 잠시 뒤 다시 시도해 주시고, 계속 안 되면 문의해 주세요."
       }
     }
   },
@@ -1346,7 +1349,9 @@
         "billing_price_create": "결제 가격 추가",
         "billing_price_deactivate": "결제 가격 비활성화",
         "billing_cycle_run": "결제 크론 수동 실행",
-        "billing_pull_due": "테스트 결제일 당기기"
+        "billing_pull_due": "테스트 결제일 당기기",
+        "billing_mor_reconcile_run": "MoR 대사 수동 실행",
+        "billing_mor_sync": "Polar 구독 동기화"
       },
       "detailActive": "시행 시작",
       "detailInactive": "시행 중지",
@@ -1552,12 +1557,17 @@
         "user": "사용자",
         "plan": "등급",
         "provider": "결제 방식",
+        "externalId": "Polar 구독 id",
+        "externalCustomerId": "Polar 고객 id",
+        "externalUpdatedAt": "마지막으로 반영한 Polar 변경",
         "status": "상태",
         "period": "기간",
         "amount": "계약 금액",
+        "amountMor": "구독 금액(세금 별도)",
         "endedReason": "종료 사유",
         "createdAt": "등록일",
-        "nonManual": "카드·해외 결제 구독의 해지 등 관리 기능은 준비 중입니다. 지금은 결제 내역만 볼 수 있습니다."
+        "nonManual": "카드·해외 결제 구독의 해지 등 관리 기능은 준비 중입니다. 지금은 결제 내역만 볼 수 있습니다.",
+        "morNote": "해외 결제(Polar) 구독의 해지·환불은 Polar 대시보드에서 합니다. 결과는 웹훅과 결제 크론의 대사가 이 화면에 반영합니다. 관리자 환불 기능은 준비 중입니다."
       },
       "endedReason": {
         "user_canceled": "사용자 해지",
@@ -1616,7 +1626,7 @@
       },
       "prices": {
         "title": "가격표",
-        "intro": "카드 정기결제(토스)의 판매 가격입니다. 가격 행은 고치거나 지우지 않습니다. 금액을 바꾸려면 이전 가격을 비활성화하고 새 가격을 추가하세요. 활성 가격은 같은 플랜·주기·모드에 하나뿐입니다.",
+        "intro": "정기결제의 판매 가격입니다. 국내(ko)는 토스(원화), 해외(en)는 판매 대행 Polar(USD) 가격이 요금제에 보입니다. 가격 행은 고치거나 지우지 않습니다. 금액을 바꾸려면 이전 가격을 비활성화하고 새 가격을 추가하세요. 활성 가격은 같은 플랜·결제사·주기·모드에 하나뿐입니다.",
         "deactivateNote": "가격을 비활성화하면 그 가격으로는 새 결제를 시작할 수 없습니다. 이미 구독 중인 사용자는 구독 시점의 금액으로 갱신됩니다.",
         "empty": "등록된 가격이 없습니다.",
         "cols": {
@@ -1626,7 +1636,10 @@
           "mode": "모드",
           "status": "상태",
           "createdAt": "생성일",
-          "actions": "작업"
+          "actions": "작업",
+          "provider": "결제사",
+          "currency": "통화",
+          "externalId": "Polar 상품 id"
         },
         "intervals": {
           "month": "월간",
@@ -1644,7 +1657,7 @@
         "deactivating": "처리 중…",
         "deactivated": "비활성화했습니다",
         "addTitle": "가격 추가",
-        "addIntro": "가격은 저장소에 남기지 않고 이 화면에서만 넣습니다. 결제사는 토스, 통화는 원(KRW)으로 고정입니다.",
+        "addIntro": "가격은 저장소에 남기지 않고 이 화면에서만 넣습니다. 결제사가 통화를 정합니다. 토스는 원(KRW), Polar는 USD입니다.",
         "plan": "플랜",
         "interval": "주기",
         "amount": "금액(원)",
@@ -1652,17 +1665,34 @@
         "mode": "모드",
         "modeHint": "테스트 가격은 test 모드에서, 실결제 가격은 off·live 모드에서 쓰입니다.",
         "activeLabel": "추가하면서 활성화",
-        "activeHint": "같은 플랜·주기·모드에는 활성 가격이 하나뿐입니다. 이미 있으면 먼저 그 가격을 비활성화하세요.",
+        "activeHint": "같은 플랜·결제사·주기·모드에는 활성 가격이 하나뿐입니다(통화는 결제사가 정합니다). 이미 있으면 먼저 그 가격을 비활성화하세요.",
         "create": "가격 추가",
         "creating": "추가 중…",
         "created": "가격을 추가했습니다",
         "errors": {
           "invalid": "입력값을 확인해 주세요.",
-          "activeExists": "같은 플랜·주기·모드에 이미 활성 가격이 있습니다. 그 가격을 먼저 비활성화해 주세요.",
+          "activeExists": "같은 플랜·결제사·주기·모드에 이미 활성 가격이 있습니다. 그 가격을 먼저 비활성화해 주세요.",
           "notFound": "가격을 찾을 수 없거나 이미 비활성입니다.",
           "migrationMissing": "0041 마이그레이션을 적용한 뒤 다시 시도해 주세요.",
-          "failed": "처리하지 못했습니다. 잠시 후 다시 시도해 주세요."
-        }
+          "failed": "처리하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+          "externalExists": "이 Polar 상품 id는 이미 다른 가격에 묶여 있습니다. Polar에서 새 상품을 만들어 그 id를 넣어 주세요."
+        },
+        "provider": "결제사",
+        "providers": {
+          "toss": "토스(원화, 국내)",
+          "mor": "Polar(USD, 해외 판매 대행)"
+        },
+        "providerNames": {
+          "toss": "토스",
+          "mor": "Polar",
+          "manual": "수동"
+        },
+        "providerHint": "토스 가격은 한국어 요금제에, Polar 가격은 영어 요금제에 보입니다.",
+        "amountUsd": "금액(USD, 달러)",
+        "amountUsdHint": "세금을 뺀 달러 금액을 소수점 아래 두 자리까지 넣습니다. 저장할 때 cent로 바꾸며, 저장소에는 남지 않습니다. {min, number}달러 이상 {max, number}달러 이하이고 Polar 상품 가격과 같아야 결제창이 열립니다.",
+        "externalPriceId": "Polar 상품 id",
+        "externalPriceIdHint": "Polar 대시보드에 보이는 상품 id(UUID)입니다. 같은 상품 id는 한 가격에만 묶을 수 있습니다.",
+        "noExternalId": "없음"
       },
       "tools": {
         "title": "테스트 도구",
@@ -1675,6 +1705,7 @@
         },
         "tossKeys": "토스 키",
         "encKey": "빌링키 암호화 키",
+        "polarKeys": "Polar 키",
         "yes": "설정됨",
         "no": "설정 안 됨",
         "stateHint": "환경변수가 모드에 맞게 설정되어 있는지만 보여 줍니다. 키 값은 표시하지 않습니다. 모드가 off이면 키가 있어도 설정 안 됨으로 표시됩니다.",
@@ -1683,6 +1714,20 @@
           "off": "결제 모드가 off라 실행할 수 없습니다. 환경변수 BILLING_MODE가 test 또는 live인지, 토스 시크릿 키 접두(test_/live_)가 그 모드와 맞는지 확인하고 재배포하세요.",
           "test": "매일 10시(한국 시간)에 도는 결제 크론을 지금 한 번 실행합니다. 테스트 구독의 갱신 결제, 미납 재시도, 해지·미납 종료, 결제 예정 안내 메일이 대상입니다.",
           "live": "매일 10시(한국 시간)에 도는 결제 크론을 지금 한 번 실행합니다. 기한이 된 실결제 구독에 실제 결제가 나갑니다."
+        },
+        "morTitle": "MoR(Polar) 지금 대사",
+        "morHint": {
+          "off": "결제 모드가 off라 실행할 수 없습니다.",
+          "noKeys": "Polar 키(POLAR_ACCESS_TOKEN·POLAR_WEBHOOK_SECRET)가 설정되지 않아 실행할 수 없습니다.",
+          "on": "결제 크론의 해외 결제(Polar) 단계만 지금 실행합니다. 기간 끝이 지난 구독·미납 구독을 Polar에서 다시 읽어 맞추고, 1시간 넘게 결과를 모르는 결제를 Polar 정본으로 확정하고, 만료된 결제 시도를 닫고, Polar 환불 id 없이 남은 자동 환불을 알립니다. 결제를 일으키지 않습니다."
+        },
+        "morRun": "MoR 지금 대사",
+        "morRan": "MoR 대사를 실행했습니다(대상 구독 {candidates}건)",
+        "morRanIssues": "MoR 대사를 실행했지만 확인할 점이 있습니다(대상 구독 {candidates}건, 실패 {errors}건{review, plural, =0 {} other {, 운영자 확인 필요 #건}}{morHalted, plural, =0 {} other {, Polar 토큰·권한 문제로 중단}}). 오류 로그를 확인해 주세요.",
+        "morErrors": {
+          "off": "결제 모드가 off입니다.",
+          "notConfigured": "Polar 키가 설정되지 않았습니다.",
+          "failed": "처리하지 못했습니다. 오류 로그를 확인해 주세요."
         },
         "run": "결제 크론 지금 실행",
         "running": "실행 중…",
@@ -1721,7 +1766,20 @@
           "end_unpaid": "미납 종료",
           "held": "종료 보류(결과 불명 결제 있음)",
           "changed": "그 사이 바뀌어 건너뜀",
-          "halted": "결제 중단"
+          "halted": "결제 중단",
+          "mor_candidates": "MoR 대사 대상 구독",
+          "mor_synced": "MoR 구독 정본으로 맞춤",
+          "mor_refunded": "MoR 구독 자동 해지·환불(줄 기간 없음)",
+          "mor_review": "MoR 운영자 확인 필요",
+          "mor_failed": "MoR 대사 실패",
+          "mor_ended": "Polar에 없는 MoR 구독 종료",
+          "mor_changed": "MoR 정리 전에 바뀌어 건너뜀",
+          "mor_deferred": "MoR 대사 시간 부족으로 미룸",
+          "mor_expired": "만료된 MoR 결제 시도 닫음",
+          "mor_stale_refunds": "Polar id 없이 남은 자동 환불",
+          "mor_halted": "MoR 대사 중단(Polar 토큰·권한)",
+          "mor_payments_synced": "MoR 결제 정본으로 확정",
+          "mor_payments_failed": "Polar에 없어 실패로 확정한 MoR 결제"
         },
         "subsTitle": "테스트 구독",
         "subsIntro": "테스트 결제(livemode=false) 카드 구독만 대상입니다. 당긴 뒤 결제 크론을 실행해야 반영됩니다.",
@@ -1744,7 +1802,7 @@
           "graceOver": "유예 기한이 지나 재시도할 수 없습니다. 다음 결제 크론이 이 구독을 종료합니다.",
           "cancelScheduled": "해지 예약된 구독에는 결제 예정 안내가 나가지 않아 안내 시점으로 당길 수 없습니다. 결제일 당기기로 종료를 시험하거나, 해지를 취소한 뒤 다시 시도하세요."
         },
-        "ranIssues": "결제 크론을 실행했지만 확인할 점이 있습니다(처리 후보 {candidates}건, 오류 {errors}건{review, plural, =0 {} other {, 운영자 확인이 필요한 결제 #건}}{halted, plural, =0 {} other {, 설정 사고로 결제 중단}}). 오류 로그를 확인해 주세요.",
+        "ranIssues": "결제 크론을 실행했지만 확인할 점이 있습니다(처리 후보 {candidates}건, 오류 {errors}건{review, plural, =0 {} other {, 운영자 확인이 필요한 건 #건}}{halted, plural, =0 {} other {, 설정 사고로 토스 결제 중단}}{morHalted, plural, =0 {} other {, Polar 토큰·권한 문제로 해외 결제 대사 중단}}). 오류 로그를 확인해 주세요.",
         "subsItems": {
           "charge": "결제일 당기기(진행 중): 기간 끝을 지금부터 1분 뒤로 옮기고 결제 예정 안내 기록을 비웁니다. 크론이 갱신 결제를 시도합니다. 해지 예약된 구독이면 결제 대신 종료를 시험합니다 — 1분 뒤 크론을 실행하면 구독이 끝납니다.",
           "remind": "안내 시점으로 당기기(진행 중): 기간 끝을 지금부터 2일 뒤로 옮기고 안내 기록을 비웁니다. 결제 예정 안내 메일 대상이 되고, 결제는 아직 나가지 않습니다. 해지 예약된 구독에는 쓸 수 없습니다(크론이 안내하지 않습니다).",
@@ -1758,6 +1816,29 @@
           "remind": "안내 시점으로 당겼습니다",
           "retry": "재시도 시점을 지금으로 당겼습니다",
           "end": "기간 끝을 1분 뒤로 당겼습니다(해지 예약 구독 — 1분 뒤 크론을 실행하면 결제 대신 구독이 끝납니다)"
+        },
+        "morSync": {
+          "title": "Polar 구독 id로 지금 동기화",
+          "intro": "결제는 됐는데 확인 필요(billing needs review)로 끝나 구독 행이 없는 새 구독을, 원인(가격 행·Polar 상품 설정 등)을 고친 뒤 되살립니다. Polar에서 그 구독을 다시 읽어 웹훅·크론과 같은 동기화를 돌립니다. 그 사용자에게 이미 다른 구독이 있거나 사용자가 없으면 Polar에서 해지·환불이 일어날 수 있습니다.",
+          "label": "Polar 구독 id",
+          "hint": "Polar 대시보드나 확인 필요 기록 줄에 있는 구독 id(UUID)를 넣습니다.",
+          "confirm": "실결제 모드입니다. 동기화가 구독 해지와 환불을 일으킬 수 있음을 확인했습니다.",
+          "submit": "지금 동기화",
+          "results": {
+            "applied": "동기화했습니다(구독 행 {id}).",
+            "stale": "더 새로운 상태가 이미 반영돼 있습니다(구독 행 {id}).",
+            "skipped": "적을 것이 없습니다. Polar에서 아직 시작되지 않았거나, 해지된 구독인데 주문 단서가 없습니다.",
+            "review": "확인이 필요합니다. 오류 로그의 billing needs review 줄을 확인해 주세요.",
+            "ungranted": "기간을 줄 수 없어 Polar에서 해지했습니다. {refund, select, refunded {주문을 환불했습니다.} none {돌려줄 결제가 없습니다.} other {환불은 확인이 필요합니다. 오류 로그를 확인해 주세요.}}"
+          },
+          "errors": {
+            "off": "결제 모드가 off입니다.",
+            "invalid": "Polar 구독 id(UUID)를 확인해 주세요.",
+            "confirm": "실결제 모드에서는 확인 체크가 필요합니다.",
+            "notConfigured": "Polar 키가 설정되지 않았습니다.",
+            "notFound": "이 모드의 Polar에서 그 구독을 찾을 수 없습니다. 구독 id와 토큰의 조직·모드를 확인해 주세요.",
+            "failed": "처리하지 못했습니다. 오류 로그를 확인해 주세요."
+          }
         }
       },
       "payments": {
@@ -1785,9 +1866,11 @@
         },
         "refunded": "환불액 {amount}",
         "receipt": "영수증",
+        "orderId": "Polar 주문 id",
         "newWindow": "(새 창)",
         "noReceipt": "영수증 없음",
-        "refundNote": "환불은 토스 상점관리자에서 처리합니다(관리자 환불 기능은 준비 중)."
+        "refundNote": "환불은 토스 상점관리자에서 처리합니다(관리자 환불 기능은 준비 중).",
+        "refundNoteMor": "환불은 Polar 대시보드에서 처리합니다(관리자 환불 기능은 준비 중). 환불액은 세금을 포함한 금액입니다."
       }
     },
     "pager": {
@@ -2070,13 +2153,15 @@
     "price": {
       "month": "월 {amount}",
       "year": "연 {amount}",
-      "vat": "부가세 포함"
+      "vat": "부가세 포함",
+      "taxExtra": "+ 적용되는 세금"
     },
     "ctaSubscribe": {
       "month": "월간 구독하기",
       "year": "연간 구독하기"
     },
-    "noteSubscribable": "표시된 금액은 부가세 포함이며, 구독은 해지하기 전까지 같은 금액으로 자동 갱신됩니다. 기관 단위 도입이나 더 큰 한도가 필요하면 문의해 주세요."
+    "noteSubscribable": "표시된 금액은 부가세 포함이며, 구독은 해지하기 전까지 같은 금액으로 자동 갱신됩니다. 기관 단위 도입이나 더 큰 한도가 필요하면 문의해 주세요.",
+    "noteSubscribableMor": "표시된 금액에는 세금이 포함되어 있지 않으며, 세금은 결제창에서 더해집니다. 결제는 판매 대행사 Polar가 처리하고, 구독은 해지하기 전까지 같은 금액으로 자동 갱신됩니다. 기관 단위 도입이나 더 큰 한도가 필요하면 문의해 주세요."
   },
   "notices": {
     "title": "공지사항",
@@ -2164,12 +2249,31 @@
         "sdkLoad": "결제창을 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.",
         "sdkFailed": "결제창을 열지 못했습니다. 다시 시도해 주세요.",
         "sdkCanceled": "결제창을 닫았습니다. 다시 시도할 수 있습니다.",
-        "inProgressChecking": "이전 결제를 확인하고 있습니다. 확인까지 최대 하루가 걸릴 수 있으니 결제 관리에서 결과를 확인해 주세요."
+        "inProgressChecking": "이전 결제를 확인하고 있습니다. 확인까지 최대 하루가 걸릴 수 있으니 결제 관리에서 결과를 확인해 주세요.",
+        "rateLimited": "요청이 너무 잦습니다. 잠시 뒤 다시 시도해 주세요."
       },
       "period": "이용 기간",
       "periodValue": "{start} ~ {end}",
       "nextChargeHint": "다음 결제는 이용 기간이 끝나기 하루 전부터 진행될 수 있으며, 결제 예정 안내 메일을 미리 보내 드립니다.",
-      "nothingToRelease": "취소할 결제 시도가 없습니다. 다시 결제해 보세요."
+      "nothingToRelease": "취소할 결제 시도가 없습니다. 다시 결제해 보세요.",
+      "mor": {
+        "desc": "결제 내용을 확인한 뒤 안전한 Polar 결제창으로 이동합니다. 결제창에서 결제를 마치면 오늘 첫 결제가 진행됩니다.",
+        "amountValue": "{amount} + 적용되는 세금",
+        "firstChargeValue": "오늘, 결제창에서 결제를 마칠 때",
+        "renewal": {
+          "month": "그 뒤에는 해지할 때까지 매월 같은 금액으로 자동 갱신되어 결제됩니다.",
+          "year": "그 뒤에는 해지할 때까지 매년 같은 금액으로 자동 갱신되어 결제됩니다."
+        },
+        "renewalDate": "다음 결제일은 결제를 마친 시점을 기준으로 Polar가 정하며, 영수증과 고객 포털에서 확인할 수 있습니다.",
+        "taxNote": "세금은 결제창에서 거주 국가에 맞게 계산되어 더해집니다.",
+        "cancelHow": "마이페이지의 결제 관리에서 Polar 고객 포털을 열어 언제든 해지할 수 있고, 해지해도 결제한 기간 끝까지 이용할 수 있습니다.",
+        "seller": "Polar가 판매자(Merchant of Record)로서 이 주문을 판매하며, 카드 명세서에는 Polar로 표시됩니다. 영수증과 결제 안내 메일은 Polar가 보냅니다.",
+        "consent": "위 정기결제 조건과, Polar가 판매자(Merchant of Record)로서 이 주문을 판매하고 결제를 처리하는 것에 동의합니다",
+        "submit": "안전한 결제창으로 계속하기",
+        "pending": "결제창을 준비하는 중입니다…",
+        "leaving": "Polar 결제창으로 이동하는 중입니다…",
+        "inProgressOpen": "이전에 연 Polar 결제창이 아직 열려 있습니다. 그 창에서 결제하지 않았다면 이전 결제 시도를 취소하고 다시 시도해 주세요."
+      }
     },
     "manage": {
       "eyebrow": "마이페이지",
@@ -2202,17 +2306,22 @@
         "plan": "플랜",
         "amount": "결제 금액",
         "amountValue": "{amount} (부가세 포함) · {cycle}",
+        "amountValueMor": "{amount} + 적용되는 세금 · {cycle}",
         "status": "상태",
         "statusActive": "이용 중 · 다음 결제일 {date}",
         "statusScheduled": "해지 예약 · {date}에 끝납니다",
         "statusPastDue": "결제 실패",
         "card": "결제 카드",
         "cardNone": "등록된 카드가 없습니다",
+        "paymentMethod": "결제 수단",
+        "paymentMethodMor": "Polar 고객 포털에서 확인하고 바꿀 수 있습니다",
         "pastDueTitle": "결제에 실패했습니다",
         "pastDueBody": "{date}까지 결제되지 않으면 구독이 끝납니다. 결제 카드를 바꾸면 새 카드로 바로 다시 결제합니다.",
+        "pastDueBodyMor": "Polar가 결제를 다시 시도합니다. 결제 카드를 바꾸려면 아래 결제 관리(Polar)에서 바꿔 주세요.",
         "endingSoon": "유예 기간이 지나 이 구독은 곧 끝납니다. 계속 이용하려면 구독이 끝난 뒤 다시 구독해 주세요.",
         "statusActiveUntil": "이용 중 · {date}까지",
-        "readOnly": "지금은 여기서 이 구독을 변경할 수 없습니다."
+        "readOnly": "지금은 여기서 이 구독을 변경할 수 없습니다.",
+        "utcDate": "{date} (UTC)"
       },
       "cardChange": {
         "button": "카드 변경",
@@ -2231,6 +2340,18 @@
           "sdkLoad": "결제창을 불러오지 못했습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.",
           "sdkFailed": "결제창을 열지 못했습니다. 다시 시도해 주세요.",
           "sdkCanceled": "결제창을 닫아 카드가 바뀌지 않았습니다. 다시 시도할 수 있습니다."
+        }
+      },
+      "portal": {
+        "button": "결제 관리(Polar)",
+        "hint": "해외 결제는 판매 대행사 Polar가 처리합니다. 해지·해지 취소·결제 수단 변경과 영수증은 Polar 고객 포털에서 할 수 있습니다.",
+        "pending": "Polar 고객 포털을 준비하는 중입니다…",
+        "leaving": "Polar 고객 포털로 이동하는 중입니다…",
+        "errors": {
+          "notConfigured": "결제 설정이 끝나지 않아 지금은 Polar 고객 포털을 열 수 없습니다.",
+          "notFound": "Polar에서 이 계정의 구독 정보를 찾지 못했습니다. 페이지를 새로 고친 뒤 다시 시도하거나 문의해 주세요.",
+          "failed": "Polar 고객 포털을 열지 못했습니다. 잠시 뒤 다시 시도해 주세요.",
+          "rateLimited": "요청이 너무 잦습니다. 잠시 뒤 다시 시도해 주세요."
         }
       },
       "cancel": {
@@ -2270,6 +2391,7 @@
         "colReceipt": "영수증",
         "receipt": "영수증 보기",
         "noReceipt": "없음",
+        "receiptPolar": "Polar 고객 포털",
         "testTag": "테스트",
         "kind": {
           "initial": "첫 결제",

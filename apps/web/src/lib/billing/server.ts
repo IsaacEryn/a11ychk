@@ -1,12 +1,13 @@
 import "server-only";
 import { after } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { billingMode, tossKeys } from "@/lib/billing/config";
+import { billingMode, polarKeys, tossKeys } from "@/lib/billing/config";
 import { loadEncKey } from "@/lib/billing/crypto";
 import { sendBillingEmail, type BillingEmailData } from "@/lib/billing/emails";
+import { createPolarClient } from "@/lib/billing/polar";
 import { createSupabaseBillingStore } from "@/lib/billing/store";
 import { createTossClient } from "@/lib/billing/toss";
-import type { BillingDeps, BillingEmailKind, BillingMailer } from "@/lib/billing/types";
+import type { BillingDeps, BillingEmailKind, BillingMailer, MorDeps } from "@/lib/billing/types";
 import { logAppError } from "@/lib/logs";
 import { mailLocale } from "@/lib/profileLocale";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -104,5 +105,24 @@ export function createBillingDeps(opts: { deferMail?: boolean } = {}): BillingDe
     mailer: opts.deferMail ? deferredMailer(mailer) : mailer,
     now: () => Date.now(),
     log,
+  };
+}
+
+/**
+ * 판매 대행(Polar) 흐름의 의존성 — 모드가 off이거나 Polar 키가 없으면 null(Polar 호출 전에 멈춘다, notConfigured).
+ * 토스 키·암호화 키는 보지 않는다: Polar만 설정한 배포에서도 MoR 흐름이 돈다. 메일러는 없다(Polar가 영수증·실패 안내를 보낸다).
+ * 저장소·기록은 createBillingDeps와 같은 service role 클라이언트를 쓴다. timeoutMs: Polar 호출 하나의 시간 제한(기본 15초) —
+ * 웹훅 라우트는 Polar의 10초 응답 제한 안에 끝나게 짧게 준다.
+ */
+export function createMorDeps(opts: { timeoutMs?: number } = {}): MorDeps | null {
+  if (billingMode() === "off") return null;
+  const keys = polarKeys();
+  if (!keys) return null;
+  const admin = createAdminClient();
+  return {
+    store: createSupabaseBillingStore(admin),
+    polar: createPolarClient(keys, fetch, { timeoutMs: opts.timeoutMs }),
+    now: () => Date.now(),
+    log: (message: string) => logAppError(admin, message, { path: "billing" }),
   };
 }

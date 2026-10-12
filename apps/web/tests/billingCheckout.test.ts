@@ -5,6 +5,7 @@ import {
   CHECKOUT_TTL_MS,
   RETURN_ERRORS,
   DISCLOSURE_VERSION,
+  MOR_DISCLOSURE_VERSION,
   PROCESSING_STALE_MS,
   callbackRedirectPath,
   checkoutErrorPath,
@@ -15,6 +16,8 @@ import {
   failRedirectPath,
   isCardChangeTarget,
   manageReturnOf,
+  morCheckoutUrls,
+  morConsentSnapshot,
   parseCardChange,
   parseStartCheckout,
   planCheckoutGuard,
@@ -226,6 +229,33 @@ describe("확인 화면·동의 스냅샷", () => {
     });
     expect(DISCLOSURE_VERSION).toBe("recurring-2026-10");
     expect(CHECKOUT_TTL_MS).toBe(30 * MIN);
+  });
+});
+
+describe("판매 대행(Polar) 결제창 주소·동의 스냅샷", () => {
+  it("성공 주소의 {CHECKOUT_ID}는 인코딩하지 않는다 — Polar가 채운다. 돌아가기는 같은 가격의 결제 확인 화면", () => {
+    expect(morCheckoutUrls("https://www.example.test", PRICE_ID, "en")).toEqual({
+      successUrl: "https://www.example.test/api/billing/polar/return?checkout_id={CHECKOUT_ID}",
+      returnUrl: `https://www.example.test/en/billing/checkout?price=${PRICE_ID}`,
+    });
+    expect(morCheckoutUrls("http://localhost:3100", PRICE_ID, "ko").returnUrl).toBe(`http://localhost:3100/ko/billing/checkout?price=${PRICE_ID}`);
+  });
+
+  it("스냅샷은 세금 전 cent·USD·주기·자동 갱신·고객 포털 해지·판매 대행 고지 — 다음 결제일은 적지 않는다(Polar가 정한다)", () => {
+    const price = priceRow({ provider: "mor", currency: "USD", amount: 1234, interval: "year" });
+    expect(morConsentSnapshot(price, NOW, "en")).toEqual({
+      plan_code: "pro",
+      amount: 1234,
+      currency: "USD",
+      interval: "year",
+      tax: "added_at_checkout",
+      first_charge_at: iso(NOW),
+      auto_renew: true,
+      cancel_method: "polar_customer_portal",
+      merchant_of_record: "polar",
+      locale: "en",
+    });
+    expect(MOR_DISCLOSURE_VERSION).not.toBe(DISCLOSURE_VERSION);
   });
 });
 

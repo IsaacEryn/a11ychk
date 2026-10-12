@@ -6,8 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { PLAN_RANK, TIERS, checkQuota, getEarnedPlan, type PlanId } from "@/lib/quota";
 import { isSubscriptionEntitled, loadEntitlement } from "@/lib/entitlements";
 import { entitlementLivemodes, rowLivemode } from "@/lib/billing/config";
-import { hasBillingRecord, loadLiveSubscriptions } from "@/lib/billing/manageData";
-import { upcomingChargeAt } from "@/lib/billing/period";
+import { hasBillingRecord, loadLiveSubscriptions, nextChargeAt as nextChargeOf } from "@/lib/billing/manageData";
 import { ensureReferralCode } from "@/lib/referral/code";
 import { REFERRAL_VALID_CAP, REFERRAL_VALID_GOAL } from "@/lib/referral/constants";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -66,20 +65,25 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
   const ent = await loadEntitlement(mpAdmin, user.id);
   const quota = await checkQuota(mpAdmin, user.id, ent.limits, ent.resets);
 
-  // ── 결제 — 등급 카드의 구독 줄과 "결제 관리" 링크(토스 구독·기관 계약 행이 있을 때).
+  // ── 결제 — 등급 카드의 구독 줄과 "결제 관리" 링크(토스·해외 결제 구독·기관 계약 행이 있을 때).
   //    권한 계산과 같은 livemode 범위, 사용자 세션(RLS — 자기 행). 조회 실패는 마이페이지를 막지 않는다.
   const billingLivemodes = entitlementLivemodes();
   const liveBilling = await loadLiveSubscriptions(supabase, user.id, billingLivemodes).catch(() => []);
   const hasBilling = liveBilling.length > 0 || (await hasBillingRecord(supabase, user.id, billingLivemodes).catch(() => false));
-  // 표시 근거가 구독이면 그 근거가 된 진행 중 토스 구독 1건 — 권한 계산과 같은 판정으로 고른다
+  // 표시 근거가 구독이면 그 근거가 된 진행 중 구독(토스·해외 결제) 1건 — 권한 계산과 같은 판정으로 고른다
   const subscriptionLine =
     ent.source === "subscription"
-      ? (liveBilling.find((s) => s.provider === "toss" && s.plan_code === ent.tier && isSubscriptionEntitled(s)) ?? null)
+      ? (liveBilling.find((s) => (s.provider === "toss" || s.provider === "mor") && s.plan_code === ent.tier && isSubscriptionEntitled(s)) ?? null)
       : null;
   // 지금 모드가 만드는 행이 아니면(결제 꺼짐·test 모드의 실결제 행) 이 서버가 결제하지 않는다 — 다음 결제일 대신 기간 끝
   const subscriptionManaged = subscriptionLine !== null && subscriptionLine.livemode === rowLivemode();
-  // 보여 줄 다음 결제일 — 가장 이른 청구 시각이 지났으면(마지막 날) 오늘(결제 관리 화면과 같은 함수). 이 화면은 요청마다 렌더된다
-  const nextChargeAt = subscriptionLine ? upcomingChargeAt(subscriptionLine.current_period_end) : null;
+  // 보여 줄 다음 결제일 — 토스는 기간 끝 하루 전, 해외 결제는 기간 끝. 지났으면 오늘(결제 관리 화면과 같은 함수). 요청마다 렌더된다
+  const nextChargeAt = subscriptionLine ? nextChargeOf(subscriptionLine) : null;
+  // 구독 줄의 날짜 — 해외 결제(Polar)의 기간은 UTC로 정해져 KST로 적으면 하루 어긋날 수 있다. UTC 날짜에 (UTC)를 붙인다
+  const lineDate = (iso: string) =>
+    subscriptionLine?.provider === "mor"
+      ? t("tier.utcDate", { date: format.dateTime(new Date(iso), { dateStyle: "medium", timeZone: "UTC" }) })
+      : format.dateTime(new Date(iso), { dateStyle: "medium" });
 
   // ── 초대 현황 — referrals는 service role 전용(RLS 정책 0)이라 서버에서 admin으로 조회.
   //    코드가 없으면 여기서 lazy 생성. 0024 미적용 환경은 null/빈 목록으로 조용히 비활성.
@@ -173,17 +177,13 @@ export default async function MyPage({ params }: { params: Promise<{ locale: str
                     ? t("tier.subscriptionPastDue")
                     : t("tier.subscriptionFailed")
                   : subscriptionLine.cancel_at_period_end
-                    ? t("tier.subscriptionEnding", {
-                        date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
-                      })
+                    ? t("tier.subscriptionEnding", { date: lineDate(subscriptionLine.current_period_end) })
                     : subscriptionManaged && nextChargeAt
                       ? t("tier.subscriptionNext", {
-                          // 다음 결제일 = 기간 끝 하루 전(결제 확인 화면·안내 메일과 같은 날짜), 이미 지났으면 오늘
-                          date: format.dateTime(new Date(nextChargeAt), { dateStyle: "medium" }),
+                          // 다음 결제일 = 토스는 기간 끝 하루 전(결제 확인 화면·안내 메일과 같은 날짜), 해외 결제는 기간 끝. 지났으면 오늘
+                          date: lineDate(nextChargeAt),
                         })
-                      : t("tier.subscriptionUntil", {
-                          date: format.dateTime(new Date(subscriptionLine.current_period_end), { dateStyle: "medium" }),
-                        })}
+                      : t("tier.subscriptionUntil", { date: lineDate(subscriptionLine.current_period_end) })}
               </span>
             )}
           </div>

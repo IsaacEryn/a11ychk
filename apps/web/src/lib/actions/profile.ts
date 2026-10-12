@@ -8,9 +8,12 @@ import { isImpersonatingNickname } from "@/lib/nickname";
 import { sendAdminInquiryAlert } from "@/lib/notify";
 import { logAppError } from "@/lib/logs";
 import { accountDeleteConfirmPhrase, confirmMatches } from "@/lib/accountDelete";
+import { billingMode, rowLivemode } from "@/lib/billing/config";
 import { isMissingTable } from "@/lib/billing/dbErrors";
-import { collectDeletionTargets, endSubscriptionsForDeletion, type DeletionTargets } from "@/lib/billing/flows/manage";
+import { collectDeletionTargets, endSubscriptionsForDeletion, revokeMorForDeletion, type DeletionTargets } from "@/lib/billing/flows/manage";
+import { createMorDeps } from "@/lib/billing/server";
 import { createSupabaseBillingStore } from "@/lib/billing/store";
+import type { MorDeps } from "@/lib/billing/types";
 import { actionLocale, requireUser, revalidateAll, revalidateLocalized, type SaveState } from "./shared";
 
 // ─────────────── 인증 ───────────────
@@ -84,10 +87,19 @@ export async function updatePreferredStandard(_prev: SaveState, formData: FormDa
  * 모르는 결제는 기록만 남기고, 승인으로 확인되면 대사가 자동 취소한다. 결제 모드가 off여도 라이브 구독은 남아 있을 수 있어
  * 모드와 상관없이 정리한다.
  *
+ * 해외 결제(판매 대행 Polar) 구독은 예외다 — 계정을 지우기 **전에** Polar에서 즉시 해지(revoke)하고, 그 뒤 Polar 고객까지 지운다
+ * (진행 중 구독은 우리 행도 끝내고, 일시정지로 끝난 행은 Polar에서 살아 있을 때만 해지한다. 고객 삭제는 이 배포 모드의 MoR 흔적이 있을
+ * 때만 — 우리 행이 없는 Polar 구독도 멈추고, 같은 이메일로 다시 가입한 계정이 옛 고객에 붙지 않게 한다. flows/manage.ts
+ * revokeMorForDeletion). Polar 구독은 빌링키처럼 계정과 함께 사라지지 않아, 지운 뒤에도 Polar가 계속 청구할 수 있기 때문이다.
+ * 확인하지 못하면(Polar 미설정·이 배포가 다룰 수 없는 모드의 구독·해지나 고객 삭제 실패·결과 불명) 탈퇴를 막는다(billingCancelFailed —
+ * 잠시 뒤 다시 시도하고 계속 안 되면 문의하라고 안내한다. 포털의 해지는 기간 끝 예약이라 막힘을 풀지 못한다. 운영자가 푸는 법은
+ * docs/SETUP.md). live·off 배포의 sandbox 구독은 막지 않는다(실제 청구 없음). 해지·고객 삭제·sandbox 기록 줄은 계정 삭제가 성공한
+ * 뒤에만 남긴다. 토스 구독은 위 순서 그대로다.
+ *
  * 거절 조건: 확인 문구 불일치 · 관리자 계정(콘솔 잠김 방지 — 권한을 넘긴 뒤 탈퇴) ·
  * 진행 중 검사(실행 중인 함수가 지워진 검사에 결과를 쓰다 실패한다) ·
- * 끝낼 구독을 읽지 못한 저장소 오류(무엇을 끝내야 하는지 모른 채 계정을 지우지 않는다) · 계정 삭제 실패.
- * error: "mismatch" | "admin" | "active" | "failed"
+ * 끝낼 구독을 읽지 못한 저장소 오류(무엇을 끝내야 하는지 모른 채 계정을 지우지 않는다) · 해외 결제 구독을 해지하지 못함 · 계정 삭제 실패.
+ * error: "mismatch" | "admin" | "active" | "failed" | "billingCancelFailed"
  */
 export async function deleteAccount(_prev: SaveState, formData: FormData): Promise<SaveState> {
   const { supabase, user } = await requireUser();
@@ -125,14 +137,37 @@ export async function deleteAccount(_prev: SaveState, formData: FormData): Promi
     }
   }
 
-  // 2. 계정 삭제 — 실패하면 아무 구독도 끝내지 않은 채 돌아간다
+  // 1-1. 해외 결제(Polar) 구독은 지우기 전에 Polar에서 해지하고 Polar 고객을 지운다 — 확인하지 못하면 탈퇴를 막는다.
+  //      테이블 없음은 해지할 것이 없는 것이다. 정리 기록 줄은 계정을 지운 뒤에 남긴다(지우지 못하면 남기지 않는다)
+  let mor: MorDeps | null = null;
+  let morAfterDelete: string[] = [];
+  try {
+    mor = createMorDeps();
+  } catch {
+    mor = null; // 의존성을 만들 수 없으면 Polar 미설정과 같다 — MoR 구독이 있으면 아래에서 막힌다
+  }
+  try {
+    const morCleanup = await revokeMorForDeletion(billingStore, mor, rowLivemode(billingMode()), user.id, billingLog);
+    if (!morCleanup.ok) return { error: "billingCancelFailed" };
+    morAfterDelete = morCleanup.afterDelete;
+  } catch (e) {
+    if (!isMissingTable(e)) {
+      await logAppError(admin, `account delete: reading mor subscriptions failed: ${(e instanceof Error ? e.message : String(e)).slice(0, 300)}`, {
+        path: "actions.deleteAccount",
+      });
+      return { error: "failed" };
+    }
+  }
+
+  // 2. 계정 삭제 — 실패하면 아무 구독도 끝내지 않은 채 돌아간다(앞서 Polar에서 해지한 구독은 끝난 그대로다)
   const { error } = await admin.auth.admin.deleteUser(user.id);
   if (error) {
     await logAppError(admin, `account delete failed: ${error.message.slice(0, 300)}`, { path: "actions.deleteAccount" });
     return { error: "failed" };
   }
 
-  // 3. 지운 뒤 모아 둔 구독을 id로 끝낸다 — 던지지 않는다(실패는 확인 필요 기록, 빌링키는 이미 cascade로 없다)
+  // 3. 지운 뒤 — Polar 정리 기록을 남기고, 모아 둔 구독을 id로 끝낸다(던지지 않는다 — 실패는 확인 필요 기록, 빌링키는 이미 cascade로 없다)
+  for (const line of morAfterDelete) await billingLog(line);
   await endSubscriptionsForDeletion(billingStore, targets, Date.now(), billingLog);
 
   // 사용자는 이미 없으므로 서버 로그아웃 호출 없이 이 브라우저의 세션 쿠키만 지운다

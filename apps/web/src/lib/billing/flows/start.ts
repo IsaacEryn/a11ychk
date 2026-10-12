@@ -46,8 +46,11 @@ async function blockReason(deps: StartDeps, userId: string, livemode: boolean): 
   return plan.blockedBy;
 }
 
-/** 만든 뒤 다시 확인 — 다른 끝나지 않은 시도가 보이면 방금 만든 시도를 물리고 그 시도의 상태로 막는 까닭을 준다 */
-async function yieldIfRaced(deps: StartDeps, created: CheckoutRow): Promise<CheckoutBlock | null> {
+/**
+ * 만든 뒤 다시 확인 — 다른 끝나지 않은 시도가 보이면 방금 만든 시도를 물리고 그 시도의 상태로 막는 까닭을 준다.
+ * 판매 대행(flows/morStart.ts)도 같은 규칙으로 쓴다(결제사를 가리지 않는다)
+ */
+export async function yieldIfRaced(deps: StartDeps, created: CheckoutRow): Promise<CheckoutBlock | null> {
   const others = (await deps.store.listUnfinishedCheckouts(created.user_id, created.livemode)).filter((c) => c.id !== created.id);
   if (others.length === 0) return null;
   await deps.store.expireCheckouts([created.id], "open", "superseded");

@@ -7,6 +7,19 @@ const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 // 모노레포 루트 (apps/web에서 두 단계 위). Vercel Root Directory=apps/web 기준.
 const monorepoRoot = path.join(process.cwd(), "..", "..");
 
+/** 브라우저 번들을 넣는 /api 최상위 폴더 — 결제(billing)만 뺀 전부(아래 outputFileTracingIncludes) */
+const API_WITH_BROWSER = "{access-check,admin,auth,badge,cron,extension,health,internal,scans,teaser-scan}";
+
+/** 브라우저 실행 패키지 — 검사 API 함수 번들에 강제로 넣는다(아래 outputFileTracingIncludes) */
+const BROWSER_TRACE = [
+  "./node_modules/axe-core/**/*",
+  "./node_modules/playwright-core/**/*",
+  "./node_modules/@sparticuz/chromium/**/*",
+  "../../node_modules/axe-core/**/*",
+  "../../node_modules/playwright-core/**/*",
+  "../../node_modules/@sparticuz/chromium/**/*",
+];
+
 const nextConfig: NextConfig = {
   // 모노레포의 core 패키지(TS 소스)를 함께 컴파일
   transpilePackages: ["@a11ychk/core"],
@@ -20,15 +33,13 @@ const nextConfig: NextConfig = {
   // 브라우저를 실행하는 API 함수 번들에 playwright-core(browsers.json 포함)와
   // @sparticuz/chromium 바이너리를 강제로 포함시킨다.
   // node_modules가 루트로 hoist된 경우(../../)와 apps/web 로컬(./) 둘 다 커버.
+  // 결제(/api/billing/** — 토스·Polar 복귀, Polar 웹훅)는 브라우저를 쓰지 않아 뺀다 — 함수가 가벼워져 콜드 스타트가 짧아진다(Polar
+  // 웹훅은 10초 안의 응답을 기다린다). Turbopack은 outputFileTracingExcludes를 include한 파일에 적용하지 않아, 키를 결제 밖의
+  // /api 최상위 폴더로 적는다 — /api 아래에 새 최상위 폴더를 만들면 API_WITH_BROWSER에 더한다. 두 키는 폴더 자체의 라우트(/api/scans)를
+  // 경로 이름(/api/scans 또는 /api/scans/route)과 무관하게 덮는다.
   outputFileTracingIncludes: {
-    "/api/**/*": [
-      "./node_modules/axe-core/**/*",
-      "./node_modules/playwright-core/**/*",
-      "./node_modules/@sparticuz/chromium/**/*",
-      "../../node_modules/axe-core/**/*",
-      "../../node_modules/playwright-core/**/*",
-      "../../node_modules/@sparticuz/chromium/**/*",
-    ],
+    [`/api/${API_WITH_BROWSER}/**/*`]: BROWSER_TRACE,
+    [`/api/${API_WITH_BROWSER}`]: BROWSER_TRACE,
   },
   async headers() {
     // CSP는 요청별 nonce가 필요해 미들웨어(src/proxy.ts)에서 부여한다.

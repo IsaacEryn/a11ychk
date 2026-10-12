@@ -2,7 +2,16 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { NOT_USER_FACING } from "../src/lib/billing/flows/renew";
-import { PAYMENT_STATUS_KEYS, cardSummaryOf, loadPaymentHistory, paymentStatusKey } from "../src/lib/billing/manageData";
+import {
+  PAYMENT_STATUS_KEYS,
+  cardSummaryOf,
+  hasBillingRecord,
+  loadLiveSubscriptions,
+  loadPaymentHistory,
+  nextChargeAt,
+  paymentStatusKey,
+} from "../src/lib/billing/manageData";
+import { amountInMajorUnits } from "../src/lib/billing/price";
 
 describe("cardSummaryOf — 결제 관리에 보일 카드 요약만 남긴다", () => {
   it("토스 카드 요약의 세 문자열 필드만", () => {
@@ -76,5 +85,60 @@ describe("paymentStatusKey — 결제 내역의 상태 표기", () => {
     const out = await loadPaymentHistory({ from: () => chain } as unknown as SupabaseClient, "u1", [false]);
     expect(selected.split(",").map((c) => c.trim())).toContain("failure_code");
     expect(paymentStatusKey(out[0])).toBe("notProcessed");
+  });
+});
+
+/** 쿼리 빌더 대역 — 호출을 기록하고 마지막에 data를 준다 */
+function recordingDb(data: unknown) {
+  const calls: Array<[string, unknown[]]> = [];
+  const chain: Record<string, unknown> = {};
+  for (const name of ["select", "eq", "in", "order", "limit"]) {
+    chain[name] = (...args: unknown[]) => {
+      calls.push([name, args]);
+      return chain;
+    };
+  }
+  chain.then = (ok: (v: unknown) => unknown) => Promise.resolve({ data, error: null }).then(ok);
+  return { db: { from: () => chain } as unknown as SupabaseClient, calls };
+}
+
+describe("결제 관리 — 해외 결제(Polar) 구독도 읽는다", () => {
+  it("진행 중 구독·결제 기록 판정에 mor를 넣는다(토스·기관 계약과 함께)", async () => {
+    const live = recordingDb([]);
+    await loadLiveSubscriptions(live.db, "u1", [false]);
+    expect(live.calls).toContainEqual(["in", ["provider", ["toss", "mor", "manual"]]]);
+
+    const any = recordingDb([{ id: "s" }]);
+    expect(await hasBillingRecord(any.db, "u1", [true])).toBe(true);
+    expect(any.calls).toContainEqual(["in", ["provider", ["toss", "mor", "manual"]]]);
+  });
+
+  it("결제 내역은 결제사도 읽는다(MoR 행의 영수증 안내를 가른다) — 금액은 행의 통화 단위(USD는 cent)", async () => {
+    let selected = "";
+    const chain = {
+      select: (cols: string) => {
+        selected = cols;
+        return chain;
+      },
+      eq: () => chain,
+      in: () => chain,
+      order: () => chain,
+      limit: async () => ({ data: [], error: null }),
+    };
+    await loadPaymentHistory({ from: () => chain } as unknown as SupabaseClient, "u1", [false]);
+    expect(selected.split(",").map((c) => c.trim())).toEqual(expect.arrayContaining(["provider", "amount", "currency"]));
+    // 화면은 cent를 달러로 바꿔 통화 서식에 넘긴다 — 환불 기록(세금 제외)을 결제 금액에서 빼지 않는다
+    expect(amountInMajorUnits(1334, "USD")).toBe(13.34);
+    expect(amountInMajorUnits(1234, "KRW")).toBe(1234);
+  });
+
+  it("다음 결제일 — 토스는 기간 끝 하루 전(지났으면 지금), MoR은 기간 끝(Polar가 기간 끝에 청구, 지났으면 지금)", () => {
+    const now = Date.parse("2026-01-30T16:00:00.000Z");
+    const end = "2026-02-28T16:00:00+00:00";
+    expect(nextChargeAt({ provider: "toss", current_period_end: end }, now)).toBe("2026-02-27T16:00:00.000Z");
+    expect(nextChargeAt({ provider: "mor", current_period_end: end }, now)).toBe("2026-02-28T16:00:00.000Z");
+    const past = "2026-01-30T10:00:00+00:00";
+    expect(nextChargeAt({ provider: "mor", current_period_end: past }, now)).toBe("2026-01-30T16:00:00.000Z");
+    expect(nextChargeAt({ provider: "toss", current_period_end: past }, now)).toBe("2026-01-30T16:00:00.000Z");
   });
 });
