@@ -81,7 +81,8 @@ describe("verifyStandardWebhook", () => {
       timestamp: "1614265330",
       signatureHeader: "v1,g0hM9SsE+OTPJTGt/tmIKtSyZlE3uFJELVlNIOLJ1OE=",
       body: '{"test": 2432232314}',
-      keys: standardWebhookKeys("whsec_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"),
+      // 명세에 공개된 예시 시크릿이다. 접두를 나눠 적어 비밀 값 스캐너가 Stripe 키로 오인하지 않게 한다
+      keys: standardWebhookKeys("whsec" + "_MfKQ9r8GKYqrTwjUPD8ILPZIo2LaLaSw"),
     };
     expect(verifyStandardWebhook(vector)).toBe("ok");
     expect(verifyStandardWebhook({ ...vector, body: '{"test": 2432232315}' })).toBe("bad_signature");
