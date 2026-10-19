@@ -73,8 +73,8 @@ describe("filterStableViolations (2-패스 안정성 필터)", () => {
   });
 });
 
-describe("filterStableViolations — 확정 패스 때 화면에서 사라진 노드", () => {
-  it("확정 패스에서 빠졌어도 그때 보이지 않던 노드는 1차 결과대로 유지한다", () => {
+describe("filterStableViolations — 확정 패스에서 다시 잡지 못한 노드의 유지 판정", () => {
+  it("유지 판정(화면에서 사라짐·같은 요소의 다른 선택자)이 참인 노드는 1차 결과대로 유지한다", () => {
     const first = results([violation("color-contrast", [["#slide-2"], ["#fade"]])]);
     const confirm = results([]);
     const hidden = (_rule: string, target: unknown[]) => JSON.stringify(target) === JSON.stringify(["#slide-2"]);
@@ -88,29 +88,6 @@ describe("filterStableViolations — 확정 패스 때 화면에서 사라진 �
     const { violations, demotedRuleIds } = filterStableViolations(first, results([]));
     expect(violations).toEqual([]);
     expect(demotedRuleIds).toEqual(["color-contrast"]);
-  });
-});
-
-describe("filterStableViolations — 같은 스타일로 다시 보고된 명도 대비", () => {
-  const contrastNode = (target: string, fg: string) => ({
-    target: [target],
-    html: "<p>x</p>",
-    any: [{ data: { fgColor: fg, bgColor: "#ffffff", contrastRatio: 3.5, fontSize: "12.0pt (16px)", fontWeight: "normal" } }],
-  });
-  const cc = (nodes: ReturnType<typeof contrastNode>[]) => ({ id: "color-contrast", impact: "serious", tags: ["wcag2aa"], helpUrl: "", nodes });
-
-  it("확정 패스에 같은 스타일 노드가 있으면 다른 요소로 넘어갔어도 유지한다(탭·캐러셀 활성 상태 이동)", () => {
-    const first = results([cc([contrastNode("#tab-1", "#888888")])]);
-    const confirm = results([cc([contrastNode("#tab-2", "#888888")])]);
-    const { violations } = filterStableViolations(first, confirm);
-    expect(violations[0]!.nodes.map((n) => n.target)).toEqual([["#tab-1"]]);
-  });
-
-  it("페이드 중간 색처럼 확정 패스에 없는 스타일은 지금처럼 걸러낸다", () => {
-    const first = results([cc([contrastNode("#fade", "#d7d6d2"), contrastNode("#always", "#888888")])]);
-    const confirm = results([cc([contrastNode("#always", "#888888")])]);
-    const { violations } = filterStableViolations(first, confirm);
-    expect(violations[0]!.nodes.map((n) => n.target)).toEqual([["#always"]]);
   });
 });
 

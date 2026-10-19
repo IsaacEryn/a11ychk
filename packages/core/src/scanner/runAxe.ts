@@ -159,6 +159,71 @@ const VISIBLE_NOW = `(targets) => targets.map((target) => {
   }
 })`;
 
+/** 프레임 안에서 axe target으로 요소를 찾는 함수(그림자 DOM 포함) — 아래 스크립트들이 공유한다 */
+const RESOLVE_TARGET = `(target) => {
+  const t = target[target.length - 1];
+  if (typeof t === "string") return document.querySelector(t);
+  if (Array.isArray(t)) {
+    let root = document, el = null;
+    for (const s of t) { el = root.querySelector(s); if (!el) return null; root = el.shadowRoot || el; }
+    return el;
+  }
+  return null;
+}`;
+
+/** 1차 패스 위반 요소를 페이지 안 WeakMap에 등록한다(요소 → {노드 키, 규칙} 목록). DOM은 건드리지 않는다. */
+const REGISTER_FIRST_PASS = `(entries) => {
+  const resolve = ${RESOLVE_TARGET};
+  const reg = (window.__a11ychkFirstPass = new WeakMap());
+  for (const e of entries) {
+    try {
+      const el = resolve(e.target);
+      if (!el) continue;
+      const list = reg.get(el) || [];
+      list.push({ key: e.key, ruleId: e.ruleId });
+      reg.set(el, list);
+    } catch (err) {}
+  }
+}`;
+
+/** 확정 패스 노드가 가리키는 요소가 1차 패스에서 등록된 요소면 그 1차 노드 키를 돌려준다(같은 규칙만) */
+const LOOKUP_SAME_ELEMENT = `(entries) => {
+  const resolve = ${RESOLVE_TARGET};
+  const reg = window.__a11ychkFirstPass;
+  const out = [];
+  if (!reg) return out;
+  for (const e of entries) {
+    try {
+      const el = resolve(e.target);
+      const list = el && reg.get(el);
+      if (list) for (const x of list) if (x.ruleId === e.ruleId) out.push(x.key);
+    } catch (err) {}
+  }
+  return out;
+}`;
+
+const nodeEntries = (r: AxeRunResults) => r.violations.flatMap((v) => v.nodes.map((n) => ({ key: nodeKey(v.id, n.target), ruleId: v.id, target: n.target })));
+
+/** 1차 패스 위반 요소 등록 — 실패해도 검사는 계속한다(그때는 선택자 문자열로만 확정) */
+async function registerFirstPass(frame: Frame, result: AxeRunResults): Promise<void> {
+  if (result.violations.length === 0) return;
+  try {
+    await frame.evaluate(`(${REGISTER_FIRST_PASS})(${JSON.stringify(nodeEntries(result))})`);
+  } catch {
+    // 등록 실패 — 기존 동작
+  }
+}
+
+/** 확정 패스 결과 중 1차와 같은 요소를 가리키는 노드의 1차 키 */
+async function lookupSameElements(frame: Frame, result: AxeRunResults): Promise<string[]> {
+  if (result.violations.length === 0) return [];
+  try {
+    return (await frame.evaluate(`(${LOOKUP_SAME_ELEMENT})(${JSON.stringify(nodeEntries(result).map(({ ruleId, target }) => ({ ruleId, target })))})`)) as string[];
+  } catch {
+    return [];
+  }
+}
+
 /** 확정 패스에서 빠진 후보 노드 중 지금 어느 프레임에서도 보이지 않는 것의 키 집합 */
 async function findHiddenAtConfirm(frames: Frame[], first: AxeRunResults, confirm: AxeRunResults): Promise<Set<string>> {
   const confirmed = new Set<string>();
@@ -190,17 +255,6 @@ async function findHiddenAtConfirm(frames: Frame[], first: AxeRunResults, confir
   return hidden;
 }
 
-/**
- * 명도 대비 노드의 스타일 키 — axe가 기록한 전경·배경·대비·글자 크기·굵기. 다른 규칙이거나
- * 데이터가 없으면 null. 페이드 중간 색은 그 순간에만 있어 확정 패스의 키와 겹치지 않는다.
- */
-function contrastStyleKey(ruleId: string, node: AxeRunResults["violations"][number]["nodes"][number]): string | null {
-  if (ruleId !== "color-contrast") return null;
-  const d = node.any?.[0]?.data as { fgColor?: string; bgColor?: string; contrastRatio?: number; fontSize?: string; fontWeight?: string } | undefined;
-  if (!d?.fgColor || !d.bgColor) return null;
-  return [d.fgColor, d.bgColor, d.contrastRatio, d.fontSize, d.fontWeight].join("|");
-}
-
 /** 위반 노드의 동일성 키 — 규칙 + 대상 선택자 */
 function nodeKey(ruleId: string, target: unknown[]): string {
   return `${ruleId} ${JSON.stringify(target)}`;
@@ -209,9 +263,9 @@ function nodeKey(ruleId: string, target: unknown[]): string {
 /**
  * 2-패스 교차 필터 (순수 함수).
  * 확정 패스에서도 검출된 노드만 위반으로 유지한다. 단, 확정 패스 때 화면에서 사라진
- * 노드(hiddenAtConfirm이 참)는 다시 잴 수 없었던 것이므로 1차 결과를 믿고 유지한다.
- * 명도 대비는 확정 패스에 같은 스타일(전경·배경·대비·글자 크기·굵기)의 노드가 다시 보고되어도
- * 유지한다 — 탭·캐러셀이 활성 상태를 옮겨 같은 저대비 스타일이 다른 요소로 넘어간 경우다.
+ * 노드는 다시 잴 수 없었던 것이므로 1차 결과를 믿고 유지한다. 확정 패스가 같은 요소를 다른
+ * 선택자 문자열로 보고한 경우도 유지한다 — 동적으로 다시 그려지는 페이지에서 axe는 같은 요소의
+ * 선택자를 패스마다 다르게 만들 수 있다(속성 순서, 고르는 클래스). 둘 다 keepUnconfirmed가 판정한다.
  * 페이드인 같은 과도 상태는 같은 요소가 화면에 남은 채 정상이 되어 걸러지고, 캐러셀처럼
  * 슬라이드가 바뀌어 사라진 실제 위반은 남는다(2026-10 측정 절차 평가에서 회전 콘텐츠의
  * 실제 위반을 버리던 문제). 규칙의 모든 노드가 탈락하면 위반이 아니라 "검토 필요"
@@ -221,25 +275,16 @@ function nodeKey(ruleId: string, target: unknown[]): string {
 export function filterStableViolations(
   first: AxeRunResults,
   confirm: AxeRunResults,
-  hiddenAtConfirm: (ruleId: string, target: unknown[]) => boolean = () => false,
+  keepUnconfirmed: (ruleId: string, target: unknown[]) => boolean = () => false,
 ): { violations: AxeRunResults["violations"]; demotedRuleIds: string[] } {
   const confirmed = new Set<string>();
-  const confirmedStyles = new Set<string>();
   for (const v of confirm.violations) {
-    for (const n of v.nodes) {
-      confirmed.add(nodeKey(v.id, n.target));
-      const s = contrastStyleKey(v.id, n);
-      if (s) confirmedStyles.add(s);
-    }
+    for (const n of v.nodes) confirmed.add(nodeKey(v.id, n.target));
   }
   const violations: AxeRunResults["violations"] = [];
   const demotedRuleIds: string[] = [];
   for (const v of first.violations) {
-    const stableNodes = v.nodes.filter((n) => {
-      if (confirmed.has(nodeKey(v.id, n.target)) || hiddenAtConfirm(v.id, n.target)) return true;
-      const s = contrastStyleKey(v.id, n);
-      return s !== null && confirmedStyles.has(s);
-    });
+    const stableNodes = v.nodes.filter((n) => confirmed.has(nodeKey(v.id, n.target)) || keepUnconfirmed(v.id, n.target));
     if (stableNodes.length > 0) violations.push({ ...v, nodes: stableNodes });
     else demotedRuleIds.push(v.id);
   }
@@ -324,6 +369,8 @@ export interface ResearchTrace {
   dropped: { ruleId: string; node: AxeViolation["nodes"][number] }[];
   /** 확정 패스에서 다시 검출되지 않았지만 그때 화면에서 사라져 있어 1차 결과대로 유지한 노드 */
   keptHidden: { ruleId: string; node: AxeViolation["nodes"][number] }[];
+  /** 확정 패스가 같은 요소를 다른 선택자로 보고해 유지한 노드 */
+  keptSameElement: { ruleId: string; node: AxeViolation["nodes"][number] }[];
 }
 
 /**
@@ -385,6 +432,7 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
     }
     const result = await runAxeInFrame(frame);
     if (result) {
+      await registerFirstPass(frame, result);
       okFrames.push(frame);
       mergeAxe(merged, result);
     }
@@ -393,6 +441,7 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
   if (okFrames.length === 0) {
     const main = await runAxeInFrame(page.mainFrame());
     if (main) {
+      await registerFirstPass(page.mainFrame(), main);
       okFrames.push(page.mainFrame());
       mergeAxe(merged, main);
     }
@@ -401,23 +450,31 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
   // 2-패스 안정성 필터 — 1차에서 위반이 나온 규칙만 재실행하므로 비용이 작다
   const firstPass = merged.violations;
   let keptHidden: ResearchTrace["keptHidden"] = [];
+  let keptSameElement: ResearchTrace["keptSameElement"] = [];
   if (options?.stabilityFilter !== false && merged.violations.length > 0) {
     const ruleIds = [...new Set(merged.violations.map((v) => v.id))];
     await page.waitForTimeout(STABILITY_SETTLE_MS).catch(() => undefined);
     const confirm: AxeRunResults = { violations: [], passes: [], incomplete: [] };
     let confirmOk = false;
+    const sameElement = new Set<string>();
     for (const frame of okFrames) {
       const result = await runAxeRulesInFrame(frame, ruleIds);
       if (result) {
         confirmOk = true;
         mergeAxe(confirm, result);
+        for (const k of await lookupSameElements(frame, result)) sameElement.add(k);
       }
     }
     // 확정 패스 자체가 실패하면(내비게이션 등) 필터 없이 1차 결과를 그대로 쓴다
     if (confirmOk) {
       const hidden = await findHiddenAtConfirm(okFrames, merged, confirm);
-      keptHidden = merged.violations.flatMap((v) => v.nodes.filter((n) => hidden.has(nodeKey(v.id, n.target))).map((node) => ({ ruleId: v.id, node })));
-      const { violations, demotedRuleIds } = filterStableViolations(merged, confirm, (ruleId, target) => hidden.has(nodeKey(ruleId, target)));
+      const pick = (keys: Set<string>) => merged.violations.flatMap((v) => v.nodes.filter((n) => keys.has(nodeKey(v.id, n.target))).map((node) => ({ ruleId: v.id, node })));
+      keptSameElement = pick(sameElement);
+      keptHidden = pick(hidden);
+      const { violations, demotedRuleIds } = filterStableViolations(merged, confirm, (ruleId, target) => {
+        const k = nodeKey(ruleId, target);
+        return sameElement.has(k) || hidden.has(k);
+      });
       merged.violations = violations;
       merged.incomplete.push(...demotedRuleIds.map((id) => ({ id })));
     }
@@ -429,6 +486,7 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
       final: merged.violations,
       dropped: listDroppedNodes(firstPass, merged.violations),
       keptHidden,
+      keptSameElement,
     });
   }
 

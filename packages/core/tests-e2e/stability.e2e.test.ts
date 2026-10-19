@@ -83,6 +83,37 @@ const FIXTURE_CAROUSEL = `<!DOCTYPE html>
   ${SWAP_ON_SECOND_RUN}
 </body></html>`;
 
+/** axe.run 2번째 호출 직전에 부모 요소에 활성 클래스를 붙이는 훅 — axe가 같은 요소의 선택자를 다르게 만든다 */
+const RECLASS_ON_SECOND_RUN = `<script>
+  (function () {
+    var iv = setInterval(function () {
+      if (!window.axe || window.__hooked) return;
+      window.__hooked = true;
+      clearInterval(iv);
+      var orig = window.axe.run.bind(window.axe);
+      var calls = 0;
+      window.axe.run = function () {
+        calls += 1;
+        if (calls >= 2) document.querySelector('a[href="/a"]').className = "is-active card";
+        return orig.apply(null, arguments);
+      };
+    }, 1);
+  })();
+</script>`;
+
+// 동적으로 다시 그려지는 페이지 — 저대비 텍스트는 그대로인데 선택자 문자열만 바뀐다
+const FIXTURE_RESELECT = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>Reselect</title></head>
+<body>
+  <main><h1>선택자 변화</h1>
+    <div class="list">
+      <a href="/a" class="card"><span style="color:#aaaaaa;background:#ffffff;">흐린 글</span></a>
+      <a href="/b" class="card"><span style="color:#111111;background:#ffffff;">진한 글</span></a>
+    </div>
+  </main>
+  ${RECLASS_ON_SECOND_RUN}
+</body></html>`;
+
 let server: Server;
 let origin: string;
 let browser: Browser;
@@ -90,7 +121,7 @@ let browser: Browser;
 beforeAll(async () => {
   server = createServer((req, res) => {
     res.setHeader("content-type", "text/html; charset=utf-8");
-    res.end(req.url === "/mixed" ? FIXTURE_MIXED : req.url === "/carousel" ? FIXTURE_CAROUSEL : FIXTURE_TRANSIENT_ONLY);
+    res.end(req.url === "/mixed" ? FIXTURE_MIXED : req.url === "/carousel" ? FIXTURE_CAROUSEL : req.url === "/reselect" ? FIXTURE_RESELECT : FIXTURE_TRANSIENT_ONLY);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -127,6 +158,17 @@ describe("2-패스 안정성 필터 E2E", () => {
 
     const contrast = result.violations.find((v) => v.ruleId === "color-contrast");
     expect(contrast?.nodes.map((n) => n.selector)).toContain("#low-text");
+  });
+
+  it("확정 패스가 같은 요소를 다른 선택자로 보고해도 위반을 버리지 않는다", async () => {
+    const page = await browser.newPage();
+    await page.goto(`${origin}/reselect`, { waitUntil: "load" });
+    let kept = 0;
+    const result = await runAxeOnPage(page, { settleAnimations: false, onResearchTrace: (t) => (kept = t.keptSameElement.length) });
+    await page.close();
+
+    expect(result.violations.map((v) => v.ruleId)).toContain("color-contrast");
+    expect(kept).toBe(1);
   });
 
   it("과도 상태가 유일한 위반이면 규칙을 '검토 필요'로 강등한다", async () => {
