@@ -472,7 +472,7 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
       const bySelector = new Set(confirm.violations.flatMap((v) => v.nodes.map((n) => nodeKey(v.id, n.target))));
       const pick = (keys: Set<string>) => merged.violations.flatMap((v) => v.nodes.filter((n) => keys.has(nodeKey(v.id, n.target)) && !bySelector.has(nodeKey(v.id, n.target))).map((node) => ({ ruleId: v.id, node })));
       keptSameElement = pick(sameElement);
-      keptHidden = pick(hidden);
+      keptHidden = pick(new Set([...hidden].filter((k) => !sameElement.has(k)))); // 같은 요소로 확인된 노드는 그쪽에만 센다
       const { violations, demotedRuleIds } = filterStableViolations(merged, confirm, (ruleId, target) => {
         const k = nodeKey(ruleId, target);
         return sameElement.has(k) || hidden.has(k);
