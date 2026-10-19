@@ -468,7 +468,9 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
     // 확정 패스 자체가 실패하면(내비게이션 등) 필터 없이 1차 결과를 그대로 쓴다
     if (confirmOk) {
       const hidden = await findHiddenAtConfirm(okFrames, merged, confirm);
-      const pick = (keys: Set<string>) => merged.violations.flatMap((v) => v.nodes.filter((n) => keys.has(nodeKey(v.id, n.target))).map((node) => ({ ruleId: v.id, node })));
+      // 추적에는 선택자로 확정되지 않은 노드만 남긴다(같은 선택자로 다시 잡힌 노드는 원래부터 확정)
+      const bySelector = new Set(confirm.violations.flatMap((v) => v.nodes.map((n) => nodeKey(v.id, n.target))));
+      const pick = (keys: Set<string>) => merged.violations.flatMap((v) => v.nodes.filter((n) => keys.has(nodeKey(v.id, n.target)) && !bySelector.has(nodeKey(v.id, n.target))).map((node) => ({ ruleId: v.id, node })));
       keptSameElement = pick(sameElement);
       keptHidden = pick(hidden);
       const { violations, demotedRuleIds } = filterStableViolations(merged, confirm, (ruleId, target) => {
