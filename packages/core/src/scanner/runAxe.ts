@@ -190,6 +190,17 @@ async function findHiddenAtConfirm(frames: Frame[], first: AxeRunResults, confir
   return hidden;
 }
 
+/**
+ * 명도 대비 노드의 스타일 키 — axe가 기록한 전경·배경·대비·글자 크기·굵기. 다른 규칙이거나
+ * 데이터가 없으면 null. 페이드 중간 색은 그 순간에만 있어 확정 패스의 키와 겹치지 않는다.
+ */
+function contrastStyleKey(ruleId: string, node: AxeRunResults["violations"][number]["nodes"][number]): string | null {
+  if (ruleId !== "color-contrast") return null;
+  const d = node.any?.[0]?.data as { fgColor?: string; bgColor?: string; contrastRatio?: number; fontSize?: string; fontWeight?: string } | undefined;
+  if (!d?.fgColor || !d.bgColor) return null;
+  return [d.fgColor, d.bgColor, d.contrastRatio, d.fontSize, d.fontWeight].join("|");
+}
+
 /** 위반 노드의 동일성 키 — 규칙 + 대상 선택자 */
 function nodeKey(ruleId: string, target: unknown[]): string {
   return `${ruleId} ${JSON.stringify(target)}`;
@@ -199,6 +210,8 @@ function nodeKey(ruleId: string, target: unknown[]): string {
  * 2-패스 교차 필터 (순수 함수).
  * 확정 패스에서도 검출된 노드만 위반으로 유지한다. 단, 확정 패스 때 화면에서 사라진
  * 노드(hiddenAtConfirm이 참)는 다시 잴 수 없었던 것이므로 1차 결과를 믿고 유지한다.
+ * 명도 대비는 확정 패스에 같은 스타일(전경·배경·대비·글자 크기·굵기)의 노드가 다시 보고되어도
+ * 유지한다 — 탭·캐러셀이 활성 상태를 옮겨 같은 저대비 스타일이 다른 요소로 넘어간 경우다.
  * 페이드인 같은 과도 상태는 같은 요소가 화면에 남은 채 정상이 되어 걸러지고, 캐러셀처럼
  * 슬라이드가 바뀌어 사라진 실제 위반은 남는다(2026-10 측정 절차 평가에서 회전 콘텐츠의
  * 실제 위반을 버리던 문제). 규칙의 모든 노드가 탈락하면 위반이 아니라 "검토 필요"
@@ -211,13 +224,22 @@ export function filterStableViolations(
   hiddenAtConfirm: (ruleId: string, target: unknown[]) => boolean = () => false,
 ): { violations: AxeRunResults["violations"]; demotedRuleIds: string[] } {
   const confirmed = new Set<string>();
+  const confirmedStyles = new Set<string>();
   for (const v of confirm.violations) {
-    for (const n of v.nodes) confirmed.add(nodeKey(v.id, n.target));
+    for (const n of v.nodes) {
+      confirmed.add(nodeKey(v.id, n.target));
+      const s = contrastStyleKey(v.id, n);
+      if (s) confirmedStyles.add(s);
+    }
   }
   const violations: AxeRunResults["violations"] = [];
   const demotedRuleIds: string[] = [];
   for (const v of first.violations) {
-    const stableNodes = v.nodes.filter((n) => confirmed.has(nodeKey(v.id, n.target)) || hiddenAtConfirm(v.id, n.target));
+    const stableNodes = v.nodes.filter((n) => {
+      if (confirmed.has(nodeKey(v.id, n.target)) || hiddenAtConfirm(v.id, n.target)) return true;
+      const s = contrastStyleKey(v.id, n);
+      return s !== null && confirmedStyles.has(s);
+    });
     if (stableNodes.length > 0) violations.push({ ...v, nodes: stableNodes });
     else demotedRuleIds.push(v.id);
   }

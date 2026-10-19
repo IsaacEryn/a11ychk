@@ -33,7 +33,7 @@ export interface AxeRunResults {
     impact?: string | null;
     tags: string[];
     helpUrl: string;
-    nodes: { target: unknown[]; html: string; failureSummary?: string }[];
+    nodes: { target: unknown[]; html: string; failureSummary?: string; any?: { data?: unknown }[] }[];
   }[];
   passes: { id: string }[];
   incomplete: { id: string }[];
