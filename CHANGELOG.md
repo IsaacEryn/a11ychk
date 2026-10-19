@@ -12,6 +12,38 @@ carry their own versions.*
 
 ---
 
+## 애니메이션 도중의 명도 대비 오탐 제거 / Contrast is no longer measured mid-animation — v1.3.2
+
+### 한국어
+
+페이지가 로드되면서 재생하는 페이드인·슬라이드인 같은 애니메이션 도중에 검사가 돌면, 반투명한
+중간 상태의 글자색으로 명도 대비를 재서 끝 상태에서는 기준을 충족하는 텍스트가 위반으로 잡힐 수
+있었습니다. 기존 2-패스 안정성 필터는 두 번의 측정에서 모두 검출된 요소만 위반으로 확정하지만,
+두 측정에 모두 걸칠 만큼 긴 애니메이션은 거르지 못했습니다.
+
+이제 첫 검사 전에, 재생 중인 애니메이션이 끝나길 페이지당 최대 1.5초 기다립니다. 캐러셀이나
+로딩 스피너처럼 끝없이 반복하는 애니메이션은 기다리지 않고, 대기에 실패해도 검사는 그대로
+진행합니다. 애니메이션이 없는 페이지는 검사 시간이 거의 늘지 않습니다. 웹 서비스와 MCP
+서버(0.2.2)도 같은 방식으로 잽니다. 웹 서비스는 애니메이션 감속(prefers-reduced-motion) 흉내도
+꺼서, 이제 Action·MCP와 같은 기본 화면을 검사합니다. 입력·출력 형식은 그대로입니다.
+
+### English
+
+If a scan ran while a page was still playing a load animation such as a fade-in or slide-in,
+color contrast could be measured on the semi-transparent intermediate color, so text that meets
+the requirement in its final state was reported as a violation. The existing two-pass stability
+filter only confirms elements found in both passes, but it could not catch animations long enough
+to span both measurements.
+
+The first pass now waits up to 1.5 seconds per page for running animations to finish. Animations
+that repeat forever, such as carousels and loading spinners, are not waited for, and the scan
+continues if waiting fails. Pages without animations take about the same time as before. The web
+service and the MCP server (0.2.2) measure the same way. The web service also stopped emulating
+reduced motion (prefers-reduced-motion), so it now scans the same default view as the Action and
+the MCP server. Input and output formats are unchanged.
+
+---
+
 ## 광고 iframe 오탐 제거 / Hidden ad frames are no longer reported — v1.3.1
 
 ### 한국어
