@@ -147,10 +147,11 @@ interface SinglePageOutcome {
 
 /** 한 페이지를 스캔해 결과 + 사이트 시그니처를 반환. 컨텍스트는 항상 정리한다. */
 export async function scanSinglePage(browser: Browser, url: string): Promise<SinglePageOutcome> {
+  // reducedMotion을 켜지 않는다. 감속 화면이 아니라 대부분의 사용자가 보는 기본 화면을
+  // 재야 하고, Action·MCP(core scanUrls)와 같은 조건이어야 판정이 일치한다. 54곳 실험에서
+  // 감속은 캐러셀 등의 측정 대상 자체를 바꿔 오탐을 걷어낸 만큼 새로 만들었다. 페이드인
+  // 같은 과도 상태 오탐은 runAxe의 2-패스 안정성 필터가 처리한다.
   const context = await browser.newContext({
-    // 애니메이션 감속 — 페이드인 도중 반투명 상태를 axe가 측정해 생기는
-    // 명도 대비 오탐을 방지한다 (모든 검사 대상 공통)
-    reducedMotion: "reduce",
     viewport: { width: 1280, height: 800 },
     locale: "ko-KR",
     userAgent: "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)",
