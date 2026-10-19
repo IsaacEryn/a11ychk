@@ -51,6 +51,38 @@ const FIXTURE_TRANSIENT_ONLY = `<!DOCTYPE html>
   ${FIX_ON_SECOND_RUN}
 </body></html>`;
 
+/** axe.run 2번째 호출 직전에 저대비 슬라이드를 숨기고 다른 슬라이드를 보이는 훅(캐러셀 전환 흉내) */
+const SWAP_ON_SECOND_RUN = `<script>
+  (function () {
+    var iv = setInterval(function () {
+      if (!window.axe || window.__hooked) return;
+      window.__hooked = true;
+      clearInterval(iv);
+      var orig = window.axe.run.bind(window.axe);
+      var calls = 0;
+      window.axe.run = function () {
+        calls += 1;
+        if (calls >= 2) {
+          document.getElementById("slide-low").style.display = "none";
+          document.getElementById("slide-ok").style.display = "block";
+        }
+        return orig.apply(null, arguments);
+      };
+    }, 1);
+  })();
+</script>`;
+
+// 회전 콘텐츠 — 1차 측정 때 보이던 실제 저대비 슬라이드가 확정 패스 전에 화면에서 빠진다
+const FIXTURE_CAROUSEL = `<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8"><title>Carousel</title></head>
+<body>
+  <main><h1>회전</h1>
+    <div id="slide-low" style="background:#ffffff;"><p id="low-text" style="color:#aaaaaa;">흐린 슬라이드 텍스트</p></div>
+    <div id="slide-ok" style="display:none;background:#ffffff;"><p style="color:#111111;">진한 슬라이드 텍스트</p></div>
+  </main>
+  ${SWAP_ON_SECOND_RUN}
+</body></html>`;
+
 let server: Server;
 let origin: string;
 let browser: Browser;
@@ -58,7 +90,7 @@ let browser: Browser;
 beforeAll(async () => {
   server = createServer((req, res) => {
     res.setHeader("content-type", "text/html; charset=utf-8");
-    res.end(req.url === "/mixed" ? FIXTURE_MIXED : FIXTURE_TRANSIENT_ONLY);
+    res.end(req.url === "/mixed" ? FIXTURE_MIXED : req.url === "/carousel" ? FIXTURE_CAROUSEL : FIXTURE_TRANSIENT_ONLY);
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const address = server.address();
@@ -85,6 +117,16 @@ describe("2-패스 안정성 필터 E2E", () => {
     const selectors = contrast!.nodes.map((n) => n.selector);
     expect(selectors).toContain("#always-bad");
     expect(selectors).not.toContain("#transient");
+  });
+
+  it("확정 패스 전에 화면에서 빠진 실제 위반(캐러셀 전환)은 버리지 않는다", async () => {
+    const page = await browser.newPage();
+    await page.goto(`${origin}/carousel`, { waitUntil: "load" });
+    const result = await runAxeOnPage(page, { settleAnimations: false });
+    await page.close();
+
+    const contrast = result.violations.find((v) => v.ruleId === "color-contrast");
+    expect(contrast?.nodes.map((n) => n.selector)).toContain("#low-text");
   });
 
   it("과도 상태가 유일한 위반이면 규칙을 '검토 필요'로 강등한다", async () => {

@@ -73,6 +73,24 @@ describe("filterStableViolations (2-패스 안정성 필터)", () => {
   });
 });
 
+describe("filterStableViolations — 확정 패스 때 화면에서 사라진 노드", () => {
+  it("확정 패스에서 빠졌어도 그때 보이지 않던 노드는 1차 결과대로 유지한다", () => {
+    const first = results([violation("color-contrast", [["#slide-2"], ["#fade"]])]);
+    const confirm = results([]);
+    const hidden = (_rule: string, target: unknown[]) => JSON.stringify(target) === JSON.stringify(["#slide-2"]);
+    const { violations, demotedRuleIds } = filterStableViolations(first, confirm, hidden);
+    expect(violations.map((v) => v.nodes.map((n) => n.target))).toEqual([[["#slide-2"]]]);
+    expect(demotedRuleIds).toEqual([]);
+  });
+
+  it("판정 함수를 넘기지 않으면 기존처럼 확정된 노드만 남긴다", () => {
+    const first = results([violation("color-contrast", [["#slide-2"]])]);
+    const { violations, demotedRuleIds } = filterStableViolations(first, results([]));
+    expect(violations).toEqual([]);
+    expect(demotedRuleIds).toEqual(["color-contrast"]);
+  });
+});
+
 describe("listDroppedNodes (연구용 — 2-패스에서 빠진 노드)", () => {
   it("1차에만 있고 최종 결과에 없는 노드를 규칙 id와 함께 돌려준다", () => {
     const first = [violation("color-contrast", [["#a"], ["#b"]]), violation("image-alt", [["#img"]])];
