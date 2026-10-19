@@ -95,6 +95,22 @@ describe("유한 애니메이션 종료 대기 E2E", () => {
     expect(result.violations.map((v) => v.ruleId)).not.toContain("color-contrast");
   });
 
+  it("연구용 옵션으로 대기와 2-패스를 끄면 과도 상태를 재고, 추적 정보에 원 결과가 담긴다", async () => {
+    const page = await browser.newPage();
+    await page.goto(`${origin}/fade`, { waitUntil: "load" });
+    let traced: import("../src/scanner/runAxe").ResearchTrace | undefined;
+    const result = await runAxeOnPage(page, {
+      settleAnimations: false,
+      stabilityFilter: false,
+      onResearchTrace: (t) => (traced = t),
+    });
+    await page.close();
+
+    expect(result.violations.map((v) => v.ruleId)).toContain("color-contrast");
+    expect(traced?.firstPass.map((v) => v.id)).toContain("color-contrast");
+    expect(traced?.dropped).toEqual([]);
+  });
+
   it("무한 반복 애니메이션은 기다리지 않는다", async () => {
     const page = await browser.newPage();
     await page.goto(`${origin}/infinite`, { waitUntil: "load" });

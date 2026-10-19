@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterStableViolations } from "../src/scanner/runAxe";
+import { filterStableViolations, listDroppedNodes } from "../src/scanner/runAxe";
 import type { AxeRunResults } from "../src/scanner/normalize";
 
 function violation(
@@ -70,5 +70,25 @@ describe("filterStableViolations (2-패스 안정성 필터)", () => {
     const first = results([violation("color-contrast", [["#a"]])]);
     const { violations } = filterStableViolations(first, first);
     expect(violations[0]!).toEqual(first.violations[0]!);
+  });
+});
+
+describe("listDroppedNodes (연구용 — 2-패스에서 빠진 노드)", () => {
+  it("1차에만 있고 최종 결과에 없는 노드를 규칙 id와 함께 돌려준다", () => {
+    const first = [violation("color-contrast", [["#a"], ["#b"]]), violation("image-alt", [["#img"]])];
+    const final = [violation("color-contrast", [["#a"]]), violation("image-alt", [["#img"]])];
+    const dropped = listDroppedNodes(first, final);
+    expect(dropped.map((d) => [d.ruleId, d.node.target])).toEqual([["color-contrast", ["#b"]]]);
+  });
+
+  it("규칙째 강등된 경우 그 규칙의 노드를 모두 돌려준다", () => {
+    const first = [violation("color-contrast", [["#fade"], ["#fade2"]])];
+    const dropped = listDroppedNodes(first, []);
+    expect(dropped).toHaveLength(2);
+  });
+
+  it("빠진 노드가 없으면 빈 배열", () => {
+    const first = [violation("color-contrast", [["#a"]])];
+    expect(listDroppedNodes(first, first)).toEqual([]);
   });
 });
