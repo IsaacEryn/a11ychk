@@ -112,7 +112,7 @@ claude mcp add a11ychk -- npx -y @a11ychk/mcp
 ```
 packages/core     @a11ychk/core — 검사 엔진 (오픈소스의 심장)
   src/crawler/      대표 페이지 수집 (sitemap → 내부 링크, robots.txt 존중)
-  src/scanner/      axe-core 실행·결과 정규화 (Playwright Page 주입형) + 2-패스 안정성 필터
+  src/scanner/      axe-core 실행·결과 정규화 (Playwright Page 주입형) + 유한 애니메이션 종료 대기·2-패스 안정성 필터
   src/catalog/      규칙 카탈로그 → WCAG 2.2 · KWCAG 2.2 이중 매핑 + 한국어 개선 가이드
   src/manual/       수동 검사 항목 정의 (KWCAG 33개 중 자동 판정 불가 항목)
   src/report/       보고서 집계 (준수율, KWCAG 매트릭스, 사이트 수준 검사)

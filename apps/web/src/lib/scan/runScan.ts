@@ -150,7 +150,7 @@ export async function scanSinglePage(browser: Browser, url: string): Promise<Sin
   // reducedMotion을 켜지 않는다. 감속 화면이 아니라 대부분의 사용자가 보는 기본 화면을
   // 재야 하고, Action·MCP(core scanUrls)와 같은 조건이어야 판정이 일치한다. 54곳 실험에서
   // 감속은 캐러셀 등의 측정 대상 자체를 바꿔 오탐을 걷어낸 만큼 새로 만들었다. 페이드인
-  // 같은 과도 상태 오탐은 runAxe의 2-패스 안정성 필터가 처리한다.
+  // 같은 과도 상태 오탐은 runAxe가 처리한다(유한 애니메이션 종료 대기 + 2-패스 안정성 필터).
   const context = await browser.newContext({
     viewport: { width: 1280, height: 800 },
     locale: "ko-KR",
