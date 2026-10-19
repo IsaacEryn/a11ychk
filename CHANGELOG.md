@@ -12,7 +12,7 @@ carry their own versions.*
 
 ---
 
-## 애니메이션 도중의 명도 대비 오탐 제거 / Contrast is no longer measured mid-animation — v1.3.2
+## 애니메이션 도중의 명도 대비 오탐 줄임 / Fewer contrast false positives during animations — v1.3.2
 
 ### 한국어
 
@@ -21,11 +21,12 @@ carry their own versions.*
 있었습니다. 기존 2-패스 안정성 필터는 두 번의 측정에서 모두 검출된 요소만 위반으로 확정하지만,
 두 측정에 모두 걸칠 만큼 긴 애니메이션은 거르지 못했습니다.
 
-이제 첫 검사 전에, 재생 중인 애니메이션이 끝나길 페이지당 최대 1.5초 기다립니다. 캐러셀이나
-로딩 스피너처럼 끝없이 반복하는 애니메이션은 기다리지 않고, 대기에 실패해도 검사는 그대로
-진행합니다. 애니메이션이 없는 페이지는 검사 시간이 거의 늘지 않습니다. 웹 서비스와 MCP
+이제 첫 검사 전에, 재생 중인 애니메이션이 끝나길 페이지당 최대 1.5초 기다립니다. 로딩
+스피너처럼 반복 횟수가 무한으로 지정된 애니메이션은 기다리지 않고, 타이머로 넘기는 캐러셀은
+지금 재생 중인 전환 하나만 기다립니다. 대기에 실패해도 검사는 그대로 진행합니다. 애니메이션이 없는 페이지는 검사 시간이 거의 늘지 않습니다. 웹 서비스와 MCP
 서버(0.2.2)도 같은 방식으로 잽니다. 웹 서비스는 애니메이션 감속(prefers-reduced-motion) 흉내도
-꺼서, 이제 Action·MCP와 같은 기본 화면을 검사합니다. 입력·출력 형식은 그대로입니다.
+꺼서, 이제 Action·MCP와 같은 기본 화면을 검사합니다. 감속을 끈 것은 오탐을 줄이기 위해서가
+아니라 세 곳이 같은 조건으로 재기 위해서입니다. 입력·출력 형식은 그대로입니다.
 
 ### English
 
@@ -36,11 +37,12 @@ filter only confirms elements found in both passes, but it could not catch anima
 to span both measurements.
 
 The first pass now waits up to 1.5 seconds per page for running animations to finish. Animations
-that repeat forever, such as carousels and loading spinners, are not waited for, and the scan
-continues if waiting fails. Pages without animations take about the same time as before. The web
+set to repeat forever, such as loading spinners, are not waited for, and for a timer-driven
+carousel only the transition currently playing is waited for. The scan continues if waiting fails. Pages without animations take about the same time as before. The web
 service and the MCP server (0.2.2) measure the same way. The web service also stopped emulating
 reduced motion (prefers-reduced-motion), so it now scans the same default view as the Action and
-the MCP server. Input and output formats are unchanged.
+the MCP server. Reduced motion was turned off so that all three measure under the same
+conditions, not to reduce false positives. Input and output formats are unchanged.
 
 ---
 
