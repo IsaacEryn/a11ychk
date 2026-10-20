@@ -25,6 +25,21 @@ export const THIRD_PARTY_AD_EXCLUDE: string[] = [
   '[src*="doubleclick.net"]',
 ];
 
+/**
+ * 제3자 보안 챌린지 위젯(Cloudflare Turnstile·hCaptcha) iframe 선택자 — 프레임별 검사에서
+ * 내부 문서만 건너뛴다. 위젯 문서(maximum-scale=1 viewport, main·h1 없음 등)는 위젯
+ * 제공자가 만들고 사이트 소유자가 고칠 수 없다. 반면 iframe 요소 자체(frame-title 등)는
+ * 사이트가 고칠 수 있으므로 부모 문서 검사에 남긴다 — 그래서 axe exclude
+ * (THIRD_PARTY_AD_EXCLUDE)에는 넣지 않는다.
+ */
+export const THIRD_PARTY_WIDGET_FRAMES: string[] = [
+  'iframe[src*="challenges.cloudflare.com"]',
+  'iframe[src*="hcaptcha.com"]',
+];
+
+/** 내부 문서를 검사하지 않을 하위 프레임 선택자 — 광고 제외 선택자 + 제3자 위젯 iframe */
+export const THIRD_PARTY_FRAME_SKIP: string[] = [...THIRD_PARTY_AD_EXCLUDE, ...THIRD_PARTY_WIDGET_FRAMES];
+
 const VALID_IMPACTS: Impact[] = ["critical", "serious", "moderate", "minor"];
 
 export interface AxeRunResults {

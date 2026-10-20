@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isBlankDocumentState, shouldSkipChildFrame, THIRD_PARTY_AD_EXCLUDE } from "../src/scanner/runAxe";
+import {
+  isBlankDocumentState,
+  shouldSkipChildFrame,
+  THIRD_PARTY_AD_EXCLUDE,
+  THIRD_PARTY_FRAME_SKIP,
+  THIRD_PARTY_WIDGET_FRAMES,
+} from "../src/scanner/runAxe";
 
 describe("isBlankDocumentState — 빈/미로드 문서 가드", () => {
   it("lang·title·body가 모두 비면 빈 문서로 본다(리다이렉트 빈 응답·about:blank)", () => {
@@ -41,6 +47,25 @@ describe("THIRD_PARTY_AD_EXCLUDE — 제3자 광고 요소 제외 선택자", ()
     const ctx = { exclude: THIRD_PARTY_AD_EXCLUDE.map((s) => [s]) };
     expect(Array.isArray(ctx.exclude)).toBe(true);
     expect(ctx.exclude.every((e) => Array.isArray(e) && typeof e[0] === "string")).toBe(true);
+  });
+});
+
+describe("THIRD_PARTY_WIDGET_FRAMES — 보안 챌린지 위젯 iframe", () => {
+  it("Cloudflare Turnstile·hCaptcha iframe을 가리킨다", () => {
+    expect(THIRD_PARTY_WIDGET_FRAMES).toContain('iframe[src*="challenges.cloudflare.com"]');
+    expect(THIRD_PARTY_WIDGET_FRAMES).toContain('iframe[src*="hcaptcha.com"]');
+  });
+
+  it("프레임 건너뛰기 선택자는 광고 제외 선택자와 위젯 iframe을 모두 담는다", () => {
+    for (const sel of [...THIRD_PARTY_AD_EXCLUDE, ...THIRD_PARTY_WIDGET_FRAMES]) {
+      expect(THIRD_PARTY_FRAME_SKIP).toContain(sel);
+    }
+  });
+
+  it("axe exclude에는 넣지 않는다 — iframe 요소 자체(frame-title 등)는 부모 문서에서 검사한다", () => {
+    for (const sel of THIRD_PARTY_WIDGET_FRAMES) {
+      expect(THIRD_PARTY_AD_EXCLUDE).not.toContain(sel);
+    }
   });
 });
 
