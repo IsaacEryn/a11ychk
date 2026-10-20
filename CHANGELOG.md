@@ -12,6 +12,42 @@ carry their own versions.*
 
 ---
 
+## 동적 페이지에서 실제 위반이 빠지던 문제 수정 / Real violations no longer dropped on dynamic pages — v1.3.3
+
+### 한국어
+
+2-패스 안정성 필터는 1차 검사에서 위반이 나온 규칙만 500ms 뒤 다시 실행해, 두 번 모두 같은
+선택자로 검출된 요소만 위반으로 확정합니다. 그런데 화면을 다시 그리는 페이지에서는 axe가 같은
+요소에 패스마다 다른 선택자를 만들 때가 있습니다. 부모 요소에 활성 상태 클래스가 붙거나 속성
+순서가 바뀌는 경우입니다. 그러면 화면에 그대로 있는 저대비 텍스트가 "다시 검출되지 않은 요소"로
+분류되어 결과에서 빠졌습니다. 캐러셀이 그 사이 다음 슬라이드로 넘어가 원래 요소가 화면에서
+사라져도 같은 일이 생겼습니다.
+
+이제 확정 검사는 선택자 문자열이 아니라 요소 자체를 견줍니다. 선택자가 달라져도 같은 요소면
+위반으로 확정하고, 확정 검사 때 요소가 화면에서 사라졌으면(크기 0, 숨김, 잘림, 화면 밖) 다시 잴
+수 없었던 것이므로 1차 결과를 그대로 둡니다. 같은 요소가 화면에 남은 채 정상이 된 애니메이션
+도중 상태는 지금처럼 걸러집니다. 동적인 페이지에서는 보고되는 위반이 늘 수 있습니다. 웹 서비스와
+MCP 서버(0.2.3)도 같은 엔진이라 판정이 함께 바뀝니다. 입력·출력 형식은 그대로입니다.
+
+### English
+
+The two-pass stability filter re-runs only the rules that found violations in the first pass,
+500 ms later, and confirms an element only when both passes report it with the same selector. On
+pages that re-render, axe sometimes builds a different selector for the same element in each pass,
+for example when an active-state class is added to a parent or attribute order changes. Low-contrast
+text that stayed on screen was then treated as "not found again" and dropped from the results. The
+same happened when a carousel moved to the next slide in between and the original element left the
+screen.
+
+The confirming pass now compares elements, not selector strings. An element is confirmed even if its
+selector changed, and if it is no longer visible at the confirming pass (zero size, hidden, clipped,
+or off screen) the first-pass result is kept because it could not be measured again. Animation
+states that resolve while the same element stays on screen are still filtered out. Dynamic pages may
+report more violations than before. The web service and the MCP server (0.2.3) share the engine, so
+their verdicts change the same way. Input and output formats are unchanged.
+
+---
+
 ## 애니메이션 도중의 명도 대비 오탐 줄임 / Fewer contrast false positives during animations — v1.3.2
 
 ### 한국어
