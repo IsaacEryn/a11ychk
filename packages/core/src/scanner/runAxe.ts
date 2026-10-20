@@ -7,12 +7,24 @@ import { createRequire } from "node:module";
 import type { Frame, Page } from "playwright-core";
 import axe from "axe-core";
 import type { PageScanResult } from "../types";
-import { AXE_RUN_TAGS, THIRD_PARTY_AD_EXCLUDE, normalizeAxeResults, type AxeRunResults } from "./normalize";
+import {
+  AXE_RUN_TAGS,
+  THIRD_PARTY_AD_EXCLUDE,
+  THIRD_PARTY_FRAME_SKIP,
+  normalizeAxeResults,
+  type AxeRunResults,
+} from "./normalize";
 import { runCustomChecks } from "./customChecks";
 import { checkHtmlValidity } from "./htmlValidity";
 import { settleAnimations } from "./settleAnimations";
 
-export { AXE_RUN_TAGS, THIRD_PARTY_AD_EXCLUDE, normalizeAxeResults } from "./normalize";
+export {
+  AXE_RUN_TAGS,
+  THIRD_PARTY_AD_EXCLUDE,
+  THIRD_PARTY_FRAME_SKIP,
+  THIRD_PARTY_WIDGET_FRAMES,
+  normalizeAxeResults,
+} from "./normalize";
 export type { AxeRunResults } from "./normalize";
 
 const AXE_OPTIONS = JSON.stringify({
@@ -67,8 +79,10 @@ async function runAxeInFrame(frame: Frame): Promise<AxeRunResults | null> {
  * 하위 프레임을 따로 검사하지 않을지 판정(순수). 메인 프레임에는 쓰지 않는다.
  * Playwright는 다른 출처(cross-origin) 프레임 안에도 axe를 넣을 수 있어서, 부모 문서의
  * exclude(THIRD_PARTY_AD_EXCLUDE)만으로는 광고 iframe 내부 문서가 걸러지지 않는다.
- * 프레임별 검사에서도 같은 기준으로 건너뛴다.
- * - excluded: 프레임 요소가 광고 제외 선택자에 맞거나 그런 요소 안에 있다(광고 네트워크 책임)
+ * 프레임별 검사에서는 광고에 더해 보안 챌린지 위젯(Turnstile·hCaptcha) iframe까지
+ * THIRD_PARTY_FRAME_SKIP 기준으로 건너뛴다.
+ * - excluded: 프레임 요소가 광고·제3자 위젯 선택자에 맞거나 그런 요소 안에 있다
+ *   (광고 네트워크·위젯 제공자 책임)
  * - rendered: 프레임 요소가 화면에 그려진다(display·visibility가 보이고 크기가 0×0이 아님).
  *   그려지지 않는 프레임의 내부 문서는 사용자에게 드러나지 않는다. iframe 요소 자체의
  *   검사(frame-title 등)는 부모 문서 검사에 그대로 남는다.
@@ -95,7 +109,7 @@ async function readFrameElementState(frame: Frame): Promise<{ excluded: boolean;
         const visible = e.checkVisibility ? e.checkVisibility({ visibilityProperty: true }) : e.getClientRects().length > 0;
         const rect = e.getBoundingClientRect();
         return { excluded, rendered: visible && rect.width > 0 && rect.height > 0 };
-      }, THIRD_PARTY_AD_EXCLUDE);
+      }, THIRD_PARTY_FRAME_SKIP);
     } finally {
       await el.dispose().catch(() => undefined);
     }
@@ -390,8 +404,8 @@ export function listDroppedNodes(firstPass: AxeViolation[], final: AxeViolation[
 /**
  * 로드된 페이지를 검사한다.
  * - 메인 프레임 + 하위 iframe에 axe를 각각 주입·실행해 결과를 병합
- *   (axe 단독으로는 iframe 내부를 검사하지 못해 사각지대가 됨). 광고 iframe과 화면에
- *   그려지지 않는 iframe의 내부 문서는 건너뛴다(shouldSkipChildFrame)
+ *   (axe 단독으로는 iframe 내부를 검사하지 못해 사각지대가 됨). 광고·보안 챌린지 위젯
+ *   iframe과 화면에 그려지지 않는 iframe의 내부 문서는 건너뛴다(shouldSkipChildFrame)
  * - 위반이 있으면 안정화 대기 후 해당 규칙만 재실행해 두 패스 모두 검출된
  *   노드만 위반으로 확정 (2-패스 안정성 필터 — 렌더링 과도 상태 오탐 억제)
  * - axe에 없는 자동화 가능 검사(리플로우·미디어 부재 등)를 자체 규칙으로 추가
