@@ -1,5 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 /**
  * 개인정보 처리방침 — 조문이 길어 messages json 대신 페이지 내 정의.
@@ -142,14 +142,15 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  return {
-    alternates: localeAlternates(locale, "/privacy"),
+  return publicMetadata({
+    locale,
+    path: "/privacy",
     title: CONTENT[locale === "en" ? "en" : "ko"].title,
     description:
       locale === "en"
         ? "Privacy policy for A11y Check — what we collect, why, and for how long."
-        : "A11y Check 개인정보처리방침 — 수집 항목·목적·보유 기간 안내.",
-  };
+        : "A11y Check 개인정보 처리방침 — 수집하는 개인정보 항목과 처리 목적, 보유·파기, 처리 위탁, 이용자의 권리를 안내합니다.",
+  });
 }
 
 export default async function PrivacyPage({ params }: { params: Promise<{ locale: string }> }) {

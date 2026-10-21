@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { getCachedUser } from "@/lib/supabase/user";
 import { sanitizePrefillUrl } from "@/lib/prefillUrl";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
 import { getCatalogStats, type KwcagSlug } from "@a11ychk/core/catalog";
 import { TeaserScanForm } from "./TeaserScanForm";
@@ -38,12 +38,14 @@ const catalogParams = {
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "landing" });
-  return {
-    alternates: localeAlternates(locale),
+  return publicMetadata({
+    locale,
+    path: "",
     // 홈은 layout의 기본 제목을 그대로 쓰지 않는다 — 검색에서 찾는 말이 앞에 와야 한다
-    title: { absolute: t("seoTitle") },
+    title: t("seoTitle"),
     description: t("seoDescription"),
-  };
+    absolute: true,
+  });
 }
 
 export default async function LandingPage({
@@ -276,6 +278,13 @@ export default async function LandingPage({
             </li>
           ))}
         </ol>
+        {/* 공개 디렉터리는 헤더·푸터에만 링크돼 있었다 — 본문 맥락 안의 링크가 크롤러에게 더 강한 신호다 */}
+        <p className="mt-8 text-[var(--color-ink-soft)]">
+          {t("directoryPrefix")}{" "}
+          <Link href="/directory" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+            {t("directoryLink")}
+          </Link>
+        </p>
       </section>
 
       {/* ─── 정직한 자동 검사 + 오픈소스 ─── */}

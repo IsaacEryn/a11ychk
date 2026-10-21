@@ -1,6 +1,6 @@
 import { setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 /**
  * 접근성 선언문 — 서비스 자체의 접근성 준수 약속과 점검 방식을 공개한다.
@@ -9,14 +9,15 @@ import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  return {
-    alternates: localeAlternates(locale, "/accessibility"),
+  return publicMetadata({
+    locale,
+    path: "/accessibility",
     title: locale === "en" ? "Accessibility Statement" : "접근성 선언문",
     description:
       locale === "en"
         ? "A11y Check's commitment to WCAG 2.2 AA and KWCAG 2.2 conformance."
         : "A11y Check의 WCAG 2.2 AA·KWCAG 2.2 준수 약속과 자체 점검 방식.",
-  };
+  });
 }
 
 interface Section {

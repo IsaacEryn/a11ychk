@@ -14,6 +14,9 @@
  *
  * ※ favicon(apps/web/src/app/icon.svg)은 간략판 SVG 원본을 그대로 사용.
  * ※ OG 이미지(opengraph-image.png)는 디자이너 제공 원본 — 재생성하지 않음.
+ *   영문판(apps/web/public/opengraph-image-en.png)은 이 원본에서 부제 한 줄만
+ *   「Web Accessibility Checker」(Pretendard Regular 35px, rgb(147,180,232))로 바꾼 것이라
+ *   원본을 바꾸면 영문판도 같이 다시 만들어야 한다.
  */
 import { readFile, mkdir } from "node:fs/promises";
 import { dirname, join } from "node:path";

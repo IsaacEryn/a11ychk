@@ -1,16 +1,17 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnnouncements } from "@/lib/appSettings";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "notices" });
-  return {
-    alternates: localeAlternates(locale, "/notices"),
+  return publicMetadata({
+    locale,
+    path: "/notices",
     title: t("title"),
     description: t("metaDescription"),
-  };
+  });
 }
 
 /** 서비스 공지 — 약관의 "서비스 내 공지" 조항을 구현하는 공식 채널 (전체 이력 표시) */

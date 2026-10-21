@@ -8,7 +8,8 @@ import { ScanProgress } from "./ScanProgress";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string; id: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "scan" });
-  return { title: t("title") };
+  // robots.txt로도 막지만, 막히기 전에 알려진 주소가 색인되지 않게 페이지에서도 거부한다
+  return { title: t("title"), robots: { index: false } };
 }
 
 export default async function ScanPage({ params }: { params: Promise<{ locale: string; id: string }> }) {

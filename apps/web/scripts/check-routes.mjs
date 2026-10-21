@@ -42,6 +42,7 @@ const ROUTES = [
   // 맞고 죽는다. /site는 사용자가 자기 사이트에 붙여 둔 배지 링크의 진입점이라
   // 307(→ /ko/site/...)이 나오면 그 링크들이 전부 404가 된 것이다.
   ["/site/nonexistent-host.example", 302, "배지 리졸버 (프록시 미통과)"],
+  ["/site/nonexistent-host.example?view=report", 302, "배지 리졸버 보고서 직행 (디렉터리 상세의 전체 보고서 링크)"],
   ["/sample/bad.html", 200, "public 정적 파일 (프록시 미통과)"],
 
   // 결제 모드 게이트 — 기본 빌드(BILLING_MODE 없음)에서는 결제 화면·토스 리다이렉트가 없어야 한다
@@ -89,12 +90,31 @@ const BODY_CHECKS = [
   ["/ko/guide/table-structure", /KWCAG 2\.2 검사항목 3(?!\d)/, "가이드 상세 — 일련번호"],
   ["/ko/guide/table-structure", /KS X OT0003 5\.3\.1(?!\d)/, "가이드 상세 — 공식 번호"],
   ["/en/guide/text-contrast", /Checkpoint 8(?!\d)/, "가이드 상세(en) — 일련번호"],
+  // 공유 카드 — 페이지마다 자기 og:url을 낸다(없으면 전 페이지가 홈 미리보기를 공유하던 회귀)
+  ["/ko/about", /property="og:url" content="[^"]*\/ko\/about"/, "og:url 자기 경로(정적 페이지)"],
+  ["/ko/guide/alternative-text", /property="og:url" content="[^"]*\/ko\/guide\/alternative-text"/, "og:url 자기 경로(가이드 항목)"],
+  ["/en", /property="og:image" content="[^"]*\/opengraph-image-en\.png"/, "영문 OG 이미지"],
+  ["/en/guide", /rel="canonical" href="[^"]*\/en\/guide"/, "영문 canonical"],
+  ["/en/guide", /hreflang="ko" href="[^"]*\/ko\/guide"/i, "영문 페이지의 hreflang 짝"],
+  // 색인 거부 — 요금제(시행 전)·로그인
+  ["/ko/pricing", /<meta name="robots" content="noindex/, "요금제 noindex"],
+  ["/ko/login", /<meta name="robots" content="noindex/, "로그인 noindex"],
+  // breadcrumb 구조화 데이터가 화면처럼 홈에서 시작
+  ["/ko/guide/alternative-text", /"@type":"ListItem","position":1,"name":"홈"/, "가이드 항목 breadcrumb 홈"],
   // 비로그인 결제 관리 → 로그인, 돌아올 주소 보존(결제 모드와 무관하게 로그인이 먼저)
   ["/ko/mypage/billing", /\/ko\/login\?next=%2Fko%2Fmypage%2Fbilling/, "결제 관리 비로그인 → 로그인(next 보존)"],
 ];
 
 /** sitemap.xml에 있으면 안 되는 것 — 로그인 게이트 주소를 색인 요청하지 않는다 */
-const BODY_ABSENT = [["/sitemap.xml", /\/ko\/scan</, "sitemap에 /scan 없음"]];
+const BODY_ABSENT = [
+  ["/sitemap.xml", /\/ko\/scan</, "sitemap에 /scan 없음"],
+  // 하위 페이지·404가 홈 제목을 물려받지 않는다
+  ["/ko/about", /property="og:title" content="웹접근성 점검 도구 —/, "하위 페이지 og:title이 홈 제목 아님"],
+  ["/ko/nonexistent", /<title>웹접근성 점검 도구 —/, "404 title이 홈 제목 아님"],
+  // noindex 페이지는 canonical을 내지 않는다(신호 충돌)
+  ["/ko/login", /rel="canonical"/, "로그인에 canonical 없음"],
+  ["/ko/pricing", /rel="canonical"/, "요금제에 canonical 없음"],
+];
 
 async function waitForReady() {
   const deadline = Date.now() + READY_TIMEOUT_MS;
@@ -173,7 +193,7 @@ async function main() {
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
   }
-  console.log(`\n${ROUTES.length + BODY_CHECKS.length + CSP_ROUTES.length}건 모두 통과`);
+  console.log(`\n${ROUTES.length + BODY_CHECKS.length + CSP_ROUTES.length + BODY_ABSENT.length}건 모두 통과`);
 }
 
 main().catch((e) => {

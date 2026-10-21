@@ -1,7 +1,7 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import { getCatalogStats } from "@a11ychk/core/catalog";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 /** 규칙 수 — 문구에 박지 않고 카탈로그에서 계산(랜딩과 같은 출처) */
 const CATALOG_RULES = getCatalogStats().rules;
@@ -9,11 +9,12 @@ const CATALOG_RULES = getCatalogStats().rules;
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "about" });
-  return {
-    alternates: localeAlternates(locale, "/about"),
+  return publicMetadata({
+    locale,
+    path: "/about",
     title: t("title"),
-    description: t("intro"),
-  };
+    description: t("metaDescription"),
+  });
 }
 
 export default async function AboutPage({ params }: { params: Promise<{ locale: string }> }) {

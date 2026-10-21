@@ -1,6 +1,12 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 
+// 이게 없으면 404 화면이 layout 기본값(홈 제목)을 그대로 단다. noindex는 Next가 404 응답에 직접 붙인다.
+export async function generateMetadata() {
+  const t = await getTranslations("errors");
+  return { title: t("notFoundTitle"), description: t("notFoundDesc") };
+}
+
 export default async function NotFoundPage() {
   const t = await getTranslations("errors");
   return (
@@ -30,7 +36,18 @@ export default async function NotFoundPage() {
           {t("goScan")}
         </Link>
       </div>
-      <p className="mt-6 text-sm text-[var(--color-ink-soft)]">
+      {/* 검사 시작은 로그인 뒤라 크롤러·비로그인 방문자에게는 막다른 길 — 공개 페이지로 가는 길을 함께 둔다 */}
+      <p className="mt-6 text-[var(--color-ink-soft)]">
+        {t("browsePrefix")}{" "}
+        <Link href="/guide" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+          {t("goGuide")}
+        </Link>
+        {" · "}
+        <Link href="/directory" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
+          {t("goDirectory")}
+        </Link>
+      </p>
+      <p className="mt-4 text-sm text-[var(--color-ink-soft)]">
         {t("persistPrefix")}{" "}
         <Link href="/inquiries" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
           {t("contact")}

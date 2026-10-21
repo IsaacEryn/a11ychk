@@ -1,5 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 /**
  * 서비스 이용약관 — 조문이 길어 messages json 대신 페이지 내 정의.
@@ -149,14 +149,15 @@ const CONTENT: Record<"ko" | "en", { title: string; effective: string; sections:
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
-  return {
-    alternates: localeAlternates(locale, "/terms"),
+  return publicMetadata({
+    locale,
+    path: "/terms",
     title: CONTENT[locale === "en" ? "en" : "ko"].title,
     description:
       locale === "en"
         ? "Terms of service for A11y Check, the web accessibility scanning service."
-        : "웹 접근성 점검 서비스 A11y Check의 이용약관.",
-  };
+        : "웹 접근성 점검 서비스 A11y Check의 이용약관 — 서비스 내용, 계정과 이용 제한, 자동 검사의 한계와 면책, 비식별 데이터 활용을 정합니다.",
+  });
 }
 
 export default async function TermsPage({ params }: { params: Promise<{ locale: string }> }) {

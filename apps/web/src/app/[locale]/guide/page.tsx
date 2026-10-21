@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 import { JsonLd } from "@/components/JsonLd";
 import {
   KWCAG_ITEMS,
@@ -18,13 +18,23 @@ import { Link } from "@/i18n/navigation";
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "guide" });
-  return {
-    alternates: localeAlternates(locale, "/guide"),
-    title: t("title"),
+  return publicMetadata({
+    locale,
+    path: "/guide",
+    // 화면 제목(「수동 검사 가이드」)에는 사람들이 검색하는 말이 없어 메타 제목을 따로 둔다
+    title: t("metaTitle"),
     description: t("desc"),
-  };
+  });
 }
 
+/**
+ * 허브 카드에는 검사 방법의 첫 문장만 싣는다. 전문은 항목 페이지에 있어서, 허브가 33개 본문을
+ * 통째로 되풀이하면 항목 페이지와 같은 글이 두 주소에 생긴다.
+ */
+function firstSentence(text: string) {
+  const first = text.split(/(?<=\.)\s+/)[0] ?? text;
+  return first.length < text.length ? first : text;
+}
 
 /** 수동 검사 가이드 — WCAG 성공기준 축(A/AA 표시), 검사 방법은 대응 KWCAG 항목에서 */
 export default async function GuidePage({ params }: { params: Promise<{ locale: string }> }) {
@@ -120,7 +130,15 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
                   </span>
                 </div>
                 <p className="mt-1.5 text-xs text-[var(--color-ink-faint)]">
-                  {t("kwcagRef")}: {c.sources.map((s) => `${kwcagNoLabel(s, locale)} ${pick(s.name, locale)}`).join(" · ")}
+                  {t("kwcagRef")}:{" "}
+                  {c.sources.map((s, i) => (
+                    <span key={s.slug}>
+                      {i > 0 && " · "}
+                      <Link href={`/guide/${s.slug}`} className="underline underline-offset-4">
+                        {`${kwcagNoLabel(s, locale)} ${pick(s.name, locale)}`}
+                      </Link>
+                    </span>
+                  ))}
                 </p>
                 {c.sources.map(
                   (s) =>
@@ -131,7 +149,14 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
                             <strong className="mr-1 text-[var(--color-ink)]">({kwcagNoLabel(s, locale)})</strong>{" "}
                           </>
                         )}
-                        {pick(s.howToTest, locale)}
+                        {firstSentence(pick(s.howToTest, locale))}{" "}
+                        <Link
+                          href={`/guide/${s.slug}`}
+                          className="font-semibold text-[var(--color-seal)] underline underline-offset-4"
+                        >
+                          {t("readMore")}
+                          <span className="sr-only">{` — ${pick(s.name, locale)}`}</span>
+                        </Link>
                       </p>
                     ),
                 )}
@@ -154,11 +179,15 @@ export default async function GuidePage({ params }: { params: Promise<{ locale: 
             {kwcagOnly.map((item) => (
               <li key={item.slug} className="doc-card p-6">
                 <h3 className="font-display text-lg font-bold">
-                  <KwcagNo serial={item.serial} locale={locale} />
-                  {pick(item.name, locale)}
+                  <Link href={`/guide/${item.slug}`} className="underline underline-offset-4">
+                    <KwcagNo serial={item.serial} locale={locale} />
+                    {pick(item.name, locale)}
+                  </Link>
                 </h3>
                 {item.howToTest && (
-                  <p className="mt-3 leading-relaxed text-[var(--color-ink-soft)]">{pick(item.howToTest, locale)}</p>
+                  <p className="mt-3 leading-relaxed text-[var(--color-ink-soft)]">
+                    {firstSentence(pick(item.howToTest, locale))}
+                  </p>
                 )}
               </li>
             ))}

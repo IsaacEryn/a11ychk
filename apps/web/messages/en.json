@@ -55,8 +55,8 @@
       "aria": "Service notice",
       "moreAria": "Read the full notice: {title}"
     },
-    "seoTitle": "Web Accessibility Checker — WCAG 2.2 AA & KWCAG 2.2 | A11y Check",
-    "seoDescription": "Automated web accessibility testing against WCAG 2.2 AA and KWCAG 2.2, Korea's national accessibility guidelines. Scan a site from one URL and get a report with remediation guidance."
+    "seoTitle": "Web Accessibility Checker — WCAG 2.2 & KWCAG 2.2 | A11y Check",
+    "seoDescription": "Automated web accessibility testing for WCAG 2.2 AA and KWCAG 2.2, Korea's national guidelines. Scan a site from one URL and get a report with fixes."
   },
   "landing": {
     "heroEyebrow": "WCAG 2.2 AA and KWCAG 2.2 in one report",
@@ -176,8 +176,8 @@
       },
       "caption": "Our catalog of {rules} rules links automated rules to {automated} of the {total} WCAG 2.2 A/AA success criteria ({pct}%). Our manual review workflow guides you through the rest — no automated tool alone can guarantee conformance."
     },
-    "seoTitle": "Web Accessibility Checker — WCAG 2.2 AA & KWCAG 2.2 | A11y Check",
-    "seoDescription": "Free web accessibility checker. Enter one URL to crawl representative pages and audit them against WCAG 2.2 AA and KWCAG 2.2 (Korea's 33 accessibility checkpoints), with remediation guidance for every finding. Try a single page without signing in.",
+    "seoTitle": "Web Accessibility Checker — WCAG 2.2 & KWCAG 2.2 | A11y Check",
+    "seoDescription": "Free web accessibility checker. Audit pages from one URL against WCAG 2.2 AA and KWCAG 2.2, Korea's 33 checkpoints, with remediation for every finding.",
     "heroH1": "Web Accessibility Checker",
     "faq": {
       "title": "Frequently asked questions",
@@ -203,7 +203,9 @@
           "a": "If your service is used in South Korea, KWCAG 2.2 is the standard local assessments and certification use. Much of it overlaps with WCAG 2.2, but the wording, grouping, and a few requirements differ. Running both together is the cheapest way to avoid a surprise late in the process."
         }
       ]
-    }
+    },
+    "directoryPrefix": "Results from sites that opted in to public listing are collected in one place.",
+    "directoryLink": "See audited sites"
   },
   "login": {
     "title": "Sign in",
@@ -520,7 +522,7 @@
       "publicOff": "Not public",
       "publicLatest": "Latest scan (auto)",
       "publicPickReport": "Pick a specific report",
-      "publicHintOn": "Listed in the public directory; the badge links to this report.",
+      "publicHintOn": "Public listing is on and the badge is linked. If the compliance rate meets the directory threshold, the badge opens the site summary in the directory; otherwise it opens this report.",
       "publicHintOff": "Private — the badge image works, but no link or directory listing. Switching to private also invalidates existing public links.",
       "settingSaved": "Saved",
       "settingFailed": "Could not save. Please try again.",
@@ -1891,7 +1893,9 @@
     "kwcagOnlyTitle": "KWCAG-specific items (no WCAG mapping)",
     "levelAria": "Level",
     "itemIndexTitle": "The 33 KWCAG 2.2 checkpoints",
-    "itemIndexDesc": "Each checkpoint has its own page: how to test it, the matching WCAG success criteria, and what automation can decide."
+    "itemIndexDesc": "Each checkpoint has its own page: how to test it, the matching WCAG success criteria, and what automation can decide.",
+    "metaTitle": "Accessibility testing guide for KWCAG 2.2",
+    "readMore": "Full testing steps"
   },
   "extension": {
     "title": "Connect Chrome extension",
@@ -1916,7 +1920,10 @@
     "persistPrefix": "Still having trouble?",
     "contact": "Contact us",
     "digestLabel": "Error code",
-    "goScan": "Start a scan"
+    "goScan": "Start a scan",
+    "browsePrefix": "Places to start:",
+    "goGuide": "Testing guide",
+    "goDirectory": "Audited sites"
   },
   "about": {
     "title": "About",
@@ -1999,7 +2006,8 @@
       "slogan": "알리첵 — we make accessibility issues known, and check them off."
     },
     "kwcagPrimerTitle": "What is KWCAG 2.2?",
-    "kwcagPrimerDesc": "KWCAG 2.2 — the Korean Web Content Accessibility Guidelines — is South Korea's national standard, organised as 33 checkpoints across four principles: perceivable, operable, understandable, and robust. Korea's accessibility quality certification is assessed against it. It overlaps heavily with WCAG 2.2, but the grouping, wording, and a few requirements differ, so a product built to WCAG alone can still fall short of a Korean review. If you ship a service used in Korea, checking both at once is the cheapest way to find that out early rather than late."
+    "kwcagPrimerDesc": "KWCAG 2.2 — the Korean Web Content Accessibility Guidelines — is South Korea's national standard, organised as 33 checkpoints across four principles: perceivable, operable, understandable, and robust. Korea's accessibility quality certification is assessed against it. It overlaps heavily with WCAG 2.2, but the grouping, wording, and a few requirements differ, so a product built to WCAG alone can still fall short of a Korean review. If you ship a service used in Korea, checking both at once is the cheapest way to find that out early rather than late.",
+    "metaDescription": "A11y Check samples representative pages from one URL, audits them against WCAG 2.2 and KWCAG 2.2, and reports what to fix and how. Free and open source."
   },
   "impact": {
     "eyebrow": "Transparency metrics",
@@ -2036,7 +2044,8 @@
       "desc": "Signals that reports are turning into real remediation work.",
       "shared": "Shared reports",
       "aiFix": "AI fix request downloads"
-    }
+    },
+    "metaDescription": "Aggregate metrics on the change A11y Check creates for web accessibility, published openly. No individual site or user data is included."
   },
   "directory": {
     "eyebrow": "Public directory",
@@ -2060,7 +2069,8 @@
       "violations": "Violations",
       "itemsTitle": "Checkpoints needing improvement",
       "itemsDesc": "KWCAG checkpoints with automated violations. Each links to a remediation guide.",
-      "scanCta": "Scan your site too"
+      "scanCta": "Scan your site too",
+      "breadcrumbHome": "Home"
     }
   },
   "reset": {
@@ -2101,7 +2111,8 @@
     "privacy": "Privacy policy",
     "directory": "Audited sites",
     "groupGuideItems": "KWCAG checkpoint guides",
-    "notices": "Notices"
+    "notices": "Notices",
+    "bot": "About a11ychk-bot"
   },
   "serviceStatus": {
     "offlineTitle": "You are offline",
@@ -2166,7 +2177,7 @@
     "metaDescription": "A11y Check service notices — feature updates and changes."
   },
   "guideItem": {
-    "metaTitle": "How to test {name} — KWCAG 2.2 checkpoint {serial} | A11y Check",
+    "metaTitle": "How to test {name} — KWCAG checkpoint {serial} | A11y Check",
     "metaDescription": "How to evaluate KWCAG 2.2 checkpoint {serial} ({ksNo}), “{name}”. Covers the matching WCAG 2.2 success criteria ({wcag}), what automation can decide, what a person has to check, and how to fix failures.",
     "breadcrumbLabel": "Breadcrumb",
     "breadcrumbGuide": "Testing guide",
@@ -2189,7 +2200,8 @@
     "ctaTitle": "See how your own site does",
     "ctaDesc": "Enter a URL and we will check this checkpoint along with the other 32. One page can be audited without signing in.",
     "ctaButton": "Run a free check",
-    "relatedTitle": "Related checkpoints"
+    "relatedTitle": "Related checkpoints",
+    "breadcrumbHome": "Home"
   },
   "billing": {
     "checkout": {

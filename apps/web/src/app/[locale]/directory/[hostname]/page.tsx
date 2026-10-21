@@ -5,7 +5,7 @@ import { kwcagFromStored, pickLocale } from "@a11ychk/core/catalog";
 import { KwcagNo } from "@/components/KwcagNo";
 import { Link } from "@/i18n/navigation";
 import { getListedSiteDetail } from "@/lib/directory";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 import { JsonLd, breadcrumbJsonLd } from "@/components/JsonLd";
 
 /**
@@ -31,11 +31,17 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const detail = hostname ? await getDetail(hostname) : null;
   if (!detail || !hostname) return {};
   const t = await getTranslations({ locale, namespace: "directory" });
-  return {
-    alternates: localeAlternates(locale, `/directory/${encodeURIComponent(hostname)}`),
-    title: t("detail.metaTitle", { name: detail.siteName ?? detail.hostname }),
-    description: t("detail.metaDescription", { name: detail.siteName ?? detail.hostname, rate: detail.rate }),
-  };
+  // 사이트 이름은 검사한 페이지의 <title>이라 길이 제한이 없다 — 검색 결과 제목에서 잘리지 않게 줄인다
+  const fullName = detail.siteName ?? detail.hostname;
+  const name = fullName.length > 40 ? `${fullName.slice(0, 39).trimEnd()}…` : fullName;
+  return publicMetadata({
+    locale,
+    path: `/directory/${encodeURIComponent(hostname)}`,
+    // 메시지에 이미 브랜드가 들어 있어 layout 템플릿을 태우면 브랜드가 두 번 붙는다
+    title: t("detail.metaTitle", { name }),
+    description: t("detail.metaDescription", { name, rate: detail.rate }),
+    absolute: true,
+  });
 }
 
 export default async function DirectorySitePage({
@@ -63,16 +69,36 @@ export default async function DirectorySitePage({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 sm:px-6">
+      {/* 화면의 breadcrumb와 같은 경로 — 가이드 항목 페이지와 같은 규칙 */}
       <JsonLd
         data={breadcrumbJsonLd([
+          { name: t("detail.breadcrumbHome"), url: `/${locale}` },
           { name: t("title"), url: `/${locale}/directory` },
           { name: detail.hostname, url: `/${locale}/directory/${encodeURIComponent(detail.hostname)}` },
         ])}
       />
-      <nav aria-label={t("detail.breadcrumb")} className="text-sm">
-        <Link href="/directory" className="font-semibold text-[var(--color-seal)] underline underline-offset-4">
-          ← {t("title")}
-        </Link>
+      <nav aria-label={t("detail.breadcrumb")} className="text-sm text-[var(--color-ink-soft)]">
+        <ol className="flex flex-wrap items-center">
+          <li>
+            <Link href="/" className="underline underline-offset-4">
+              {t("detail.breadcrumbHome")}
+            </Link>
+          </li>
+          <li>
+            <span className="mx-2" aria-hidden="true">
+              /
+            </span>
+            <Link href="/directory" className="underline underline-offset-4">
+              {t("title")}
+            </Link>
+          </li>
+          <li className="break-all">
+            <span className="mx-2" aria-hidden="true">
+              /
+            </span>
+            <span aria-current="page">{detail.hostname}</span>
+          </li>
+        </ol>
       </nav>
 
       <h1 className="font-display mt-4 text-3xl font-bold break-all">
@@ -138,9 +164,10 @@ export default async function DirectorySitePage({
       )}
 
       <div className="mt-8 flex flex-wrap items-center gap-4">
-        {/* 전체 보고서 — 비색인 영역이라 크롤러에게는 따라가지 말라고 알린다 */}
+        {/* 전체 보고서 — 비색인 영역이라 크롤러에게는 따라가지 말라고 알린다.
+            view=report가 없으면 배지 리졸버가 이 페이지로 되돌려 보낸다 */}
         <a
-          href={`${siteUrl}/site/${encodeURIComponent(detail.hostname)}`}
+          href={`${siteUrl}/site/${encodeURIComponent(detail.hostname)}?view=report`}
           rel="nofollow"
           className="rounded border-[1.5px] border-[var(--color-ink)] px-5 py-2.5 font-semibold hover:bg-[var(--color-paper-warm)]"
         >

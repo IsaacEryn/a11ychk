@@ -14,7 +14,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { GuideText } from "@/components/GuideText";
 import { KwcagNo } from "@/components/KwcagNo";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { clampDescription, publicMetadata } from "@/lib/seo/pageMetadata";
 import { JsonLd, breadcrumbJsonLd, howToJsonLd } from "@/components/JsonLd";
 
 export function generateStaticParams() {
@@ -33,14 +33,17 @@ export async function generateMetadata({
   const name = pick(item.name, locale);
   // 항목 고유 문장(검사 방법 첫 문장)을 앞세워 33개 준-중복 description을 차별화 —
   // 템플릿만으로는 검색엔진이 자체 생성 스니펫으로 대체해 버린다
-  const unique = item.howToTest ? pick(item.howToTest, locale).split(/(?<=[.다])\s/)[0]?.slice(0, 110) : null;
+  const unique = item.howToTest ? pick(item.howToTest, locale).split(/(?<=[.다])\s/)[0] : null;
   const base = t("metaDescription", { serial: item.serial, ksNo: item.ksNo, name, wcag: item.wcag.join(", ") });
-  return {
-    alternates: localeAlternates(locale, `/guide/${slug}`),
+  return publicMetadata({
+    locale,
+    path: `/guide/${slug}`,
     // layout의 "%s — A11y Check" 템플릿을 태우면 제목이 검색 결과에서 잘릴 만큼 길어진다
-    title: { absolute: t("metaTitle", { serial: item.serial, name }) },
-    description: unique ? `${unique} ${base}`.slice(0, 300) : base,
-  };
+    title: t("metaTitle", { serial: item.serial, name }),
+    // 고유 문장 뒤에 템플릿 문장을 잇되, 스니펫 길이를 넘는 뒷문장은 문장 단위로 버린다
+    description: clampDescription(unique ? `${unique} ${base}` : base, locale),
+    absolute: true,
+  });
 }
 
 /**
@@ -84,8 +87,10 @@ export default async function GuideItemPage({
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12 sm:px-6">
+      {/* 화면의 breadcrumb와 같은 경로여야 한다 — 다르면 구글이 구조화 데이터를 신뢰하지 않는다 */}
       <JsonLd
         data={breadcrumbJsonLd([
+          { name: t("breadcrumbHome"), url: `/${locale}` },
           { name: t("breadcrumbGuide"), url: `/${locale}/guide` },
           { name: kwcagLabel(item, locale), url: `/${locale}/guide/${slug}` },
         ])}
@@ -95,16 +100,32 @@ export default async function GuideItemPage({
       )}
 
       <nav aria-label={t("breadcrumbLabel")} className="text-sm text-[var(--color-ink-soft)]">
-        <Link href="/guide" className="underline underline-offset-4">
-          {t("breadcrumbGuide")}
-        </Link>
-        <span className="mx-2" aria-hidden="true">
-          /
-        </span>
-        <span>{principle}</span>
+        <ol className="flex flex-wrap items-center">
+          <li>
+            <Link href="/" className="underline underline-offset-4">
+              {t("breadcrumbHome")}
+            </Link>
+          </li>
+          <li>
+            <span className="mx-2" aria-hidden="true">
+              /
+            </span>
+            <Link href="/guide" className="underline underline-offset-4">
+              {t("breadcrumbGuide")}
+            </Link>
+          </li>
+          <li>
+            <span className="mx-2" aria-hidden="true">
+              /
+            </span>
+            <span aria-current="page">{kwcagLabel(item, locale)}</span>
+          </li>
+        </ol>
       </nav>
 
-      <p className="mt-6 inline-block border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] px-3 py-1 text-sm font-semibold">
+      {/* 원칙은 예전엔 breadcrumb 끝에 있었다 — 링크가 없는 분류라 경로가 아니라 항목 정보로 둔다 */}
+      <p className="mt-6 text-sm font-semibold text-[var(--color-ink-soft)]">{principle}</p>
+      <p className="mt-2 inline-block border-[1.5px] border-[var(--color-ink)] bg-[var(--color-paper-warm)] px-3 py-1 text-sm font-semibold">
         {`KWCAG 2.2 · ${kwcagNoLabel(item, locale)} · KS X OT0003 ${item.ksNo}`}
         {item.addedIn22 && (
           <>
