@@ -12,6 +12,31 @@ carry their own versions.*
 
 ---
 
+## 실패 목록 이름을 "검사하지 못한 페이지"로 / Failed pages listed as "could not be scanned" — v1.3.5
+
+### 한국어
+
+1.3.4부터 페이지를 열었지만 검사 엔진이 실행 중 오류를 낸 경우도 실패 목록에 들어가는데, 목록 제목은
+여전히 "열지 못한 페이지"였습니다. 열리긴 한 페이지가 그 아래 나오니 사유와 제목이 맞지 않았습니다.
+작업 요약의 제목을 "검사하지 못한 페이지"로 바꿨고, 모든 URL이 실패해 잡이 끝날 때의 오류 메시지도
+"모든 URL을 검사하지 못했습니다"로 고쳐 로그의 ✗ 줄에서 URL별 사유를 보라고 안내합니다. 판정과
+종료 코드는 1.3.4와 같습니다.
+
+MCP 서버(0.2.5)는 같은 제목 변경에 더해, 모든 페이지를 검사하지 못했을 때 준수율과 위반 0을 먼저 보여
+주지 않고 검사한 페이지가 없다는 안내를 맨 앞에 둡니다.
+
+### English
+
+Since 1.3.4 the failed-pages list also holds pages that loaded but where the scan engine threw, yet the list was
+still titled "pages that could not be opened". The job summary now titles it "pages that could not be scanned",
+and the error printed when every URL fails says that no URL could be scanned and points to the ✗ lines in the log
+for each URL's reason. Verdicts and exit codes are the same as in 1.3.4.
+
+The MCP server (0.2.5) gets the same rename and, when no page could be scanned, leads its text output with that
+fact instead of a compliance rate and zero violations.
+
+---
+
 ## 보안 챌린지 위젯 오탐 제거와 검사 실패 표시 / Challenge widgets skipped, engine errors reported — v1.3.4
 
 ### 한국어
