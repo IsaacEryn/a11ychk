@@ -14,6 +14,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { themeInitScript } from "@/components/ThemeToggle";
 import { JsonLd, organizationJsonLd } from "@/components/JsonLd";
 import { AuthSync } from "@/components/AuthSync";
+import { socialMetadata } from "@/lib/seo/pageMetadata";
 import { getCachedUser } from "@/lib/supabase/user";
 import "../globals.css";
 // Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
@@ -70,21 +71,10 @@ export async function generateMetadata({
       ? { other: { "naver-site-verification": process.env.NAVER_SITE_VERIFICATION } }
       : undefined,
     // 아이콘은 파일 컨벤션(app/icon.svg, apple-icon.png)이 자동 주입.
-    // OG 이미지는 루트 세그먼트 파일이 [locale] 하위에 전파되지 않아 명시 지정.
-    openGraph: {
-      type: "website",
-      siteName: t("appName"),
-      title,
-      description,
-      locale: locale === "ko" ? "ko_KR" : "en_US",
-      images: [{ url: "/opengraph-image.png", width: 1200, height: 630, alt: title }],
-    },
-    twitter: {
-      card: "summary_large_image",
-      title,
-      description,
-      images: ["/opengraph-image.png"],
-    },
+    // 공유 카드는 페이지가 publicMetadata로 자기 값을 채운다 — 여기 값은 그걸 안 쓰는
+    // 페이지(로그인 뒤 화면 등)의 기본값. OG 이미지는 루트 세그먼트 파일이 [locale] 하위에
+    // 전파되지 않아 명시 지정한다.
+    ...socialMetadata(locale, { title, description }),
   };
 }
 

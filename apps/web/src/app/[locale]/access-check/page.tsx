@@ -1,5 +1,4 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { localeAlternates } from "@/lib/seo/alternates";
 import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -9,9 +8,9 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "accessCheck" });
   return {
-    alternates: localeAlternates(locale, "/access-check"),
     title: t("title"),
     description: t("desc"),
+    // noindex 페이지는 canonical·hreflang을 내지 않는다 — "색인하지 마라"와 "이게 정본이다"가 충돌한다
     robots: { index: false },
   };
 }

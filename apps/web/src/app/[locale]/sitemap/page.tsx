@@ -3,7 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { KWCAG_ITEMS, pickLocale } from "@a11ychk/core/catalog";
 import { KwcagNo } from "@/components/KwcagNo";
 import { Link } from "@/i18n/navigation";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 // 사람이 읽는 사이트맵 — 상단 내비게이션과 별개로 페이지를 찾는 두 번째 방법 (WCAG 2.4.5 여러 방법)
 export async function generateMetadata({
@@ -13,11 +13,12 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "sitemap" });
-  return {
-    alternates: localeAlternates(locale, "/sitemap"),
+  return publicMetadata({
+    locale,
+    path: "/sitemap",
     title: t("title"),
     description: t("desc"),
-  };
+  });
 }
 
 export default async function SitemapPage({ params }: { params: Promise<{ locale: string }> }) {
@@ -57,6 +58,8 @@ export default async function SitemapPage({ params }: { params: Promise<{ locale
         ["/impact", t("impact")],
         ["/accessibility", t("accessibility")],
         ["/notices", t("notices")],
+        // 서버 로그에서 봇 이름을 보고 찾아오는 페이지 — 다른 곳에서 링크하지 않아 여기서 잇는다
+        ["/bot", t("bot")],
       ],
     },
     {

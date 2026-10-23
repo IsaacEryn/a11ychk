@@ -1,5 +1,5 @@
 import { setRequestLocale } from "next-intl/server";
-import { localeAlternates } from "@/lib/seo/alternates";
+import { publicMetadata } from "@/lib/seo/pageMetadata";
 
 /**
  * 크롤러 안내 — 검사 브라우저의 User-Agent가 가리키는 주소(+https://a11ychk.com/bot).
@@ -16,9 +16,11 @@ interface Section {
 
 const UA = "Mozilla/5.0 (compatible; a11ychk-bot/0.1; +https://a11ychk.com/bot)";
 
-const CONTENT: Record<"ko" | "en", { title: string; lead: string; sections: Section[] }> = {
+const CONTENT: Record<"ko" | "en", { title: string; lead: string; metaDescription: string; sections: Section[] }> = {
   ko: {
     title: "a11ychk-bot 안내",
+    metaDescription:
+      "a11ychk-bot은 웹 접근성 점검 서비스 A11y Check가 페이지를 검사할 때 쓰는 브라우저입니다. 서버 로그에 이 이름이 보이는 이유와 robots.txt 처리 방식을 안내합니다.",
     lead: "a11ychk-bot은 웹 접근성 점검 서비스 A11y Check가 페이지를 검사할 때 쓰는 브라우저입니다. 서버 로그에서 이 이름을 보셨다면 누군가 이 서비스에서 해당 사이트의 접근성 검사를 요청한 것입니다. 이 서비스의 MCP 서버가 대표 페이지를 모을 때(crawl_sample)도 robots.txt를 확인하며 같은 이름을 씁니다.",
     sections: [
       {
@@ -61,6 +63,8 @@ const CONTENT: Record<"ko" | "en", { title: string; lead: string; sections: Sect
   },
   en: {
     title: "About a11ychk-bot",
+    metaDescription:
+      "a11ychk-bot is the browser A11y Check uses to audit web accessibility. Why it shows up in your server logs and how it handles robots.txt.",
     lead: "a11ychk-bot is the browser the web accessibility service A11y Check uses to audit pages. If you see it in your server logs, someone asked this service to check your site's accessibility. The service's MCP server also uses this name when it fetches robots.txt while collecting representative pages (crawl_sample).",
     sections: [
       {
@@ -106,11 +110,13 @@ const CONTENT: Record<"ko" | "en", { title: string; lead: string; sections: Sect
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const c = CONTENT[locale === "en" ? "en" : "ko"];
-  return {
-    alternates: localeAlternates(locale, "/bot"),
+  return publicMetadata({
+    locale,
+    path: "/bot",
     title: c.title,
-    description: c.lead,
-  };
+    // 본문 첫 문단은 스니펫으로 쓰기엔 길어서 따로 둔다
+    description: c.metaDescription,
+  });
 }
 
 export default async function BotPage({ params }: { params: Promise<{ locale: string }> }) {

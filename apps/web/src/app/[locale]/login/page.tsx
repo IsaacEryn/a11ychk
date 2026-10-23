@@ -5,15 +5,14 @@ import { createClient } from "@/lib/supabase/server";
 import { sanitizeNextPath } from "@/lib/safeRedirect";
 import { OAuthButtons } from "./OAuthButtons";
 import { EmailLoginForm } from "./EmailLoginForm";
-import { localeAlternates } from "@/lib/seo/alternates";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "login" });
   return {
-    alternates: localeAlternates(locale, "/login"),
     title: t("title"),
     description: t("metaDescription"),
+    // noindex 페이지는 canonical·hreflang을 내지 않는다 — "색인하지 마라"와 "이게 정본이다"가 충돌한다
     robots: { index: false },
   };
 }

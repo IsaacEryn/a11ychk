@@ -7,17 +7,16 @@ import { checkQuota } from "@/lib/quota";
 import { loadEntitlement, sampleFor } from "@/lib/entitlements";
 import { listPresets } from "@/lib/actions";
 import { ScanForm } from "./ScanForm";
-import { localeAlternates } from "@/lib/seo/alternates";
 import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "scanPage" });
   return {
-    alternates: localeAlternates(locale, "/scan"),
     title: t("title"),
     description: t("desc"),
     // 로그인 게이트 — 크롤러에게는 리다이렉트만 보인다
+    // noindex 페이지는 canonical·hreflang을 내지 않는다 — "색인하지 마라"와 "이게 정본이다"가 충돌한다
     robots: { index: false },
   };
 }

@@ -7,7 +7,6 @@ import { loadShownPrices } from "@/lib/billing/shownPrices";
 import { loadViewer } from "@/lib/billing/viewer";
 import { canCheckout, canSeePrices, priceLivemode } from "@/lib/billing/visibility";
 import { TIERS } from "@/lib/quota";
-import { localeAlternates } from "@/lib/seo/alternates";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -15,9 +14,11 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   const { locale } = await params;
   const t = await getTranslations({ locale, namespace: "pricing" });
   return {
-    alternates: localeAlternates(locale, "/pricing"),
     title: t("title"),
     description: t("desc"),
+    // 요금제 시행 전이라 검색에 내보내지 않는다(sitemap에서도 제외). robots.txt로 막지 않는 건
+    // 그러면 크롤러가 이 noindex를 못 보기 때문. 시행할 때 sitemap 등록·canonical과 함께 되돌린다.
+    robots: { index: false, follow: true },
   };
 }
 
