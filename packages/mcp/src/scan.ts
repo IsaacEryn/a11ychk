@@ -116,16 +116,26 @@ export async function runScanTool(
   return { structuredContent, text: renderText(structuredContent, lang, urls[0]) };
 }
 
-function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en", rootUrl?: string): string {
+export function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en", rootUrl?: string): string {
   const L = (ko: string, en: string) => (lang === "en" ? en : ko);
   const lines: string[] = [];
-  lines.push(
-    `${L("검사 페이지", "Pages scanned")}: ${r.scannedPages} / ${L("자동 검사 준수율", "Automated compliance")}: ${r.complianceRate}%`,
-  );
-  lines.push(
-    `${L("위반", "Violations")}: ${r.violationRules}${L("종의 규칙, 요소 ", " rules, ")}${r.violationNodes}${L("개", " elements")}` +
-      (r.advisoryRules > 0 ? ` (${L("모범 사례 권고", "best-practice advisories")}: ${r.advisoryRules})` : ""),
-  );
+  if (r.scannedPages === 0) {
+    // 준수율·위반 0을 먼저 보이면 '문제 없음'으로 읽힌다 — 검사 자체가 안 됐음을 앞세운다
+    lines.push(
+      L(
+        "검사한 페이지가 없습니다. 아래 페이지를 모두 검사하지 못했으므로 위반 0은 '문제 없음'이 아닙니다.",
+        "No page was scanned. Every page below failed, so zero violations does not mean no issues.",
+      ),
+    );
+  } else {
+    lines.push(
+      `${L("검사 페이지", "Pages scanned")}: ${r.scannedPages} / ${L("자동 검사 준수율", "Automated compliance")}: ${r.complianceRate}%`,
+    );
+    lines.push(
+      `${L("위반", "Violations")}: ${r.violationRules}${L("종의 규칙, 요소 ", " rules, ")}${r.violationNodes}${L("개", " elements")}` +
+        (r.advisoryRules > 0 ? ` (${L("모범 사례 권고", "best-practice advisories")}: ${r.advisoryRules})` : ""),
+    );
+  }
   for (const v of r.violations) {
     lines.push("");
     const kwItems = v.kwcag.map((no) => KWCAG_BY_KSNO.get(no)).filter((i): i is NonNullable<typeof i> => !!i);
@@ -145,7 +155,7 @@ function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | "en", r
   }
   if (r.failedUrls.length > 0) {
     lines.push("");
-    lines.push(`${L("열지 못한 페이지", "Pages that failed to load")}:`);
+    lines.push(`${L("검사하지 못한 페이지", "Pages that could not be scanned")}:`);
     for (const f of r.failedUrls) lines.push(`- ${f.url} — ${f.reason}`);
   }
   lines.push("");

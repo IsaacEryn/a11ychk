@@ -64,7 +64,7 @@ async function main() {
   });
 
   if (pages.length === 0) {
-    console.error("::error::모든 URL에서 페이지를 열지 못했습니다.");
+    console.error("::error::모든 URL을 검사하지 못했습니다. 위 ✗ 줄에서 URL별 사유를 확인하세요.");
     process.exit(1);
   }
 
@@ -141,7 +141,7 @@ async function main() {
   }
   if (failedUrls.length > 0) {
     md.push("");
-    md.push("### 열지 못한 페이지");
+    md.push("### 검사하지 못한 페이지");
     for (const f of failedUrls) md.push(`- ${f.url} — ${f.reason}`);
   }
   md.push("");
