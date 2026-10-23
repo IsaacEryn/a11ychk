@@ -48,8 +48,22 @@ const STABILITY_SETTLE_MS = 500;
 const requireModule = createRequire(import.meta.url);
 const AXE_KO_LOCALE = JSON.stringify(requireModule("axe-core/locales/ko.json"));
 
-/** 한 프레임에 axe를 주입·실행. 주입·실행에 실패하거나 실행 중 detach된 프레임은 null 반환 */
-async function runAxeInFrame(frame: Frame): Promise<AxeRunResults | null> {
+/**
+ * 한 프레임에서 axe를 실행한 결과.
+ * - blank: 빈/about:blank 문서라 실행하지 않음
+ * - error: 주입·실행 실패(axe 내부 오류, 실행 중 detach·내비게이션) — reason은 오류 첫 줄
+ */
+type FrameRun = { status: "ok"; results: AxeRunResults } | { status: "blank" } | { status: "error"; reason: string };
+
+/** 오류 메시지 첫 줄(Playwright의 "frame.evaluate: " 접두어는 뗀다) */
+export function axeErrorReason(e: unknown): string {
+  const message = e instanceof Error ? e.message : String(e);
+  const line = (message.split("\n")[0] ?? "").replace(/^(page|frame)\.evaluate:\s*/, "").trim();
+  return line || "unknown";
+}
+
+/** 한 프레임에 axe를 주입·실행한다. 실패는 던지지 않고 error로 돌려준다(처리는 호출부가 프레임 종류에 따라 정한다) */
+async function runAxeInFrame(frame: Frame): Promise<FrameRun> {
   try {
     // 빈/about:blank 프레임(광고 슬롯 placeholder 등)은 유령 위반만 만드므로 건너뛴다.
     // 광고 iframe이 src로 식별되면 부모 프레임의 exclude로 걸러지지만, src 없는
@@ -64,15 +78,40 @@ async function runAxeInFrame(frame: Frame): Promise<AxeRunResults | null> {
         );
       })
       .catch(() => false);
-    if (blank) return null;
+    if (blank) return { status: "blank" };
     await frame.evaluate(axe.source);
     // 문자열 평가 — 번들러 변환에 영향받지 않음 (프로덕션 minify ReferenceError 회피)
     // 로케일 적용 실패는 무시하고 영어 원문으로 진행 (best-effort)
     await frame.evaluate(`try { window.axe.configure({ locale: ${AXE_KO_LOCALE} }) } catch (e) {}`);
-    return (await frame.evaluate(`window.axe.run(${AXE_CONTEXT}, ${AXE_OPTIONS})`)) as AxeRunResults;
-  } catch {
-    return null; // 주입 실패 또는 실행 중 detach — 건너뜀
+    const results = (await frame.evaluate(`window.axe.run(${AXE_CONTEXT}, ${AXE_OPTIONS})`)) as AxeRunResults;
+    return { status: "ok", results };
+  } catch (e) {
+    return { status: "error", reason: axeErrorReason(e) };
   }
+}
+
+/** 최상위 문서에서 axe가 돌지 못했을 때 던지는 에러 — 위반 0으로 돌려주면 '문제 없음'으로 읽힌다 */
+export class AxeRunError extends Error {
+  constructor(reason: string) {
+    super(`검사 엔진(axe-core) 실행 오류로 페이지를 검사하지 못했습니다: ${reason}`);
+    this.name = "AxeRunError";
+  }
+}
+
+/**
+ * 최상위 문서 검사. 실패하면 한 번 다시 시도하고(실행 중 내비게이션 같은 일시적 실패),
+ * 그래도 실패하면 던진다. 하위 프레임과 달리 최상위 문서의 실패는 건너뛸 수 없다 —
+ * 결과가 비면 위반 0인 정상 페이지와 구별되지 않는다. 사이트 스크립트가 axe가 쓰는 내장 함수를
+ * 덮어써 axe 내부에서 오류가 나는 경우(예: newTarget을 무시하는 Reflect.construct 폴리필이
+ * 만드는 "VirtualNode class must have a props object" 오류)는 다시 해도 같으므로 실패로 확정된다.
+ */
+async function runAxeInMainFrame(page: Page): Promise<AxeRunResults> {
+  const main = page.mainFrame();
+  let run = await runAxeInFrame(main);
+  if (run.status === "error") run = await runAxeInFrame(main);
+  if (run.status === "blank") throw new EmptyDocumentError(page.url());
+  if (run.status === "error") throw new AxeRunError(run.reason);
+  return run.results;
 }
 
 /**
@@ -406,6 +445,8 @@ export function listDroppedNodes(firstPass: AxeViolation[], final: AxeViolation[
  * - 메인 프레임 + 하위 iframe에 axe를 각각 주입·실행해 결과를 병합
  *   (axe 단독으로는 iframe 내부를 검사하지 못해 사각지대가 됨). 광고·보안 챌린지 위젯
  *   iframe과 화면에 그려지지 않는 iframe의 내부 문서는 건너뛴다(shouldSkipChildFrame)
+ * - 메인 프레임에서 axe가 돌지 못하면 AxeRunError를 던진다(상위에서 '실패' 처리).
+ *   하위 프레임 하나의 실패는 그 프레임만 건너뛴다
  * - 위반이 있으면 안정화 대기 후 해당 규칙만 재실행해 두 패스 모두 검출된
  *   노드만 위반으로 확정 (2-패스 안정성 필터 — 렌더링 과도 상태 오탐 억제)
  * - axe에 없는 자동화 가능 검사(리플로우·미디어 부재 등)를 자체 규칙으로 추가
@@ -426,38 +467,33 @@ export async function runAxeOnPage(page: Page, options?: RunAxeOptions): Promise
 
   const merged: AxeRunResults = { violations: [], passes: [], incomplete: [] };
 
-  const frames = page.frames();
+  // 최상위 문서가 먼저다 — 여기서 실패하면 검사 실패로 던진다(runAxeInMainFrame)
   const mainFrame = page.mainFrame();
-  const okFrames: Frame[] = [];
+  const mainResult = await runAxeInMainFrame(page);
+  await registerFirstPass(mainFrame, mainResult);
+  const okFrames: Frame[] = [mainFrame];
+  mergeAxe(merged, mainResult);
+
+  // 하위 프레임 — 하나가 실패하면(광고·위젯 등 남의 문서) 그 프레임만 건너뛴다
   const skipped = new Set<Frame>();
-  for (const frame of frames) {
-    if (frame !== mainFrame) {
-      const parent = frame.parentFrame();
-      const state = await readFrameElementState(frame);
-      const skip = shouldSkipChildFrame({
-        parentSkipped: parent !== null && skipped.has(parent),
-        excluded: state?.excluded ?? false,
-        rendered: state?.rendered ?? true,
-      });
-      if (skip) {
-        skipped.add(frame);
-        continue;
-      }
+  for (const frame of page.frames()) {
+    if (frame === mainFrame) continue;
+    const parent = frame.parentFrame();
+    const state = await readFrameElementState(frame);
+    const skip = shouldSkipChildFrame({
+      parentSkipped: parent !== null && skipped.has(parent),
+      excluded: state?.excluded ?? false,
+      rendered: state?.rendered ?? true,
+    });
+    if (skip) {
+      skipped.add(frame);
+      continue;
     }
-    const result = await runAxeInFrame(frame);
-    if (result) {
-      await registerFirstPass(frame, result);
+    const run = await runAxeInFrame(frame);
+    if (run.status === "ok") {
+      await registerFirstPass(frame, run.results);
       okFrames.push(frame);
-      mergeAxe(merged, result);
-    }
-  }
-  // 모든 프레임 접근 실패 시(예: 특수 문서) 메인 프레임 재시도가 이미 위에 포함됨
-  if (okFrames.length === 0) {
-    const main = await runAxeInFrame(page.mainFrame());
-    if (main) {
-      await registerFirstPass(page.mainFrame(), main);
-      okFrames.push(page.mainFrame());
-      mergeAxe(merged, main);
+      mergeAxe(merged, run.results);
     }
   }
 
