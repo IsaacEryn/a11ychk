@@ -12,6 +12,36 @@ carry their own versions.*
 
 ---
 
+## 보안 챌린지 위젯 오탐 제거와 검사 실패 표시 / Challenge widgets skipped, engine errors reported — v1.3.4
+
+### 한국어
+
+Cloudflare Turnstile이나 hCaptcha 같은 보안 챌린지 위젯을 붙인 페이지에서, 위젯 iframe 안의 문서가
+페이지 위반으로 잡히던 문제를 고쳤습니다. 위젯 문서의 `maximum-scale=1` viewport가 화면 확대 차단
+위반으로, main 랜드마크와 h1이 없다는 점이 권고로 나와 준수율이 낮게 나왔습니다. 이제 광고 iframe처럼
+이런 위젯 iframe의 내부 문서도 건너뜁니다. iframe 요소 자체의 검사는 그대로입니다.
+
+또 페이지의 스크립트가 axe-core가 쓰는 내장 함수를 덮어써서 검사 엔진이 실행 중 오류를 내면, 지금까지는
+그 페이지를 위반 0인 정상 페이지처럼 보고했습니다. 이제 한 번 다시 시도하고, 그래도 실패하면 그 페이지를
+"열지 못한 페이지"로 따로 보여 줍니다. 모든 URL이 이렇게 실패하면 잡이 실패합니다. 하위 iframe 하나의
+실패는 지금처럼 그 프레임만 건너뜁니다. 웹 서비스와 MCP 서버(0.2.4)도 같은 방식으로 판정합니다.
+입력·출력 형식은 그대로입니다.
+
+### English
+
+On pages that embed security challenge widgets such as Cloudflare Turnstile or hCaptcha, the document inside
+the widget iframe was reported as part of the page: its `maximum-scale=1` viewport showed up as a zoom-blocking
+violation, and its missing main landmark and h1 as advisories, lowering the compliance rate. These widget
+iframes are now skipped like ad iframes. The iframe element itself is still checked.
+
+When a page's own scripts overrode built-ins that axe-core relies on and the engine threw during the scan, the
+page used to be reported as a clean page with zero violations. The scan now retries once and, if it still fails,
+lists the page under the pages that could not be scanned. If every URL fails this way, the job fails. A failure in
+a single child iframe still skips only that frame. The web service and the MCP server (0.2.4) decide the same
+way. Input and output formats are unchanged.
+
+---
+
 ## 동적 페이지에서 실제 위반이 빠지던 문제 수정 / Real violations no longer dropped on dynamic pages — v1.3.3
 
 ### 한국어
