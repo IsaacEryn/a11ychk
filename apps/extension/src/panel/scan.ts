@@ -87,7 +87,7 @@ export async function scan() {
     await chrome.scripting.executeScript({
       target: { tabId: tab.id, allFrames: true },
       world: "MAIN",
-      files: ["vendor/axe.min.js"],
+      files: ["vendor/axe.js"],
     });
     if (!isEnglish()) {
       await chrome.scripting.executeScript({

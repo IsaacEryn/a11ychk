@@ -31,9 +31,11 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
   throw new Error("Supabase URL/anon 키가 없습니다 — A11YCHK_SUPABASE_URL·A11YCHK_SUPABASE_ANON_KEY(또는 NEXT_PUBLIC_*)를 설정하세요");
 }
 
-// axe는 워크스페이스 의존성(node_modules)에서 가져와 core와 버전 동기화
-const axeMinPath = require.resolve("axe-core/axe.min.js");
-const AXE_VERSION = require(join(dirname(axeMinPath), "package.json")).version;
+// axe는 워크스페이스 의존성(node_modules)에서 가져와 core와 버전 동기화.
+// 압축본(axe.min.js)이 아니라 원본(axe.js)을 싣는다 — 웹스토어 심사가 압축본을 난독화
+// 코드로 판정해 삭제 경고를 보냈다(코드 가독성 요구사항, 2026-10). 번들도 minify하지 않는다.
+const axePath = require.resolve("axe-core/axe.js");
+const AXE_VERSION = require(join(dirname(axePath), "package.json")).version;
 
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
@@ -64,7 +66,7 @@ for (const f of ["manifest.json", "sidepanel.html", "sidepanel.css"]) {
   await cp(join(src, f), join(dist, f));
 }
 await mkdir(join(dist, "vendor"), { recursive: true });
-await cp(axeMinPath, join(dist, "vendor", "axe.min.js"));
+await cp(axePath, join(dist, "vendor", "axe.js"));
 await cp(join(src, "icons"), join(dist, "icons"), { recursive: true });
 await cp(join(src, "_locales"), join(dist, "_locales"), { recursive: true });
 
