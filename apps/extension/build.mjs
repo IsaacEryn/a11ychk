@@ -1,6 +1,6 @@
 import { build } from "esbuild";
 import { readFileSync } from "node:fs";
-import { cp, mkdir, rm } from "node:fs/promises";
+import { cp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -37,6 +37,79 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const axePath = require.resolve("axe-core/axe.js");
 const AXE_VERSION = require(join(dirname(axePath), "package.json")).version;
 
+// axe에 번들된 core-js의 Object.create 폴리필(require_object_create)에서 IE용 폴백을 걷어 낸다.
+// 원본 그대로 실은 0.6.1도 웹스토어 심사가 이 폴백의 문자열 조립('java' + SCRIPT + ':',
+// LT + SCRIPT + GT)을 난독화로 보고 거부했다(2026-10). Chrome에는 네이티브 Object.create가 있어
+// 이 폴백은 실행되지 않으므로, 빈 프로토타입 객체는 Object.create(null)로 만들게 바꾸고 나머지
+// axe 코드는 손대지 않는다(판정 로직 3면 일치). axe를 올려 원문이 달라지면 빌드를 멈춘다.
+const AXE_IE_FALLBACK = `      var GT = '>';
+      var LT = '<';
+      var PROTOTYPE = 'prototype';
+      var SCRIPT = 'script';
+      var IE_PROTO = sharedKey('IE_PROTO');
+      var EmptyConstructor = function EmptyConstructor() {};
+      var scriptTag = function scriptTag(content) {
+        return LT + SCRIPT + GT + content + LT + '/' + SCRIPT + GT;
+      };
+      var NullProtoObjectViaActiveX = function NullProtoObjectViaActiveX(activeXDocument2) {
+        activeXDocument2.write(scriptTag(''));
+        activeXDocument2.close();
+        var temp = activeXDocument2.parentWindow.Object;
+        activeXDocument2 = null;
+        return temp;
+      };
+      var NullProtoObjectViaIFrame = function NullProtoObjectViaIFrame() {
+        var iframe = documentCreateElement('iframe');
+        var JS = 'java' + SCRIPT + ':';
+        var iframeDocument;
+        iframe.style.display = 'none';
+        html.appendChild(iframe);
+        iframe.src = String(JS);
+        iframeDocument = iframe.contentWindow.document;
+        iframeDocument.open();
+        iframeDocument.write(scriptTag('document.F=Object'));
+        iframeDocument.close();
+        return iframeDocument.F;
+      };
+      var activeXDocument;
+      var _NullProtoObject = function NullProtoObject() {
+        try {
+          activeXDocument = new ActiveXObject('htmlfile');
+        } catch (error) {}
+        _NullProtoObject = typeof document != 'undefined' ? document.domain && activeXDocument ? NullProtoObjectViaActiveX(activeXDocument) : NullProtoObjectViaIFrame() : NullProtoObjectViaActiveX(activeXDocument);
+        var length = enumBugKeys.length;
+        while (length--) {
+          delete _NullProtoObject[PROTOTYPE][enumBugKeys[length]];
+        }
+        return _NullProtoObject();
+      };
+`;
+const AXE_NULL_PROTO = `      var PROTOTYPE = 'prototype';
+      var IE_PROTO = sharedKey('IE_PROTO');
+      var EmptyConstructor = function EmptyConstructor() {};
+      // a11ychk build: removed the IE-only core-js fallbacks for null-prototype objects.
+      // Chrome has a native Object.create, so this function is never reached there.
+      var _NullProtoObject = function NullProtoObject() {
+        return Object.create(null);
+      };
+`;
+const AXE_FORBIDDEN = ["'java' + SCRIPT", "ActiveXObject", "scriptTag", "LT + SCRIPT"];
+
+function stripAxeIeFallback(source) {
+  const moduleStart = source.indexOf("var require_object_create = __commonJS(");
+  const moduleEnd = source.indexOf("var require_", moduleStart + 1);
+  const at = source.indexOf(AXE_IE_FALLBACK, moduleStart);
+  if (moduleStart < 0 || at < 0 || at > moduleEnd || source.indexOf(AXE_IE_FALLBACK, at + 1) >= 0) {
+    throw new Error(`axe v${AXE_VERSION}의 require_object_create에서 예상한 IE 폴백 원문을 찾지 못했습니다 — build.mjs의 AXE_IE_FALLBACK을 새 원문에 맞추세요`);
+  }
+  const out = source.slice(0, at) + AXE_NULL_PROTO + source.slice(at + AXE_IE_FALLBACK.length);
+  const left = AXE_FORBIDDEN.filter((s) => out.includes(s));
+  if (left.length > 0) {
+    throw new Error(`변환한 axe.js에 심사 지적 문자열이 남아 있습니다: ${left.join(", ")}`);
+  }
+  return out;
+}
+
 await rm(dist, { recursive: true, force: true });
 await mkdir(dist, { recursive: true });
 
@@ -66,7 +139,7 @@ for (const f of ["manifest.json", "sidepanel.html", "sidepanel.css"]) {
   await cp(join(src, f), join(dist, f));
 }
 await mkdir(join(dist, "vendor"), { recursive: true });
-await cp(axePath, join(dist, "vendor", "axe.js"));
+await writeFile(join(dist, "vendor", "axe.js"), stripAxeIeFallback(await readFile(axePath, "utf8")));
 await cp(join(src, "icons"), join(dist, "icons"), { recursive: true });
 await cp(join(src, "_locales"), join(dist, "_locales"), { recursive: true });
 
