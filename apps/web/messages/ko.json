@@ -120,6 +120,7 @@
       "nodeCount": "{count}개 요소",
       "moreNodes": "나머지 {count}곳의 위치는 가입 후 확인할 수 있어요",
       "guideToggle": "개선 방법 보기",
+      "advisoryNote": "모범 사례 권고 {count}종은 WCAG 성공기준에 직접 대응하지 않아 준수율과 위 목록에서 뺐습니다. 가입하면 전체 보고서에서 볼 수 있어요.",
       "lockedTitle": "더 깊이 점검하려면 무료로 가입하세요",
       "lockedFeatures": "사이트 단위 검사 · KWCAG 33항목 매트릭스 · 수동 판정 워크플로 · 인증 준비 요약 · PDF/CSV 내보내기 · 정기 자동 검사",
       "signupCta": "무료로 시작하기",

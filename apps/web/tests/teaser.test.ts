@@ -80,12 +80,49 @@ describe("buildTeaserResult — 서버측 트리밍·잠금", () => {
     expect(en.kwcagLabel).toBe("Checkpoints 1, 10");
   });
 
-  it("요약 수치·캐시 플래그를 그대로 전달한다", () => {
+  it("준수율은 요약에서, 캐시 플래그는 false로 낸다", () => {
     const out = buildTeaserResult(page([]), summary(), "en");
     expect(out.rate).toBe(87.5);
-    expect(out.byImpact.critical).toBe(3);
-    expect(out.totalNodes).toBe(5);
     expect(out.cached).toBe(false);
     expect(out.rules).toHaveLength(0);
+    expect(out.ruleCount).toBe(0);
+    expect(out.totalNodes).toBe(0);
+    expect(out.advisoryCount).toBe(0);
+  });
+
+  it("같은 규칙이 프레임마다 따로 와도 한 줄로 합친다", () => {
+    // runAxeOnPage는 프레임별 결과를 이어 붙이므로 같은 ruleId가 여러 번 온다
+    const p = page([
+      finding({ nodes: [{ selector: "img#a", html: "<img id='a'>", failureSummary: "" }] }),
+      finding({ ruleId: "label", impact: "critical", tags: ["wcag2a", "wcag412"], nodes: [{ selector: "input", html: "<input>", failureSummary: "" }] }),
+      finding({
+        nodes: [
+          { selector: "iframe >> img#b", html: "<img id='b'>", failureSummary: "" },
+          { selector: "iframe >> img#c", html: "<img id='c'>", failureSummary: "" },
+        ],
+      }),
+    ]);
+    const out = buildTeaserResult(p, summary(), "ko");
+    expect(out.rules.map((r) => r.ruleId)).toEqual(["image-alt", "label"]);
+    expect(out.ruleCount).toBe(2);
+    expect(out.rules[0].nodeCount).toBe(3);
+    expect(out.rules[0].sample?.selector).toBe("img#a");
+    expect(out.totalNodes).toBe(4);
+    expect(out.byImpact).toEqual({ critical: 4, serious: 0, moderate: 0, minor: 0 });
+  });
+
+  it("모범 사례 권고는 목록·규칙 수·요소 수·심각도에서 빼고 개수만 따로 낸다", () => {
+    const p = page([
+      finding({ ruleId: "region", impact: "moderate", tags: ["cat.keyboard", "best-practice"], nodes: Array.from({ length: 14 }, (_, i) => ({ selector: `div#r${i}`, html: "<div>", failureSummary: "" })) }),
+      finding({ ruleId: "color-contrast", impact: "serious", tags: ["wcag2aa", "wcag143"], nodes: [{ selector: "p", html: "<p>", failureSummary: "" }] }),
+    ]);
+    const s = { ...summary(), bestPractice: [{ ruleId: "region", count: 14 }] } as ScanSummary;
+    const out = buildTeaserResult(p, s, "ko");
+    expect(out.rules.map((r) => r.ruleId)).toEqual(["color-contrast"]);
+    expect(out.ruleCount).toBe(1);
+    expect(out.totalNodes).toBe(1);
+    expect(out.byImpact).toEqual({ critical: 0, serious: 1, moderate: 0, minor: 0 });
+    expect(out.advisoryCount).toBe(1);
+    expect(JSON.stringify(out)).not.toContain("div#r0");
   });
 });

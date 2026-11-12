@@ -3,8 +3,10 @@ import crypto from "node:crypto";
 import {
   automatedComplianceRate,
   getRuleEntry,
+  groupViolationsForAiFix,
   kwcagItemsOf,
   kwcagNoListLabel,
+  partitionAdvisory,
   type Impact,
   type PageScanResult,
   type ScanSummary,
@@ -52,11 +54,14 @@ export interface TeaserRule {
   sample: { selector: string; html: string } | null;
 }
 
+/** 규칙 수·요소 수·심각도는 모두 적합성 위반(모범 사례 권고 제외)만 센다 — 준수율과 같은 기준 */
 export interface TeaserResult {
   rate: number;
   byImpact: Record<Impact, number>;
   ruleCount: number;
   totalNodes: number;
+  /** 목록·수치에서 뺀 모범 사례 권고 규칙 수 (WCAG 성공기준에 대응하지 않아 준수율에도 들어가지 않는다) */
+  advisoryCount: number;
   rules: TeaserRule[];
   cached: boolean;
 }
@@ -68,7 +73,10 @@ export interface TeaserResult {
  */
 export function buildTeaserResult(page: PageScanResult, summary: ScanSummary, locale: "ko" | "en"): TeaserResult {
   const pick = (t: { ko: string; en?: string }) => (locale === "en" && t.en ? t.en : t.ko);
-  const rules: TeaserRule[] = [...page.violations]
+  // runAxeOnPage는 프레임(iframe)별 결과를 이어 붙이므로 같은 규칙이 여러 번 온다 — 규칙 하나로 합친다.
+  // 모범 사례 권고는 준수율에 들어가지 않으므로 목록·수치에서도 뺀다(웹 보고서·Action·MCP와 같은 분리).
+  const { violations, advisory } = partitionAdvisory(summary, groupViolationsForAiFix([page]));
+  const rules: TeaserRule[] = violations
     .sort((a, b) => IMPACT_ORDER.indexOf(a.impact) - IMPACT_ORDER.indexOf(b.impact))
     .map((v) => {
       const entry = getRuleEntry(v.ruleId, v.tags);
@@ -86,11 +94,14 @@ export function buildTeaserResult(page: PageScanResult, summary: ScanSummary, lo
         sample: first ? { selector: first.selector.slice(0, 300), html: first.html.slice(0, 300) } : null,
       };
     });
+  const byImpact: Record<Impact, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
+  for (const r of rules) byImpact[r.impact] += r.nodeCount;
   return {
     rate: automatedComplianceRate(summary),
-    byImpact: summary.byImpact,
+    byImpact,
     ruleCount: rules.length,
-    totalNodes: summary.totalViolationNodes,
+    totalNodes: rules.reduce((n, r) => n + r.nodeCount, 0),
+    advisoryCount: advisory.length,
     rules,
     cached: false,
   };
