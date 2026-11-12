@@ -2,7 +2,8 @@ import createIntlMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 import { localeFromPathname, routing } from "./i18n/routing";
 import { applyRefreshedCookies, refreshSession } from "./lib/supabase/middleware";
-import { attachCspToRequest } from "./lib/security/csp";
+import { STATIC_PAGE_CSP, attachCspToRequest, isStaticPage } from "./lib/security/csp";
+import { sanitizePrefillUrl } from "./lib/prefillUrl";
 import { isExternalAdminPath, isInternalAdminPath, readAdminSlug, slugToInternal } from "./lib/adminSlug";
 import { ADMIN_TS_COOKIE, adminTsCookieOptions, isIdleExpired, signAdminTs, verifyAdminTs } from "./lib/adminIdleCookie";
 
@@ -14,8 +15,10 @@ const intlMiddleware = createIntlMiddleware(routing);
  *   1. 관리자 경로 판정 — 응답을 만들지 않고 "어디로 rewrite할지"만 정한다.
  *      여기서 바로 반환하면 그 응답만 CSP·세션 갱신을 건너뛰어, 오타 URL의 404와
  *      헤더가 달라진다(숨긴 관리자 경로의 존재가 드러나는 지문).
- *   2. CSP·nonce를 요청 헤더에 적재 — intl보다 먼저여야 렌더러까지 전달된다.
+ *   2. CSP — 동적 페이지는 nonce를 요청 헤더에 적재(intl보다 먼저여야 렌더러까지 전달된다),
+ *      빌드 때 만든 정적 페이지는 nonce 없이 헤더 정책만 정한다(lib/security/csp.ts).
  *   3. 세션 갱신 — intl이 요청을 스냅샷하기 전이어야 갱신된 토큰이 렌더러에 닿는다.
+ *      로그인 회원의 홈 딥링크(?url=)는 여기서 본검사 폼으로 보낸다(홈은 정적 페이지라 렌더 때 사용자를 모른다).
  *   4. intl 실행 — 원(슬러그) 경로 기준이어야 redirect Location이 슬러그를 유지한다.
  *   5. 최종 응답 선택 후 CSP·갱신 쿠키·무활동 쿠키 적용.
  */
@@ -28,20 +31,29 @@ export async function proxy(request: NextRequest) {
   // slug 활성 시(또는 잘못된 slug로 닫혔을 때) 내부 /admin 직접 접근은 같은 로케일의 미존재 경로로 돌려, 임의의
   // 오타 URL과 상태코드·본문·헤더가 완전히 같은 응답을 만든다.
   const masked = (slug || slugInvalid) && isInternalAdminPath(pathname) ? `/${localeFromPathname(pathname)}/__404__` : null;
+  // 슬러그 경로면 내부 /admin 라우트로 돌린다
+  const rewriteTo = masked ?? (slug ? slugToInternal(pathname, slug) : null);
 
-  // ── 2. 요청별 CSP·nonce ──
-  const csp = attachCspToRequest(request);
+  // ── 2. CSP — 정적 페이지는 nonce 없이, 나머지는 요청별 nonce ──
+  const csp = !rewriteTo && isStaticPage(pathname) ? STATIC_PAGE_CSP : attachCspToRequest(request);
   // requireAdmin이 로그인 후 돌아올 외부(슬러그) 경로를 알 수 있도록 전달
   request.headers.set("x-pathname", pathname + request.nextUrl.search);
 
   // ── 3. 세션 갱신 (응답 생성 전) ──
   const refreshed = await refreshSession(request);
 
+  // AI 스킬·MCP 딥링크(/{locale}?url=): 회원은 본검사 폼으로, 비회원은 홈의 맛보기 폼이 프리필한다.
+  // utm은 보존한다 — GA4가 /scan 쪽 페이지뷰에서 유입을 잡을 수 있게.
+  const deepLink = refreshed.signedIn ? memberDeepLink(request) : null;
+  if (deepLink) {
+    const redirect = NextResponse.redirect(deepLink, 307);
+    redirect.headers.set("content-security-policy", csp);
+    applyRefreshedCookies(redirect, refreshed.issued);
+    return redirect;
+  }
+
   // ── 4. intl — 항상 원(슬러그) 요청 기준 ──
   const intlResponse = intlMiddleware(request);
-
-  // 슬러그 경로면 내부 /admin 라우트로 돌린다
-  const rewriteTo = masked ?? (slug ? slugToInternal(pathname, slug) : null);
 
   // ── 5. 최종 응답 ──
   // intl이 리다이렉트를 냈으면 rewrite하지 않는다 — 두 지시를 겹치면 응답에 Location이
@@ -64,7 +76,7 @@ export async function proxy(request: NextRequest) {
   // 어느 응답으로 끝나든 같은 헤더를 붙인다 — rewrite 분기의 헤더 복사 필터에
   // CSP 전달을 의존시키지 않는다
   response.headers.set("content-security-policy", csp);
-  applyRefreshedCookies(response, refreshed);
+  applyRefreshedCookies(response, refreshed.issued);
 
   // 관리자 무활동 타임아웃 슬라이딩 갱신 — 발급은 post-login(AAL2 완성 시)에서만 하고,
   // 여기서는 "유효하고 아직 만료 전인 쿠키가 있을 때만" 연장한다. 만료·부재·변조 쿠키는
@@ -78,6 +90,21 @@ export async function proxy(request: NextRequest) {
   }
 
   return response;
+}
+
+/** 로케일 홈의 ?url= 딥링크를 본검사 폼 주소로 — 홈이 아니거나 URL이 올바르지 않으면 null */
+function memberDeepLink(request: NextRequest): URL | null {
+  const locale = routing.locales.find((l) => request.nextUrl.pathname === `/${l}`);
+  const sp = request.nextUrl.searchParams;
+  const prefillUrl = locale ? sanitizePrefillUrl(sp.get("url")) : null;
+  if (!prefillUrl) return null;
+  const target = new URL(`/${locale}/scan`, request.nextUrl);
+  target.searchParams.set("url", prefillUrl);
+  for (const k of ["utm_source", "utm_medium", "utm_campaign"]) {
+    const v = sp.get(k);
+    if (v) target.searchParams.set(k, v);
+  }
+  return target;
 }
 
 export const config = {

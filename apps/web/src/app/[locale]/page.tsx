@@ -1,8 +1,5 @@
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { redirect } from "next/navigation";
 import { Link } from "@/i18n/navigation";
-import { getCachedUser } from "@/lib/supabase/user";
-import { sanitizePrefillUrl } from "@/lib/prefillUrl";
 import { publicMetadata } from "@/lib/seo/pageMetadata";
 import { JsonLd, faqJsonLd, webApplicationJsonLd } from "@/components/JsonLd";
 import { getCatalogStats, type KwcagSlug } from "@a11ychk/core/catalog";
@@ -48,31 +45,16 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   });
 }
 
-export default async function LandingPage({
-  params,
-  searchParams,
-}: {
-  params: Promise<{ locale: string }>;
-  searchParams: Promise<{ url?: string; utm_source?: string; utm_medium?: string; utm_campaign?: string }>;
-}) {
+/**
+ * 랜딩 — 빌드 때 HTML로 만들어 두는 정적 페이지다. 사용자·검색어를 읽지 않는다.
+ *
+ * AI 스킬·MCP 딥링크(?url=)는 두 갈래로 나뉜다: 회원은 프록시가 본검사 폼(/scan)으로 보내고(src/proxy.ts),
+ * 비회원은 맛보기 폼이 브라우저에서 주소를 읽어 프리필한다.
+ */
+export default async function LandingPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
   const t = await getTranslations("landing");
-  // 맛보기 검사는 비로그인 방문자 전용 — 회원은 대시보드에서 본검사를 쓰면 된다
-  // (헤더가 이미 같은 렌더 패스에서 getCachedUser를 호출하므로 추가 왕복 없음)
-  const user = await getCachedUser();
-
-  // AI 스킬·MCP 딥링크(?url=): 회원은 본검사 폼으로 보내고, 비회원은 맛보기 폼에 프리필.
-  // 리다이렉트 시 utm은 보존한다 — GA4가 /scan 쪽 페이지뷰에서 유입을 잡을 수 있게.
-  const sp = await searchParams;
-  const prefillUrl = sanitizePrefillUrl(sp.url);
-  if (user && prefillUrl) {
-    const qs = new URLSearchParams({ url: prefillUrl });
-    for (const k of ["utm_source", "utm_medium", "utm_campaign"] as const) {
-      if (sp[k]) qs.set(k, sp[k]);
-    }
-    redirect(`/${locale}/scan?${qs.toString()}`);
-  }
   // 화면 렌더와 FAQPage 구조화 데이터가 같은 배열을 쓰도록 한 번만 읽는다
   const faq = t.raw("faq.items") as { q: string; a: string }[];
 
@@ -182,8 +164,10 @@ export default async function LandingPage({
         </div>
       </section>
 
-      {/* ─── 비로그인 맛보기 검사 — 로그인 없이 1페이지 즉석 검사 (회원에겐 미노출) ─── */}
-      {!user && <TeaserScanForm initialUrl={prefillUrl ?? undefined} />}
+      {/* ─── 비로그인 맛보기 검사 — 로그인 없이 1페이지 즉석 검사 (회원에겐 미노출 — 회원은 대시보드에서 본검사) ─── */}
+      <div className="auth-out">
+        <TeaserScanForm />
+      </div>
 
       {/* ─── 기능 ─── */}
       <section aria-labelledby="features-heading" className="py-14">

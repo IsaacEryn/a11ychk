@@ -1,4 +1,5 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import { connection } from "next/server";
 import { notFound } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { kwcagFromStored, pickLocale } from "@a11ychk/core/catalog";
@@ -51,6 +52,9 @@ export default async function DirectorySitePage({
 }) {
   const { locale, hostname: raw } = await params;
   setRequestLocale(locale);
+  // 요청마다 렌더한다 — 외부 사이트에서 수집한 내용을 보여 주는 페이지라 nonce 정책을 유지하고, ISR 재생성본에는
+  // CSP 해시가 없다(lib/security/cspPolicy.mjs). 조회는 위 unstable_cache가 60초 단위로 캐시한다.
+  await connection();
   const hostname = safeDecode(raw);
   const detail = hostname ? await getDetail(hostname) : null;
   // 미등재·소유 미확인·임계 미만·깨진 인코딩 — 목록과 같은 기준으로 404

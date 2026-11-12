@@ -5,6 +5,7 @@ import { Link, usePathname } from "@/i18n/navigation";
 import { ThemeToggle } from "./ThemeToggle";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { signOut } from "@/lib/actions";
+import { useAdminHref } from "./AdminNavLink";
 
 type Theme = "system" | "light" | "dark" | "contrast";
 
@@ -32,21 +33,15 @@ export interface MobileNavLabels {
  * NavMenu의 접근성 패턴 이식: aria-expanded/controls, Escape로 닫고 버튼 포커스 복귀,
  * 바깥 pointerdown·라우트 변경 시 닫힘. 모달 아님(disclosure)이라 포커스 트랩 불필요.
  * 데스크톱 우측 컨트롤(테마·언어·로그인/아웃)을 패널 하단으로 옮겨 담는다.
+ * 로그인·비로그인 항목은 헤더와 같이 둘 다 렌더하고 .auth-in/.auth-out이 한쪽만 보인다(Header 주석 참고).
  */
 export function MobileNav({
-  isLoggedIn,
-  isAdmin,
-  adminHref = "/admin",
   labels,
   themeLabel,
   themeLabels,
   localeLabel,
   className = "",
 }: {
-  isLoggedIn: boolean;
-  isAdmin: boolean;
-  /** 관리자 링크 경로 — 서버가 슬러그 반영해 계산 (기본 /admin) */
-  adminHref?: string;
   labels: MobileNavLabels;
   themeLabel: string;
   themeLabels: Record<Theme, string>;
@@ -58,6 +53,8 @@ export function MobileNav({
   const buttonRef = useRef<HTMLButtonElement>(null);
   const panelId = useId();
   const pathname = usePathname();
+  // 관리자에게만 서버가 알려 주는 관리자 메뉴 주소(슬러그) — 아니면 null
+  const adminHref = useAdminHref();
 
   // 바깥 클릭 시 닫기
   useEffect(() => {
@@ -105,9 +102,9 @@ export function MobileNav({
       pathname === href ? "font-bold text-[var(--color-seal)]" : "font-medium text-[var(--color-ink)]"
     }`;
 
-  const renderLinks = (items: { href: string; label: string }[]) =>
+  const renderLinks = (items: { href: string; label: string }[], liClass?: string) =>
     items.map((item) => (
-      <li key={item.href}>
+      <li key={item.href} className={liClass}>
         <Link
           href={item.href}
           aria-current={pathname === item.href ? "page" : undefined}
@@ -145,15 +142,11 @@ export function MobileNav({
         <nav aria-label={labels.openMenu}>
           <ul className="flex flex-col gap-0.5">
             {renderLinks(publicLinks)}
-            {isLoggedIn && (
-              <>
-                <li className={groupHeading} aria-hidden="true">{labels.auditGroup}</li>
-                {renderLinks(auditLinks)}
-                <li className={groupHeading} aria-hidden="true">{labels.myGroup}</li>
-                {renderLinks(myLinks)}
-                {isAdmin && renderLinks([{ href: adminHref, label: labels.admin }])}
-              </>
-            )}
+            <li className={`auth-in ${groupHeading}`} aria-hidden="true">{labels.auditGroup}</li>
+            {renderLinks(auditLinks, "auth-in")}
+            <li className={`auth-in ${groupHeading}`} aria-hidden="true">{labels.myGroup}</li>
+            {renderLinks(myLinks, "auth-in")}
+            {adminHref && renderLinks([{ href: adminHref, label: labels.admin }], "auth-in")}
           </ul>
         </nav>
 
@@ -162,24 +155,21 @@ export function MobileNav({
           <LocaleSwitcher label={localeLabel} />
         </div>
         <div className="mt-3">
-          {isLoggedIn ? (
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="flex min-h-[44px] w-full items-center justify-center rounded border-[1.5px] border-[var(--color-ink)] px-3 font-semibold hover:bg-[var(--color-paper-warm)]"
-              >
-                {labels.logout}
-              </button>
-            </form>
-          ) : (
-            <Link
-              href="/login"
-              onClick={() => setOpen(false)}
-              className="flex min-h-[44px] w-full items-center justify-center rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-3 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
+          <form action={signOut} className="auth-in">
+            <button
+              type="submit"
+              className="flex min-h-[44px] w-full items-center justify-center rounded border-[1.5px] border-[var(--color-ink)] px-3 font-semibold hover:bg-[var(--color-paper-warm)]"
             >
-              {labels.login}
-            </Link>
-          )}
+              {labels.logout}
+            </button>
+          </form>
+          <Link
+            href="/login"
+            onClick={() => setOpen(false)}
+            className="auth-out flex min-h-[44px] w-full items-center justify-center rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-3 font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)]"
+          >
+            {labels.login}
+          </Link>
         </div>
       </div>
     </div>

@@ -1,15 +1,23 @@
 /** 서버 액션 공통 헬퍼 — "use server" 파일은 async 함수만 export 가능하므로 별도 모듈에 둔다 */
 import "server-only";
-import { revalidatePath } from "next/cache";
+import { refresh, revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { checkAdmin } from "@/lib/adminGuard";
-import { localeFromPathname } from "@/i18n/routing";
+import { localeFromPathname, routing } from "@/i18n/routing";
+import { isStaticPagePath } from "@/lib/security/cspPolicy.mjs";
 
-/** 전 경로 캐시 무효화 — 인증 상태처럼 모든 페이지에 영향이 있을 때만 사용 */
+/**
+ * 인증 상태가 바뀐 뒤(로그아웃·탈퇴) 브라우저 라우터가 들고 있는 동적 화면을 버리게 한다.
+ *
+ * 예전에는 revalidatePath("/", "layout")로 서버 캐시까지 전부 무효화했는데, 그러면 빌드 때 만든 정적
+ * 페이지(랜딩·가이드)가 런타임에 다시 렌더된다 — CPU를 다시 쓰고, 다시 만든 HTML에는 빌드 후처리가 박은
+ * CSP 해시가 없다. 정적 페이지는 로그인 상태를 담지 않으므로(헤더는 data-auth로 전환) 서버 캐시는 그대로
+ * 두고 클라이언트 쪽만 새로 고친다.
+ */
 export function revalidateAll() {
-  revalidatePath("/", "layout");
+  refresh();
 }
 
 /**
@@ -39,8 +47,12 @@ export function revalidateAll() {
 export function revalidateLocalized(...paths: string[]) {
   for (const path of paths) {
     if (path === "/admin" || path.startsWith("/admin/")) continue;
-    revalidatePath(`/ko${path}`);
-    revalidatePath(`/en${path}`);
+    for (const locale of routing.locales) {
+      const localized = `/${locale}${path === "/" ? "" : path}`;
+      // 정적 페이지는 배포로만 다시 만든다 — 런타임 재생성본에는 CSP 해시(meta)가 없다(revalidateAll 주석)
+      if (isStaticPagePath(localized, { locales: routing.locales })) continue;
+      revalidatePath(localized);
+    }
   }
 }
 

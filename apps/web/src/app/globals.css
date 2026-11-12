@@ -212,6 +212,15 @@ a[data-btn] {
   color: #1c2422;
 }
 
+/* ── 로그인 상태별 표시 ──
+   레이아웃이 정적이라 HTML에 로그인·비로그인 화면이 함께 들어 있다. <html data-auth>는 첫 페인트 전에
+   boot 스크립트가, 이후에는 AuthSync가 정한다(lib/authHint.ts). 값이 없으면(스크립트 미실행) 비로그인 쪽이
+   보인다. display:none이라 숨은 쪽은 접근성 트리·탭 순서에서도 빠진다. */
+:root[data-auth="in"] .auth-out,
+:root:not([data-auth="in"]) .auth-in {
+  display: none !important;
+}
+
 /* ── 스킵 링크 ── */
 .skip-link {
   position: absolute;

@@ -1,25 +1,23 @@
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { adminBase } from "@/lib/adminSlug";
-import { getCachedUser } from "@/lib/supabase/user";
 import { LocaleSwitcher } from "./LocaleSwitcher";
 import { NavMenu } from "./NavMenu";
 import { MobileNav } from "./MobileNav";
 import { ThemeToggle } from "./ThemeToggle";
+import { AdminNavLink } from "./AdminNavLink";
 import { signOut } from "@/lib/actions";
 
+/**
+ * 사이트 헤더 — 정적 HTML에 로그인·비로그인 메뉴를 함께 담는다.
+ *
+ * 사용자를 읽으면 레이아웃 아래 모든 페이지가 요청마다 렌더되므로 서버는 사용자를 모른다. 대신
+ * .auth-in/.auth-out(globals.css)이 <html data-auth>로 한쪽만 보이게 한다 — 첫 페인트 전에 boot 스크립트가
+ * 값을 정하므로 깜빡이지 않는다. 숨은 쪽은 display:none이라 스크린리더·탭 순서에도 나오지 않는다.
+ * 회원 메뉴의 링크는 원래 공개 주소이고(들어가면 서버가 로그인을 요구한다), 비밀인 관리자 주소만
+ * AdminNavLink가 관리자에게만 따로 받아 온다.
+ */
 export async function Header() {
   const t = await getTranslations("common");
-  // 렌더 스코프 캐시 — 같은 요청의 페이지 컴포넌트와 getUser 왕복을 공유
-  const user = await getCachedUser();
-
-  let isAdmin = false;
-  if (user) {
-    const supabase = await createClient();
-    const { data: profile } = await supabase.from("profiles").select("role").eq("id", user.id).single();
-    isAdmin = profile?.role === "admin";
-  }
 
   const linkCls =
     "rounded px-2 py-1 text-[0.95rem] font-medium text-[var(--color-ink-soft)] hover:text-[var(--color-ink)] hover:underline underline-offset-4";
@@ -50,7 +48,7 @@ export async function Header() {
           <Link href="/about" className={linkCls}>
             {t("nav.about")}
           </Link>
-          {user && (
+          <div className="auth-in">
             <NavMenu
               label={t("nav.audit")}
               items={[
@@ -59,14 +57,14 @@ export async function Header() {
                 { href: "/extension/connect", label: t("nav.extension") },
               ]}
             />
-          )}
+          </div>
           <Link href="/guide" className={linkCls}>
             {t("nav.guide")}
           </Link>
           <Link href="/directory" className={linkCls}>
             {t("nav.directory")}
           </Link>
-          {user && (
+          <div className="auth-in">
             <NavMenu
               label={t("nav.my")}
               items={[
@@ -75,12 +73,8 @@ export async function Header() {
                 { href: "/inquiries", label: t("nav.inquiries") },
               ]}
             />
-          )}
-          {user && isAdmin && (
-            <Link href={adminBase()} className={linkCls}>
-              {t("nav.admin")}
-            </Link>
-          )}
+          </div>
+          <AdminNavLink label={t("nav.admin")} className={linkCls} />
         </nav>
 
         <div className="hidden items-center gap-3 md:flex">
@@ -94,31 +88,25 @@ export async function Header() {
             }}
           />
           <LocaleSwitcher label={t("localeSwitcher")} />
-          {user ? (
-            <form action={signOut}>
-              <button
-                type="submit"
-                className="rounded border-[1.5px] border-[var(--color-ink)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-paper-warm)]"
-              >
-                {t("auth.logout")}
-              </button>
-            </form>
-          ) : (
-            <Link
-              href="/login"
-              className="rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] hover:border-[var(--color-seal-deep)]"
+          <form action={signOut} className="auth-in">
+            <button
+              type="submit"
+              className="rounded border-[1.5px] border-[var(--color-ink)] px-3 py-1.5 text-sm font-semibold hover:bg-[var(--color-paper-warm)]"
             >
-              {t("auth.login")}
-            </Link>
-          )}
+              {t("auth.logout")}
+            </button>
+          </form>
+          <Link
+            href="/login"
+            className="auth-out rounded border-[1.5px] border-[var(--color-seal)] bg-[var(--color-seal)] px-3 py-1.5 text-sm font-semibold text-[var(--color-paper)] hover:bg-[var(--color-seal-deep)] hover:border-[var(--color-seal-deep)]"
+          >
+            {t("auth.login")}
+          </Link>
         </div>
 
         {/* 모바일 전용 햄버거 + 드롭다운 패널 (md 미만). 패널은 헤더(sticky) 기준 전폭 앵커 — relative 미부여 */}
         <MobileNav
           className="ml-auto md:hidden"
-          isLoggedIn={!!user}
-          isAdmin={isAdmin}
-          adminHref={adminBase()}
           themeLabel={t("theme.label")}
           themeLabels={{
             system: t("theme.system"),
