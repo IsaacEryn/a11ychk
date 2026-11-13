@@ -1,5 +1,5 @@
 // 패널 공유 상태·공용 헬퍼 — 모듈 간 순환 참조 없이 함께 쓰는 것들만 모은다
-import { normalizeAxeResults, type Finding } from "@a11ychk/core/catalog";
+import { aggregateScan, normalizeAxeResults, siteLevelOptions, type Finding, type PageSignature } from "@a11ychk/core/catalog";
 import type { IncompleteDecision } from "../incomplete";
 
 // 빌드 시 esbuild define으로 치환됨
@@ -35,9 +35,20 @@ export async function getActiveTab(): Promise<chrome.tabs.Tab | undefined> {
 
 export type PageResult = ReturnType<typeof normalizeAxeResults>;
 
+/**
+ * 확장 화면·AI 수정 요청이 쓰는 단일 페이지 집계. 웹 맛보기 검사와 같은 식
+ * (aggregateScan + siteLevelOptions)이라 같은 페이지면 자동 준수율이 같다.
+ * 시그니처를 못 받았으면(수집 실패·이전 버전 캐시) 1.2.x '해당 없음'을 판단하지 않는다.
+ */
+export function summarizePage(page: PageResult, signature: PageSignature | null) {
+  return aggregateScan([page], AXE_VERSION, siteLevelOptions(signature ? [signature] : [], 1));
+}
+
 /** 검사 결과 공유 상태 — ESM에서 모듈 간 let 재할당은 반영되지 않으므로 객체 필드로 관리 */
 export const state = {
   lastPage: null as PageResult | null,
+  /** lastPage와 같은 검사에서 상위 문서로부터 수집한 시그니처 — 미디어 유무로 1.2.x '해당 없음'을 정한다 */
+  lastSignature: null as PageSignature | null,
   currentTabId: null as number | null,
   /** 확인 필요(incomplete) 항목 — 노드 포함 파생 데이터 (axe 규칙만; 커스텀은 id뿐) */
   lastIncomplete: [] as Finding[],

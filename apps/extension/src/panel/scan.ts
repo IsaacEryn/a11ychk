@@ -2,13 +2,14 @@
 import {
   AXE_RUN_TAGS,
   THIRD_PARTY_AD_EXCLUDE,
-  aggregateScan,
   automatedComplianceRate,
+  collectPageSignature,
   customFindingsFromSignals,
   mergePageSignals,
   normalizeAxeResults,
   type AxeRunResults,
   type PageCheckSignals,
+  type PageSignature,
 } from "@a11ychk/core/catalog";
 import { setCachedScan } from "../scan-cache";
 import { deriveIncompleteFindings } from "../incomplete";
@@ -18,7 +19,7 @@ import { isEnglish, msg } from "../i18n";
 import * as log from "../log";
 // axe 공식 한국어 로케일 — UI가 한국어일 때 진단 메시지를 한국어로
 import axeKoLocale from "axe-core/locales/ko.json";
-import { $, AXE_VERSION, SITE_ORIGIN, getActiveTab, state, withTimeout } from "./state";
+import { $, SITE_ORIGIN, getActiveTab, state, summarizePage, withTimeout } from "./state";
 import { ANON_WEEKLY_LIMIT, bumpAnonUsage, clearSession, getAnonUsage, getSession, renderAccount, setUsageNote } from "./session";
 import { renderResult } from "./render";
 
@@ -139,7 +140,22 @@ export async function scan() {
       log.warn("custom checks failed; proceeding with axe results only", e);
     }
 
-    const summary = aggregateScan([page], AXE_VERSION);
+    // 4) 페이지 시그니처 — 웹·티저처럼 상위 문서에서만 수집한다(하위 프레임 미디어는 웹도 보지 않는다).
+    //    미디어가 없으면 1.2.1~1.2.5를 '해당 없음'으로 세는 근거라, 수집에 실패하면 판단을 보류(null)한다.
+    let signature: PageSignature | null = null;
+    try {
+      const [sigResult] = await chrome.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: collectPageSignature,
+      });
+      const collected = sigResult?.result as Omit<PageSignature, "url"> | undefined;
+      if (collected) signature = { url: tab.url, ...collected };
+    } catch (e) {
+      log.warn("page signature failed; media not-applicable criteria withheld", e);
+    }
+
+    state.lastSignature = signature;
+    const summary = summarizePage(page, signature);
     renderResult(page, summary, tab.url);
     updateScanCache();
     // 완료 요약은 단일 라이브 리전으로 1회 고지 (결과 섹션 전체 낭독 방지)
@@ -177,6 +193,7 @@ export function updateScanCache() {
   if (!state.lastPage) return;
   void setCachedScan(state.lastPage.url, {
     page: state.lastPage,
+    signature: state.lastSignature,
     incomplete: state.lastIncomplete,
     decisions: state.incompleteDecisions,
     scannedAt: state.lastScannedAt,

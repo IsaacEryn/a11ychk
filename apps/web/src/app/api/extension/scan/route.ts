@@ -1,6 +1,14 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { AXE_VERSION, aggregateScan, assertHttpUrl, categorizePage, toStoredKwcagKey, type PageScanResult } from "@a11ychk/core";
+import {
+  AXE_VERSION,
+  aggregateScan,
+  assertHttpUrl,
+  categorizePage,
+  siteLevelOptions,
+  toStoredKwcagKey,
+  type PageScanResult,
+} from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireExtensionUser } from "@/lib/apiAuth";
 import { markReferralValidOnFirstScan } from "@/lib/referral/validate";
@@ -8,6 +16,7 @@ import { apiError, resolveApiLocale } from "@/lib/apiError";
 import { consumeExtUsage } from "@/lib/quota";
 import { loadEntitlement } from "@/lib/entitlements";
 import { reaggregate } from "@/lib/scan/runScan";
+import { parseExtensionSignature } from "@/lib/scan/extensionSignature";
 import { logAppError } from "@/lib/logs";
 
 // via 컬럼(migration 0009) 존재 여부 — 모듈 스코프 캐시로 요청당 프로브 쿼리 제거
@@ -49,6 +58,12 @@ const ReviewSchema = z.object({
 });
 const BodySchema = z.object({
   page: PageSchema,
+  /**
+   * 확장이 상위 문서에서 모은 페이지 시그니처(0.6.2 이하는 보내지 않는다). 모양은 parseExtensionSignature가 따로 검증한다 —
+   * 틀린 시그니처는 버리고 '해당 없음' 판단만 보류할 뿐, 검사 결과 저장을 거절하지 않는다.
+   * 없으면(이전 확장) 미디어 유무를 모르므로 1.2.x를 '해당 없음'으로 세지 않는다.
+   */
+  signature: z.unknown().optional(),
   manual: z.array(z.string().max(20)).max(60).optional(),
   /** 확장에서 기입한 전문가 판정 → scan_reviews에 반영 */
   reviews: z.array(ReviewSchema).max(60).optional(),
@@ -101,12 +116,23 @@ export async function POST(request: Request) {
   }
 
   const page = parsed.data.page as PageScanResult;
+  const signature = parseExtensionSignature(parsed.data.signature, page.url);
   const counts: Record<string, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
   for (const v of page.violations) counts[v.impact] = (counts[v.impact] ?? 0) + v.nodes.length;
   const nowIso = new Date().toISOString();
 
   // via 컬럼(migration 0009) 미적용 환경에서도 저장이 깨지지 않도록 조건부 사용
   const viaField = (await hasViaColumn(admin)) ? { via: "extension" } : {};
+
+  // 시그니처는 별도 best-effort 저장(0005 미적용이면 컬럼이 없어 실패 → 무시) — runScan.persistPageResult와 같은 방식.
+  // 재집계(reaggregate)가 이 값으로 '해당 없음'을 다시 계산하므로 반드시 재집계 전에 쓴다.
+  const saveSignature = async (pageRowId: string) => {
+    await admin
+      .from("scan_pages")
+      .update({ signature })
+      .eq("id", pageRowId)
+      .then(undefined, () => undefined);
+  };
 
   const findingRowsFor = (pageRowId: string) =>
     page.violations.flatMap((v) =>
@@ -206,6 +232,8 @@ export async function POST(request: Request) {
     }
     if (!pageRowId) return apiError(locale, "saveFailed", 500);
     if (page.violations.length > 0) await admin.from("findings").insert(findingRowsFor(pageRowId));
+    // 같은 URL을 교체할 때는 시그니처가 없어도 null로 덮어 이전 검사의 값이 남지 않게 한다
+    if (existing || signature) await saveSignature(pageRowId);
 
     await saveReviews(admin, target.id, parsed.data.reviews);
     // 보고서 요약 재집계 (확장 페이지 + 판정 포함)
@@ -216,7 +244,8 @@ export async function POST(request: Request) {
   }
 
   // 4-b) 기존 보고서 없음 — 단일 페이지 보고서 생성 (확장 검사는 이미 완료 상태)
-  const summary = aggregateScan([page], AXE_VERSION);
+  // 확장 화면·웹 맛보기 검사와 같은 옵션 — 시그니처가 없으면 '해당 없음' 판단 보류
+  const summary = aggregateScan([page], AXE_VERSION, siteLevelOptions(signature ? [signature] : [], 1));
   const scanRow = {
     user_id: user.id,
     root_url: url.toString(),
@@ -262,6 +291,7 @@ export async function POST(request: Request) {
   if (pageRow && page.violations.length > 0) {
     await admin.from("findings").insert(findingRowsFor(pageRow.id));
   }
+  if (pageRow && signature) await saveSignature(pageRow.id);
 
   await saveReviews(admin, scan.id, parsed.data.reviews);
   // 판정이 있으면 summary.scores 갱신을 위해 재집계

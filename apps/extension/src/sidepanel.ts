@@ -1,9 +1,8 @@
 // 사이드 패널 부트스트랩 — 초기화·배선·활성 탭 갱신 (책임별 구현은 src/panel/*)
-import { aggregateScan } from "@a11ychk/core/catalog";
 import { getCachedScan, normalizeUrlKey } from "./scan-cache";
 import { wireTabs, wireTheme, wireLang } from "./ui";
 import { initI18n, isEnglish, localizeHtml, msg } from "./i18n";
-import { $, AXE_VERSION, SITE_ORIGIN, getActiveTab, state } from "./panel/state";
+import { $, SITE_ORIGIN, getActiveTab, state, summarizePage } from "./panel/state";
 import { renderAccount } from "./panel/session";
 import { scan } from "./panel/scan";
 import { renderResult } from "./panel/render";
@@ -66,6 +65,7 @@ async function refreshActiveTab() {
   const pageChanged = prevTabId !== state.currentTabId || (state.lastPage !== null && state.lastPage.url !== url);
   if (pageChanged && state.lastPage) {
     state.lastPage = null;
+    state.lastSignature = null;
     state.lastIncomplete = [];
     state.incompleteDecisions = {};
     $("result").hidden = true; // 결과 섹션(점수·위반 목록)은 lastPage 기준이므로 숨김
@@ -90,10 +90,11 @@ async function refreshActiveTab() {
       const cached = await getCachedScan(url);
       if (cached && normalizeUrlKey(cached.page.url) === normalizeUrlKey(url)) {
         state.lastPage = cached.page;
+        state.lastSignature = cached.signature ?? null;
         state.lastIncomplete = cached.incomplete;
         state.incompleteDecisions = cached.decisions;
         state.lastScannedAt = cached.scannedAt;
-        const summary = aggregateScan([state.lastPage], AXE_VERSION);
+        const summary = summarizePage(state.lastPage, state.lastSignature);
         renderResult(state.lastPage, summary, state.lastPage.url);
         const note = $("cachedNote");
         const at = new Date(cached.scannedAt);
