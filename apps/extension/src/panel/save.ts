@@ -1,8 +1,8 @@
 // 계정 저장 + AI 수정요청 내보내기
-import { aggregateScan, automatedComplianceRate, buildAiFix, groupViolationsForAiFix } from "@a11ychk/core/catalog";
+import { automatedComplianceRate, buildAiFix, groupViolationsForAiFix } from "@a11ychk/core/catalog";
 import { isEnglish, msg } from "../i18n";
 import * as log from "../log";
-import { $, AXE_VERSION, SITE_ORIGIN, state, type PageResult } from "./state";
+import { $, AXE_VERSION, SITE_ORIGIN, state, summarizePage, type PageResult } from "./state";
 import { clearSession, getSession, renderAccount } from "./session";
 import { getReviewState } from "./review";
 
@@ -95,6 +95,8 @@ export async function saveToAccount() {
       },
       body: JSON.stringify({
         page: state.lastPage,
+        // 서버도 같은 옵션으로 집계·재집계하도록 시그니처를 함께 보낸다(없으면 '해당 없음' 판단 보류)
+        signature: state.lastSignature ?? undefined,
         reviews,
         sampleType: isProcess ? "process" : "structured",
         target,
@@ -136,10 +138,10 @@ export async function saveToAccount() {
 /** AI 수정요청 프롬프트에 규칙당 포함할 최대 발생 위치 */
 /**
  * AI 수정 요청 문서 — core의 공용 빌더로 생성해 웹 보고서·MCP와 같은 형식이 나온다
- * (판정 3면 일치의 문서판). 준수율도 화면과 같은 aggregateScan → automatedComplianceRate.
+ * (판정 3면 일치의 문서판). 준수율도 화면과 같은 summarizePage → automatedComplianceRate.
  */
 function buildAiFixMarkdown(page: PageResult): string {
-  const summary = aggregateScan([page], AXE_VERSION);
+  const summary = summarizePage(page, state.lastSignature);
   return buildAiFix({
     site: page.url,
     scannedAt: page.scannedAt,

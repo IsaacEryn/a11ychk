@@ -7,7 +7,12 @@
 import type { Page } from "playwright-core";
 import type { PageSignature } from "../types";
 
-const SIGNATURE_SCRIPT = `(function(){
+/**
+ * 상위 문서에서 평가하는 시그니처 스크립트(ES5 문자열). 크롬 확장은 같은 계산을
+ * collectSignature.ts의 collectPageSignature 함수로 하므로, 고칠 때는 양쪽을 함께 고치고
+ * tests/signature-parity.test.ts를 통과시킬 것.
+ */
+export const SIGNATURE_SCRIPT = `(function(){
   function txt(el){ return (el.textContent||'').replace(/\\s+/g,' ').trim().slice(0,60); }
   function cssPath(el){
     try {

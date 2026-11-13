@@ -13,7 +13,7 @@ import { highlightInPage } from "../injected";
 import { announce } from "../ui";
 import { isEnglish, msg, pick } from "../i18n";
 import * as log from "../log";
-import { $, AXE_VERSION, state, type PageResult } from "./state";
+import { $, state, summarizePage, type PageResult } from "./state";
 import { getSession } from "./session";
 import { updateScanCache } from "./scan";
 import { populateSaveTargets } from "./save";
@@ -313,7 +313,7 @@ async function decideIncomplete(ruleId: string, decision: IncompleteDecision) {
   if (!state.lastPage) return;
   applyIncompleteDecision(state.lastPage, state.lastIncomplete, ruleId, decision);
   state.incompleteDecisions[ruleId] = decision;
-  const summary = aggregateScan([state.lastPage], AXE_VERSION);
+  const summary = summarizePage(state.lastPage, state.lastSignature);
   renderResult(state.lastPage, summary, state.lastPage.url);
   updateScanCache();
   announce(msg(decision === "failed" ? "srIncompleteFail" : "srIncompletePass"));
