@@ -115,6 +115,7 @@ export interface PageSignature {
   navLinks: string[];
   hasSearch: boolean;
   hasSitemap: boolean;
+  /** 상위 문서에 <video>/<audio>나 동영상·오디오 임베드 iframe이 있음 (기준: collectSignature.ts의 MEDIA_EMBED_HOSTS) */
   hasMedia: boolean;
   /** 확인용 수집 자료 — 대체 텍스트·폼 레이블·맥락 확인이 필요한 링크 텍스트 (구버전 스캔엔 없음) */
   review?: {
