@@ -44,7 +44,10 @@ npx playwright install chromium
 Findings that map to no WCAG success criterion (axe best-practice rules) are reported as
 advisories and excluded from the compliance rate — the same judgment used by the
 [a11ychk.com](https://www.a11ychk.com) reports and the
-[GitHub Action](https://github.com/marketplace/actions/a11y-check).
+[GitHub Action](https://github.com/marketplace/actions/a11y-check). Likewise, pages with no
+audio or video count WCAG 1.2.x as not applicable, and multi-page scans add site-level checks
+(duplicate titles, multiple ways, consistent navigation) to the rate; failed ones are listed in
+`siteCheckFailures`.
 
 ## Why KWCAG?
 

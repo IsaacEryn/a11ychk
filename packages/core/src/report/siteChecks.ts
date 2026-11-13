@@ -32,6 +32,23 @@ export function computeNotPresentScs(signatures: PageSignature[], scannedPageCou
   return [...MEDIA_SCS];
 }
 
+/**
+ * aggregateScan에 넘길 사이트 수준 옵션 — 웹 정식 검사·티저·GitHub Action·MCP가 모두 이것을 넘긴다.
+ *
+ * 옵션을 넘기는 쪽과 안 넘기는 쪽이 섞이면 같은 페이지라도 자동 준수율이 갈린다(미디어 없는
+ * 페이지는 1.2.x가 '해당 없음'으로 통과에 들어가므로, 위반이 있는 페이지는 넘긴 쪽이 늘 높다).
+ * 시그니처는 검사에 성공한 페이지의 것만 모아 넘긴다.
+ */
+export function siteLevelOptions(
+  signatures: PageSignature[],
+  scannedPageCount: number,
+): { siteChecks: SiteCheckOutcome[]; notPresentScs: string[] } {
+  return {
+    siteChecks: computeSiteChecks(signatures),
+    notPresentScs: computeNotPresentScs(signatures, scannedPageCount),
+  };
+}
+
 export function computeSiteChecks(signatures: PageSignature[]): SiteCheckOutcome[] {
   const out: SiteCheckOutcome[] = [];
   if (signatures.length < 2) return out; // 사이트 수준 검사는 표본 2페이지 이상일 때만

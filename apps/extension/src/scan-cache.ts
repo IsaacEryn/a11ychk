@@ -3,11 +3,13 @@
  * chrome.storage.session(브라우저 종료 시 자동 삭제)에 URL별 최근 결과를 보존한다.
  * 페이지가 그새 바뀌었을 수 있으므로 복원 시 "이전 결과" 안내와 함께 표시한다.
  */
-import type { Finding, PageScanResult } from "@a11ychk/core/catalog";
+import type { Finding, PageScanResult, PageSignature } from "@a11ychk/core/catalog";
 import * as log from "./log";
 
 export interface CachedScan {
   page: PageScanResult;
+  /** 같은 검사의 페이지 시그니처 — 0.6.2 이하가 남긴 항목엔 없다(그러면 '해당 없음' 판단 보류) */
+  signature?: PageSignature | null;
   /** 노드 포함 확인 필요(incomplete) 항목 — 심사 흐름용 파생 데이터 */
   incomplete: Finding[];
   /** 확인 필요 항목에 대한 심사 결정 (위반 확정/문제없음) */

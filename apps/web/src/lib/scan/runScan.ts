@@ -10,8 +10,6 @@ import {
   assertPublicHttpUrl,
   buildSample,
   categorizePage,
-  computeNotPresentScs,
-  computeSiteChecks,
   detectTechnologies,
   extractPageSignature,
   fetchRobots,
@@ -21,6 +19,7 @@ import {
   normalizeReviewRows,
   normalizeUrl,
   runAxeOnPage,
+  siteLevelOptions,
   type EvaluationScope,
   type Finding,
   type Impact,
@@ -147,8 +146,12 @@ interface SinglePageOutcome {
 
 /** 한 페이지를 스캔해 결과 + 사이트 시그니처를 반환. 컨텍스트는 항상 정리한다. */
 export async function scanSinglePage(browser: Browser, url: string): Promise<SinglePageOutcome> {
-  // reducedMotion을 켜지 않는다. 감속 화면이 아니라 대부분의 사용자가 보는 기본 화면을
-  // 재야 하고, Action·MCP(core scanUrls)와 같은 조건이어야 판정이 일치한다. 54곳 실험에서
+  // 이 함수는 core scanUrls(Action·MCP)와 페이지를 여는 방식이 다르다: 서브리소스 SSRF 차단
+  // route 훅, 이미지·미디어 차단, load 대기 상한 8초 + 웹폰트 대기 3초, settle 없음. 정적인
+  // 페이지에서는 결과가 같았고, iframe이 늦게 붙는 동적 페이지에서만 iframe 관련 규칙이 갈릴 수 있다.
+  //
+  // reducedMotion을 켜지 않는 점은 scanUrls와 같다. 감속 화면이 아니라 대부분의 사용자가 보는
+  // 기본 화면을 재야 하고, 이 조건이 다르면 진입점마다 판정이 갈린다. 54곳 실험에서
   // 감속은 명도 대비 보고를 뚜렷하게 줄이지도 늘리지도 않았고, 캐러셀이 있는 소수 사이트에서
   // 화면에 걸리는 슬라이드를 바꿨다(docs/architecture.md 측정 안정성). 페이드인 같은 과도 상태
   // 오탐은 runAxe가 처리한다(유한 애니메이션 종료 대기 + 2-패스 안정성 필터).
@@ -545,8 +548,8 @@ export async function runScan(scanId: string): Promise<void> {
       conformanceTarget,
       sample: summarizeSample(sample, structuredRules, randomRules),
       plannedPageCount: sample.pages.length,
-      siteChecks: computeSiteChecks(signatures),
-      notPresentScs: computeNotPresentScs(signatures, results.length),
+      // 사이트 수준 검사·해당 없음 — 티저·Action·MCP도 같은 헬퍼로 넘긴다(판정 3면 일치)
+      ...siteLevelOptions(signatures, results.length),
       reviews: await loadReviews(db, scanId),
     });
     // 제외 규칙이 적용됐으면 보고서에 투명하게 고지할 수 있도록 기록
@@ -668,8 +671,7 @@ export async function reaggregate(db: SupabaseClient, scanId: string): Promise<v
     conformanceTarget: scope?.conformanceTarget ?? "AA",
     sample: sampleSummary,
     plannedPageCount: totalPages ?? results.length,
-    siteChecks: computeSiteChecks(signatures),
-    notPresentScs: computeNotPresentScs(signatures, results.length),
+    ...siteLevelOptions(signatures, results.length),
     reviews: await loadReviews(db, scanId),
   });
   // 검사 당시 적용된 제외 규칙 고지를 보존 (재집계는 저장된 findings 기준이라 동일 적용 상태)

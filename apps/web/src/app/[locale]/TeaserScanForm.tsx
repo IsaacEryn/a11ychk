@@ -27,6 +27,8 @@ interface TeaserResult {
   byImpact: Record<TeaserRule["impact"], number>;
   ruleCount: number;
   totalNodes: number;
+  /** 목록·수치에서 뺀 모범 사례 권고 규칙 수. 배포 전 서버의 응답에는 없을 수 있다 */
+  advisoryCount?: number;
   rules: TeaserRule[];
   cached: boolean;
 }
@@ -210,6 +212,11 @@ export function TeaserScanForm() {
                   </li>
                 ))}
               </ul>
+            )}
+            {(result.advisoryCount ?? 0) > 0 && (
+              <p className="mt-3 text-xs leading-relaxed text-[var(--color-ink-soft)]">
+                {t("advisoryNote", { count: result.advisoryCount ?? 0 })}
+              </p>
             )}
 
             {/* 가입 유도 — 잠긴 기능 안내 */}
