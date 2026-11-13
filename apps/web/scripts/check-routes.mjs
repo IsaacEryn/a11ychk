@@ -26,7 +26,7 @@ const ROUTES = [
   ["/sitemap.xml", 200, "sitemap"],
 
   // 아래 넷이 이 스크립트의 존재 이유다. 200이 나오면 soft 404가 돌아온 것이다.
-  ["/ko/nonexistent", 404, "없는 경로 (catch-all)"],
+  ["/ko/nonexistent", 404, "없는 경로 (global-not-found)"],
   ["/en/nonexistent", 404, "없는 경로 (영문)"],
   ["/ko/guide/nope", 404, "없는 슬러그 (동적 라우트의 notFound)"],
   ["/ko/dashboard/nope", 404, "차단 구간 하위의 없는 경로"],
@@ -65,7 +65,7 @@ const ROUTES = [
  */
 const CSP_ROUTES = [
   ["/ko", "로케일 홈"],
-  ["/ko/nonexistent", "catch-all 404 페이지"],
+  ["/ko/nonexistent", "없는 경로 404 (global-not-found)"],
   ["/ko/guide/alternative-text", "동적 세그먼트"],
   ["/ko/directory/nonexistent-host.example", "점이 든 경로"],
 ];
@@ -115,6 +115,42 @@ const BODY_ABSENT = [
   ["/ko/login", /rel="canonical"/, "로그인에 canonical 없음"],
   ["/ko/pricing", /rel="canonical"/, "요금제에 canonical 없음"],
 ];
+
+/**
+ * 404 화면이 서버 HTML에서 완성돼 나오는지 — [경로, lang, 제목 앞부분].
+ *
+ * 렌더 중에 던진 notFound()는 동적 렌더에서 서버가 잡지 못해 lang도 본문도 없는
+ * <html id="__next_error__"> 껍데기로 나간다. 브라우저는 JS로 다시 그리니 화면만 봐서는
+ * 모르고, 원본 HTML을 읽는 검색엔진·스크린 리더 이전 단계·JS 없는 환경에서만 드러난다.
+ * 그래서 없는 주소는 global-not-found가 그리게 했고, 여기서 그 결과를 지킨다.
+ */
+const NOT_FOUND_DOCS = [
+  ["/ko/nonexistent", "ko", "페이지를 찾을 수 없습니다"],
+  ["/en/nonexistent", "en", "Page not found"],
+];
+
+/**
+ * 숨긴 관리자 경로와 견줄 오타 URL. 두 응답에는 각자 자기 요청 경로가 실린다(라우터 상태의
+ * URL, hreflang 헤더). 그래서 두 세그먼트 이름을 양쪽 응답에서 똑같이 지우고 비교한다.
+ * 한쪽 이름만 지우면 본문 메시지에 원래 있는 "/admin/*" 같은 낱말이 한쪽에서만 바뀐다.
+ *
+ * x-middleware-rewrite는 비교에서 뺀다. next start는 rewrite 대상을 이 응답 헤더로 내보내지만
+ * Vercel은 지워서 내보낸다 — 이 검사는 운영과 같은 조건인 상태코드·본문·나머지 헤더를 본다.
+ */
+const MASK_PAIR = ["/ko/admin", "/ko/adnin"];
+const MASK_IGNORED_HEADERS = new Set(["date", "x-middleware-rewrite"]);
+
+async function fetchNormalized(path) {
+  const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
+  const nonce = (res.headers.get("content-security-policy") ?? "").match(/'nonce-([^']+)'/)?.[1];
+  const segments = new RegExp(MASK_PAIR.map((p) => p.split("/").pop()).join("|"), "g");
+  const normalize = (text) => (nonce ? text.split(nonce).join("NONCE") : text).replace(segments, "SEG");
+  const headers = [...res.headers]
+    .filter(([key]) => !MASK_IGNORED_HEADERS.has(key))
+    .map(([key, value]) => `${key}: ${normalize(value)}`)
+    .sort();
+  return { status: res.status, headers, body: normalize(await res.text()) };
+}
 
 async function waitForReady() {
   const deadline = Date.now() + READY_TIMEOUT_MS;
@@ -186,6 +222,45 @@ async function main() {
     const ok = !pattern.test(html);
     console.log(`  ${ok ? "✓" : "✗"} ${path.padEnd(34)} ${what}`);
     if (!ok) failures.push(`${path} — ${what} 위반 (${pattern} 발견)`);
+  }
+
+  console.log("");
+  for (const [path, lang, title] of NOT_FOUND_DOCS) {
+    const res = await fetch(`${BASE}${path}`);
+    const nonce = (res.headers.get("content-security-policy") ?? "").match(/'nonce-([^']+)'/)?.[1];
+    const html = await res.text();
+    const checks = [
+      [new RegExp(`<html\\b[^>]*\\blang="${lang}"`).test(html), `<html lang="${lang}">`],
+      [html.includes(`<title>${title}`), `로케일 제목(${title})`],
+      [/<h1\b/.test(html), "본문(h1)이 서버 HTML에 있음"],
+      [!html.includes('id="__next_error__"'), "오류 껍데기(__next_error__) 아님"],
+      [!!nonce && html.includes(`nonce="${nonce}"`), "nonce가 렌더러까지 전달됨"],
+    ];
+    for (const [ok, what] of checks) {
+      console.log(`  ${ok ? "✓" : "✗"} ${path.padEnd(34)} 404 ${what}`);
+      if (!ok) failures.push(`${path} — 404 문서: ${what} 실패`);
+    }
+  }
+
+  // 숨긴 관리자 경로는 오타 URL과 구별되면 안 된다. 슬러그가 설정돼 있어야 /admin이 숨으므로
+  // ADMIN_PATH_SLUG가 있을 때만 본다(CI의 이 단계는 자리표시자 슬러그로 띄운다).
+  if (process.env.ADMIN_PATH_SLUG) {
+    const [masked, typo] = await Promise.all(MASK_PAIR.map(fetchNormalized));
+    const headerDiff = [
+      ...masked.headers.filter((h) => !typo.headers.includes(h)).map((h) => `숨긴 경로에만: ${h}`),
+      ...typo.headers.filter((h) => !masked.headers.includes(h)).map((h) => `오타 URL에만: ${h}`),
+    ];
+    const same = [
+      [masked.status === 404 && typo.status === 404, `상태코드 (${masked.status} / ${typo.status})`],
+      [headerDiff.length === 0, `헤더${headerDiff.length ? ` — ${headerDiff.join("; ")}` : ""}`],
+      [masked.body === typo.body, "본문"],
+    ];
+    for (const [ok, what] of same) {
+      console.log(`  ${ok ? "✓" : "✗"} ${MASK_PAIR.join(" ↔ ").padEnd(34)} 숨긴 경로와 오타 URL — ${what} 일치`);
+      if (!ok) failures.push(`/ko/admin이 오타 URL과 구별된다 — ${what}`);
+    }
+  } else {
+    console.log(`  - ${MASK_PAIR.join(" ↔ ").padEnd(34)} ADMIN_PATH_SLUG가 없어 숨긴 경로 비교를 건너뜀`);
   }
 
   if (failures.length > 0) {

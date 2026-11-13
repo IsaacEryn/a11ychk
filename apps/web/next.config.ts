@@ -23,6 +23,9 @@ const BROWSER_TRACE = [
 const nextConfig: NextConfig = {
   // 모노레포의 core 패키지(TS 소스)를 함께 컴파일
   transpilePackages: ["@a11ychk/core"],
+  // 라우트가 없는 주소의 404를 app/global-not-found.tsx로 그린다 — 로케일 레이아웃 안에서
+  // notFound()를 던지면 동적 렌더에서는 서버 HTML이 lang 없는 껍데기로 나간다(그 파일 주석 참고)
+  experimental: { globalNotFound: true },
   // 번들하지 않고 런타임 require —
   // axe-core: 번들·minify 시 axe.source 문자열이 오염돼 브라우저 주입 시
   //   "ReferenceError: t is not defined"가 나므로 반드시 external로 원본 유지.
