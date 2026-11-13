@@ -7,6 +7,7 @@ import {
   fetchRobots,
   isPathAllowed,
   normalizeUrl,
+  siteLevelOptions,
   AXE_VERSION,
 } from "@a11ychk/core";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -133,8 +134,9 @@ export async function POST(request: Request) {
   let browser = null;
   try {
     browser = await launchGuardedBrowser(url.toString());
-    const { result: page } = await withTimeout(scanSinglePage(browser, url.toString()), TEASER_TIMEOUT_MS);
-    const summary = aggregateScan([page], AXE_VERSION);
+    const { result: page, signature } = await withTimeout(scanSinglePage(browser, url.toString()), TEASER_TIMEOUT_MS);
+    // 정식 검사와 같은 옵션(미디어가 없으면 1.2.x 해당 없음) — 빼면 같은 페이지의 준수율이 정식 보고서보다 낮게 나온다
+    const summary = aggregateScan([page], AXE_VERSION, siteLevelOptions(signature ? [signature] : [], 1));
     const payload = buildTeaserResult(page, summary, locale);
 
     // 관리자 통계 기록 (best-effort — 0026 미적용/일시 오류여도 응답은 정상 반환)

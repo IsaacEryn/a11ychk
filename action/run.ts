@@ -16,6 +16,7 @@ import {
   kwcagNoListLabel,
   partitionAdvisory,
   scanUrls,
+  siteLevelOptions,
   type Impact,
 } from "../packages/core/src/index";
 
@@ -57,7 +58,7 @@ async function main() {
 
   // 스캔 루프는 core와 공유 (MCP 서버도 같은 루프) — 진행 표시만 여기서 출력
   const { chromium } = await import("playwright");
-  const { pages, failedUrls } = await scanUrls(urls, {
+  const { pages, failedUrls, signatures } = await scanUrls(urls, {
     launch: () => chromium.launch({ headless: true }),
     maxUrls: MAX_URLS,
     onResult: (url, ok, reason) => console.log(ok ? `✓ ${url}` : `✗ ${url} — ${reason}`),
@@ -68,7 +69,11 @@ async function main() {
     process.exit(1);
   }
 
-  const summary = aggregateScan(pages, AXE_VERSION);
+  // 사이트 수준 검사(여러 페이지 비교)와 해당 없음(미디어가 없으면 1.2.x)을 웹 보고서와 같이 넘긴다.
+  // 넘기지 않으면 미디어 없는 페이지의 준수율이 웹보다 늘 낮게 나온다.
+  const siteOptions = siteLevelOptions(signatures, pages.length);
+  const summary = aggregateScan(pages, AXE_VERSION, siteOptions);
+  const siteFailures = siteOptions.siteChecks.filter((c) => c.outcome === "failed");
 
   // 규칙별 집계 (전체 페이지 합산, 심각도순)
   const byRule = new Map<string, { impact: Impact; nodes: number; tags: string[] }>();
@@ -95,7 +100,8 @@ async function main() {
   const { violations: rules, advisory } = partitionAdvisory(summary, allRules);
 
   // 준수율·심각도·게이트는 모두 적합성 대상(권고 제외)만으로 센다.
-  // 준수율은 웹 보고서·MCP와 같은 값 — WCAG 성공기준 기준의 자동 점수다.
+  // 준수율은 웹 보고서·MCP와 같은 값 — WCAG 성공기준 기준의 자동 점수다(사이트 수준 검사·해당 없음 포함).
+  // 심각도·게이트는 페이지별 위반만 센다. 사이트 수준 검사 실패는 웹 보고서처럼 심각도에 넣지 않는다.
   const complianceRate = automatedComplianceRate(summary);
   const violationNodes = rules.reduce((n, r) => n + r.nodes, 0);
   const byImpact: Record<Impact, number> = { critical: 0, serious: 0, moderate: 0, minor: 0 };
@@ -124,8 +130,24 @@ async function main() {
         .join(" · ");
       md.push(`| ${IMPACT_LABEL[r.impact]} | ${r.entry.title.ko} (\`${r.ruleId}\`) | ${r.nodes} | ${refs} |`);
     }
+  } else if (siteFailures.length > 0) {
+    md.push("페이지별 자동 검사 위반은 없습니다. 아래 사이트 수준 검사 결과를 확인하세요.");
   } else {
     md.push("자동 검사 위반이 없습니다. (자동 도구는 일부 기준만 검출합니다 — 수동 점검 병행 권장)");
+  }
+  if (siteFailures.length > 0) {
+    md.push("");
+    md.push("### 사이트 수준 검사");
+    md.push("");
+    md.push("검사한 페이지 여러 개를 견주어 판정한 항목입니다. 준수율에는 반영하고 실패 판정(fail-on)에는 넣지 않습니다.");
+    md.push("");
+    md.push("| 항목 | 기준 | 내용 |");
+    md.push("|---|---|---|");
+    for (const c of siteFailures) {
+      const entry = getRuleEntry(c.ruleId);
+      const note = (c.nodes[0]?.failureSummary ?? "").replace(/\|/g, "\\|").replace(/\s+/g, " ");
+      md.push(`| ${entry.title.ko} (\`${c.ruleId}\`) | WCAG ${entry.wcag.join(", ")} | ${note} |`);
+    }
   }
   if (advisory.length > 0) {
     md.push("");

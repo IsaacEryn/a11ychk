@@ -120,6 +120,7 @@
       "nodeCount": "{count} elements",
       "moreNodes": "Locations of the remaining {count} are available after sign-up",
       "guideToggle": "How to fix",
+      "advisoryNote": "Best-practice advisories ({count}) are left out of the score and the list above because they don't map to a WCAG success criterion. Sign up to see them in the full report.",
       "lockedTitle": "Go deeper with a free account",
       "lockedFeatures": "Site-wide scans · KWCAG 33-item matrix · manual review workflow · certification readiness · PDF/CSV export · scheduled scans",
       "signupCta": "Start free",

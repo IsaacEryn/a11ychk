@@ -3,7 +3,8 @@
  *
  * 판정은 웹 보고서·GitHub Action과 같은 기준을 쓴다: aggregateScan이 골라 주는
  * 모범 사례(bestPractice, WCAG 성공기준에 대응하지 않는 axe 규칙)를 준수율과 위반
- * 집계에서 빼고 권고로만 보고한다. 세 진입점의 점수가 어긋나면 안 된다.
+ * 집계에서 빼고 권고로만 보고하고, 사이트 수준 검사·해당 없음(siteLevelOptions)을
+ * 웹과 같이 넘긴다. 세 진입점의 점수가 어긋나면 안 된다.
  */
 import {
   AXE_VERSION,
@@ -18,6 +19,7 @@ import {
   partitionAdvisory,
   pickLocale,
   scanUrls,
+  siteLevelOptions,
   type Impact,
 } from "@a11ychk/core";
 import { browserSource, launchBrowser } from "./browser";
@@ -48,6 +50,8 @@ export interface ScanToolResult {
       nodes: { pageUrl: string | null; selector: string; html: string; failureSummary: string | null }[];
     }[];
     advisory: { ruleId: string; title: string; totalNodes: number }[];
+    /** 여러 페이지를 견주어 실패로 판정한 사이트 수준 검사 — 준수율에 들어간다(scan_pages·scan_dir에서만 나온다) */
+    siteCheckFailures: { ruleId: string; title: string; wcag: string[] }[];
   };
   text: string;
 }
@@ -62,7 +66,7 @@ export async function runScanTool(
 ): Promise<ScanToolResult> {
   const total = Math.min(urls.length, maxUrls);
   let done = 0;
-  const { pages, failedUrls } = await scanUrls(urls, {
+  const { pages, failedUrls, signatures } = await scanUrls(urls, {
     launch: launchBrowser,
     maxUrls,
     onResult: (url) => {
@@ -71,7 +75,9 @@ export async function runScanTool(
     },
   });
 
-  const summary = aggregateScan(pages, AXE_VERSION);
+  // 사이트 수준 검사·해당 없음(미디어가 없으면 1.2.x)을 웹 보고서와 같이 넘긴다 — 빼면 준수율이 웹보다 낮게 나온다
+  const siteOptions = siteLevelOptions(signatures, pages.length);
+  const summary = aggregateScan(pages, AXE_VERSION, siteOptions);
 
   const allGroups = groupViolationsForAiFix(pages)
     .map((g) => ({ ...g, entry: getRuleEntry(g.ruleId, g.tags) }))
@@ -111,6 +117,12 @@ export async function runScanTool(
       title: pickLocale(g.entry.title, lang),
       totalNodes: g.nodes.length,
     })),
+    siteCheckFailures: siteOptions.siteChecks
+      .filter((c) => c.outcome === "failed")
+      .map((c) => {
+        const entry = getRuleEntry(c.ruleId);
+        return { ruleId: c.ruleId, title: pickLocale(entry.title, lang), wcag: entry.wcag };
+      }),
   };
 
   return { structuredContent, text: renderText(structuredContent, lang, urls[0]) };
@@ -145,6 +157,16 @@ export function renderText(r: ScanToolResult["structuredContent"], lang: "ko" | 
     lines.push(`- ${v.title} (\`${v.ruleId}\`, ${v.impact}${refs ? `, ${refs}` : ""}) — ${v.totalNodes}${L("곳", " nodes")}`);
     const first = v.nodes[0];
     if (first) lines.push(`  ${L("예", "e.g.")}: ${first.pageUrl ?? "?"} → \`${first.selector}\``);
+  }
+  if (r.siteCheckFailures.length > 0) {
+    lines.push("");
+    lines.push(
+      L(
+        "사이트 수준 검사(여러 페이지 비교, 준수율에 반영):",
+        "Site-level checks (compared across pages, counted in compliance):",
+      ),
+    );
+    for (const c of r.siteCheckFailures) lines.push(`- ${c.title} (\`${c.ruleId}\`, WCAG ${c.wcag.join(", ")})`);
   }
   if (r.advisory.length > 0) {
     lines.push("");
