@@ -7,7 +7,7 @@ import { STATIC_PAGE_PATHS } from "@/lib/security/cspPolicy.mjs";
 
 /**
  * 빌드 어댑터(scripts/csp-adapter.mjs) — 정적 HTML에 해시 meta를 넣는 시점이 플랫폼 어댑터보다 앞서야 배포본에 들어간다.
- * 가짜 .next 출력과 가짜 플랫폼 어댑터(HTML을 .vercel/output으로 복사)로 그 순서와 실패 조건을 확인한다.
+ * 가짜 .next 출력과 가짜 플랫폼 어댑터(Vercel 어댑터처럼 HTML을 .next/output으로 복사)로 그 순서와 실패 조건을 확인한다.
  */
 
 const sha = (s: string) => `'sha256-${createHash("sha256").update(s, "utf8").digest("base64")}'`;
@@ -47,7 +47,7 @@ export default {
   name: "fake-platform",
   modifyConfig(config) { return { ...config, touchedByPlatform: true }; },
   onBuildComplete(ctx) {
-    const out = path.join(ctx.projectDir, ".vercel/output/functions");
+    const out = path.join(ctx.distDir, "output/functions");
     mkdirSync(out, { recursive: true });
     for (const p of ctx.outputs.prerenders) {
       if (${JSON.stringify(mode)} === "nothing") continue;
@@ -72,7 +72,6 @@ async function loadAdapter(platform?: string): Promise<TestAdapter> {
   vi.stubEnv("NEXT_ADAPTER_PATH", platform ?? "");
   vi.stubEnv("NEXT_PUBLIC_GTM_ID", "");
   vi.stubEnv("BILLING_MODE", "");
-  vi.stubEnv("VERCEL_OUTPUT_DIR", "");
   return (await import("../scripts/csp-adapter.mjs")).default as unknown as TestAdapter;
 }
 
@@ -109,7 +108,7 @@ describe("빌드 어댑터 — 정적 HTML에 해시 meta", () => {
   it("플랫폼 어댑터보다 먼저 고친다 — 플랫폼이 옮긴 배포 산출물에도 meta가 있다", async () => {
     const adapter = await loadAdapter(fakePlatform("copy"));
     await adapter.onBuildComplete(fakeBuild());
-    const out = readFileSync(path.join(dir, ".vercel/output/functions/ko_guide.prerender-fallback.html"), "utf8");
+    const out = readFileSync(path.join(dir, ".next/output/functions/ko_guide.prerender-fallback.html"), "utf8");
     expect([...out.matchAll(META)]).toHaveLength(1);
   });
 
@@ -135,6 +134,24 @@ describe("빌드 어댑터 — 정적 HTML에 해시 meta", () => {
     const adapter = await loadAdapter();
     await expect(adapter.onBuildComplete(fakeBuild({ isr: "/ko/guide" }))).rejects.toThrow();
     expect(vi.mocked(console.error).mock.calls.flat().join("\n")).toMatch(/\/ko\/guide: revalidate 60초/);
+  });
+
+  it("어댑터 출력에서 빠진 prerender HTML(정적 404가 있을 때의 /_not-found)도 manifest로 찾아 고친다 — 플랫폼이 옮기지 않으니 산출물 개수에는 넣지 않는다", async () => {
+    const adapter = await loadAdapter(fakePlatform("copy"));
+    const ctx = fakeBuild();
+    writeFileSync(path.join(dir, ".next/server/app/_not-found.html"), page("/_not-found"));
+    writeFileSync(path.join(dir, ".next/prerender-manifest.json"), JSON.stringify({ routes: { "/_not-found": { initialRevalidateSeconds: false } } }));
+    await adapter.onBuildComplete(ctx);
+    expect([...readFileSync(path.join(dir, ".next/server/app/_not-found.html"), "utf8").matchAll(META)]).toHaveLength(1);
+  });
+
+  it(".next/server에 meta 없는 Next HTML이 남으면(어디서도 고치지 않은 파일) 빌드를 실패시킨다", async () => {
+    const adapter = await loadAdapter();
+    const ctx = fakeBuild();
+    mkdirSync(path.join(dir, ".next/server/pages"), { recursive: true });
+    writeFileSync(path.join(dir, ".next/server/pages/stray.html"), page("/stray"));
+    await expect(adapter.onBuildComplete(ctx)).rejects.toThrow();
+    expect(vi.mocked(console.error).mock.calls.flat().join("\n")).toMatch(/pages\/stray\.html: \.next\/server의 HTML에 CSP meta가 0개/);
   });
 
   it("정적 목록에 없는 로케일 페이지가 정적으로 만들어지면 빌드를 실패시킨다", async () => {

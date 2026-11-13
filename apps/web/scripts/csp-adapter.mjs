@@ -19,7 +19,8 @@
  *    nonce 정책을 보내 이 HTML의 스크립트가 전부 막힌다(화면은 나오는데 하이드레이션이 안 된다).
  *  - 목록의 경로는 실제로 정적 페이지로 만들어져야 한다. 아니면 그 경로가 요청마다 nonce 없이 렌더된다.
  *  - 정적 페이지는 ISR(revalidate)이면 안 된다. 런타임에 다시 만든 HTML에는 이 해시가 없다.
- *  - 플랫폼 어댑터가 만든 배포 산출물의 정적 HTML에도 meta가 정확히 하나씩 있어야 한다.
+ *  - .next/server의 HTML(서버 함수가 런타임에 읽는다)과 플랫폼 어댑터가 만든 배포 산출물의 정적 HTML에도
+ *    meta가 정확히 하나씩 있어야 한다.
  */
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -71,15 +72,28 @@ export function injectMeta(html, policy, label, problems) {
 
 export const cspMetaCount = (html) => html.match(META_RE)?.length ?? 0;
 
-/** 빌드 결과 중 HTML 파일 — 정적 페이지(prerender)와 정적 파일 */
-function staticHtmlOutputs(outputs) {
+/**
+ * 고칠 HTML — 어댑터가 받은 정적 페이지(prerender)와 정적 파일, 그리고 prerender-manifest의 나머지 HTML.
+ *
+ * 정적 404(pages/404.html)가 있으면 Next는 /_not-found를 어댑터 출력에서 빼지만, 그 HTML은 서버 함수에 그대로
+ * 실려 런타임 404에 쓰일 수 있어 같이 고친다.
+ */
+function staticHtmlOutputs(ctx) {
   const seen = new Map();
-  for (const p of outputs.prerenders ?? []) {
+  for (const p of ctx.outputs.prerenders ?? []) {
     const file = p.fallback?.filePath;
-    if (file?.endsWith(".html")) seen.set(file, { route: p.pathname, file, revalidate: p.fallback.initialRevalidate });
+    if (file?.endsWith(".html")) seen.set(file, { route: p.pathname, file, revalidate: p.fallback.initialRevalidate, shipped: true });
   }
-  for (const s of outputs.staticFiles ?? []) {
-    if (s.filePath?.endsWith(".html") && !seen.has(s.filePath)) seen.set(s.filePath, { route: s.pathname, file: s.filePath, revalidate: false });
+  for (const s of ctx.outputs.staticFiles ?? []) {
+    if (s.filePath?.endsWith(".html") && !seen.has(s.filePath)) seen.set(s.filePath, { route: s.pathname, file: s.filePath, revalidate: false, shipped: true });
+  }
+  const manifestPath = path.join(ctx.distDir, "prerender-manifest.json");
+  if (existsSync(manifestPath)) {
+    const { routes = {} } = JSON.parse(readFileSync(manifestPath, "utf8"));
+    for (const [route, info] of Object.entries(routes)) {
+      const file = path.join(ctx.distDir, "server", "app", `${route === "/" ? "index" : route}.html`);
+      if (!seen.has(file) && existsSync(file)) seen.set(file, { route, file, revalidate: info.initialRevalidateSeconds, shipped: false });
+    }
   }
   return [...seen.values()];
 }
@@ -87,13 +101,13 @@ function staticHtmlOutputs(outputs) {
 /**
  * 정적 HTML마다 해시 meta를 넣고 정적 목록과 맞는지 확인한다. 고친 페이지 목록을 돌려준다.
  *
- * @param {{ route: string; file: string; revalidate?: number | false }[]} pages
+ * @param {{ route: string; file: string; revalidate?: number | false; shipped?: boolean }[]} pages  shipped: 어댑터 출력에 있어 플랫폼이 배포 산출물로 옮기는 HTML
  * @param {Record<string, string | undefined>} env
  * @param {string[]} problems
  */
 export function patchStaticPages(pages, env, problems) {
   const done = [];
-  for (const { route, file, revalidate } of pages) {
+  for (const { route, file, revalidate, shipped = true } of pages) {
     const first = route.split("/")[1] ?? "";
     if (/^[a-z]{2}$/.test(first)) {
       if (!LOCALES.includes(first)) problems.push(`${route}: 모르는 로케일 — LOCALES를 i18n/routing.ts와 맞출 것`);
@@ -110,7 +124,7 @@ export function patchStaticPages(pages, env, problems) {
     const html = readFileSync(file, "utf8");
     const hashes = inlineScriptHashes(html, route, problems);
     writeFileSync(file, injectMeta(html, staticPageMetaPolicy(hashes, env), route, problems));
-    done.push({ route, scripts: hashes.length });
+    done.push({ route, scripts: hashes.length, shipped });
   }
 
   // 목록에 있는데 정적으로 만들어지지 않은 경로 — 프록시가 nonce 없이 보내게 된다
@@ -123,23 +137,6 @@ export function patchStaticPages(pages, env, problems) {
     }
   }
   return done;
-}
-
-/**
- * 플랫폼 어댑터가 배포 산출물을 쓸 수 있는 자리 — Vercel은 Build Output API 디렉터리(.vercel/output, 빌드 서버에서는
- * /vercel/output). 플랫폼이 출력 위치를 환경변수로 넘기는 경우를 위해 이름에 OUTPUT이 든 변수 중 절대 경로인 것도 본다.
- */
-function outputDirCandidates(ctx) {
-  const fromEnv = Object.entries(process.env)
-    .filter(([k, v]) => /OUTPUT/.test(k) && typeof v === "string" && path.isAbsolute(v))
-    .map(([, v]) => v);
-  const dirs = [
-    ...fromEnv,
-    path.join(ctx.projectDir, ".vercel", "output"),
-    path.join(ctx.repoRoot, ".vercel", "output"),
-    "/vercel/output",
-  ];
-  return [...new Set(dirs.map((d) => path.resolve(d)))].filter((d) => existsSync(d));
 }
 
 /** dir 아래 .html 파일 — node_modules와 디렉터리 심볼릭 링크는 건너뛴다 */
@@ -158,29 +155,35 @@ function* htmlFiles(dir) {
   }
 }
 
+/** dir 아래 Next 앱 HTML마다 meta가 정확히 하나인지 — 확인한 파일 수를 돌려준다 */
+function checkHtmlTree(dir, what, problems) {
+  let found = 0;
+  for (const file of htmlFiles(dir)) {
+    const html = readFileSync(file, "utf8");
+    if (!html.includes(NEXT_HTML_MARK)) continue;
+    found++;
+    const count = cspMetaCount(html);
+    if (count !== 1) problems.push(`${path.relative(dir, file)}: ${what}의 HTML에 CSP meta가 ${count}개 — 1개여야 한다`);
+  }
+  return found;
+}
+
 /**
- * 플랫폼 어댑터가 만든 배포 산출물을 확인한다 — Next 앱 HTML이면 meta가 정확히 하나 있어야 하고, 고친 페이지 수만큼은
- * 있어야 한다(못 찾으면 배포본이 어디서 HTML을 가져가는지 모르는 것이므로 실패시킨다).
+ * 플랫폼 어댑터가 만든 배포 산출물을 확인한다. Vercel 어댑터(@vercel/next)는 <distDir>/output에 Build Output을
+ * 쓰고 정적 페이지 HTML을 functions/*.prerender-fallback.html로 복사한다(빌드가 끝나면 Vercel이 이 디렉터리를
+ * 올린다). 서버 함수는 .next의 원본 파일을 가리키므로(filePathMap) 앞의 .next 확인이 그쪽을 맡는다.
+ * 고친 페이지 수만큼 찾지 못하면 플랫폼이 HTML을 다른 곳에 두는 것이므로 실패시킨다.
  */
 function verifyPlatformOutput(ctx, expected, problems) {
-  const dirs = outputDirCandidates(ctx);
-  let found = 0;
-  for (const dir of dirs) {
-    for (const file of htmlFiles(dir)) {
-      const html = readFileSync(file, "utf8");
-      if (!html.includes(NEXT_HTML_MARK)) continue;
-      found++;
-      const count = cspMetaCount(html);
-      if (count !== 1) problems.push(`${path.relative(dir, file)}: 배포 산출물의 정적 HTML에 CSP meta가 ${count}개 — 1개여야 한다`);
-    }
-  }
+  const dir = path.join(ctx.distDir, "output");
+  const found = existsSync(dir) ? checkHtmlTree(dir, "배포 산출물", problems) : 0;
   if (found < expected) {
     problems.push(
-      `배포 산출물에서 정적 HTML을 ${found}개만 찾았다(고친 페이지 ${expected}개). 찾아본 곳: ${dirs.join(", ") || "(없음)"} — ` +
-        `플랫폼 어댑터가 HTML을 어디에 두는지 확인하고 outputDirCandidates를 고칠 것`,
+      `배포 산출물(${dir})에서 정적 HTML을 ${found}개만 찾았다(어댑터 출력의 정적 HTML ${expected}개) — ` +
+        `플랫폼 어댑터가 HTML을 어디에 두는지 확인하고 verifyPlatformOutput을 고칠 것`,
     );
   }
-  return { dirs, found };
+  return { dir, found };
 }
 
 /** 배포 플랫폼이 지정한 어댑터 — Next가 하던 방식(next 패키지 위치에서 해석, default 우선)으로 불러온다 */
@@ -218,7 +221,9 @@ const adapter = {
     const problems = [];
 
     // 1. 플랫폼 어댑터가 HTML을 가져가기 전에 해시 meta를 넣는다
-    const done = patchStaticPages(staticHtmlOutputs(ctx.outputs), process.env, problems);
+    const done = patchStaticPages(staticHtmlOutputs(ctx), process.env, problems);
+    // 빠진 HTML이 없는지 — 서버 함수가 런타임에 읽는 .next/server의 HTML도 전부 meta가 있어야 한다
+    checkHtmlTree(path.join(ctx.distDir, "server"), ".next/server", problems);
     if (problems.length > 0) fail(problems);
     console.log(`${TAG} 정적 HTML ${done.length}개에 해시 CSP를 넣었다 (괄호 안은 인라인 스크립트 수)`);
     console.log(`  ${done.map((d) => `${d.route} (${d.scripts})`).join(", ")}`);
@@ -229,9 +234,10 @@ const adapter = {
     if (typeof platform.onBuildComplete === "function") await platform.onBuildComplete(ctx);
 
     // 3. 배포 산출물 확인
-    const { dirs, found } = verifyPlatformOutput(ctx, done.length, problems);
+    // manifest에서 보충한 HTML(/_not-found)은 플랫폼이 복사하지 않으므로 어댑터 출력에서 온 것만 센다
+    const { dir, found } = verifyPlatformOutput(ctx, done.filter((d) => d.shipped).length, problems);
     if (problems.length > 0) fail(problems);
-    console.log(`${TAG} 배포 산출물의 정적 HTML ${found}개에 meta가 하나씩 있다 (${dirs.join(", ")})`);
+    console.log(`${TAG} 배포 산출물의 정적 HTML ${found}개에 meta가 하나씩 있다 (${path.relative(ctx.projectDir, dir)})`);
   },
 };
 
