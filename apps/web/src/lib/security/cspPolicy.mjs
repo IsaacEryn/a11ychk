@@ -1,13 +1,13 @@
 /**
- * CSP 정책 조립과 정적 페이지 판정 — 프록시(./csp.ts)와 빌드 후처리(scripts/csp-static-pages.mjs)가 함께 쓴다.
+ * CSP 정책 조립과 정적 페이지 판정 — 프록시(./csp.ts)와 빌드 어댑터(scripts/csp-adapter.mjs)가 함께 쓴다.
  *
- * 빌드 후처리가 Node로 직접 import하므로 의존성 없는 순수 ESM으로 둔다(TS 경로 별칭·확장자 없는 import 금지).
+ * 빌드 어댑터가 Node로 직접 import하므로 의존성 없는 순수 ESM으로 둔다(TS 경로 별칭·확장자 없는 import 금지).
  *
  * 페이지는 두 갈래로 나간다.
  *
  * - 동적 페이지: 프록시가 요청마다 nonce를 발급하고 Next가 자기 스크립트에 붙인다. 정책은
  *   `'nonce-…' 'strict-dynamic'` + 레이아웃 인라인 스크립트(테마·GTM)의 해시.
- * - 정적 페이지(STATIC_PAGE_PATHS): 빌드 때 HTML이 만들어져 nonce를 넣을 수 없다. 빌드 후처리가
+ * - 정적 페이지(STATIC_PAGE_PATHS): 빌드 때 HTML이 만들어져 nonce를 넣을 수 없다. 빌드 어댑터가
  *   HTML 안의 인라인 스크립트(RSC 페이로드 포함)를 전부 해시해 `<meta http-equiv="Content-Security-Policy">`로
  *   박는다. 프록시가 보내는 헤더 정책은 "바깥 한계"만 맡는다 — 브라우저는 여러 정책을 모두 통과한
  *   스크립트만 실행하므로, 실효 정책은 meta의 해시 목록이다.
@@ -17,7 +17,7 @@
  * 로케일 뒤 경로가 이 중 하나면 빌드 때 만든 HTML을 그대로 내보낸다("" = 로케일 홈).
  *
  * 요청 정보·DB를 읽지 않는 [locale] 페이지는 Next가 알아서 정적으로 만든다. 그런 페이지를 새로 만들면
- * 여기에 더하거나(정적), 요청마다 렌더해야 하면 페이지에서 await connection()을 부른다 — 빌드 후처리가
+ * 여기에 더하거나(정적), 요청마다 렌더해야 하면 페이지에서 await connection()을 부른다 — 빌드 어댑터가
  * 둘 중 하나가 아니면 빌드를 실패시킨다.
  */
 export const STATIC_PAGE_PATHS = ["", "/about", "/accessibility", "/auth/reset", "/bot", "/guide", "/privacy", "/sitemap", "/terms"];
@@ -29,7 +29,7 @@ export const STATIC_GUIDE_PREFIX = "/guide/";
  * 이 경로가 빌드 때 만든 정적 페이지인지.
  *
  * guideSlugs를 넘기면 가이드 슬러그를 그 집합으로 확인한다(프록시). 없는 슬러그는 런타임에 404를 렌더하므로
- * 동적 페이지로 보아 nonce를 붙여야 한다. 빌드 후처리는 실제로 만들어진 경로만 넣으므로 넘기지 않는다.
+ * 동적 페이지로 보아 nonce를 붙여야 한다. 빌드 어댑터는 실제로 만들어진 경로만 넣으므로 넘기지 않는다.
  *
  * @param {string} pathname
  * @param {{ locales: readonly string[]; guideSlugs?: ReadonlySet<string> }} opts

@@ -14,6 +14,7 @@ vi.mock("../src/lib/security/csp", () => ({
     return "default-src 'self'";
   },
   isStaticPage: () => state.staticPage,
+  isUnknownGuidePath: (p: string) => p.endsWith("/guide/nope"),
   STATIC_PAGE_CSP: "static-policy",
 }));
 
@@ -67,6 +68,13 @@ describe("proxy — CSP 갈래", () => {
     process.env.ADMIN_PATH_SLUG = "console-x7k2";
     state.staticPage = true;
     const res = await proxy(req("/ko/console-x7k2"));
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'self'");
+  });
+
+  it("없는 가이드 슬러그는 다른 오타 주소와 같은 로케일 404로 돌리고 nonce 정책을 싣는다", async () => {
+    state.staticPage = true;
+    const res = await proxy(req("/en/guide/nope"));
+    expect(rewriteOf(res)).toContain("/en/__404__");
     expect(res.headers.get("content-security-policy")).toBe("default-src 'self'");
   });
 });

@@ -2,7 +2,7 @@ import createIntlMiddleware from "next-intl/middleware";
 import { NextResponse, type NextRequest } from "next/server";
 import { localeFromPathname, routing } from "./i18n/routing";
 import { applyRefreshedCookies, refreshSession } from "./lib/supabase/middleware";
-import { STATIC_PAGE_CSP, attachCspToRequest, isStaticPage } from "./lib/security/csp";
+import { STATIC_PAGE_CSP, attachCspToRequest, isStaticPage, isUnknownGuidePath } from "./lib/security/csp";
 import { sanitizePrefillUrl } from "./lib/prefillUrl";
 import { isExternalAdminPath, isInternalAdminPath, readAdminSlug, slugToInternal } from "./lib/adminSlug";
 import { ADMIN_TS_COOKIE, adminTsCookieOptions, isIdleExpired, signAdminTs, verifyAdminTs } from "./lib/adminIdleCookie";
@@ -30,7 +30,11 @@ export async function proxy(request: NextRequest) {
   // ── 1. 관리자 슬러그 경로 판정 ──
   // slug 활성 시(또는 잘못된 slug로 닫혔을 때) 내부 /admin 직접 접근은 같은 로케일의 미존재 경로로 돌려, 임의의
   // 오타 URL과 상태코드·본문·헤더가 완전히 같은 응답을 만든다.
-  const masked = (slug || slugInvalid) && isInternalAdminPath(pathname) ? `/${localeFromPathname(pathname)}/__404__` : null;
+  // 없는 가이드 슬러그도 같은 404로 보낸다 — 그대로 두면 Next가 로케일 레이아웃 밖의 정적 404를 낸다(lib/security/csp.ts)
+  const masked =
+    ((slug || slugInvalid) && isInternalAdminPath(pathname)) || isUnknownGuidePath(pathname)
+      ? `/${localeFromPathname(pathname)}/__404__`
+      : null;
   // 슬러그 경로면 내부 /admin 라우트로 돌린다
   const rewriteTo = masked ?? (slug ? slugToInternal(pathname, slug) : null);
 

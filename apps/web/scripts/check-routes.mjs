@@ -250,7 +250,7 @@ async function main() {
       res.status !== 200 && `상태 ${res.status}`,
       !csp.includes("script-src") && "CSP 헤더 없음 — 프록시 matcher에서 빠졌는지 확인",
       /'nonce-|'strict-dynamic'|'sha256-/.test(csp) && "정적 페이지 헤더에 nonce·해시·strict-dynamic — meta 정책과 겹쳐 RSC 스크립트가 막힌다",
-      metas.length !== 1 && `meta CSP ${metas.length}개 — 빌드 후처리(csp-static-pages)가 돌았는지 확인`,
+      metas.length !== 1 && `meta CSP ${metas.length}개 — 빌드 어댑터(csp-adapter)가 돌았는지 확인`,
       metas.some((m) => m.includes("'unsafe-inline'")) && "meta 정책에 'unsafe-inline'",
       // 정적 HTML을 그대로 내보냈는지 — 요청마다 렌더됐다면 이 페이지의 CPU 절감이 사라진 것이다
       // (Next가 이 헤더를 두 번 실어 "1, 1"로 합쳐 오기도 한다)

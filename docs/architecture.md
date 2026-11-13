@@ -112,7 +112,7 @@ SIGNATURE_SCRIPT와 같은 값을 내는지 signature-parity 테스트가 확인
 | 시크릿 | 전부 환경변수. service role·INTERNAL_API_SECRET은 서버 전용 (`server-only` import 강제) |
 | XSS | 위반 HTML 스니펫은 React 텍스트 노드로만 출력(자동 이스케이프), 길이 제한 저장 |
 | 응답 헤더 | X-Frame-Options DENY, nosniff, Referrer-Policy, Permissions-Policy |
-| CSP | `src/proxy.ts`가 붙인다(`lib/security/csp.ts`·`cspPolicy.mjs`). 요청마다 렌더하는 페이지는 요청별 nonce + `strict-dynamic` + 레이아웃 인라인 스크립트(테마·GTM) 해시. 빌드 때 만든 정적 공개 페이지는 nonce를 넣을 수 없어, 빌드 후처리(`scripts/csp-static-pages.mjs`)가 HTML의 인라인 스크립트를 전부 해시해 `<meta http-equiv="Content-Security-Policy">`로 넣고, 헤더는 frame-ancestors 등 나머지 지시어와 바깥 한계만 맡는다(브라우저는 두 정책을 모두 통과한 스크립트만 실행). 정적 페이지는 ISR·`revalidatePath`를 쓰지 않는다 — 런타임에 다시 만든 HTML에는 해시가 없다 |
+| CSP | `src/proxy.ts`가 붙인다(`lib/security/csp.ts`·`cspPolicy.mjs`). 요청마다 렌더하는 페이지는 요청별 nonce + `strict-dynamic` + 레이아웃 인라인 스크립트(테마·GTM) 해시. 빌드 때 만든 정적 공개 페이지는 nonce를 넣을 수 없어, 빌드 어댑터(`scripts/csp-adapter.mjs`, next.config의 adapterPath)가 `next build` 안에서 플랫폼 어댑터보다 먼저 HTML의 인라인 스크립트를 전부 해시해 `<meta http-equiv="Content-Security-Policy">`로 넣고, 헤더는 frame-ancestors 등 나머지 지시어와 바깥 한계만 맡는다(브라우저는 두 정책을 모두 통과한 스크립트만 실행). 정적 페이지는 ISR·`revalidatePath`를 쓰지 않는다 — 런타임에 다시 만든 HTML에는 해시가 없다 |
 | 남용 방지 | 일/주/월 횟수 제한, 사용자당 동시 1건, 계정 차단, open redirect 검증(auth callback) |
 | 봇 방지 | Cloudflare Turnstile — 가입·로그인은 Supabase Auth가, 비로그인 맛보기 검사는 자체 엔드포인트가 siteverify로 서버 검증(fail-closed, `lib/turnstile.ts`) |
 | 관리자 다층 보안 | ① `ADMIN_PATH_SLUG` 경로 은닉(proxy rewrite, /admin 직접 접근은 일반 404) ② 필수 TOTP 2단계 인증(AAL2, `lib/adminGuard.ts`) ③ 동시 로그인 방지(MFA 완성 시 다른 기기 세션 철회) + 로그인 알림 메일 ④ 무활동 20분 타임아웃(HMAC 서명 쿠키, `lib/adminIdleCookie.ts`) ⑤ (선택) `is_admin()`에 AAL2 요구(0027) |

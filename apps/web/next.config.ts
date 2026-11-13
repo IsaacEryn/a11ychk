@@ -41,6 +41,9 @@ const nextConfig: NextConfig = {
     [`/api/${API_WITH_BROWSER}/**/*`]: BROWSER_TRACE,
     [`/api/${API_WITH_BROWSER}`]: BROWSER_TRACE,
   },
+  // 빌드 어댑터 — 정적 페이지 HTML에 인라인 스크립트 해시 CSP(meta)를 넣은 뒤 배포 플랫폼의 어댑터(NEXT_ADAPTER_PATH)에
+  // 넘긴다. 플랫폼 어댑터가 next build 안에서 HTML을 배포 산출물로 옮기므로 그보다 먼저 고쳐야 한다(scripts/csp-adapter.mjs).
+  adapterPath: path.join(process.cwd(), "scripts", "csp-adapter.mjs"),
   async headers() {
     // CSP는 페이지가 정적인지(빌드 때 만든 HTML + 해시) 동적인지(요청별 nonce)에 따라 달라
     // 프록시(src/proxy.ts)에서 부여한다. 여기서는 나머지 보안 헤더만 전 경로에 적용.

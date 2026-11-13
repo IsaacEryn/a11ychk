@@ -23,7 +23,7 @@ describe("isStaticPagePath — 프록시가 nonce 없이 보내는 경로", () =
     expect(isStaticPagePath("/ko/guide/alternative-text", { locales: LOCALES, guideSlugs })).toBe(true);
   });
 
-  it("없는 가이드 슬러그는 런타임에 404를 렌더하므로 동적 — 슬러그 집합을 넘기지 않으면 모양만 본다(빌드 후처리)", () => {
+  it("없는 가이드 슬러그는 런타임에 404를 렌더하므로 동적 — 슬러그 집합을 넘기지 않으면 모양만 본다(빌드 어댑터)", () => {
     expect(isStaticPagePath("/ko/guide/nope", { locales: LOCALES, guideSlugs })).toBe(false);
     expect(isStaticPagePath("/ko/guide/nope", { locales: LOCALES })).toBe(true);
     expect(isStaticPagePath("/ko/guide/alternative-text/x", { locales: LOCALES })).toBe(false);
@@ -87,6 +87,15 @@ describe("CSP 헤더 — 동적 페이지와 정적 페이지", () => {
     expect(isStaticPage("/ko/guide")).toBe(true);
     expect(isStaticPage("/ko/guide/alternative-text")).toBe(true);
     expect(isStaticPage("/ko/guide/nope")).toBe(false);
+  });
+
+  it("isUnknownGuidePath — 로케일 아래 한 단계 가이드 경로 중 슬러그가 목록에 없는 것만", async () => {
+    const { isUnknownGuidePath } = await loadCsp({});
+    expect(isUnknownGuidePath("/ko/guide/nope")).toBe(true);
+    expect(isUnknownGuidePath("/en/guide/%EA%B0%80")).toBe(true);
+    for (const p of ["/ko/guide/alternative-text", "/ko/guide", "/ko/guide/nope/x", "/fr/guide/nope", "/guide/nope"]) {
+      expect(isUnknownGuidePath(p)).toBe(false);
+    }
   });
 });
 
