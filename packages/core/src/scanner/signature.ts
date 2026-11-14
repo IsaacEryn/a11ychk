@@ -6,14 +6,38 @@
  */
 import type { Page } from "playwright-core";
 import type { PageSignature } from "../types";
+import { MEDIA_EMBED_HOSTS } from "./collectSignature";
 
 /**
  * 상위 문서에서 평가하는 시그니처 스크립트(ES5 문자열). 크롬 확장은 같은 계산을
  * collectSignature.ts의 collectPageSignature 함수로 하므로, 고칠 때는 양쪽을 함께 고치고
- * tests/signature-parity.test.ts를 통과시킬 것.
+ * tests/signature-parity.test.ts를 통과시킬 것. hasMedia의 iframe 기준과 근거는
+ * collectSignature.ts의 MEDIA_EMBED_HOSTS 주석에 있다(호스트 목록은 그 상수를 그대로 끼워 넣는다).
  */
 export const SIGNATURE_SCRIPT = `(function(){
+  var MEDIA_HOSTS = ${JSON.stringify(MEDIA_EMBED_HOSTS)};
   function txt(el){ return (el.textContent||'').replace(/\\s+/g,' ').trim().slice(0,60); }
+  function isMediaFrame(f){
+    var feats = {};
+    var allow = (f.getAttribute('allow')||'').toLowerCase().split(';');
+    for (var k=0;k<allow.length;k++){ var name=allow[k].trim().split(/\\s+/)[0]; if(name) feats[name]=true; }
+    if (feats['encrypted-media'] || feats['picture-in-picture']) return true;
+    if (feats['autoplay'] && (feats['fullscreen'] || f.hasAttribute('allowfullscreen'))) return true;
+    var attrs = ['src','data-src','data-lazy-src'];
+    for (var s=0;s<attrs.length;s++){
+      var raw=f.getAttribute(attrs[s]);
+      if (!raw) continue;
+      var host='', path='';
+      try { var u=new URL(raw, document.baseURI); host=u.hostname.toLowerCase(); path=u.pathname.toLowerCase(); } catch(e){ continue; }
+      for (var m=0;m<MEDIA_HOSTS.length;m++){
+        var entry=MEDIA_HOSTS[m], slash=entry.indexOf('/');
+        var eh = slash<0 ? entry : entry.slice(0,slash);
+        var ep = slash<0 ? '' : entry.slice(slash);
+        if ((host===eh || host.slice(-(eh.length+1))==='.'+eh) && path.indexOf(ep)>=0) return true;
+      }
+    }
+    return false;
+  }
   function cssPath(el){
     try {
       if (el.id) return '#'+el.id;
@@ -68,12 +92,19 @@ export const SIGNATURE_SCRIPT = `(function(){
     }
   } catch(e){}
 
+  // 미디어 판정은 try로 감싸지 않는다 — 실패하면 evaluate가 거부돼 시그니처가 null이 되고 '해당 없음'을 보류한다
+  var hasMedia = !!document.querySelector('video, audio');
+  if (!hasMedia){
+    var frames = document.querySelectorAll('iframe');
+    for (var q=0;q<frames.length;q++){ if (isMediaFrame(frames[q])) { hasMedia=true; break; } }
+  }
+
   return {
     title: (document.title||'').trim(),
     navLinks: navLinks,
     hasSearch: hasSearch,
     hasSitemap: hasSitemap,
-    hasMedia: !!document.querySelector('video, audio'),
+    hasMedia: hasMedia,
     review: review
   };
 })()`;

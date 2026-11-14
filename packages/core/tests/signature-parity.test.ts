@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from "vitest";
 import { SIGNATURE_SCRIPT } from "../src/scanner/signature";
-import { collectPageSignature } from "../src/scanner/collectSignature";
+import { MEDIA_EMBED_HOSTS, collectPageSignature } from "../src/scanner/collectSignature";
 import { siteLevelOptions } from "../src/report/siteChecks";
 import type { PageSignature } from "../src/types";
 
@@ -59,6 +59,39 @@ const PLACEHOLDER_ONLY = {
 `,
 };
 
+// 동영상이 유튜브 임베드로만 있는 페이지 — W3C WAI perspective-videos 페이지가 스크립트로 <video>를
+// 이 iframe으로 바꿔 넣은 뒤의 상위 문서 모양(2026-11 실측)
+const YOUTUBE_ONLY = {
+  title: "Video Captions",
+  body: `
+  <main>
+    <h1>Video Captions</h1>
+    <div class="able-vidcap-wrapper">
+      <iframe title="Web Accessibility Perspectives: Video Captions"
+        src="https://www.youtube-nocookie.com/embed/iWO5N3n1DXU?autoplay=0&amp;enablejsapi=1"
+        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+        allowfullscreen></iframe>
+    </div>
+  </main>
+`,
+};
+
+// 미디어로 보지 않아야 하는 iframe만 있는 페이지 — 지도·광고·위젯·유사 도메인
+const NON_MEDIA_FRAMES = {
+  title: "오시는 길",
+  body: `
+  <iframe title="지도" src="https://www.google.com/maps/embed?pb=xyz" allowfullscreen loading="lazy"></iframe>
+  <iframe title="광고" src="https://siape.veta.naver.com/fxshow?su=SU10868"></iframe>
+  <iframe title="좋아요" src="https://www.facebook.com/plugins/like.php?href=x"></iframe>
+  <iframe title="알림음 위젯" src="https://widget.example.com/chat" allow="autoplay"></iframe>
+  <iframe title="유사 도메인" src="https://notyoutube.com/embed/x"></iframe>
+  <iframe title="하위 경로 위장" src="https://youtube.com.evil.example/embed/x"></iframe>
+  <iframe title="빈 프레임" src="about:blank"></iframe>
+  <iframe title="깨진 주소" src="http://["></iframe>
+  <iframe title="srcdoc"></iframe>
+`,
+};
+
 function runBoth(fixture: { title: string; body: string }): { server: Collected; extension: Collected } {
   document.title = fixture.title;
   document.body.innerHTML = fixture.body;
@@ -66,8 +99,15 @@ function runBoth(fixture: { title: string; body: string }): { server: Collected;
   const server = eval(SIGNATURE_SCRIPT) as Collected;
   document.title = fixture.title;
   document.body.innerHTML = fixture.body;
-  const extension = collectPageSignature();
+  // 확장은 chrome.scripting.executeScript의 args로 호스트 목록을 넘긴다(scan.ts와 같은 호출)
+  const extension = collectPageSignature([...MEDIA_EMBED_HOSTS]);
   return { server, extension };
+}
+
+/** iframe 하나만 있는 페이지에서 두 구현의 hasMedia를 함께 돌려준다 */
+function frameOnly(attrs: string): { server: boolean; extension: boolean } {
+  const { server, extension } = runBoth({ title: "", body: `<iframe ${attrs}></iframe>` });
+  return { server: server.hasMedia, extension: extension.hasMedia };
 }
 
 describe("서버 SIGNATURE_SCRIPT ↔ 확장 collectPageSignature 패리티", () => {
@@ -100,8 +140,54 @@ describe("서버 SIGNATURE_SCRIPT ↔ 확장 collectPageSignature 패리티", ()
     expect(server.hasMedia).toBe(true);
   });
 
+  it("유튜브 임베드만 있는 페이지는 두 구현 모두 미디어 있음으로 보고 1.2.x를 '해당 없음'으로 세지 않는다", () => {
+    const { server, extension } = runBoth(YOUTUBE_ONLY);
+    expect(extension).toEqual(server);
+    expect(server.hasMedia).toBe(true);
+    const url = "https://www.w3.org/WAI/perspective-videos/captions/";
+    expect(siteLevelOptions([{ url, ...server }], 1).notPresentScs).toEqual([]);
+    expect(siteLevelOptions([{ url, ...extension }], 1).notPresentScs).toEqual([]);
+  });
+
+  it("알려진 미디어 플랫폼 호스트는 allow 속성이 없어도 두 구현 모두 미디어로 본다(하위 도메인 포함)", () => {
+    for (const entry of MEDIA_EMBED_HOSTS) {
+      const src = entry.includes("/") ? `https://${entry}.php?id=1` : `https://${entry}/embed/1`;
+      expect(frameOnly(`src="${src}"`), src).toEqual({ server: true, extension: true });
+      const sub = `https://player.${entry}${entry.includes("/") ? "" : "/v/1"}`;
+      expect(frameOnly(`src="${sub}"`), sub).toEqual({ server: true, extension: true });
+    }
+  });
+
+  it("지연 로딩 속성(data-src)과 프로토콜 상대 주소도 같은 기준으로 본다", () => {
+    expect(frameOnly(`src="about:blank" data-src="https://player.vimeo.com/video/1"`)).toEqual({
+      server: true,
+      extension: true,
+    });
+    expect(frameOnly(`data-lazy-src="https://tv.naver.com/embed/1"`)).toEqual({ server: true, extension: true });
+    expect(frameOnly(`src="//www.youtube.com/embed/1"`)).toEqual({ server: true, extension: true });
+    expect(frameOnly(`src="HTTPS://WWW.YOUTUBE.COM/embed/1"`)).toEqual({ server: true, extension: true });
+  });
+
+  it("호스트를 모르는 플레이어는 allow의 미디어 전용 권한으로 판단한다", () => {
+    const unknown = `src="https://media.example.org/player/1"`;
+    expect(frameOnly(`${unknown} allow="encrypted-media"`)).toEqual({ server: true, extension: true });
+    expect(frameOnly(`${unknown} allow="picture-in-picture *"`)).toEqual({ server: true, extension: true });
+    expect(frameOnly(`${unknown} allow="autoplay; fullscreen"`)).toEqual({ server: true, extension: true });
+    expect(frameOnly(`${unknown} allow="Autoplay" allowfullscreen`)).toEqual({ server: true, extension: true });
+    // autoplay만(알림음 위젯 등)이나 전체 화면만(지도·문서·슬라이드)으로는 미디어로 보지 않는다
+    expect(frameOnly(`${unknown} allow="autoplay"`)).toEqual({ server: false, extension: false });
+    expect(frameOnly(`${unknown} allow="fullscreen" allowfullscreen`)).toEqual({ server: false, extension: false });
+  });
+
+  it("지도·광고·좋아요 버튼·유사 도메인 iframe만 있으면 두 구현 모두 미디어 없음으로 본다", () => {
+    const { server, extension } = runBoth(NON_MEDIA_FRAMES);
+    expect(extension).toEqual(server);
+    expect(server.hasMedia).toBe(false);
+    expect(siteLevelOptions([{ url: "https://example.com/", ...server }], 1).notPresentScs).toHaveLength(5);
+  });
+
   it("확장 시그니처로 만든 단일 페이지 옵션이 서버 시그니처의 옵션과 같다", () => {
-    for (const fixture of [FULL, EMPTY, PLACEHOLDER_ONLY]) {
+    for (const fixture of [FULL, EMPTY, PLACEHOLDER_ONLY, YOUTUBE_ONLY, NON_MEDIA_FRAMES]) {
       const { server, extension } = runBoth(fixture);
       const url = "https://example.com/";
       expect(siteLevelOptions([{ url, ...extension }], 1)).toEqual(siteLevelOptions([{ url, ...server }], 1));

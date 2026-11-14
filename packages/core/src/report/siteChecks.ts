@@ -24,7 +24,8 @@ export const MEDIA_SCS = ["1.2.1", "1.2.2", "1.2.3", "1.2.4", "1.2.5"];
 /**
  * '해당 없음(notPresent)' 성공기준 계산.
  * 검사에 성공한 모든 페이지의 시그니처가 있고(부분 수집이면 판단 보류)
- * 어느 페이지에도 <video>/<audio>가 없으면 1.2.x는 해당 콘텐츠가 없어 적용되지 않는다.
+ * 어느 페이지에도 미디어(<video>/<audio> 또는 동영상·오디오 임베드 iframe — 기준은
+ * scanner/collectSignature.ts의 MEDIA_EMBED_HOSTS 주석)가 없으면 1.2.x는 해당 콘텐츠가 없어 적용되지 않는다.
  */
 export function computeNotPresentScs(signatures: PageSignature[], scannedPageCount: number): string[] {
   if (scannedPageCount === 0 || signatures.length < scannedPageCount) return [];

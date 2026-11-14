@@ -1,6 +1,7 @@
 // 검사 실행(axe + 커스텀 검사) + 결과 세션 캐시 갱신
 import {
   AXE_RUN_TAGS,
+  MEDIA_EMBED_HOSTS,
   THIRD_PARTY_AD_EXCLUDE,
   automatedComplianceRate,
   collectPageSignature,
@@ -140,13 +141,15 @@ export async function scan() {
       log.warn("custom checks failed; proceeding with axe results only", e);
     }
 
-    // 4) 페이지 시그니처 — 웹·티저처럼 상위 문서에서만 수집한다(하위 프레임 미디어는 웹도 보지 않는다).
+    // 4) 페이지 시그니처 — 웹·티저처럼 상위 문서에서만 수집한다. 동영상 임베드도 하위 프레임 안을 보지 않고
+    //    상위 문서의 iframe 속성(호스트·allow)으로 판정해 웹과 같은 답을 낸다(MEDIA_EMBED_HOSTS 주석 참고).
     //    미디어가 없으면 1.2.1~1.2.5를 '해당 없음'으로 세는 근거라, 수집에 실패하면 판단을 보류(null)한다.
     let signature: PageSignature | null = null;
     try {
       const [sigResult] = await chrome.scripting.executeScript({
         target: { tabId: tab.id },
         func: collectPageSignature,
+        args: [MEDIA_EMBED_HOSTS],
       });
       const collected = sigResult?.result as Omit<PageSignature, "url"> | undefined;
       if (collected) signature = { url: tab.url, ...collected };
