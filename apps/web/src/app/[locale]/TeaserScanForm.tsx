@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { Turnstile, CAPTCHA_ENABLED, resetTurnstile } from "@/components/Turnstile";
 import { appFetch } from "@/lib/serviceStatus";
+import { sanitizePrefillUrl } from "@/lib/prefillUrl";
+import { useAuthHint } from "@/lib/authHint";
 
 /** /api/teaser-scan 응답(서버에서 로컬라이즈·트리밍 완료 — 규칙당 위치 1개만 옴) */
 interface TeaserRule {
@@ -42,16 +44,28 @@ const IMPACT_COLOR: Record<TeaserRule["impact"], string> = {
 /**
  * 비로그인 맛보기 검사 — URL 1개를 즉석 검사해 같은 자리에서 결과를 보여준다.
  * 결과는 저장되지 않으며(고지), 위반 위치는 규칙당 1개만 표시된다(나머지는 가입 후).
+ *
+ * 비회원 전용이다. 랜딩이 정적 HTML이라 서버는 회원 여부를 모르므로, 첫 페인트는 .auth-out이 가리고
+ * 하이드레이션 뒤에는 로그인 힌트를 보고 아예 그리지 않는다.
  */
-export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
+export function TeaserScanForm() {
   const t = useTranslations("landing.teaser");
   const locale = useLocale() === "en" ? "en" : "ko";
-  // 딥링크 프리필 — 제출은 Turnstile 통과 후 사용자 클릭으로만 (자동 제출 없음)
-  const [url, setUrl] = useState(initialUrl ?? "");
+  const signedIn = useAuthHint();
+  // 딥링크(?url=) 프리필 — 제출은 Turnstile 통과 후 사용자 클릭으로만 (자동 제출 없음)
+  const [url, setUrl] = useState("");
   const [token, setToken] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "loading" | "done" | "error">("idle");
   const [errorCode, setErrorCode] = useState<string>("");
   const [result, setResult] = useState<TeaserResult | null>(null);
+
+  // 정적 페이지라 검색어는 브라우저에서만 읽힌다. 사용자가 이미 입력했으면 덮어쓰지 않는다.
+  // (회원의 딥링크는 프록시가 /scan으로 보내므로 여기까지 오지 않는다)
+  useEffect(() => {
+    const prefill = sanitizePrefillUrl(new URLSearchParams(window.location.search).get("url"));
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- 외부(주소창) 값을 마운트 때 한 번 반영
+    if (prefill) setUrl((cur) => cur || prefill);
+  }, []);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -84,6 +98,8 @@ export function TeaserScanForm({ initialUrl }: { initialUrl?: string } = {}) {
       }
     }
   }
+
+  if (signedIn) return null;
 
   const errorKeys = ["invalidUrl", "captcha", "ipLimit", "globalCap", "robots", "scanFailed", "unavailable", "network"];
   const errorKey = errorKeys.includes(errorCode) ? errorCode : "scanFailed";

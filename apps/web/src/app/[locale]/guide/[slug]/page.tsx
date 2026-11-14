@@ -21,6 +21,11 @@ export function generateStaticParams() {
   return KWCAG_ITEMS.map((item) => ({ slug: item.slug }));
 }
 
+// 33개 항목은 빌드 때 전부 만든다. 없는 슬러그를 런타임에 렌더하려 들면 정적 라우트 안에서 404 화면이
+// 요청 헤더를 읽어(next-intl 로케일) 500이 난다 — 목록 밖은 렌더 없이 404로 끝낸다. 실제로는 프록시가 먼저
+// 다른 오타 주소와 같은 로케일 404로 돌린다(isUnknownGuidePath). 여기서 끝나면 루트 404라 lang·제목이 없다.
+export const dynamicParams = false;
+
 export async function generateMetadata({
   params,
 }: {

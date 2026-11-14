@@ -156,7 +156,8 @@ npm run typecheck && npm run lint
 - 모든 시크릿은 환경변수로만 관리 — 저장소에는 `.env.example`만 존재
 - 사용자 입력 URL은 SSRF 가드(스킴 검증 → DNS resolve → 사설 대역 차단 → 브라우저 DNS 핀 → redirect 재검증)를 통과
 - Supabase RLS로 사용자 데이터 격리, service role은 서버에서 권한 검증 후에만 사용
-- 검사 횟수 제한(일/주/월) + robots.txt 존중, CSP nonce·표준 보안 헤더 적용
+- 검사 횟수 제한(일/주/월) + robots.txt 존중, 표준 보안 헤더 적용
+- CSP에서 인라인 스크립트는 nonce(요청마다 렌더하는 페이지) 또는 빌드 때 계산한 해시(정적 공개 페이지)로만 허용
 
 ## 기여
 

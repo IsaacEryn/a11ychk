@@ -43,6 +43,10 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * 이 레이아웃은 요청 정보(헤더·쿠키·검색어)와 DB를 읽지 않는다 — 읽는 순간 그 아래 모든 페이지가 요청마다
+ * 렌더되어 정적 공개 페이지(랜딩·가이드)가 사라진다. 문서 골격(LocaleDocument)도 같은 규칙을 따른다.
+ */
 export default async function LocaleLayout({
   children,
   params,

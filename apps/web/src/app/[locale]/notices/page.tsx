@@ -1,4 +1,5 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import { connection } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getAnnouncements } from "@/lib/appSettings";
 import { publicMetadata } from "@/lib/seo/pageMetadata";
@@ -18,6 +19,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 export default async function NoticesPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // 요청마다 렌더한다 — 공지는 관리자가 올리는 즉시 보여야 하고, 정적으로 만들면 빌드 시점 목록에 머문다.
+  await connection();
   const t = await getTranslations("notices");
   const format = await getFormatter();
   const lang = locale === "en" ? "en" : "ko";

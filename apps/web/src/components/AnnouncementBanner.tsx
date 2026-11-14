@@ -1,7 +1,9 @@
 "use client";
 
-import { useEffect, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { useLocale, useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
+import type { ShellNotice } from "@/app/api/shell/announcement/route";
 
 const DISMISS_KEY = "a11ychk-announcement-dismissed";
 const VIEWS_KEY = "a11ychk-announcement-views";
@@ -64,7 +66,7 @@ function bumpViews(id: string): void {
  * 사라지는 조건 3가지 — 모두 "보고 있는 화면에서 갑자기 없어지지 않는다":
  *  1) 사용자가 닫기 (id 기억 — 새 공지가 오면 다시 표시)
  *  2) 이미 MAX_VIEWS회 본 공지 (판정은 로드당 1회 — 읽는 중 사라지지 않음)
- *  3) 관리자가 지정한 노출 기간 만료 (서버에서 제외 — layout이 필터)
+ *  3) 관리자가 지정한 노출 기간 만료 (서버가 제외하고, 받은 뒤에도 AnnouncementSlot이 다시 확인)
  *
  * 타이머로 자동 숨기지 않는 이유: 읽기에 시간 제한을 두면 WCAG 2.2.1(시간 조절)에
  * 어긋난다. 화면 확대·스크린리더 사용자는 배너에 도달하는 데만 시간이 걸린다.
@@ -85,7 +87,7 @@ export function AnnouncementBanner({
   closeLabel: string;
   ariaLabel: string;
 }) {
-  // 서버 스냅샷은 false — SSR·하이드레이션은 배너를 렌더하고, 그 뒤 클라이언트 판정을 반영한다
+  // 배너는 하이드레이션 뒤에 받아 와서 처음 마운트되므로 바로 클라이언트 판정을 쓴다(서버 스냅샷 false는 형식상)
   // (getSnapshot이 원시값이라 안정적 — 매 렌더 새 객체를 만들지 않는다)
   const hidden = useSyncExternalStore(subscribe, () => isDismissed(id) || isCapped(id), () => false);
 
@@ -131,5 +133,45 @@ export function AnnouncementBanner({
         </button>
       </div>
     </aside>
+  );
+}
+
+/**
+ * 공지 배너 자리 — 노출 중인 공지를 /api/shell/announcement에서 받아 그린다.
+ *
+ * 레이아웃이 DB를 읽지 않아야 공개 페이지가 정적으로 나가므로 배너만 클라이언트에서 채운다. 응답은 서버가
+ * 60초 단위로 만들어 두므로 페이지마다 DB를 치지 않는다. 받지 못하면 배너 없이 지나간다(장애 배너와 별개).
+ */
+export function AnnouncementSlot() {
+  const t = useTranslations("common.noticeBanner");
+  const locale = useLocale() === "en" ? "en" : "ko";
+  const [notice, setNotice] = useState<ShellNotice | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/shell/announcement")
+      .then((res) => (res.ok ? (res.json() as Promise<{ notice?: ShellNotice | null }>) : null))
+      .then((data) => {
+        const n = data?.notice;
+        // 응답이 최대 60초 묵을 수 있어 만료 시각을 여기서도 본다
+        if (alive && n && !(n.expiresAt && Date.parse(n.expiresAt) <= Date.now())) setNotice(n);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  if (!notice) return null;
+  const title = notice[locale].title;
+  return (
+    <AnnouncementBanner
+      id={notice.id}
+      title={title}
+      moreLabel={t("more")}
+      moreAriaLabel={t("moreAria", { title })}
+      closeLabel={t("close")}
+      ariaLabel={t("aria")}
+    />
   );
 }

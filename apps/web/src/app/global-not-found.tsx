@@ -12,14 +12,15 @@ import RootNotFound from "./not-found";
  * /{locale}/__404__가 여기로 온다(next.config의 experimental.globalNotFound).
  *
  * 예전에는 [locale]/[...rest] catch-all이 notFound()를 던져 로케일 레이아웃 안에서 404를
- * 그렸다. 그런데 이 앱은 nonce 때문에 모든 페이지가 동적 렌더이고, Next 16의 동적 렌더는
- * 렌더 중에 던진 notFound()를 서버에서 잡지 못한다. 서버 HTML은 lang도 본문도 없는
+ * 그렸다. 그런데 모르는 주소는 요청마다 렌더되고(nonce CSP), Next 16의 동적 렌더는 렌더 중에
+ * 던진 notFound()를 서버에서 잡지 못한다. 서버 HTML은 lang도 본문도 없는
  * <html id="__next_error__"> 껍데기로 나가고 화면은 브라우저가 JS로 다시 그렸다
  * (그때 제목도 홈 제목으로 바뀌었다). 라우트가 없는 주소는 Next가 /_not-found를 페이지로
- * 렌더하므로 던지는 일 없이 서버에서 완성된 문서가 404 상태로 나간다.
+ * 렌더하므로 던지는 일 없이 서버에서 완성된 문서가 404 상태로 나간다. 이 파일은 요청 헤더를
+ * 읽으므로 /_not-found도 요청마다 렌더되어 nonce를 받는다(빌드 HTML이 없어 CSP 어댑터 대상도 아니다).
  *
  * 로케일은 next-intl 미들웨어가 넣은 요청 헤더에서 읽는다. 프록시를 거치지 않은 주소(/api·
- * /auth 아래 등)는 로케일도 nonce도 없으므로 DB를 읽지 않는 이중 언어 화면으로 끝낸다.
+ * /auth 아래 등)는 로케일도 CSP도 없으므로 이중 언어 화면으로 끝낸다.
  *
  * 숨긴 관리자 경로는 오타 URL과 상태코드·본문·헤더가 같아야 한다. 여기서 요청 경로를
  * 화면에 쓰면 그 대칭이 깨진다(test:routes가 두 응답을 비교한다).
@@ -27,9 +28,12 @@ import RootNotFound from "./not-found";
 
 export const viewport = localeViewport;
 
-/** 프록시(src/proxy.ts)를 거친 요청인지 — 거쳤으면 nonce와 로케일 헤더가 붙어 있다 */
+/**
+ * 프록시(src/proxy.ts)를 거친 요청인지 — 거쳤으면 프록시가 x-pathname을, next-intl이 로케일 헤더를 붙여 둔다.
+ * nonce로 판정하지 않는다: Next는 nonce를 CSP 요청 헤더에서 직접 읽으므로 따로 실어 주는 헤더가 없다.
+ */
 async function viaProxy() {
-  return !!(await headers()).get("x-nonce");
+  return !!(await headers()).get("x-pathname");
 }
 
 export async function generateMetadata(): Promise<Metadata> {
