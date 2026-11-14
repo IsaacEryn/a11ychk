@@ -56,6 +56,8 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder
           SUPABASE_SERVICE_ROLE_KEY: ci-placeholder
           NEXT_PUBLIC_SITE_URL: https://www.a11ychk.com
+          # 숨긴 관리자 경로가 오타 URL과 같은 404인지도 보려고 자리표시자 슬러그로 띄운다
+          ADMIN_PATH_SLUG: console-x7k2
         run: |
           npx next start -p 3210 &
           echo $! > /tmp/next.pid
