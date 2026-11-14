@@ -10,6 +10,8 @@
  *
  * 사용법: 앱을 띄운 뒤 `node scripts/check-routes.mjs [baseUrl]`
  */
+import { createHash } from "node:crypto";
+
 const BASE = process.argv[2] ?? "http://127.0.0.1:3210";
 const READY_TIMEOUT_MS = 90_000;
 
@@ -59,16 +61,76 @@ const ROUTES = [
 ];
 
 /**
- * CSP 헤더가 반드시 붙어야 하는 경로 — CSP는 프록시에서만 부여되므로 matcher가
- * 어긋나면 그 경로만 조용히 정책 없이 나간다. 화면도 콘솔도 멀쩡해서 눈에 띄지 않는다.
- * 점이 든 경로(디렉터리 상세)는 실제로 이 구멍에 빠진 적이 있어 특히 지킨다.
+ * CSP — 페이지 종류마다 정책이 다르다(lib/security/cspPolicy.mjs 머리말).
+ *
+ * CSP 헤더는 프록시에서만 부여되므로 matcher가 어긋나면 그 경로만 조용히 정책 없이 나간다. 화면도 콘솔도
+ * 멀쩡해서 눈에 띄지 않는다. 점이 든 경로(디렉터리 상세)는 실제로 이 구멍에 빠진 적이 있어 특히 지킨다.
+ *
+ * 두 목록 모두 "응답 HTML의 인라인 스크립트가 실효 정책(헤더 + meta)을 전부 통과하는지"를 직접 계산한다.
+ * 정적 페이지 목록과 빌드 결과가 어긋나거나(nonce 헤더 + nonce 없는 HTML), 레이아웃 스크립트가 바뀌었는데
+ * 해시가 안 따라오면 여기서 막힌 스크립트 수로 드러난다.
  */
-const CSP_ROUTES = [
-  ["/ko", "로케일 홈"],
+/** 요청마다 렌더되는 페이지 — nonce 정책 */
+const NONCE_ROUTES = [
   ["/ko/nonexistent", "catch-all 404 페이지"],
-  ["/ko/guide/alternative-text", "동적 세그먼트"],
+  ["/ko/guide/nope", "없는 가이드 슬러그(런타임 404)"],
   ["/ko/directory/nonexistent-host.example", "점이 든 경로"],
+  ["/ko/login", "로그인"],
 ];
+/** 빌드 때 만든 HTML — 헤더는 바깥 한계, 인라인 스크립트는 HTML의 meta 해시 정책이 허용 */
+const STATIC_ROUTES = [
+  ["/ko", "로케일 홈"],
+  ["/en", "영문 홈"],
+  ["/ko?url=https%3A%2F%2Fexample.com", "홈 딥링크(검색어가 붙어도 정적)"],
+  ["/ko/about", "소개"],
+  ["/ko/guide", "가이드 허브"],
+  ["/ko/guide/alternative-text", "동적 세그먼트(가이드 항목)"],
+  ["/en/guide/text-contrast", "가이드 항목(영문)"],
+];
+
+const INLINE_JS_TYPES = new Set(["", "text/javascript", "application/javascript", "module"]);
+
+/** 응답 HTML의 실행되는 인라인 스크립트 — [nonce 속성, sha256 출처 표현] */
+function inlineScripts(html) {
+  const out = [];
+  for (const [, attrs, body] of html.matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/gi)) {
+    if (/\ssrc\s*=/i.test(attrs)) continue;
+    const type = /\stype\s*=\s*"([^"]*)"/i.exec(attrs)?.[1]?.trim().toLowerCase() ?? "";
+    if (!INLINE_JS_TYPES.has(type)) continue;
+    const nonce = /\snonce\s*=\s*"([^"]*)"/i.exec(attrs)?.[1] ?? null;
+    out.push([nonce, `'sha256-${createHash("sha256").update(body, "utf8").digest("base64")}'`]);
+  }
+  return out;
+}
+
+/** 정책 문자열의 script-src 출처 목록(없으면 null) */
+function scriptSources(policy) {
+  const d = policy
+    .split(";")
+    .map((x) => x.trim())
+    .find((x) => x.startsWith("script-src "));
+  return d ? d.split(/\s+/).slice(1) : null;
+}
+
+/** CSP3 규칙대로 인라인 스크립트 허용 여부 — nonce·해시가 하나라도 있으면 'unsafe-inline'은 무시된다 */
+function allowsInline(sources, nonce, hash) {
+  if (nonce && sources.includes(`'nonce-${nonce}'`)) return true;
+  if (sources.includes(hash)) return true;
+  const strict = sources.some((s) => /^'(nonce|sha256|sha384|sha512)-/.test(s));
+  return !strict && sources.includes("'unsafe-inline'");
+}
+
+/** 응답의 인라인 스크립트 중 막히는 수 — 정책이 여러 개면 모두 통과해야 실행된다 */
+function blockedInline(html, policies) {
+  const lists = policies.map(scriptSources);
+  if (lists.some((l) => l === null)) return { blocked: -1, total: 0 };
+  const scripts = inlineScripts(html);
+  const blocked = scripts.filter(([nonce, hash]) => !lists.every((l) => allowsInline(l, nonce, hash))).length;
+  return { blocked, total: scripts.length };
+}
+
+const metaPolicies = (html) =>
+  [...html.matchAll(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"\/?>/gi)].map((m) => m[1]);
 
 /**
  * 응답에 들어 있어야 하는 것 — 조용히 빠져도 화면상 티가 안 나는 축이라 같이 본다.
@@ -161,23 +223,42 @@ async function main() {
   }
 
   console.log("");
-  for (const [path, what] of CSP_ROUTES) {
+  for (const [path, what] of NONCE_ROUTES) {
     const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
     const csp = res.headers.get("content-security-policy") ?? "";
-    const ok = csp.includes("script-src") && /'nonce-[^']+'/.test(csp);
-    console.log(`  ${ok ? "✓" : "✗"} ${path.padEnd(34)} CSP nonce (${what})`);
-    if (!ok) failures.push(`${path} — CSP nonce 헤더 없음 (${what}) — 프록시 matcher에서 빠졌는지 확인`);
+    const html = await res.text();
+    const nonce = csp.match(/'nonce-([^']+)'/)?.[1];
+    // 헤더에 nonce가 있어도 렌더러까지 전달이 끊기면 Next 스크립트가 막힌다 — 본문의 nonce 속성까지 본다
+    const { blocked, total } = blockedInline(html, [csp]);
+    const problems = [
+      !nonce && "CSP nonce 헤더 없음 — 프록시 matcher에서 빠졌는지 확인",
+      nonce && !html.includes(`nonce="${nonce}"`) && "응답 CSP의 nonce가 본문 script 태그에 없다 (요청 헤더 전달 경로 확인)",
+      metaPolicies(html).length > 0 && "동적 페이지에 정적 페이지용 meta CSP가 있다",
+      blocked !== 0 && `인라인 스크립트 ${total}개 중 ${blocked < 0 ? "?" : blocked}개가 정책에 막힌다`,
+    ].filter(Boolean);
+    console.log(`  ${problems.length === 0 ? "✓" : "✗"} ${path.padEnd(34)} CSP nonce, 인라인 ${total}개 통과 (${what})`);
+    for (const p of problems) failures.push(`${path} — ${p} (${what})`);
   }
 
-  // 헤더에 nonce가 있어도 렌더러까지 전달이 끊기면 인라인 스크립트가 막힌다.
-  // 응답 CSP의 nonce와 본문의 nonce 속성이 같은 값인지 확인해 배관 전체를 본다.
-  {
-    const res = await fetch(`${BASE}/ko`);
-    const nonce = (res.headers.get("content-security-policy") ?? "").match(/'nonce-([^']+)'/)?.[1];
+  for (const [path, what] of STATIC_ROUTES) {
+    const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
+    const csp = res.headers.get("content-security-policy") ?? "";
     const html = await res.text();
-    const ok = !!nonce && html.includes(`nonce="${nonce}"`);
-    console.log(`  ${ok ? "✓" : "✗"} ${"/ko".padEnd(34)} nonce가 렌더러까지 전달됨`);
-    if (!ok) failures.push("/ko — 응답 CSP의 nonce가 본문 script 태그에 없다 (요청 헤더 전달 경로 확인)");
+    const metas = metaPolicies(html);
+    const { blocked, total } = blockedInline(html, [csp, ...metas]);
+    const problems = [
+      res.status !== 200 && `상태 ${res.status}`,
+      !csp.includes("script-src") && "CSP 헤더 없음 — 프록시 matcher에서 빠졌는지 확인",
+      /'nonce-|'strict-dynamic'|'sha256-/.test(csp) && "정적 페이지 헤더에 nonce·해시·strict-dynamic — meta 정책과 겹쳐 RSC 스크립트가 막힌다",
+      metas.length !== 1 && `meta CSP ${metas.length}개 — 빌드 어댑터(csp-adapter)가 돌았는지 확인`,
+      metas.some((m) => m.includes("'unsafe-inline'")) && "meta 정책에 'unsafe-inline'",
+      // 정적 HTML을 그대로 내보냈는지 — 요청마다 렌더됐다면 이 페이지의 CPU 절감이 사라진 것이다
+      // (Next가 이 헤더를 두 번 실어 "1, 1"로 합쳐 오기도 한다)
+      !/\b1\b/.test(res.headers.get("x-nextjs-prerender") ?? "") && "프리렌더 응답이 아니다(x-nextjs-prerender 없음) — 요청마다 렌더되고 있다",
+      blocked !== 0 && `인라인 스크립트 ${total}개 중 ${blocked < 0 ? "?" : blocked}개가 정책에 막힌다`,
+    ].filter(Boolean);
+    console.log(`  ${problems.length === 0 ? "✓" : "✗"} ${path.padEnd(34)} 정적 + 해시 CSP, 인라인 ${total}개 통과 (${what})`);
+    for (const p of problems) failures.push(`${path} — ${p} (${what})`);
   }
 
   console.log("");
@@ -193,7 +274,7 @@ async function main() {
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
   }
-  console.log(`\n${ROUTES.length + BODY_CHECKS.length + CSP_ROUTES.length + BODY_ABSENT.length}건 모두 통과`);
+  console.log(`\n${ROUTES.length + BODY_CHECKS.length + NONCE_ROUTES.length + STATIC_ROUTES.length + BODY_ABSENT.length}건 모두 통과`);
 }
 
 main().catch((e) => {

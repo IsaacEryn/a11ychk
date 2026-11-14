@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { THEME_STORAGE_KEY } from "@/lib/inlineScripts";
 
 type Theme = "system" | "light" | "dark" | "contrast";
 const THEMES: Theme[] = ["system", "light", "dark", "contrast"];
-const STORAGE_KEY = "a11ychk-theme";
-
-/** localStorage에서 읽어 <html data-theme>를 깜빡임 없이 적용하는 인라인 스크립트 (레이아웃 <head>에 삽입) */
-export const themeInitScript = `(function(){try{var t=localStorage.getItem('${STORAGE_KEY}');if(t==='light'||t==='dark'||t==='contrast'){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();`;
+// 첫 페인트 전 적용은 레이아웃의 boot 스크립트(lib/inlineScripts.ts)가 같은 키로 한다
+const STORAGE_KEY = THEME_STORAGE_KEY;
 
 function applyTheme(theme: Theme) {
   const root = document.documentElement;

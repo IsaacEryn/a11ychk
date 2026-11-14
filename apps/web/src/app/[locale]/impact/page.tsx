@@ -1,4 +1,5 @@
 import { getFormatter, getTranslations, setRequestLocale } from "next-intl/server";
+import { connection } from "next/server";
 import { unstable_cache } from "next/cache";
 import { Link } from "@/i18n/navigation";
 import { collectImpactStats } from "@/lib/impactStats";
@@ -21,6 +22,9 @@ const getImpactStats = unstable_cache(collectImpactStats, ["impact-stats"], { re
 export default async function ImpactPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
   setRequestLocale(locale);
+  // 요청마다 렌더한다 — DB를 읽어 ISR이 되면 런타임에 다시 만든 HTML에 CSP 해시가 없다(lib/security/cspPolicy.mjs).
+  // 집계는 위 unstable_cache가 1시간 단위로 캐시한다.
+  await connection();
   const t = await getTranslations("impact");
   const format = await getFormatter();
   const stats = await getImpactStats();

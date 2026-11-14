@@ -22,8 +22,11 @@ export interface RefreshedCookie {
  * 먼저 만들어 두고 갱신하면, 그 응답이 이미 담아 둔 요청 헤더 스냅샷에는 옛 토큰이
  * 들어 있어 렌더러가 만료된 토큰으로 다시 갱신을 시도하게 된다(토큰 회전 충돌).
  * 호출자는 돌려받은 목록을 applyRefreshedCookies로 최종 응답에 얹는다.
+ *
+ * signedIn은 갱신을 마친 뒤에도 로그인 상태인지다(절대 유지 시간 초과로 여기서 끊었으면 false).
+ * 정적 페이지는 렌더 때 사용자를 모르므로, 로그인 여부로 갈리는 리다이렉트는 프록시가 이 값으로 한다.
  */
-export async function refreshSession(request: NextRequest): Promise<RefreshedCookie[]> {
+export async function refreshSession(request: NextRequest): Promise<{ issued: RefreshedCookie[]; signedIn: boolean }> {
   const issued: RefreshedCookie[] = [];
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -54,10 +57,11 @@ export async function refreshSession(request: NextRequest): Promise<RefreshedCoo
       // 이 기기 세션만 종료 (다른 기기는 각자 만료 시점에 종료됨).
       // 리다이렉트 없이 쿠키만 지운다 — 보호 페이지는 각자의 가드가 로그인으로 안내한다.
       await supabase.auth.signOut({ scope: "local" });
+      return { issued, signedIn: false };
     }
   }
 
-  return issued;
+  return { issued, signedIn: !!user };
 }
 
 /** refreshSession이 발급한 쿠키를 최종 응답에 얹는다 */

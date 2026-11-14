@@ -60,6 +60,9 @@
   `_locales` ko/en, 환경설정 언어 선택(자동/한국어/English)
 - ~~**CSP 헤더**~~ — 완료. next.config가 아닌 `src/proxy.ts`에서 요청별
   nonce + strict-dynamic CSP를 발급한다 (unsafe-inline 제거, GTM 조건부 허용)
+- ~~**공개 페이지 정적 서빙**~~ — 완료 (2026-11). 랜딩·가이드·소개·약관 등은 빌드 때 HTML을
+  만들고, 빌드 어댑터(`scripts/csp-adapter.mjs`)가 인라인 스크립트 해시를 meta CSP로 넣는다.
+  로그인 여부·관리자 링크·공지 배너는 클라이언트가 채운다
 - ~~**정기 스캔 큐잉**~~ — 완료. cron은 queued 행 생성만 하고 `drainQueue()`가
   분리 인보케이션으로 소진. 2026-07 후속 개선: 생성도 `createScanForUser`
   재사용으로 통일(좀비 회수·동시 실행 가드·scope 저장 포함), BATCH 3→20

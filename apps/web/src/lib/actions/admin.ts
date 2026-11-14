@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -382,7 +383,9 @@ export async function publishAnnouncement(_prev: SaveState, formData: FormData):
   ];
   await saveAnnouncements(admin, next);
   await logAdminAction(admin, actor.id, "announcement.publish", undefined, { subject: parsed.data.titleKo });
-  revalidateLocalized("/", "/notices", "/admin/settings");
+  revalidateLocalized("/notices", "/admin/settings");
+  // 배너는 레이아웃이 아니라 이 응답(60초 ISR)을 읽는다 — 바로 반영되게 다시 만든다
+  revalidatePath("/api/shell/announcement");
   return { ok: true };
 }
 
@@ -394,6 +397,8 @@ export async function clearAnnouncementBanner(): Promise<SaveState> {
   const items = await getAnnouncements(admin);
   await saveAnnouncements(admin, items.map((n) => ({ ...n, active: false })));
   await logAdminAction(admin, actor.id, "announcement.clear");
-  revalidateLocalized("/", "/notices", "/admin/settings");
+  revalidateLocalized("/notices", "/admin/settings");
+  // 배너는 레이아웃이 아니라 이 응답(60초 ISR)을 읽는다 — 바로 반영되게 다시 만든다
+  revalidatePath("/api/shell/announcement");
   return { ok: true };
 }

@@ -1,10 +1,22 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
 
-// 프록시 파이프라인 중 관리자 경로 판정만 본다 — intl·세션 갱신·CSP는 대역
+// 프록시 파이프라인 중 관리자 경로 판정·CSP 갈래·회원 딥링크만 본다 — intl·세션 갱신·CSP 문자열은 대역
+const state = vi.hoisted(() => ({ signedIn: false, staticPage: false }));
 vi.mock("next-intl/middleware", () => ({ default: () => () => NextResponse.next() }));
-vi.mock("../src/lib/supabase/middleware", () => ({ refreshSession: async () => [], applyRefreshedCookies: () => undefined }));
-vi.mock("../src/lib/security/csp", () => ({ attachCspToRequest: () => "default-src 'self'" }));
+vi.mock("../src/lib/supabase/middleware", () => ({
+  refreshSession: async () => ({ issued: [], signedIn: state.signedIn }),
+  applyRefreshedCookies: () => undefined,
+}));
+vi.mock("../src/lib/security/csp", () => ({
+  attachCspToRequest: (r: { headers: Headers }) => {
+    r.headers.set("content-security-policy", "default-src 'self'");
+    return "default-src 'self'";
+  },
+  isStaticPage: () => state.staticPage,
+  isUnknownGuidePath: (p: string) => p.endsWith("/guide/nope"),
+  STATIC_PAGE_CSP: "static-policy",
+}));
 
 import { proxy } from "../src/proxy";
 
@@ -13,6 +25,8 @@ const req = (path: string) => new NextRequest(new URL(path, "https://www.a11ychk
 
 afterEach(() => {
   delete process.env.ADMIN_PATH_SLUG;
+  state.signedIn = false;
+  state.staticPage = false;
   vi.restoreAllMocks();
 });
 
@@ -38,5 +52,49 @@ describe("proxy — 관리자 슬러그", () => {
 
   it("슬러그가 없으면 /admin을 그대로 쓴다", async () => {
     expect(rewriteOf(await proxy(req("/ko/admin")))).toBeNull();
+  });
+});
+
+describe("proxy — CSP 갈래", () => {
+  it("정적 페이지는 nonce 정책 대신 정적 정책을 싣고, 요청 헤더에 CSP를 넣지 않는다(렌더러가 nonce를 붙이지 않게)", async () => {
+    state.staticPage = true;
+    const request = req("/ko/guide");
+    const res = await proxy(request);
+    expect(res.headers.get("content-security-policy")).toBe("static-policy");
+    expect(request.headers.get("content-security-policy")).toBeNull();
+  });
+
+  it("관리자 슬러그 경로는 정적 판정과 무관하게 nonce 정책", async () => {
+    process.env.ADMIN_PATH_SLUG = "console-x7k2";
+    state.staticPage = true;
+    const res = await proxy(req("/ko/console-x7k2"));
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'self'");
+  });
+
+  it("없는 가이드 슬러그는 다른 오타 주소와 같은 로케일 404로 돌리고 nonce 정책을 싣는다", async () => {
+    state.staticPage = true;
+    const res = await proxy(req("/en/guide/nope"));
+    expect(rewriteOf(res)).toContain("/en/__404__");
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'self'");
+  });
+});
+
+describe("proxy — 홈 딥링크(?url=)", () => {
+  const location = (res: Response) => res.headers.get("location");
+
+  it("회원은 본검사 폼으로 보낸다 — utm은 보존, 다른 검색어는 버린다", async () => {
+    state.signedIn = true;
+    const res = await proxy(req("/ko?url=https%3A%2F%2Fexample.com&utm_source=mcp&foo=1"));
+    expect(res.status).toBe(307);
+    expect(location(res)).toBe("https://www.a11ychk.com/ko/scan?url=https%3A%2F%2Fexample.com%2F&utm_source=mcp");
+    expect(res.headers.get("content-security-policy")).toBe("default-src 'self'");
+  });
+
+  it("비회원·다른 경로·잘못된 주소는 그대로 둔다(비회원은 맛보기 폼이 프리필)", async () => {
+    expect(location(await proxy(req("/en?url=https%3A%2F%2Fexample.com")))).toBeNull();
+    state.signedIn = true;
+    expect(location(await proxy(req("/ko/about?url=https%3A%2F%2Fexample.com")))).toBeNull();
+    expect(location(await proxy(req("/ko?url=javascript%3Aalert(1)")))).toBeNull();
+    expect(location(await proxy(req("/ko")))).toBeNull();
   });
 });
