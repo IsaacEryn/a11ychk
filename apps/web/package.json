@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@a11ychk/core": "*",
+    "@fontsource/hahmlet": "^5.3.0",
     "@sparticuz/chromium": "^138.0.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.0",

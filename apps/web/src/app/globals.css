@@ -21,9 +21,21 @@
   --color-warn-tint: #f7efd8;
   --color-pass: #0b5d54;
 
-  /* Hahmlet은 next/font 자체 호스팅 — 해시된 패밀리명이 --font-hahmlet 변수로 주입된다 */
-  --font-display: var(--font-hahmlet, "Hahmlet"), "Pretendard Variable", serif;
+  /* Hahmlet은 패키지 CSS(@fontsource/hahmlet)로 자체 서빙 — LocaleDocument.tsx에서 굵기 500·700·800을 싣는다.
+     "Hahmlet Fallback"은 글꼴이 오기 전 줄 높이와 폭을 맞추는 대체 글꼴이다(아래 @font-face). */
+  --font-display: "Hahmlet", "Hahmlet Fallback", "Pretendard Variable", serif;
   --font-body: "Pretendard Variable", Pretendard, -apple-system, "Apple SD Gothic Neo", sans-serif;
+}
+
+/* Hahmlet이 실리기 전에 보이는 대체 글꼴. next/font가 만들어 주던 값을 그대로 옮겼다 —
+   글꼴이 바뀌는 순간 제목의 줄 높이와 폭이 튀지 않게 한다(레이아웃 이동 방지). */
+@font-face {
+  font-family: "Hahmlet Fallback";
+  src: local("Times New Roman");
+  ascent-override: 94.82%;
+  descent-override: 23.54%;
+  line-gap-override: 0%;
+  size-adjust: 122.34%;
 }
 
 :root {
