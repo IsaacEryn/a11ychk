@@ -1,7 +1,6 @@
 import type { Viewport } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getTranslations } from "next-intl/server";
-import { Hahmlet } from "next/font/google";
 import type { Locale } from "@/i18n/routing";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
@@ -13,6 +12,14 @@ import { AuthSync } from "@/components/AuthSync";
 import "@/app/globals.css";
 // Pretendard 자체 호스팅 — 패키지 CSS를 import하면 Next가 woff2까지 번들 자산으로 서빙한다 (CDN 미사용)
 import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+// 제목용 세리프 Hahmlet도 같은 방식으로 싣는다. next/font/google은 빌드마다 Google Fonts에서 받아 오는데,
+// 그 응답이 가끔 Next가 풀지 못하는 주소 꼴로 와서 빌드가 깨졌다(vercel/next.js#99114, tests/selfHostedFonts.test.ts).
+// 굵기마다 Google Fonts와 같은 unicode-range 92조각이라 쓰는 글자의 조각만 받는다. 가변 글꼴 한 벌
+// (@fontsource-variable)은 파일 수가 3분의 1이지만 조각 하나가 커서, 랜딩 첫 화면 기준 전송량이 300KB에서
+// 485KB로 늘어 쓰지 않았다(2026-11 측정). 쓰는 굵기를 늘리면 여기와 테스트의 목록을 함께 고친다.
+import "@fontsource/hahmlet/500.css";
+import "@fontsource/hahmlet/700.css";
+import "@fontsource/hahmlet/800.css";
 
 /*
  * 로케일 페이지의 문서 골격(<html lang>부터 헤더·본문·푸터까지).
@@ -25,15 +32,6 @@ import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
  * 요청마다 렌더되어 정적 공개 페이지(랜딩·가이드)가 사라진다. 요청마다 달라지는 것은 클라이언트가 채운다:
  * 로그인 여부(boot 스크립트의 data-auth + AuthSync), 관리자 링크(AdminNavLink), 공지 배너(AnnouncementSlot).
  */
-
-// 제목용 세리프 — next/font가 빌드 시 받아 자체 호스팅한다 (구글 CDN 런타임 요청 없음).
-// 한글 폰트는 preload 대상 서브셋 지정이 불가해 preload: false (unicode-range 지연 로드).
-const hahmlet = Hahmlet({
-  weight: ["500", "700", "800"],
-  display: "swap",
-  preload: false,
-  variable: "--font-hahmlet",
-});
 
 /**
  * 뷰포트 — 모바일 필수 기반.
@@ -59,7 +57,7 @@ export async function LocaleDocument({ locale, children }: { locale: Locale; chi
   return (
     // suppressHydrationWarning: boot 스크립트가 hydration 전에 data-theme·data-auth를
     // 설정하므로 html 속성 불일치 경고를 억제한다 (theme attribute 표준 패턴)
-    <html lang={locale} suppressHydrationWarning className={hahmlet.variable}>
+    <html lang={locale} suppressHydrationWarning>
       <body className="flex min-h-svh flex-col">
         {/* 저장된 테마와 로그인 힌트(data-auth)를 첫 페인트 전에 적용해 깜빡임을 막는다.
             nonce 없이 싣는다 — 내용이 고정이라 CSP가 해시로 허용한다(lib/inlineScripts.ts).
