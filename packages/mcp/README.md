@@ -15,7 +15,31 @@ Claude Code:
 claude mcp add a11ychk -- npx -y @a11ychk/mcp
 ```
 
-Or in any MCP client config (`.mcp.json`, Cursor, etc.):
+GitHub Copilot in VS Code: add the server to your Copilot user configuration,
+`~/.copilot/mcp-config.json` (or `$COPILOT_HOME/mcp-config.json` if that variable is set):
+
+```json
+{
+  "mcpServers": {
+    "a11ychk": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@a11ychk/mcp"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+You can also add it from the editor: select the Copilot harness in a chat session, run
+**Chat: Open Customizations**, open **MCP Servers** → **Add Server**, choose **Command (stdio)**,
+enter `npx -y @a11ychk/mcp`, and save it to **Global > Copilot Global**. To share the server with
+a team, put the same `mcpServers` entry in `.mcp.json` at the workspace root. Don't use
+`.vscode/mcp.json` for a new setup; VS Code has deprecated that format. VS Code may ask you to
+approve a tool call before it runs. Details are in the
+[VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
+
+Or in any other MCP client config (`.mcp.json`, Cursor, etc.):
 
 ```json
 {
@@ -37,6 +61,7 @@ npx playwright install chromium
 |---|---|---|
 | `scan_page` | Audit one page — compliance rate, violations with Korean fix guides | required |
 | `scan_pages` | Audit up to 10 pages at once | required |
+| `scan_dir` | Audit static HTML files in a local folder, collected recursively (up to 10) | required |
 | `crawl_sample` | Collect a representative page sample (sitemap/links, robots-aware) | no |
 | `get_fix_guide` | Remediation guide + WCAG/KWCAG mapping for a rule | no |
 | `kwcag_checkpoint` | One of KWCAG 2.2's 33 checkpoints: how to test, mapped rules | no |
