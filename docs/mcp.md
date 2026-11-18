@@ -28,6 +28,30 @@ MCP 서버만 등록하려면:
 claude mcp add a11ychk -- npx -y @a11ychk/mcp
 ```
 
+VS Code의 GitHub Copilot — Copilot 사용자 설정 파일 `~/.copilot/mcp-config.json`에 서버를 추가합니다
+(`COPILOT_HOME`을 지정했다면 `$COPILOT_HOME/mcp-config.json`):
+
+```json
+{
+  "mcpServers": {
+    "a11ychk": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@a11ychk/mcp"],
+      "tools": ["*"]
+    }
+  }
+}
+```
+
+편집기에서 추가할 수도 있습니다. 채팅 세션에서 Copilot을 고른 뒤 명령 팔레트에서
+**Chat: Open Customizations**를 실행하고, **MCP Servers** → **Add Server**에서 **Command (stdio)**를
+골라 `npx -y @a11ychk/mcp`를 입력한 다음 저장 위치로 **Global > Copilot Global**을 고릅니다.
+팀과 함께 쓰려면 같은 `mcpServers` 항목을 작업 영역 루트의 `.mcp.json`에 둡니다.
+`.vscode/mcp.json`은 VS Code가 지원을 끝내기로 한 방식이라 새로 설정할 때는 쓰지 않습니다.
+도구를 실행할 때 승인을 묻는 창이 뜰 수 있습니다. 자세한 내용은
+[VS Code의 MCP 설정 문서](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)에 있습니다.
+
 그 외 MCP 클라이언트(`.mcp.json`, Cursor 등):
 
 ```json
