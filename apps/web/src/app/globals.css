@@ -259,6 +259,19 @@ a[data-btn] {
 .marker {
   background: linear-gradient(transparent 55%, var(--color-mark) 55%, var(--color-mark) 92%, transparent 92%);
 }
+/* 본문이 밝은 테마(다크·고대비): 띠 대신 칸 전체를 채우고 글자는 mark 위 글자색으로 둔다.
+   띠만 깔면 밝은 글자 아랫부분이 띠와 겹쳐 그 부분의 대비가 다크 2.88:1, 고대비 1.27:1로 떨어진다. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .marker {
+    background: var(--color-mark);
+    color: var(--color-ink-on-mark);
+  }
+}
+:root[data-theme="dark"] .marker,
+:root[data-theme="contrast"] .marker {
+  background: var(--color-mark);
+  color: var(--color-ink-on-mark);
+}
 
 /* 점검 문서 카드 — 오프셋 그림자 (스탬프 느낌) */
 .doc-card {
