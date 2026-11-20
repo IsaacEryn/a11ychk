@@ -11,6 +11,7 @@
  * 사용법: 앱을 띄운 뒤 `node scripts/check-routes.mjs [baseUrl]`
  */
 import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 const BASE = process.argv[2] ?? "http://127.0.0.1:3210";
 const READY_TIMEOUT_MS = 90_000;
@@ -46,6 +47,30 @@ const ROUTES = [
   ["/site/nonexistent-host.example", 302, "배지 리졸버 (프록시 미통과)"],
   ["/site/nonexistent-host.example?view=report", 302, "배지 리졸버 보고서 직행 (디렉터리 상세의 전체 보고서 링크)"],
   ["/sample/bad.html", 200, "public 정적 파일 (프록시 미통과)"],
+
+  // 프록시를 건너뛰는 없는 주소 — 404로 끝나야 한다. 2026-11에 전부 500이었다: 이런 주소는 [locale]에
+  // locale 값으로 걸리고, 정적 라우트의 notFound()가 넘어간 global-not-found가 요청 헤더를 읽다가 Next가 던졌다.
+  // favicon·apple-touch-icon은 봇만이 아니라 브라우저와 iOS가 관례로 요청하는 주소다.
+  ["/favicon.ico", 404, "확장자로 끝나는 없는 주소 (브라우저 관례 요청)"],
+  ["/apple-touch-icon.png", 404, "확장자로 끝나는 없는 주소 (iOS 관례 요청)"],
+  ["/sftp-config.json", 404, "확장자로 끝나는 없는 주소 (봇 탐색)"],
+  ["/api", 404, "프록시 제외 접두어 자체"],
+  ["/auth", 404, "프록시 제외 접두어 자체"],
+  // 제외 접두어와 글자만 겹치는 주소는 다른 오타 URL처럼 프록시를 거친다(로케일 리다이렉트 뒤 404)
+  ["/sites", 307, "제외 접두어와 글자만 겹침 (프록시 통과)"],
+  ["/joinus", 307, "제외 접두어와 글자만 겹침 (프록시 통과)"],
+  ["/sites/about", 307, "글자만 겹치는 접두어 + 정적 페이지 이름"],
+  // 로케일로 시작하지만 확장자 때문에 프록시를 건너뛰는 없는 가이드 슬러그 — 상태코드는 원래 404였고,
+  // 서버가 오류를 남기는지는 맨 끝의 서버 로그 검사가 본다
+  ["/ko/guide/x.png", 404, "확장자가 붙은 없는 가이드 슬러그 (프록시 미통과)"],
+  ["/api/scans/x", 404, "동적 route handler 접두어 아래의 없는 주소"],
+  ["/api/scans/x/report", 404, "동적 route handler 접두어 아래의 없는 주소 (loading.tsx가 있는 페이지 모양)"],
+  ["/_next/static/nope.js", 404, "없는 빌드 산출물"],
+  // 없는 주소를 돌려보내는 rewrite(next.config.ts)가 route handler를 삼키면 안 된다
+  ["/auth/callback", 307, "인증 콜백 (rewrite 미적용)"],
+  ["/join/abc", 307, "초대 링크 (rewrite 미적용)"],
+  ["/demo", 302, "데모 진입 (rewrite 미적용)"],
+  ["/api/badge/example.com", 200, "배지 이미지 (rewrite 미적용)"],
 
   // 결제 모드 게이트 — 기본 빌드(BILLING_MODE 없음)에서는 결제 화면·토스 리다이렉트가 없어야 한다
   ["/ko/billing/checkout", 404, "결제 꺼짐(BILLING_MODE 없음)이면 결제 화면 없음"],
@@ -165,6 +190,8 @@ const BODY_CHECKS = [
   ["/ko/guide/alternative-text", /"@type":"ListItem","position":1,"name":"홈"/, "가이드 항목 breadcrumb 홈"],
   // 비로그인 결제 관리 → 로그인, 돌아올 주소 보존(결제 모드와 무관하게 로그인이 먼저)
   ["/ko/mypage/billing", /\/ko\/login\?next=%2Fko%2Fmypage%2Fbilling/, "결제 관리 비로그인 → 로그인(next 보존)"],
+  // 프록시를 안 거친 없는 주소도 오류 껍데기가 아니라 lang 있는 404 문서로 나간다
+  ["/apple-touch-icon.png", /<html\b[^>]*\blang="ko"/, "프록시 미통과 404 문서의 lang"],
 ];
 
 /** sitemap.xml에 있으면 안 되는 것 — 로그인 게이트 주소를 색인 요청하지 않는다 */
@@ -203,6 +230,69 @@ const NOT_FOUND_DOCS = [
  */
 const MASK_PAIR = ["/ko/admin", "/ko/adnin"];
 const MASK_IGNORED_HEADERS = new Set(["date", "x-middleware-rewrite"]);
+
+/**
+ * 빌드 결과에서 만드는 검사 — 주소를 손으로 적으면 정적 페이지나 route handler가 늘 때 따라가지 못한다.
+ *
+ * 프록시는 route handler·플랫폼 접두어로 시작하는 주소를 건너뛴다. 그 뒤에 [locale] 아래 정적 페이지 이름이
+ * 붙으면(/api/about은 locale이 "api"인 소개 페이지다) 정적 라우트에 걸려 500이 났다.
+ * 이 목록은 src/proxy.ts의 matcher가 건너뛰는 접두어와 같아야 한다 — matcher에 접두어를 더하면 여기에도 더한다.
+ */
+const SKIPPED_PREFIXES = ["api", "auth", "demo", "join", "site", "_next", "_vercel"];
+
+/** 빌드 산출물(.next)의 파일 — 스크립트 위치 기준이라 어디서 실행해도 같다. 없으면 null */
+async function readBuildFile(name) {
+  try {
+    return await readFile(new URL(`../.next/${name}`, import.meta.url), "utf8");
+  } catch {
+    return null;
+  }
+}
+
+/** Next 런타임은 라우트를 대소문자 구분 없이 맞춘다(caseSensitiveRoutes 미사용) */
+const routeRegex = (r) => new RegExp(r.regex, "i");
+
+/** [locale] 정적 라우트마다 하나씩, 로케일을 프록시 제외 접두어로 바꾼 주소 — 실제 라우트와 겹치는 것은 뺀다 */
+function shadowedStaticPaths(prerender, routes) {
+  const outsideLocale = [...routes.staticRoutes, ...routes.dynamicRoutes]
+    .filter((r) => !r.page.startsWith("/[locale]"))
+    .map(routeRegex);
+  const restBySource = new Map();
+  for (const [path, info] of Object.entries(prerender.routes)) {
+    // 홈("/[locale]")은 /api·/auth 자체라 ROUTES가 본다
+    if (!info.srcRoute?.startsWith("/[locale]/") || restBySource.has(info.srcRoute)) continue;
+    restBySource.set(info.srcRoute, path.split("/").slice(2).join("/"));
+  }
+  return [...restBySource.values()]
+    .flatMap((rest) => SKIPPED_PREFIXES.map((prefix) => `/${prefix}/${rest}`))
+    .filter((path) => !outsideLocale.some((re) => re.test(path)));
+}
+
+/**
+ * 없는 주소용 rewrite에 걸리는 동적 route handler — rewrite(afterFiles)는 정적 라우트 다음, 동적 라우트보다
+ * 먼저 적용된다. 그래서 [locale] 밖의 동적 라우트는 next.config.ts의 제외 접두어에 들어 있어야 한다.
+ */
+function swallowedHandlers(routes) {
+  const rewrites = (routes.rewrites?.afterFiles ?? []).map(routeRegex);
+  return routes.dynamicRoutes
+    .filter((r) => !r.page.startsWith("/[locale]"))
+    .map((r) => r.page.replace(/\[[^\]]+\]/g, "x"))
+    .filter((sample) => rewrites.some((re) => re.test(sample)));
+}
+
+/**
+ * 요청을 다 보낸 뒤 서버 로그에 남은 오류 — 상태코드만으로는 안 보이는 것을 잡는다. 없는 주소가 404로 나가면서도
+ * 서버가 처리되지 않은 오류를 남기면 instrumentation이 그것을 기록하고 관리자에게 메일을 보낸다.
+ * ROUTES_SERVER_LOG에 `next start`의 출력 파일 경로를 주면 본다.
+ */
+async function serverLogErrors(path) {
+  // 마지막 요청의 로그가 파일에 닿을 시간을 준다
+  await new Promise((r) => setTimeout(r, 1000));
+  const lines = (await readFile(path, "utf8")).split("\n").filter((line) => /⨯|\bError\b/.test(line));
+  const counts = new Map();
+  for (const line of lines) counts.set(line.trim(), (counts.get(line.trim()) ?? 0) + 1);
+  return [...counts].map(([line, n]) => `${line} (${n}번)`);
+}
 
 async function fetchNormalized(path) {
   const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
@@ -250,6 +340,42 @@ async function main() {
     const ok = loc.includes("next=") && loc.includes(encodeURIComponent("url=https"));
     console.log(`  ${ok ? "✓" : "✗"} ${"/ko/scan?url= → login".padEnd(34)} next에 딥링크 보존`);
     if (!ok) failures.push(`/ko/scan?url= 리다이렉트가 next에 url을 보존하지 않음 (location: ${loc})`);
+  }
+
+  // 빌드 결과에서 만드는 검사 — 다른 서버를 상대로 돌릴 때처럼 .next가 없으면 건너뛴다
+  console.log("");
+  let derived = 0;
+  const [buildId, prerenderJson, routesJson] = await Promise.all(
+    ["BUILD_ID", "prerender-manifest.json", "routes-manifest.json"].map(readBuildFile),
+  );
+  // 띄운 서버가 이 .next로 만든 것인지 — 다른 빌드의 매니페스트로 검사하면 통과해도 뜻이 없다
+  const sameBuild = buildId && (await fetch(`${BASE}/ko`).then((r) => r.text())).includes(buildId.trim());
+  if (sameBuild && prerenderJson && routesJson) {
+    const [prerender, routesManifest] = [JSON.parse(prerenderJson), JSON.parse(routesJson)];
+    const hasRewrite = (routesManifest.rewrites?.afterFiles ?? []).length > 0;
+    derived++;
+    console.log(`  ${hasRewrite ? "✓" : "✗"} ${"없는 주소 rewrite".padEnd(34)} 빌드에 들어 있음`);
+    if (!hasRewrite) failures.push("없는 주소를 404로 보내는 rewrite(next.config.ts)가 빌드에 없다");
+    for (const path of shadowedStaticPaths(prerender, routesManifest)) {
+      const res = await fetch(`${BASE}${path}`, { redirect: "manual" });
+      const ok = res.status === 404;
+      derived++;
+      console.log(`  ${ok ? "✓" : "✗"} ${String(res.status).padEnd(3)} ${path.padEnd(30)} 프록시 제외 접두어 + 정적 페이지 이름`);
+      if (!ok) failures.push(`${path} — 404 기대, ${res.status} 받음 (프록시 제외 접두어 + 정적 페이지 이름)`);
+    }
+    // 점이 든 가이드 슬러그는 rewrite가 404로 보낸다(next.config.ts) — 실제 슬러그에 점이 생기면 그 페이지가 사라진다
+    const dotted = Object.keys(prerender.routes).filter((p) => /^\/[^/]+\/guide\/[^/]*\.[^/]*$/.test(p));
+    derived++;
+    console.log(`  ${dotted.length === 0 ? "✓" : "✗"} ${"가이드 슬러그".padEnd(34)} 점이 든 슬러그 없음`);
+    for (const p of dotted) failures.push(`${p} — 가이드 슬러그에 점이 있다 (next.config.ts의 rewrite가 404로 보낸다)`);
+    const swallowed = swallowedHandlers(routesManifest);
+    derived++;
+    console.log(`  ${swallowed.length === 0 ? "✓" : "✗"} ${"[locale] 밖 동적 라우트".padEnd(34)} 없는 주소 rewrite에 걸리지 않음`);
+    for (const sample of swallowed) {
+      failures.push(`${sample} — 동적 route handler가 없는 주소 rewrite에 걸린다 (next.config.ts의 제외 접두어에 넣을 것)`);
+    }
+  } else {
+    console.log(`  - ${".next 매니페스트".padEnd(34)} 이 서버의 빌드 결과가 없어 빌드 결과 기반 검사를 건너뜀`);
   }
 
   console.log("");
@@ -348,12 +474,22 @@ async function main() {
     console.log(`  - ${MASK_PAIR.join(" ↔ ").padEnd(34)} ADMIN_PATH_SLUG가 없어 숨긴 경로 비교를 건너뜀`);
   }
 
+  // 위의 요청들이 서버에 오류를 남기지 않았는지 — 맨 끝에 본다
+  if (process.env.ROUTES_SERVER_LOG) {
+    const errors = await serverLogErrors(process.env.ROUTES_SERVER_LOG);
+    derived++;
+    console.log(`  ${errors.length === 0 ? "✓" : "✗"} ${"서버 로그".padEnd(34)} 처리되지 않은 오류 없음`);
+    for (const e of errors) failures.push(`서버 로그에 오류가 남았다 — ${e}`);
+  } else {
+    console.log(`  - ${"서버 로그".padEnd(34)} ROUTES_SERVER_LOG가 없어 서버 로그 검사를 건너뜀`);
+  }
+
   if (failures.length > 0) {
     console.error(`\n실패 ${failures.length}건:`);
     for (const f of failures) console.error(`  - ${f}`);
     process.exit(1);
   }
-  console.log(`\n${ROUTES.length + BODY_CHECKS.length + NONCE_ROUTES.length + STATIC_ROUTES.length + BODY_ABSENT.length}건 모두 통과`);
+  console.log(`\n${ROUTES.length + derived + BODY_CHECKS.length + NONCE_ROUTES.length + STATIC_ROUTES.length + BODY_ABSENT.length}건 모두 통과`);
 }
 
 main().catch((e) => {

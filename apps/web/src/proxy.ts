@@ -121,7 +121,10 @@ export const config = {
   //
   // 이 목록을 손볼 때는 test:routes의 CSP 검사가 함께 지킨다 — HTML 경로가 빠지면
   // CSP 누락으로, route handler가 들어오면 로케일 리다이렉트로 잡힌다.
+  //
+  // 접두어는 세그먼트 경계까지 본다. 경계가 없으면 /sites·/joinus처럼 글자만 겹치는 주소까지 빠진다.
+  // 여기서 빠진 주소 가운데 실제 파일도 라우트도 아닌 것은 next.config.ts의 rewrite가 404로 보낸다.
   matcher: [
-    "/((?!api|auth|demo|join|site|_next|_vercel|.*\\.(?:ico|png|jpg|jpeg|gif|svg|webp|avif|html|txt|xml|json|webmanifest|css|js|map|woff|woff2|ttf|otf|mp4|webm|pdf)$).*)",
+    "/((?!(?:api|auth|demo|join|site)(?:/|$)|_next|_vercel|.*\\.(?:ico|png|jpg|jpeg|gif|svg|webp|avif|html|txt|xml|json|webmanifest|css|js|map|woff|woff2|ttf|otf|mp4|webm|pdf)$).*)",
   ],
 };

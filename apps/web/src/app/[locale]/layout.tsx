@@ -55,6 +55,9 @@ export default async function LocaleLayout({
   params: Promise<{ locale: string }>;
 }) {
   const { locale } = await params;
+  // 로케일이 아닌 값은 여기 닿기 전에 걸러진다 — 프록시(next-intl)가 로케일 주소로 돌리고, 프록시를 건너뛴
+  // 없는 주소는 next.config.ts의 rewrite가 404로 보낸다. 정적 페이지에서 이 notFound()가 실제로 던져지면
+  // global-not-found가 요청 헤더를 읽다가 500이 된다(test:routes가 그런 주소를 찾는다).
   if (!hasLocale(routing.locales, locale)) {
     notFound();
   }
