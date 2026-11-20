@@ -58,11 +58,15 @@ jobs:
           NEXT_PUBLIC_SITE_URL: https://www.a11ychk.com
           # 숨긴 관리자 경로가 오타 URL과 같은 404인지도 보려고 자리표시자 슬러그로 띄운다
           ADMIN_PATH_SLUG: console-x7k2
+        # 서버 출력을 파일로 받아 test:routes가 끝에 읽는다 — 상태코드는 맞는데 서버가 오류를 남기는 경우를 잡는다
         run: |
-          npx next start -p 3210 &
+          npx next start -p 3210 > /tmp/next.log 2>&1 &
           echo $! > /tmp/next.pid
-          npm run test:routes
+          rc=0
+          ROUTES_SERVER_LOG=/tmp/next.log npm run test:routes || rc=$?
           kill "$(cat /tmp/next.pid)"
+          cat /tmp/next.log
+          exit $rc
 
   # MCP 서버 스모크 — 브라우저 없이 도는 검사. 클라이언트 라이브러리 없이 stdio로
   # JSON-RPC를 직접 주고받고, stdout 전 줄을 JSON.parse로 강제해 로그 오염을 잡는다.
