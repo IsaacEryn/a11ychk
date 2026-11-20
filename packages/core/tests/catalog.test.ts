@@ -47,6 +47,13 @@ describe("규칙 카탈로그 정합성", () => {
     }
   });
 
+  it("영문 가이드도 한국어와 같은 수의 코드 예시를 담는다", () => {
+    const blocks = (s: string | undefined) => (s?.match(/```/g) ?? []).length;
+    for (const rule of RULE_CATALOG) {
+      expect(blocks(rule.guide.en), rule.ruleId).toBe(blocks(rule.guide.ko));
+    }
+  });
+
   it("WCAG 번호 형식 (x.x.x)", () => {
     for (const rule of RULE_CATALOG) {
       for (const sc of rule.wcag) {
