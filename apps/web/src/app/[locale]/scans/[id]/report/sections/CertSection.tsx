@@ -2,7 +2,7 @@ import { getTranslations } from "next-intl/server";
 import { KWCAG_BY_SLUG, kwcagLabel } from "@a11ychk/core/catalog";
 import type { CertReadiness } from "../certReadiness";
 
-/** 인증 준비 요약 — 전문가 심사 합격선(평균 95%) 근사 (KWCAG 인증 기준 귀속) */
+/** 인증 준비 요약 — 평가 항목의 페이지 준수율 평균·구간과 95% 미만 항목 (KWCAG 인증 기준 귀속) */
 export async function CertSection({ locale, cert }: { locale: string; cert: CertReadiness }) {
   if (cert.averageRate == null) return null;
   const t = await getTranslations("report");

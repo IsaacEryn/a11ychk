@@ -783,7 +783,7 @@
       },
       "new22": "New in 2.2",
       "colPageRate": "Page rate",
-      "certNote": "Page rate is the share of scanned pages with no violations for the item. Korean accessibility certification requires ≥95% per item; the figures here are page-level approximations from automated checks and may differ from the element-level calculation used in audits.",
+      "certNote": "Page rate is the share of scanned pages with no violations for the item. Under Korea's Standard Audit Guideline for Web Accessibility Quality Certification Bodies (Dec. 2024), the expert review passes when all 33 checkpoints each reach a compliance rate of 95% or higher. The figures here come from automated checks and are not an audit result. In an audit, pages are selected according to the guideline's list of page types, and the same error in a common area is deducted on one page only.",
       "derivedBadge": "Derived from WCAG",
       "derivedNote": "Items without a direct judgment derive from the corresponding WCAG criteria (any failure fails the item; a pass requires all criteria judged)."
     },
@@ -942,7 +942,7 @@
       "evaluated": "average over {evaluated} of 33 checkpoints with evidence",
       "belowTitle": "Checkpoints under 95% ({count}) — remediation priority",
       "belowChip": "{id} {title} · {rate}%",
-      "note": "An approximation of the expert-review pass threshold used by Korea's web accessibility quality certification (average compliance of the 33 checkpoints ≥95%; 85–95% triggers a second review), based on automated results and reviewer judgments. Checkpoints without evidence are excluded, and certification uses element-level scoring that may differ. Certification also includes a separate user evaluation (100% task success across disability types)."
+      "note": "Under Korea's Standard Audit Guideline for Web Accessibility Quality Certification Bodies (Dec. 2024), the expert review passes when all 33 checkpoints each reach a compliance rate of 95% or higher. Average compliance is used for the second-review criterion (an average across all checkpoints of 85% or higher and under 95%). The figure above is the average of per-checkpoint page rates from automated checks and reviewer judgments; it is not an audit result. Checkpoints without evidence are left out of the average. In an audit, pages are selected according to the guideline's list of page types, and the same error in a common area is deducted on one page only. Certification also includes a separate user evaluation (100% task success across all disability types)."
     },
     "savePublic": "Save as public view",
     "savePublicHint": "Applies the current display mode to visitors via the share link and badge.",
