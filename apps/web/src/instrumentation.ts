@@ -1,96 +1,10 @@
 /**
- * 자체 에러 모니터링 — 처리되지 않은 서버 오류를 app_errors 테이블에 기록한다
- * (migration 0008). 기록 실패가 원래 요청 처리에 영향을 주지 않도록 best-effort.
- * 관리자 콘솔 /admin/logs에서 확인. 24시간 내 처음 보는 메시지는 관리자에게
- * 이메일 알림 (ADMIN_ALERT_EMAIL + RESEND_API_KEY 설정 시).
+ * 자체 에러 모니터링 — 처리되지 않은 서버 오류를 app_errors 테이블에 기록하고(migration 0008),
+ * 24시간 안에 처음 보는 오류면 관리자에게 메일로 알린다. 관리자 콘솔 /admin/logs에서 확인.
+ * 기록·알림의 동작은 lib/errorReport.ts에 있다(이 파일은 Next의 훅 연결만 한다).
  */
-import { adminBasePath } from "./lib/adminSlug";
 import type { Instrumentation } from "next";
+import { reportRequestError } from "./lib/errorReport";
 
-export const onRequestError: Instrumentation.onRequestError = async (error, request) => {
-  try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) return;
-
-    const err = error as { message?: string; stack?: string; digest?: string };
-    const message = String(err.message ?? error).slice(0, 2000);
-    // 봇이 /ko, /ko/index.php 같은 경로에 뿌리는 POST와 재배포 직후 낡은 클라이언트의 액션 호출은
-    // Next가 "Failed to find Server Action"으로 거절한다. 우리 코드 결함이 아니고 30일치 오류의
-    // 전부가 이것이라(2026-09 실측 9/9건) 기록·알림에서 제외해 진짜 오류가 묻히지 않게 한다.
-    if (message.startsWith("Failed to find Server Action")) return;
-    // 새 오류 판정은 insert '전'에 조회 — insert 후 조회하면 동시 발생한 두 건이
-    // 서로를 보고 양쪽 다 알림을 억제하는 경합이 생긴다 (드물게 중복 발송은 허용)
-    const isFirstIn24h = await checkFirstIn24h(url, key, message);
-    // supabase-js 클라이언트 생성 없이 REST로 직접 insert (인스트루먼테이션 경량 유지)
-    await fetch(`${url}/rest/v1/app_errors`, {
-      method: "POST",
-      headers: {
-        apikey: key,
-        authorization: `Bearer ${key}`,
-        "content-type": "application/json",
-        prefer: "return=minimal",
-      },
-      body: JSON.stringify({
-        digest: err.digest ?? null,
-        message,
-        stack: err.stack ? String(err.stack).slice(0, 8000) : null,
-        path: request.path.slice(0, 500),
-        method: request.method,
-      }),
-    });
-
-    if (isFirstIn24h) {
-      await maybeAlertAdmin(message, request.method, request.path);
-    }
-  } catch {
-    // 에러 기록 실패 — 무시 (원 요청에 영향 금지)
-  }
-};
-
-/** 같은 메시지가 최근 24시간 내에 없으면 true (알림 여부 판정 — insert 전에 호출) */
-async function checkFirstIn24h(supabaseUrl: string, serviceKey: string, message: string): Promise<boolean> {
-  try {
-    const since = new Date(Date.now() - 24 * 3600_000).toISOString();
-    const res = await fetch(
-      `${supabaseUrl}/rest/v1/app_errors?select=id&limit=1&message=eq.${encodeURIComponent(message)}&created_at=gt.${encodeURIComponent(since)}`,
-      { headers: { apikey: serviceKey, authorization: `Bearer ${serviceKey}` } },
-    );
-    if (!res.ok) return false;
-    return ((await res.json()) as unknown[]).length === 0;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * 새 오류 이메일 알림 — 24시간 내 첫 발생일 때만 호출된다 (메일 폭주 방지).
- * 미설정·실패 시 조용히 건너뜀.
- */
-async function maybeAlertAdmin(message: string, method: string, path: string): Promise<void> {
-  try {
-    const to = process.env.ADMIN_ALERT_EMAIL;
-    const resendKey = process.env.RESEND_API_KEY;
-    if (!to || !resendKey) return;
-
-    const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.a11ychk.com";
-    const subject = `[A11y Check] 새 서버 오류: ${message.slice(0, 80)}`;
-    const html = `
-<div style="font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#1c2422;font-size:14px;line-height:1.6">
-  <p style="font-weight:700;margin:0 0 12px">처리되지 않은 서버 오류가 새로 발생했습니다.</p>
-  <p style="margin:0"><b>경로</b>: <code>${esc(method)} ${esc(path.slice(0, 300))}</code></p>
-  <p style="margin:8px 0 0"><b>메시지</b>:</p>
-  <pre style="margin:4px 0 0;padding:10px;background:#f5f3ee;border-radius:6px;white-space:pre-wrap;word-break:break-all">${esc(message.slice(0, 600))}</pre>
-  <p style="margin:16px 0 0"><a href="${siteUrl}${adminBasePath("ko")}/logs" style="color:#0b5d54;font-weight:700">관리자 콘솔에서 확인 →</a></p>
-  <p style="margin:12px 0 0;font-size:12px;color:#5d6a66">같은 메시지는 24시간에 한 번만 알립니다.</p>
-</div>`;
-    await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: { authorization: `Bearer ${resendKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ from: "A11y Check <noreply@a11ychk.com>", to, subject, html }),
-    });
-  } catch {
-    // 알림 실패 — 무시
-  }
-}
+export const onRequestError: Instrumentation.onRequestError = (error, request, context) =>
+  reportRequestError(error, request, context);
