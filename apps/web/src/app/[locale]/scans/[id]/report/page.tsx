@@ -78,7 +78,7 @@ export default async function ReportPage({
   // 유효 판정 — 직접 판정에 상대 표준 파생을 보충 (kwcag 직접 > wcag 파생, 그 역도 동일)
   const effectiveKwcagReviews = buildEffectiveKwcagReviews(kwcagReviews, wcagReviews);
   const effectiveWcagReviews = buildEffectiveWcagReviews(wcagReviews, kwcagReviews);
-  // 인증 준비 요약 — 항목별 페이지 준수율·판정을 평균해 인증 합격선(95%/85%)과 대응.
+  // 인증 준비 요약 — 항목별 페이지 준수율·판정을 평균해 95%·85% 구간으로 나눈다.
   // WCAG 축으로 기입한 판정도 파생으로 반영되도록 유효 판정을 소비한다.
   const cert = computeCertReadiness(
     summary.kwcagMatrix ?? [],
