@@ -1,6 +1,7 @@
 /**
- * 서버를 띄울 수 있는 가장 낮은 Node.js 버전(메이저.마이너). package.json의 engines와 같아야
- * 하고, 어긋나면 테스트가 잡는다. 근거는 package.json의 "//engines"에 있다.
+ * 서버를 띄울 수 있는 가장 낮은 Node.js 버전(메이저.마이너). undici 8의 요구 사항이고,
+ * undici가 더 높은 버전을 요구하게 되면 테스트가 잡는다. package.json의 engines는 일부러
+ * 이보다 낮게 적는다(이유는 package.json의 "//engines").
  */
 export const MIN_NODE_VERSION = "22.19";
 

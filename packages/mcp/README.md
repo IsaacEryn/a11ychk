@@ -66,16 +66,13 @@ npx playwright install chromium
 
 If the server fails to start, check `node --version` in the folder where your AI coding tool runs
 (version managers such as asdf or nvm can select a different Node.js per project). On Node.js
-older than 22.19 the server exits with one of these, and the client may only report a failed
-connection:
+older than 22.19 the server prints `@a11ychk/mcp requires Node.js 22.19 or later` and exits, and
+the client may only report a failed connection. Upgrade Node.js to 22.19 or later and run it again.
 
-- `@a11ychk/mcp requires Node.js 22.19 or later`: the server checks the Node.js version at startup.
-- `TypeError: Cannot read properties of undefined (reading 'bind')` from
-  `undici/lib/interceptor/decompress.js`: `npx` installed the old 0.1.2 instead of the latest
-  release. npm prefers a version whose `engines` field accepts the running Node.js, and only
-  0.1.0–0.1.2 declare Node.js 20 or later.
-
-Either way, upgrade Node.js to 22.19 or later and run it again.
+Releases up to 0.2.5 did not print that message. On older Node.js, `npx` installed the old 0.1.2
+instead of the latest release, and the server exited with
+`TypeError: Cannot read properties of undefined (reading 'bind')` from
+`undici/lib/interceptor/decompress.js`. The fix is the same: upgrade Node.js.
 
 ## Tools
 

@@ -86,16 +86,13 @@ npx playwright install chromium
 먼저 `node --version`을 봅니다. asdf나 nvm 같은 버전 관리 도구를 쓰면 프로젝트마다 Node.js가
 다를 수 있으니, AI 코딩 도구를 연 그 폴더에서 확인합니다.
 
-Node.js가 22.19보다 낮으면 서버는 다음 둘 가운데 하나를 남기고 끝납니다. AI 코딩 도구에서는
-둘 다 서버 연결 실패로만 보일 수 있습니다.
+Node.js가 22.19보다 낮으면 서버는 `Node.js 22.19 이상이 필요합니다`라는 안내를 내고 끝납니다.
+AI 코딩 도구에서는 서버 연결 실패로만 보일 수 있습니다. Node.js를 22.19 이상으로 올리고 다시
+실행하면 됩니다.
 
-- `Node.js 22.19 이상이 필요합니다`라는 안내. 서버가 시작할 때 Node.js 버전을 확인하고 내는 말입니다.
-- `TypeError: Cannot read properties of undefined (reading 'bind')`
-  (`undici/lib/interceptor/decompress.js`). npx가 최신 버전 대신 옛 0.1.2를 받아 왔을 때 나는
-  오류입니다. npm은 지금 Node.js에서 돌 수 있다고 적힌 버전을 먼저 고르는데, 0.1.0~0.1.2만
-  Node.js 20 이상이라고 적혀 있어서 낮은 Node.js에서는 이 버전이 골라집니다.
-
-어느 쪽이든 Node.js를 22.19 이상으로 올리고 다시 실행하면 최신 버전이 뜹니다.
+0.2.5까지는 이 안내가 없었습니다. 낮은 Node.js에서는 npx가 최신 버전 대신 옛 0.1.2를 받아 왔고,
+서버는 `TypeError: Cannot read properties of undefined (reading 'bind')`
+(`undici/lib/interceptor/decompress.js`)로 끝났습니다. 이 오류가 보일 때도 Node.js를 올리면 됩니다.
 
 ## 도구
 
