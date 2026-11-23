@@ -91,7 +91,7 @@ Claude Code에서는 플러그인 하나로 감사 스킬 2종과 검사 엔진(
 - `/a11ychk:a11y-audit` — 검사 → 수정 → 재검사 루프 (배포 전 점검)
 - `/a11ychk:kwcag-audit` — KWCAG 2.2 33개 검사항목 관점 점검
 
-MCP 서버만 쓰려면 (Cursor 등 다른 클라이언트 포함):
+MCP 서버만 쓰려면 (Cursor 등 다른 클라이언트 포함). Node.js 22.19 이상이 필요합니다:
 
 ```bash
 claude mcp add a11ychk -- npx -y @a11ychk/mcp

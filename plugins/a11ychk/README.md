@@ -13,6 +13,8 @@ Web accessibility audit skills bundled with the `@a11ychk/mcp` scanner — insta
 설치하면 스킬 2개와 MCP 서버(`@a11ychk/mcp`, npx로 자동 실행)가 함께 등록됩니다.
 Installing registers two skills and the MCP scanner (auto-run via npx).
 
+MCP 서버는 Node.js 22.19 이상에서 뜹니다. The MCP scanner requires Node.js 22.19 or later.
+
 ## 스킬 / Skills
 
 | 스킬 | 하는 일 |

@@ -12,6 +12,12 @@ localhost 개발 서버를 검사할 수 있습니다 — AI가 검사하고, �
 
 ## 설치
 
+준비물은 둘입니다.
+
+- **Node.js 22.19 이상.** `node --version`으로 확인합니다. 이보다 낮으면 서버가 뜨지 않습니다
+  ([서버가 뜨지 않을 때](#서버가-뜨지-않을-때)).
+- **chromium.** 검사 도구를 쓰려면 처음 한 번 `npx playwright install chromium`을 실행합니다.
+
 Claude Code — **플러그인**으로 설치하면 MCP 서버와 감사 스킬 2종이 함께 등록됩니다(권장):
 
 ```
@@ -52,7 +58,8 @@ VS Code의 GitHub Copilot — Copilot 사용자 설정 파일 `~/.copilot/mcp-co
 도구를 실행할 때 승인을 묻는 창이 뜰 수 있습니다. 자세한 내용은
 [VS Code의 MCP 설정 문서](https://code.visualstudio.com/docs/agents/reference/mcp-configuration)에 있습니다.
 
-그 외 MCP 클라이언트(`.mcp.json`, Cursor 등):
+그 외 MCP 클라이언트(`.mcp.json`, Cursor 등). GitHub Copilot도 함께 읽는 `.mcp.json`이라면
+위의 `type`과 `tools`가 든 항목을 씁니다:
 
 ```json
 {
@@ -73,6 +80,22 @@ npx playwright install chromium
 
 공식 MCP 레지스트리에는 [`com.a11ychk/mcp`](https://registry.modelcontextprotocol.io/v0.1/servers?search=com.a11ychk/mcp)로
 등재되어 있습니다 (도메인 인증 네임스페이스).
+
+### 서버가 뜨지 않을 때
+
+먼저 `node --version`을 봅니다. asdf나 nvm 같은 버전 관리 도구를 쓰면 프로젝트마다 Node.js가
+다를 수 있으니, AI 코딩 도구를 연 그 폴더에서 확인합니다.
+
+Node.js가 22.19보다 낮으면 서버는 다음 둘 가운데 하나를 남기고 끝납니다. AI 코딩 도구에서는
+둘 다 서버 연결 실패로만 보일 수 있습니다.
+
+- `Node.js 22.19 이상이 필요합니다`라는 안내. 서버가 시작할 때 Node.js 버전을 확인하고 내는 말입니다.
+- `TypeError: Cannot read properties of undefined (reading 'bind')`
+  (`undici/lib/interceptor/decompress.js`). npx가 최신 버전 대신 옛 0.1.2를 받아 왔을 때 나는
+  오류입니다. npm은 지금 Node.js에서 돌 수 있다고 적힌 버전을 먼저 고르는데, 0.1.0~0.1.2만
+  Node.js 20 이상이라고 적혀 있어서 낮은 Node.js에서는 이 버전이 골라집니다.
+
+어느 쪽이든 Node.js를 22.19 이상으로 올리고 다시 실행하면 최신 버전이 뜹니다.
 
 ## 도구
 

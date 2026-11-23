@@ -68,6 +68,8 @@ Inputs, outputs, and version pinning: [docs/github-action.md](docs/github-action
 
 ## Use it from an AI coding tool (MCP)
 
+Requires Node.js 22.19 or later.
+
 ```bash
 claude mcp add a11ychk -- npx -y @a11ychk/mcp
 ```
