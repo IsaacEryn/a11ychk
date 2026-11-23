@@ -5,9 +5,15 @@ Web accessibility scanning for AI coding tools, over MCP — **WCAG 2.2 AA + KWC
 
 AI 코딩 도구(Claude Code·Cursor 등)에서 개발 중인 페이지를 그 자리에서 접근성 검사하고,
 위반마다 한국어 개선 가이드를 받아 바로 수정하는 MCP 서버입니다. localhost 개발 서버
-검사에 적합합니다.
+검사에 적합합니다. Node.js 22.19 이상이 필요합니다.
 
 ## Setup
+
+Requirements:
+
+- **Node.js 22.19 or later.** Check with `node --version`. The server does not start on anything
+  older (see [Troubleshooting](#troubleshooting)).
+- **chromium** for the scan tools, installed once with `npx playwright install chromium`.
 
 Claude Code:
 
@@ -39,7 +45,8 @@ a team, put the same `mcpServers` entry in `.mcp.json` at the workspace root. Do
 approve a tool call before it runs. Details are in the
 [VS Code MCP configuration reference](https://code.visualstudio.com/docs/agents/reference/mcp-configuration).
 
-Or in any other MCP client config (`.mcp.json`, Cursor, etc.):
+Or in any other MCP client config (`.mcp.json`, Cursor, etc.). If GitHub Copilot also reads that
+`.mcp.json`, use the entry above with `type` and `tools`:
 
 ```json
 {
@@ -54,6 +61,18 @@ Scanning needs chromium (one-time; catalog tools work without it):
 ```bash
 npx playwright install chromium
 ```
+
+### Troubleshooting
+
+If the server fails to start, check `node --version` in the folder where your AI coding tool runs
+(version managers such as asdf or nvm can select a different Node.js per project). On Node.js
+older than 22.19 the server prints `@a11ychk/mcp requires Node.js 22.19 or later` and exits, and
+the client may only report a failed connection. Upgrade Node.js to 22.19 or later and run it again.
+
+Releases up to 0.2.5 did not print that message. On older Node.js, `npx` installed the old 0.1.2
+instead of the latest release, and the server exited with
+`TypeError: Cannot read properties of undefined (reading 'bind')` from
+`undici/lib/interceptor/decompress.js`. The fix is the same: upgrade Node.js.
 
 ## Tools
 

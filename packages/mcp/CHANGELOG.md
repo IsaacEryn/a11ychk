@@ -2,6 +2,23 @@
 
 npm 패키지 자체 버전을 따른다 (루트 CHANGELOG.md는 GitHub Action의 버전 축).
 
+## 0.2.6
+
+Node.js 버전이 낮을 때 서버가 이유를 알리고 끝나게 한 릴리스입니다.
+
+서버를 띄우려면 Node.js 22.19 이상이 필요합니다. 지금까지는 그보다 낮은 Node.js에서
+`npx -y @a11ychk/mcp`를 실행하면 npx가 최신 버전 대신 옛 0.1.2를 받아 왔고, 서버는
+`TypeError: Cannot read properties of undefined (reading 'bind')`(`undici/lib/interceptor/decompress.js`)로
+시작하자마자 끝났습니다. AI 코딩 도구에서는 서버 연결 실패로만 보여 원인을 알기 어려웠습니다. 이제 서버는
+시작할 때 Node.js 버전을 확인하고, 22.19보다 낮으면 필요한 버전과 지금 버전을 한국어와 영어로 알린 뒤
+종료 코드 1로 끝납니다.
+
+npm은 지금 Node.js가 `engines`에 맞는 버전을 먼저 고릅니다. 낮은 Node.js에서도 이 버전이 골라져 안내가
+나오도록 `package.json`의 `engines`를 `>=18`로 낮춰 적었습니다. 실제로 필요한 버전은 그대로 22.19
+이상입니다. 실행 파일은 버전을 확인하는 `dist/cli.mjs`와 서버 본체 `dist/server.mjs`로 나뉘었고, 실행하는
+방법(`npx -y @a11ychk/mcp`)은 그대로입니다. README에는 준비물과 서버가 뜨지 않을 때 볼 것을 적었습니다.
+도구 이름·입력 형식·출력 구조 변경은 없습니다.
+
 ## 0.2.5
 
 검사 실패를 '문제 없음'으로 읽지 않게 텍스트 출력을 고친 릴리스입니다.

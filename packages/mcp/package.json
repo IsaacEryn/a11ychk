@@ -1,6 +1,6 @@
 {
   "name": "@a11ychk/mcp",
-  "version": "0.2.5",
+  "version": "0.2.6",
   "mcpName": "com.a11ychk/mcp",
   "description": "A11y Check MCP server — web accessibility scanning (WCAG 2.2 AA + KWCAG 2.2) with Korean remediation guides, for AI coding tools",
   "license": "Apache-2.0",
@@ -14,16 +14,17 @@
     "NOTICE"
   ],
   "//": "core는 npm 미게시라 esbuild가 워크스페이스 소스를 dist에 번들한다(action과 같은 패턴). 아래 dependencies는 번들에서 external로 남는 런타임 패키지들. apps/*(AGPL) 코드는 import 금지 — 이 패키지는 Apache-2.0이다.",
+  "//build": "진입점(dist/cli.mjs)과 서버 본체(dist/server.mjs)를 나눠 낸다. 진입점이 Node 버전을 확인한 뒤 본체를 불러와야 낮은 Node에서 의존성 오류보다 안내가 먼저 나온다(src/cli.ts).",
   "scripts": {
-    "build": "esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --banner:js='#!/usr/bin/env node' --define:__PACKAGE_VERSION__=\"\\\"$npm_package_version\\\"\" --external:@modelcontextprotocol/sdk --external:zod --external:axe-core --external:undici --external:playwright-core --outfile=dist/cli.mjs --log-level=warning",
+    "build": "esbuild src/cli.ts --bundle --splitting --platform=node --format=esm --target=node22 --banner:js='#!/usr/bin/env node' --define:__PACKAGE_VERSION__=\"\\\"$npm_package_version\\\"\" --external:@modelcontextprotocol/sdk --external:zod --external:axe-core --external:undici --external:playwright-core --outdir=dist --out-extension:.js=.mjs '--chunk-names=[name]' --log-level=warning",
     "prepack": "npm run build",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "smoke": "npm run build && node scripts/smoke.mjs"
   },
-  "//engines": "undici 8이 Node 22.19+를 요구한다. 그보다 낮게 선언하면 설치는 경고만 내고 지나간 뒤 런타임에서 깨진다.",
+  "//engines": "실제로 필요한 버전은 Node 22.19 이상이다(undici 8의 요구 사항, src/nodeVersion.ts의 MIN_NODE_VERSION). 여기에는 일부러 그보다 낮게 적는다. npm은 지금 Node에 engines가 맞는 버전을 먼저 고르기 때문에, 22.19로 적으면 낮은 Node의 npx가 engines가 >=20인 옛 0.1.2를 받아 와 undici의 TypeError로 죽는다. 낮게 적어 두면 이 버전이 골라지고, 진입점(src/cli.ts)이 필요한 버전을 알린 뒤 끝난다.",
   "engines": {
-    "node": ">=22.19"
+    "node": ">=18"
   },
   "repository": {
     "type": "git",
