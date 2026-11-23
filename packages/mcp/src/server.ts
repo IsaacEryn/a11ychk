@@ -1,6 +1,7 @@
 /**
  * A11y Check MCP 서버 (stdio) — AI 코딩 도구가 접근성 검사·한국어 가이드를
- * 직접 호출하는 진입점. `npx @a11ychk/mcp`로 실행된다.
+ * 직접 호출하는 진입점. `npx @a11ychk/mcp`로 실행된다. 실행 파일은 cli.ts이고,
+ * cli.ts가 Node.js 버전을 확인한 뒤 이 파일을 불러온다.
  *
  * stdout은 JSON-RPC 채널이다. 어떤 경로로든 stdout 출력이 섞이면 프로토콜이 깨지므로
  * 리바인드를 첫 import로 둔다 — 본문에 적으면 ESM 특성상 의존성 평가 뒤에 실행된다.

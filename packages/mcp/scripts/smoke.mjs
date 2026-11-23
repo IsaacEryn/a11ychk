@@ -11,6 +11,7 @@
  *   node scripts/smoke.mjs --scan-dir       # scan_dir 통합 검사 — fixtures/ 대상 (chromium 필요)
  */
 import { spawn } from "node:child_process";
+import { readFileSync } from "node:fs";
 import { createInterface } from "node:readline";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
@@ -71,6 +72,14 @@ function assert(cond, label) {
 }
 
 try {
+  // 진입점은 Node 버전을 먼저 확인하고 서버 본체를 나중에 불러온다. ESM은 본문보다 정적
+  // import를 먼저 평가하므로, 진입점에 의존성 import가 하나라도 남으면 낮은 Node에서
+  // 안내문보다 의존성의 오류가 먼저 난다.
+  const staticImports = [...readFileSync(cliPath, "utf8").matchAll(/^import\s*(?:[^"';]*?\sfrom\s*)?["']([^"']+)["']/gm)]
+    .map((m) => m[1])
+    .filter((spec) => !spec.startsWith("node:"));
+  assert(staticImports.length === 0, `진입점에 정적 의존성 import 없음 (${staticImports.join(", ") || "없음"})`);
+
   const init = await request("initialize", {
     protocolVersion: "2025-06-18",
     capabilities: {},
